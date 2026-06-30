@@ -38,10 +38,26 @@ There is also a [dev container cli](https://github.com/devcontainers/cli) which 
 
 For advanced users: put your own local `devcontainer.json` under `.devcontainer/local/` (gitignored).
 IDEs and the cli should provide you with a way to choose which config you want to use.
+For advanced users: put your own local `devcontainer.json` under `.devcontainer/local/` (gitignored).
+IDEs and the cli should provide you with a way to choose which config you want to use.
 
 ### Option 2: Manual Setup
 
 If you prefer to build outside the container, you need LLVM/MLIR version >= [VERSION_USED_BY_DEVCONTAINER_IMAGE](.devcontainer/Dockerfile) installed. If you have no previous installation, check the guide [here](https://mqt.readthedocs.io/projects/core/en/latest/installation.html#setting-up-mlir).
+
+We also recommend to [install](https://docs.astral.sh/uv/getting-started/installation/) `uv`.
+
+---
+
+## Coding agents
+
+Project-wide guidance for AI coding agents lives in [AGENTS.md](AGENTS.md).
+See [agents.md](https://agents.md).
+Developers may keep their own personal, tool-specific customization files
+(e.g. `CLAUDE.md`); these are gitignored and not part of the project.
+
+We try to keep the file lean and focussed on the essentials.
+Some studies suggest that too much context degrades agent performance.
 
 ---
 
@@ -98,7 +114,7 @@ Run the tests like so:
 
 ```shell
 # Rebuilds and runs all tests:
-cmake --build build/dev --target test-qcc-project
+cmake --build build/dev --target check-qcc
 
 # Run specific tests (filters by filename):
 lit build/dev/mlir/test/ -v --filter "convert"
@@ -120,9 +136,14 @@ settings:
 ## License headers
 
 The license headers in this repository are managed using the [`license-eye`](https://github.com/apache/skywalking-eyes) tool.
-After installation, the tool can be invoked using the following command:
 
 ```shell
+# Install (for the right version see the CI):
+apt-get install golang-go # on ubuntu
+GOPATH=/usr/local go install github.com/apache/skywalking-eyes/cmd/license-eye@v0.8.0
+
+# Basic usage:
+license-eye header check
 license-eye header fix
 ```
 

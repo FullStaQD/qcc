@@ -1,10 +1,10 @@
-// RUN: qcc -o - %s | FileCheck %s
+// RUN: qcc --compile-to=mlir -o - %s | FileCheck %s
 
 /// Prepare GHZ state (without loop so far).
 ///
 /// TODO: This must be replaced by a test starting from jasp. Currently the frontend and the
 /// backend do not fit together.
-func.func @ghz_manual() attributes { qcc.entry_point } {
+func.func @main() attributes { qcc.entry_point } {
     %0 = qc.static 0 : !qc.qubit
     %1 = qc.static 1 : !qc.qubit
     %2 = qc.static 2 : !qc.qubit
@@ -18,19 +18,23 @@ func.func @ghz_manual() attributes { qcc.entry_point } {
     %m1 = qc.measure %1 : !qc.qubit -> i1
     %m2 = qc.measure %2 : !qc.qubit -> i1
 
-    aux.record_bool %m0
-    aux.record_bool %m1
-    aux.record_bool %m2
+    %a = arith.constant 42 : i64
+    aux.record_int %a : i64
+
+    aux.record_int %m0 : i1
+    aux.record_int %m1 : i1
+    aux.record_int %m2 : i1
 
     return
 }
 
-// CHECK-LABEL:   llvm.func @ghz_manual() attributes
+// CHECK-LABEL:   llvm.func @main() attributes
 // CHECK:           %[[LABEL_ADDR:.*]] = llvm.mlir.addressof @".qir_dummy_label" : !llvm.ptr
 
 // CHECK-DAG:       %[[STATIC_2:.*]] = llvm.mlir.constant(2 : i64) : i64
 // CHECK-DAG:       %[[STATIC_1:.*]] = llvm.mlir.constant(1 : i64) : i64
 // CHECK-DAG:       %[[STATIC_0:.*]] = llvm.mlir.constant(0 : i64) : i64
+// CHECK-DAG:       %[[STATIC_3:.*]] = llvm.mlir.constant(42 : i64) : i64
 
 // CHECK:           %[[ZERO:.*]] = llvm.mlir.zero : !llvm.ptr
 // CHECK:           llvm.call @__quantum__rt__initialize(%[[ZERO]]) : (!llvm.ptr) -> ()
@@ -49,6 +53,7 @@ func.func @ghz_manual() attributes { qcc.entry_point } {
 // CHECK:           llvm.call @__quantum__qis__mz__body(%[[INTTOPTR_2]], %[[INTTOPTR_2]]) : (!llvm.ptr, !llvm.ptr) -> ()
 // CHECK:           %[[CALL_2:.*]] = llvm.call @__quantum__rt__read_result(%[[INTTOPTR_2]]) : (!llvm.ptr) -> i1
 
+// CHECK:           llvm.call @__quantum__rt__int_record_output(%[[STATIC_3]], %[[LABEL_ADDR]]) : (i64, !llvm.ptr) -> ()
 // CHECK:           llvm.call @__quantum__rt__bool_record_output(%[[CALL_0]], %[[LABEL_ADDR]]) : (i1, !llvm.ptr) -> ()
 // CHECK:           llvm.call @__quantum__rt__bool_record_output(%[[CALL_1]], %[[LABEL_ADDR]]) : (i1, !llvm.ptr) -> ()
 // CHECK:           llvm.call @__quantum__rt__bool_record_output(%[[CALL_2]], %[[LABEL_ADDR]]) : (i1, !llvm.ptr) -> ()
@@ -58,6 +63,7 @@ func.func @ghz_manual() attributes { qcc.entry_point } {
 
 // CHECK:         llvm.func @__quantum__rt__initialize(!llvm.ptr)
 // CHECK:         llvm.func @__quantum__rt__bool_record_output(i1, !llvm.ptr)
+// CHECK:         llvm.func @__quantum__rt__int_record_output(i64, !llvm.ptr)
 // CHECK:         llvm.func @__quantum__rt__read_result(!llvm.ptr {llvm.readonly}) -> i1
 // CHECK:         llvm.func @__quantum__qis__mz__body(!llvm.ptr, !llvm.ptr {llvm.writeonly}) attributes {passthrough = ["irreversible"]}
 // CHECK:         llvm.func @__quantum__qis__h__body(!llvm.ptr)

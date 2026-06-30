@@ -9,11 +9,15 @@
 
 #include "qcc/Compiler/Pipeline.h"
 
+#include "qcc/Conversion/AffineRaise/AffineRaise.h"
+#include "qcc/Conversion/Aux_/AuxOutputRecording.h"
 #include "qcc/Conversion/JaspToQC/JaspToQC.h"
 #include "qcc/Conversion/ToQIR/ToQIR.h"
 
+#include "mlir/Conversion/AffineToStandard/AffineToStandard.h"
 #include "mlir/Conversion/ArithToLLVM/ArithToLLVM.h"
 #include "mlir/Conversion/ControlFlowToLLVM/ControlFlowToLLVM.h"
+#include "mlir/Dialect/Affine/Transforms/Passes.h"
 #include "mlir/Dialect/Bufferization/Transforms/FuncBufferizableOpInterfaceImpl.h"
 #include "mlir/Dialect/Bufferization/Transforms/Passes.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -22,6 +26,9 @@
 #include "mlir/Tools/mlir-opt/MlirOptMain.h"
 #include "mlir/Transforms/Passes.h"
 
+#include <llvm/Support/ErrorHandling.h>
+#include <mlir/Pass/PassRegistry.h>
+
 namespace qcc {
 
 void buildQuantumPipeline(mlir::PassManager& pm) {
@@ -29,16 +36,13 @@ void buildQuantumPipeline(mlir::PassManager& pm) {
   // Qrisp output contains a lot of functions that can be trivially inlined.
   pm.addPass(mlir::createInlinerPass());
 
+  pm.addPass(qcc::createAddEntrypointToMain());
+
   // Lowering from JASP to QC
   // In addition to the obvious conversions, the rank-0 tensors
   // are converted to plain values (e.g. tensor<i64> becomes i64)
   // whenever possible.
   pm.addPass(qcc::createJaspToQC());
-
-  // Dynamic to static allocation translation
-  pm.addPass(mlir::createCanonicalizerPass());
-  pm.addPass(qcc::createJaspCheckStaticQubitAllocation());
-  pm.addPass(qcc::createConvertMemrefToStaticQubits());
 
   // Convert `tensor.empty` to `bufferization.alloc_tensor`, which is expected by
   // bufferization.
@@ -64,8 +68,33 @@ void buildQuantumPipeline(mlir::PassManager& pm) {
   // To facilitate data flow analysis, memory allocation is "hoisted out of loops" whenever possible.
   pm.addNestedPass<mlir::func::FuncOp>(mlir::bufferization::createBufferLoopHoistingPass());
 
-  // Leftover `linalg` operations are converted to `scf` loops.
-  pm.addNestedPass<mlir::func::FuncOp>(mlir::createConvertLinalgToLoopsPass());
+  // Leftover `linalg` operations are converted to `affine` loops.
+  pm.addNestedPass<mlir::func::FuncOp>(mlir::createConvertLinalgToAffineLoopsPass());
+
+  // Convert `scf.while` loops into `scf.for` loops where possible, so that
+  // they can subsequently be raised to `affine.for`.
+  pm.addNestedPass<mlir::func::FuncOp>(qcc::createWhileToFor());
+
+  // Raise `scf.for` loops to `affine.for` where the bounds and step permit it.
+  pm.addNestedPass<mlir::func::FuncOp>(qcc::createTmpRaiseSCFToAffinePass());
+
+  // Unroll affine loops.
+  // TODO: We have to do this in this by parsing because the createAffineLoopUnroll function does not pass on the -1
+  // factor (instead uses a value of 4, see https://github.com/llvm/llvm-project/issues/204801).
+  // To deal with nested loops, we specify unroll-num-reps=10. This should be changed to a more robust solution in the
+  // future.
+  mlir::affine::registerAffineLoopUnroll();
+  if (failed(mlir::parsePassPipeline("func.func(affine-loop-unroll{unroll-factor=-1 unroll-num-reps=10})", pm))) {
+    llvm_unreachable("pipeline is a hardcoded string and can always be parsed.");
+  }
+
+  // Lower leftover affine ops to scf.
+  pm.addNestedPass<mlir::func::FuncOp>(mlir::createLowerAffinePass());
+
+  // Dynamic to static allocation translation
+  pm.addPass(mlir::createCanonicalizerPass());
+  pm.addPass(qcc::createJaspCheckStaticQubitAllocation());
+  pm.addPass(qcc::createConvertMemrefToStaticQubits());
 
   // Second cleanup
   pm.addNestedPass<mlir::func::FuncOp>(mlir::createCSEPass());
@@ -84,6 +113,7 @@ void buildQuantumPipeline(mlir::PassManager& pm) {
   pm.addNestedPass<mlir::func::FuncOp>(mlir::createCSEPass());
 
   // conversion to QIR
+  pm.addPass(qcc::createAuxOutputRecording());
   pm.addPass(qcc::createPrepToQIR());
   mlir::OpPassManager& fpm = pm.nest<mlir::func::FuncOp>();
   fpm.addPass(mlir::createArithToLLVMConversionPass());

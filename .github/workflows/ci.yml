@@ -17,7 +17,7 @@ permissions:
 jobs:
   change-detection:
     name: 🔍 Change
-    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-change-detection.yml@143bf51e7192c31e76abafe58e3732c5aff9c69b # v2.0.1
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-change-detection.yml@b17932e07095e11c8f8c0d74298bbcde43f77a15 # v2.1.1
 
   cpp-tests-ubuntu:
     name: 🇨‌ Test 🐧
@@ -33,12 +33,12 @@ jobs:
           - runs-on: ubuntu-24.04
             compiler: gcc
             preset: debug
-    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-cpp-tests-ubuntu.yml@143bf51e7192c31e76abafe58e3732c5aff9c69b # v2.0.1
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-cpp-tests-ubuntu.yml@b17932e07095e11c8f8c0d74298bbcde43f77a15 # v2.1.1
     with:
       runs-on: ${{ matrix.runs-on }}
       compiler: ${{ matrix.compiler }}
       setup-mlir: true
-      llvm-version: 22.1.0
+      llvm-version: 22.1.7
       preset-name: ${{ matrix.preset }}
 
   cpp-tests-macos:
@@ -55,12 +55,12 @@ jobs:
           - runs-on: macos-26
             compiler: clang
             preset: debug
-    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-cpp-tests-macos.yml@143bf51e7192c31e76abafe58e3732c5aff9c69b # v2.0.1
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-cpp-tests-macos.yml@b17932e07095e11c8f8c0d74298bbcde43f77a15 # v2.1.1
     with:
       runs-on: ${{ matrix.runs-on }}
       compiler: ${{ matrix.compiler }}
       setup-mlir: true
-      llvm-version: 22.1.0
+      llvm-version: 22.1.7
       preset-name: ${{ matrix.preset }}
 
   cpp-tests-windows:
@@ -77,12 +77,12 @@ jobs:
           - runs-on: windows-2025
             compiler: msvc
             preset: debug-windows
-    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-cpp-tests-windows.yml@143bf51e7192c31e76abafe58e3732c5aff9c69b # v2.0.1
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-cpp-tests-windows.yml@b17932e07095e11c8f8c0d74298bbcde43f77a15 # v2.1.1
     with:
       runs-on: ${{ matrix.runs-on }}
       compiler: ${{ matrix.compiler }}
       setup-mlir: true
-      llvm-version: 22.1.0
+      llvm-version: 22.1.7
       mlir-debug: ${{ matrix.preset == 'debug-windows' }}
       preset-name: ${{ matrix.preset }}
 
@@ -91,14 +91,14 @@ jobs:
     name: 🇨‌ Lint
     needs: change-detection
     if: fromJSON(needs.change-detection.outputs.run-cpp-linter)
-    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-cpp-linter.yml@143bf51e7192c31e76abafe58e3732c5aff9c69b # v2.0.1
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-cpp-linter.yml@b17932e07095e11c8f8c0d74298bbcde43f77a15 # v2.1.1
     with:
       clang-version: 22
       build-project: true
       files-changed-only: true
       cpp-linter-extra-args: "-std=c++20"
       setup-mlir: true
-      llvm-version: 22.1.0
+      llvm-version: 22.1.7
     permissions:
       contents: read # Needed to fetch code
       pull-requests: write # Needed to post PR comments

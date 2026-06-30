@@ -20,6 +20,9 @@ header:
     - "**/*.py"
     - "**/*.td"
 
+  paths-ignore:
+    - "mlir/test/**/*.py"
+
   comment: on-failure
 
   language:

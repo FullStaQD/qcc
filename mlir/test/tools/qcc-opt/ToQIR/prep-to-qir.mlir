@@ -17,6 +17,7 @@ func.func @test() -> i64 attributes { qcc.entry_point } {
 // CHECK-DAG:     llvm.func @__quantum__qis__h__body(!llvm.ptr)
 // CHECK-DAG:     llvm.func @__quantum__qis__x__body(!llvm.ptr)
 // CHECK-DAG:     llvm.func @__quantum__qis__cx__body(!llvm.ptr, !llvm.ptr)
+// CHECK-DAG:     llvm.func @__quantum__qis__rz__body(f64, !llvm.ptr)
 // CHECK:         llvm.module_flags [
 // CHECK-SAME:      #llvm.mlir.module_flag<error, "qir_major_version", 2 : i32>
 //                  ... other flags

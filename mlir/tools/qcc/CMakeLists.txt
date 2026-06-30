@@ -2,6 +2,8 @@ get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
 get_property(conversion_libs GLOBAL PROPERTY MLIR_CONVERSION_LIBS)
 get_property(extension_libs GLOBAL PROPERTY MLIR_EXTENSION_LIBS)
 
+set(LLVM_LINK_COMPONENTS BitWriter)
+
 set(LIBS
     ${dialect_libs}
     ${conversion_libs}
@@ -14,6 +16,10 @@ set(LIBS
     MLIROptLib
     MLIRRegisterAllDialects
     MLIRRegisterAllExtensions
+    MLIRBytecodeWriter
+    MLIRTargetLLVMIRExport
+    MLIRBuiltinToLLVMIRTranslation
+    MLIRLLVMToLLVMIRTranslation
     QCCPipeline)
 
 add_llvm_executable(qcc qcc.cpp DEPENDS ${LIBS})

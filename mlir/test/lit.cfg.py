@@ -1,41 +1,11 @@
-# ===----------------------------------------------------------------------===//
-#
-# Part of the FullStaQD Project, under the Apache License v2.0 with LLVM
-# Exceptions.
-# See <repo-root>/LICENSE.txt for license information.
-# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-#
-# ===----------------------------------------------------------------------===//
-
+import shutil
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, final
 
-import lit.formats  # pyright: ignore[reportMissingTypeStubs]
-import lit.util  # pyright: ignore[reportMissingTypeStubs]
+import lit.formats
+import lit.util
 
-from lit.llvm import llvm_config  # pyright: ignore[reportMissingTypeStubs]
-
-if TYPE_CHECKING:
-    @final
-    class ConfigType:
-        name: str = ""
-        test_format = lit.formats.ShTest()
-        suffixes: list[str] = []
-        test_source_root: Path = ""
-        test_exec_root: Path = ""
-        project_binary_dir: str = ""
-        project_source_dir: str = ""
-        project_tools_dir: Path = ""
-        llvm_tools_dir: str = ""
-        llvm_shlib_ext: str = ""
-        cmake_build_type: str = ""
-        environment: dict[str, str] = {}
-        substitutions: list[tuple[str, str]] = []
-        excludes: list[str] = []
-
-
-    config = ConfigType()
+from lit.llvm import llvm_config
 
 # Configuration file for the 'lit' test runner.
 
@@ -88,5 +58,14 @@ for candidate_dir in candidate_dirs:
         break
 
 if not found:
-    msg = f"Could not find qcc and qcc-opt anywhere under {base_tool_dir}."
-    raise RuntimeError(msg)
+    lit_config.fatal(f"Could not find qcc and qcc-opt anywhere under {base_tool_dir}.")
+
+# If `qir-runner` is not already available in the environment, fall back to
+# running it ephemerally via `uvx`.
+if shutil.which("qir-runner", path=config.environment["PATH"]) is None:
+    if shutil.which("uv", path=config.environment["PATH"]) is None:
+        lit_config.fatal(
+            "Could not find the 'qir-runner' executable, which is required to run some tests. "
+            "Either install it yourself, or install 'uv' (see README) to run it ephemerally instead."
+        )
+    config.substitutions.append((r"\bqir-runner\b", "uv tool run --from qirrunner qir-runner"))

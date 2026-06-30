@@ -1,8 +1,14 @@
+__pycache__
+
 /build
 /CMakeUserPresets.json
+/.clangd
 
 # vscode
 /.vscode
 /*.code-workspace
 /.devcontainer/custom
 /.devcontainer/local
+
+# coding agents
+/CLAUDE.md

@@ -20,6 +20,9 @@
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
+#include <mlir/Conversion/ControlFlowToLLVM/ControlFlowToLLVM.h>
+#include <mlir/Conversion/SCFToControlFlow/SCFToControlFlow.h>
+
 using namespace mlir;
 
 namespace {
@@ -74,6 +77,9 @@ protected:
       RewritePatternSet patterns(ctx);
 
       populateFuncToLLVMConversionPatterns(typeConverter, patterns);
+
+      populateSCFToControlFlowConversionPatterns(patterns);
+      cf::populateControlFlowToLLVMConversionPatterns(typeConverter, patterns);
 
       if (failed(applyFullConversion(moduleOp, target, std::move(patterns)))) {
         return signalPassFailure();

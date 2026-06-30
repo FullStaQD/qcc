@@ -5,6 +5,8 @@ add_mlir_conversion_library(
   ${CONVERSION_SOURCES}
   DEPENDS
   QCCToQIRIncGen
+  QCCAuxDialectIncGen
+  QCCAuxOpsIncGen
   LINK_LIBS
   # Dialects
   MLIRQCDialect
@@ -15,6 +17,7 @@ add_mlir_conversion_library(
   MLIRLLVMCommonConversion
   MLIRTransforms
   MLIRFuncToLLVM
+  MLIRSCFToControlFlow
   # Core MLIR
   MLIRIR
   MLIRPass)

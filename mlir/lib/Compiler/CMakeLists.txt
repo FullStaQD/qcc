@@ -1,6 +1,10 @@
 add_mlir_library(
   QCCPipeline
   Pipeline.cpp
+  DEPENDS
+  AuxOutputRecordingIncGen
+  JaspToQCIncGen
+  QCCToQIRIncGen
   LINK_LIBS
   MLIRPass
   MLIRTransforms
@@ -8,11 +12,13 @@ add_mlir_library(
   MLIRFuncDialect
   MLIRArithDialect
   MLIRSCFDialect
+  MLIRAffineDialect
   MLIRTensorDialect
   MLIRLinalgDialect
   MLIRMemRefDialect
   MLIRBufferizationDialect
   QCCJaspDialect
+  QCCAuxDialect
   MLIRQCDialect
   # Passes
   MLIRMemRefTransforms
@@ -20,9 +26,12 @@ add_mlir_library(
   MLIRFuncTransforms
   MLIRLinalgTransforms
   MLIRSCFTransforms
+  MLIRAffineTransforms
   MLIRQCToQIR
   MLIRTensorTransforms
   MLIRBufferizationTransforms
+  QCCAuxOutputRecording
+  QCCAffineRaise
   QCCJaspToQC
   QCCToQIR
   # Extensions/Interfaces

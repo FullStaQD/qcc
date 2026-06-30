@@ -18,17 +18,16 @@ include "AuxDialect.td"
 // Aux operations
 //===----------------------------------------------------------------------===//
 
-class AuxOp<string mnemonic, list<Trait> traits = []> :
-        Op<AuxDialect, mnemonic, traits>;
+class AuxOp<string mnemonic, list<Trait> traits = []> : Op<AuxDialect, mnemonic, traits>;
 
-def RecordBoolOp : AuxOp<"record_bool"> {
-    let summary = "Records a boolean value.";
+def RecordIntOp : AuxOp<"record_int"> {
+  let summary = "Records an integer value.";
 
-    let description = [{
+  let description = [{
         This corresponds to the following QIR runtime function:
 
         ```llvm
-        llvm.func @__quantum__rt__bool_record_output(i1, !llvm.ptr)
+        llvm.func @__quantum__rt__int_record_output(i64, !llvm.ptr)
         ```
 
         Our principal dialects have nothing in it which can be translated to it. Hence we use this as a workaround.
@@ -37,7 +36,7 @@ def RecordBoolOp : AuxOp<"record_bool"> {
         ```mlir
         func.func @main() -> i64 attributes { qcc.entry_point } {
           ...
-          aux.record_bool %m7
+          aux.record_int %m7
           ...
         }
         ```
@@ -46,10 +45,10 @@ def RecordBoolOp : AuxOp<"record_bool"> {
         the QIR function.
     }];
 
-    let arguments = (ins I1:$value);
+    let arguments = (ins AnyTypeOf<[Builtin_Integer]>:$value);
     let results = (outs);
 
-    let assemblyFormat = "$value attr-dict";
+    let assemblyFormat = "$value attr-dict `:` type($value)";
 }
 
 #endif // INCLUDE_QCC_DIALECT_AUX_IR_AUXOPS_TD_

@@ -15,7 +15,7 @@ func.func @simple_quantum_with_branching() -> i64 attributes { qcc.entry_point }
     ^bb_exit:
 
     %m1 = qc.measure %0 : !qc.qubit -> i1
-    aux.record_bool %m1
+    aux.record_int %m1 : i1
 
     %exit_code = func.call @zero() : () -> i64
     return %exit_code : i64

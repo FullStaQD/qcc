@@ -50,6 +50,14 @@ static constexpr llvm::StringLiteral qirRtResultRecordOutput = "__quantum__rt__r
 /// on the output schema, the label is included in the output or omitted.
 static constexpr llvm::StringLiteral qirRtBoolRecordOutput = "__quantum__rt__bool_record_output";
 
+/// Adds a integer value to the generated output.
+///
+/// Signature: `void(i64,ptr)`.
+///
+/// The second parameter defines a string label for the result value. Depending
+/// on the output schema, the label is included in the output or omitted.
+static constexpr llvm::StringLiteral qirRtIntRecordOutput = "__quantum__rt__int_record_output";
+
 //===----------------------------------------------------------------------===//
 // QIR quantum instruction set (QIS)
 //===----------------------------------------------------------------------===//
@@ -67,5 +75,19 @@ static constexpr llvm::StringLiteral qirQisX = "__quantum__qis__x__body";
 
 /// CX gate controlled on first qubit/ptr.
 static constexpr llvm::StringLiteral qirQisCX = "__quantum__qis__cx__body";
+
+/// Rotation around the Z-axis where the first parameter (a double-precision float) is the angle.
+static constexpr llvm::StringLiteral qirQisRZ = "__quantum__qis__rz__body";
+/// Single target S gate.
+static constexpr llvm::StringLiteral qirQisS = "__quantum__qis__s__body";
+
+/// Single target S† gate.
+static constexpr llvm::StringLiteral qirQisSdg = "__quantum__qis__s__adj";
+
+/// Single target T gate.
+static constexpr llvm::StringLiteral qirQisT = "__quantum__qis__t__body";
+
+/// Single target T† gate.
+static constexpr llvm::StringLiteral qirQisTdg = "__quantum__qis__t__adj";
 
 } // namespace qcc

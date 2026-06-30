@@ -23,15 +23,13 @@
 #include "mlir/IR/Types.h"
 #include "mlir/IR/Value.h"
 #include "mlir/IR/ValueRange.h"
-#include "mlir/Pass/Pass.h"
 #include "mlir/Support/LogicalResult.h"
 #include "mlir/Support/WalkResult.h"
 #include "mlir/Transforms/DialectConversion.h"
 
-#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/TypeSwitch.h"
-#include "llvm/Support/Casting.h"
 
 #include <cstdint>
 
@@ -48,6 +46,11 @@ static StringRef mapUnitaryToQIS(qc::UnitaryOpInterface unitaryOp) {
     return llvm::TypeSwitch<Operation*, StringRef>(unitaryOp)
         .Case<qc::XOp>([](auto) { return qcc::qirQisX; })
         .Case<qc::HOp>([](auto) { return qcc::qirQisH; })
+        .Case<qc::RZOp>([](auto) { return qcc::qirQisRZ; })
+        .Case<qc::TOp>([](auto) { return qcc::qirQisT; })
+        .Case<qc::TdgOp>([](auto) { return qcc::qirQisTdg; })
+        .Case<qc::SOp>([](auto) { return qcc::qirQisS; })
+        .Case<qc::SdgOp>([](auto) { return qcc::qirQisSdg; })
         .Default([](auto) { return ""; });
   }
 
@@ -151,17 +154,29 @@ struct MeasureLowering : public OpConversionPattern<qc::MeasureOp> {
   }
 };
 
-struct RecordBoolLowering : public OpConversionPattern<aux::RecordBoolOp> {
-  using OpConversionPattern<aux::RecordBoolOp>::OpConversionPattern;
+struct RecordIntLowering : public OpConversionPattern<aux::RecordIntOp> {
+  using OpConversionPattern<aux::RecordIntOp>::OpConversionPattern;
 
-  LogicalResult matchAndRewrite(aux::RecordBoolOp op, OpAdaptor adaptor,
+  LogicalResult matchAndRewrite(aux::RecordIntOp op, OpAdaptor adaptor,
                                 ConversionPatternRewriter& rewriter) const override {
     auto loc = op.getLoc();
     StringRef labelName = qcc::qirDummyLabelGlobalSymbolName;
 
     auto addressOf =
         LLVM::AddressOfOp::create(rewriter, loc, LLVM::LLVMPointerType::get(rewriter.getContext()), labelName);
-    LLVM::CallOp::create(rewriter, loc, TypeRange(), qirRtBoolRecordOutput, ValueRange{adaptor.getValue(), addressOf});
+
+    Type ty = op.getValue().getType();
+
+    llvm::StringRef callee;
+    if (ty.isInteger(1)) {
+      callee = qirRtBoolRecordOutput;
+    } else if (ty.isInteger(64)) {
+      callee = qirRtIntRecordOutput;
+    } else {
+      return failure();
+    }
+
+    LLVM::CallOp::create(rewriter, loc, TypeRange(), callee, ValueRange{adaptor.getValue(), addressOf});
 
     rewriter.eraseOp(op);
     return success();
@@ -188,11 +203,14 @@ struct UnitaryLowering : public ConversionPattern {
       return emitMissingQIRDeclError(unitaryOp, qisName);
     }
 
-    auto allPtrs = qubitsToPtrs(rewriter, unitaryOp.getControls());
-    auto targetPtrs = qubitsToPtrs(rewriter, unitaryOp.getTargets());
-    allPtrs.append(targetPtrs);
+    auto args = llvm::to_vector(unitaryOp.getParameters());
 
-    LLVM::CallOp::create(rewriter, op->getLoc(), fnDecl, allPtrs);
+    auto controlPtrs = qubitsToPtrs(rewriter, unitaryOp.getControls());
+    auto targetPtrs = qubitsToPtrs(rewriter, unitaryOp.getTargets());
+    args.append(controlPtrs);
+    args.append(targetPtrs);
+
+    LLVM::CallOp::create(rewriter, op->getLoc(), fnDecl, args);
     rewriter.eraseOp(op);
 
     return success();
@@ -232,11 +250,12 @@ protected:
     ConversionTarget target(*ctx);
     target.addLegalDialect<LLVM::LLVMDialect>();
     target.addIllegalDialect<qc::QCDialect>();
+    target.addIllegalDialect<qcc::aux::AuxDialect>();
     target.addLegalOp<qc::StaticOp>(); // take care of slightly later.
 
     QCToQIRTypeConverter typeConverter(ctx);
     RewritePatternSet patterns(ctx);
-    patterns.add<UnitaryLowering, MeasureLowering, RecordBoolLowering>(typeConverter, ctx);
+    patterns.add<UnitaryLowering, MeasureLowering, RecordIntLowering>(typeConverter, ctx);
 
     if (failed(applyPartialConversion(funcOp, target, std::move(patterns)))) {
       return signalPassFailure();

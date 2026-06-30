@@ -32,6 +32,9 @@ module @jasp_module {
     %s20 = jasp.quantum_gate "rzz"(%q0, %q1, %f1), %s19 : (!jasp.Qubit, !jasp.Qubit, tensor<f64>), !jasp.QuantumState -> !jasp.QuantumState
     %s21 = jasp.quantum_gate "xxyy"(%q0, %q1, %f1, %f2), %s20 : (!jasp.Qubit, !jasp.Qubit, tensor<f64>, tensor<f64>), !jasp.QuantumState -> !jasp.QuantumState
 
+    %s22 = jasp.quantum_gate "t_dg"(%q0), %s4 : (!jasp.Qubit), !jasp.QuantumState -> !jasp.QuantumState
+    %s23 = jasp.quantum_gate "s_dg"(%q0), %s4 : (!jasp.Qubit), !jasp.QuantumState -> !jasp.QuantumState
+
     %state_out = jasp.quantum_gate "gphase"(%f1), %s21 : (tensor<f64>), !jasp.QuantumState -> !jasp.QuantumState
 
     return
