@@ -116,22 +116,32 @@ If we are able to capture qrisp alongside the essential concepts of the most pro
 
 - Informed by, but not realizing in full, Linear Homotopy Type Theory.
 - Denotational semantic model: A type is a finite-dimensional $\mathbb{C}$-vector bundle over a finite set, e.g. $$H_{\bullet} \equiv\begin{bmatrix}H_{\bullet} \\ \downarrow \\ W\end{bmatrix} : \text{Type},$$where $W$ is a finite set and $H_{\bullet}$ is a $W$-indexed family of finite-dimensional $\mathbb{C}$-vector spaces.
-- We are only concerned with pure functions. A function $$
+- We are only concerned with pure functions. A function
+  $$
   f: \begin{bmatrix}H_{\bullet} \\ \downarrow \\ W\end{bmatrix} \to \begin{bmatrix}H'_{\bullet} \\ \downarrow \\ W'\end{bmatrix}
-  $$is given by a classical part $f_{\text{cl}}:W\to W'$, together with a $W$-family of linear maps $f_{\text{lin},w}:H_{w}\to H_{f_{\text{cl}}(w)}$.
-- Purely classical types $W$ are embedded into this type system as covered by the Zero space, and purely linear types $H$ (i.e. vector spaces) cover the singleton: $$
+  $$
+  is given by a classical part $f_{\text{cl}}:W\to W'$, together with a $W$-family of linear maps $f_{\text{lin},w}:H_{w}\to H_{f_{\text{cl}}(w)}$.
+- Purely classical types $W$ are embedded into this type system as covered by the Zero space, and purely linear types $H$ (i.e. vector spaces) cover the singleton:
+  $$
   W \equiv\begin{bmatrix}
   0_{\bullet} \\ \downarrow \\ W
   \end{bmatrix},\qquad H \equiv\begin{bmatrix}
   H \\ \downarrow \\ *
   \end{bmatrix}.
-  $$However, in order classical types to interact meaningfully with quantum types (e.g. by measurement), they need to be embedded into the quantum context. To this end, they are commonly equipped with an "infinitesimal halo" of linearity, which means they are covered by the tensor unit $\mathbb{C}$: $$
+  $$
+  However, in order classical types to interact meaningfully with quantum types (e.g. by measurement), they need to be embedded into the quantum context. To this end, they are commonly equipped with an "infinitesimal halo" of linearity, which means they are covered by the tensor unit $\mathbb{C}$:
+  $$
   \mathbb{C} \times W \equiv\begin{bmatrix}
   \mathbb{C}_{\bullet} \\ \downarrow \\ W
   \end{bmatrix}.
-  $$This can be thought of as a classical type, together with a quantum phase.
+  $$
+  This can be thought of as a classical type, together with a quantum phase.
 - Types can be constructed in the following ways:
-  - Cartesian product:$$\begin{bmatrix}H_{\bullet} \\ \downarrow \\ W\end{bmatrix} \times \begin{bmatrix}H'_{\bullet} \\ \downarrow \\ W'\end{bmatrix} \equiv \begin{bmatrix}H_{\bullet} \oplus H'_{\bullet} \\ \downarrow \\ W\times W'\end{bmatrix}, \quad \text{Unit: }\begin{bmatrix}0 \\ \downarrow \\ *\end{bmatrix}$$This represents independent quantum systems. It will be avoided by our IR.
+  - Cartesian product:
+    $$
+    \begin{bmatrix}H_{\bullet} \\ \downarrow \\ W\end{bmatrix} \times \begin{bmatrix}H'_{\bullet} \\ \downarrow \\ W'\end{bmatrix} \equiv \begin{bmatrix}H_{\bullet} \oplus H'_{\bullet} \\ \downarrow \\ W\times W'\end{bmatrix}, \quad \text{Unit: }\begin{bmatrix}0 \\ \downarrow \\ *\end{bmatrix}
+    $$
+    This represents independent quantum systems. It will be avoided by our IR.
   - Linear product:$$\begin{bmatrix}H_{\bullet} \\ \downarrow \\ W\end{bmatrix} \otimes \begin{bmatrix}H'_{\bullet} \\ \downarrow \\ W'\end{bmatrix} \equiv \begin{bmatrix}H_{\bullet} \otimes  H'_{\bullet} \\ \downarrow \\ W\times W'\end{bmatrix}, \quad \text{Unit: }\begin{bmatrix}\mathbb{C} \\ \downarrow \\ *\end{bmatrix}$$This represents the ordinary tensor product on purely linear types, and the cartesian types on _classical types with linear halo_. This product will be used implicitly throughout the IR in quantum context.
   - Coproduct/Sum:$$\begin{bmatrix}H_{\bullet} \\ \downarrow \\ W\end{bmatrix} \sqcup \begin{bmatrix}H'_{\bullet} \\ \downarrow \\ W'\end{bmatrix} \equiv \begin{bmatrix}H_{\bullet} \sqcup  H'_{\bullet} \\ \downarrow \\ W \sqcup W'\end{bmatrix}, \quad \text{Unit: }\begin{bmatrix} \emptyset \\ \downarrow \\ \emptyset\end{bmatrix}$$This behaves similar to ordinary sum types.
     **Question:** Do we have explicit ways to deal with this in our IR?
@@ -249,7 +259,14 @@ $$
 $$
 
 with unique fiber given as
-...
+
+$$
+(\text{Lin}f_{\text{lin},*})_{w,v} = \delta_{\pi(w),*}\,\delta_{v,\,\text{NOT}(w)}\;\text{id}_{\mathbb{C}}
+\qquad (w,v \in \{0,1\}),
+$$
+
+where $\pi:\{0,1\}\to *$ is the unique map, so the first Kronecker delta is identically $1$. The map therefore sends $\ket{w} \mapsto \ket{\text{NOT}(w)}$, i.e. $\ket{0}\mapsto\ket{1}$, $\ket{1}\mapsto\ket{0}$, which is the Pauli-$X$ gate.
+
 **IR Realization:**
 An X-gate is simply a full linearization of a classical not gate. (The `arith` dialect needs a helper constant.)
 
@@ -287,7 +304,14 @@ $$
 b:\{0,1\} \quad\vdash\quad \text{Lin}f: \begin{bmatrix}\mathbb{C}\{0,1\} \\ \downarrow \\ *\end{bmatrix} \to \begin{bmatrix}\mathbb{C}_{\bullet} \\ \downarrow \\ \{0,1\}\end{bmatrix},
 $$
 
-where the classical part $\text{Lin}f_{\text{cl}}:* \to \{0,1\}$ is determined by $*  \mapsto b$, and on fibers ...
+where the classical part $\text{Lin}f_{\text{cl}}:* \to \{0,1\}$ is determined by $*  \mapsto b$, and on fibers
+
+$$
+(\text{Lin}f_{\text{lin},b})_{w,*} = \delta_{\pi(w),\,b}\,\delta_{*,\,*}\;\text{id}_{\mathbb{C}}
+\qquad (w \in \{0,1\}),
+$$
+
+where $\pi:\{0,1\}\to M(f)=\{0,1\}$ is the identity, so $\delta_{\pi(w),b}=\delta_{w,b}$. In world $b$, the fiber map $\mathbb{C}\{0,1\}\to\mathbb{C}$ is therefore the projection onto the $b$-th basis vector.
 
 **IR Realization:**
 
@@ -320,7 +344,13 @@ $$
 
 with identities on fibers. We again find $M(f) = *$, implying no measurements are needed.
 Upon (partial, but in this case full) linearization, we get a unique linear map on the fibers:
-....
+
+$$
+(\text{Lin}f_{\text{lin},*})_{w,v} = \delta_{\pi(w),*}\,\delta_{v,\,(w,w)}\;\text{id}_{\mathbb{C}}
+\qquad (w \in \{0,1\},\; v \in \{0,1\}^2),
+$$
+
+where $\pi:\{0,1\}\to *$ is the unique map. The map sends $\ket{w} \mapsto \ket{(w,w)}$.
 
 In particular, we have $\ket{0} \mapsto \ket{00}, \ket{1} \mapsto \ket{11}$.
 
@@ -338,7 +368,31 @@ In particular, we have $\ket{0} \mapsto \ket{00}, \ket{1} \mapsto \ket{11}$.
 
 ##### Example: Deleting
 
-...
+Deleting is the linearization of the classical discard map. We start with
+
+$$
+f: \begin{bmatrix}\mathbb{C}_{\bullet} \\ \downarrow \\ \{0,1\}\end{bmatrix} \otimes \begin{bmatrix}\mathbb{C} \\ \downarrow \\ *\end{bmatrix} \to \begin{bmatrix}\mathbb{C} \\ \downarrow \\ *\end{bmatrix} \otimes \begin{bmatrix}\mathbb{C} \\ \downarrow \\ *\end{bmatrix},
+$$
+
+$$
+f_{\text{cl}} = : \{0,1\} \to *,
+$$
+
+with identity on fibers. We find $M(f) = *$, so no measurement is needed. Partial (here full) linearization yields
+
+$$
+*:M(f) \quad\vdash\quad \text{Lin}f: \begin{bmatrix}\mathbb{C}\{0,1\} \\ \downarrow \\ *\end{bmatrix} \to \begin{bmatrix}\mathbb{C} \\ \downarrow \\ *\end{bmatrix},
+$$
+
+with fiber
+
+$$
+(\text{Lin}f_{\text{lin},*})_{w,*} = \delta_{\pi(w),*}\,\delta_{*,\,*}\;\text{id}_{\mathbb{C}} = \text{id}_{\mathbb{C}}
+\qquad (w \in \{0,1\}).
+$$
+
+The map sends basis states $\ket{b} \mapsto 1$.
+
 **IR Realization:**
 
 ```mlir
@@ -353,7 +407,39 @@ prelim_hlep.lin (
 
 ##### Example: Controlled Gate
 
-...
+A controlled-$U$ gate arises as the linearization of a classical branch on the control bit. The control qubit is delinearized (left tensor factor), while the target qubit is captured as a linear value (right tensor factor). We start with
+
+$$
+f: \begin{bmatrix}\mathbb{C}_{\bullet} \\ \downarrow \\ \{0,1\}\end{bmatrix} \otimes \begin{bmatrix}H' \\ \downarrow \\ *\end{bmatrix} \to \begin{bmatrix}\mathbb{C}_{\bullet} \\ \downarrow \\ *\end{bmatrix} \otimes \begin{bmatrix}H' \\ \downarrow \\ *\end{bmatrix},
+$$
+
+where $H' = \mathbb{C}^2$ is the target qubit. The classical part is forgetting the control (the identity would be an alternative),
+
+$$
+f_{\text{cl}} = \text{id} : \{0,1\} \to *,
+$$
+
+and the fiber maps branch on the control value:
+
+$$
+f_{\text{lin},b} = \begin{cases} U & b = 1 \\ \text{id}_{H'} & b = 0 \end{cases}.
+$$
+
+Since $W' = V' = *$, we have $M(f) = *$: no measurement is needed. Partial linearization yields
+
+$$
+*:M(f) \quad\vdash\quad \text{Lin}f: \begin{bmatrix}\mathbb{C}\{0,1\} \otimes H' \\ \downarrow \\ *\end{bmatrix} \to \begin{bmatrix} H' \\ \downarrow \\ *\end{bmatrix},
+$$
+
+with fiber
+
+$$
+(\text{Lin}f_{\text{lin},*})_{w,*} = \delta_{\pi(w),*}\;f_{\text{lin},w} = f_{\text{lin},w}
+\qquad (w\in \{0,1\}).
+$$
+
+The map therefore acts as $\ket{0}\ket{\psi} \mapsto \ket{\psi}$, $\ket{1}\ket{\psi} \mapsto U\ket{\psi}$, which is a controlled-$U$ gate.
+
 **IR Realization:**
 
 ```mlir
@@ -384,61 +470,78 @@ Given maps
 
 $$
 \begin{bmatrix}H_{\bullet} \\ \downarrow \\ W\end{bmatrix} \otimes \begin{bmatrix}H'_{\bullet} \\ \downarrow \\ W'\end{bmatrix} \xrightarrow{\quad f\quad} \begin{bmatrix}K_{\bullet} \\ \downarrow \\ V\end{bmatrix} \otimes \begin{bmatrix}K'_{\bullet} \\ \downarrow \\ V'\end{bmatrix}\xrightarrow{\quad g\quad} \begin{bmatrix}L_{\bullet} \\ \downarrow \\ X\end{bmatrix} \otimes \begin{bmatrix}L'_{\bullet} \\ \downarrow \\ X'\end{bmatrix},
-$$we need to show that, in some sense, $$
+$$
+
+we need to show that, in some sense,
+
+$$
 \text{Lin}\,g \;\circ \text{Lin}\,f \;=\;\text{Lin}(g\circ f).
-$$This by itself is not a well-defined equation since the terms are dependent: We are given
 $$
 
+This by itself is not a well-defined equation since the terms are dependent: We are given
+
+$$
 \phi:M(f) \;\vdash\; \text{Lin}f,\quad \psi:M(g) \;\vdash\; \text{Lin}\,g,\quad \text{and} \quad \rho:M(g\circ f) \;\vdash\; \text{Lin}(g\circ f).
-
 $$
+
 As such, we can form
-$$
 
+$$
 (\phi, \psi):M(f) \times M(g) \;\vdash\; \text{Lin}f \circ \text{Lin}\,g.
-
 $$
+
 We would like to relate this pair of measurement results to the single measurement result $\rho:M(g\circ f)$ of the joint linearization. Note that we cannot expect to find a map $M(f) \times M(g) \to M(g \circ f)$: Some values $(\phi,  \psi)$ may impossible and will never be measured. These combinations do not have a corresponding measurement result in the joint space.
 We therefore define **possible measurement combinations** as those pairs $(\phi,  \psi)$ for which there exists $\rho:M(g\circ f)$ such that
-$$
 
+$$
 \iota*{g \circ f} (\rho) = \iota*{g}(\psi) \circ \iota\_{f}(\phi) \; : \; W' \to X'.
-
 $$
+
 Due to injectivity of the inclusion, $\rho$ is unique if it exists.
 More formally, the set $M(f) \times_{\text{poss}} M(g)$ of possible measurement combinations is the pullback of the diagram
-$$
 
+$$
 M(f) \times M(g) \xrightarrow{\iota*{f} \times \iota*{g}} ((W' \to V') \times (V' \to X')) \xrightarrow{-\circ-} (W' \to X') \xleftarrow{\iota\_{g\circ f}} M(g \circ f).
-
 $$
+
 This constructs a map
-$$
-
-\text{fuse}: M(f) \times\_{\text{poss}} M(g) \to M(g\circ f)
 
 $$
+\text{fuse}: M(f) \times_{\text{poss}} M(g) \to M(g\circ f)
+$$
+
 **TODO:** Is $\text{fuse}$ surjective?
 We therefore consider $f$ and $g$ as above in the context $(\phi,\psi):M(f) \times_{\text{poss}} M(g)$ and would like to prove (now more precisely):
+
 $$
 
 (\phi,\psi):M(f) \times*{\text{poss}} M(g)\quad \vdash \quad \text{Lin}\,g*{\psi} \;\circ \text{Lin}\,f*{\phi} \;=\;\text{Lin}(g\circ f)*{\text{fuse}(\phi,\psi)}.
 
+
 $$
+
 From the definitions we immediately get
+
 $$
 
 \text{Lin}g*{\psi,\text{cl}} \circ \text{Lin}f*{\phi,\text{cl}} \equiv \iota*{g}(\psi) \circ \iota*{f}(\phi) = \iota*{g \circ f} (\text{fuse}(\phi, \psi)) = \text{Lin}(g \circ f)*{\text{fuse}(\phi,\psi),\text{cl}}.
 
+
 $$
+
 on the base space. In fibers, we need to check that the following equality of linear maps
+
 $$
 
 H*{w} \otimes H'*{w'} \to L*{x} \otimes L'*{\text{Lin}(g \circ f)\_{\text{fuse}(\phi,\psi),\text{cl}}}
 
+
 $$
+
 holds in terms of matrix elements for all $w:W, w':W', \text{ and }x:X$: (Slightly abusing notation for readability $\phi = \text{Lin}f_{\phi,\text{cl}} : W' \to V'$ and introducing $\tilde{\phi} = \text{pr}_{V}f_\text{cl}(-,w') : W \to V$.)
-$$\begin{align}
+
+$$
+\begin{align}
 &\left(  \text{Lin}g_{\text{lin},\tilde{\phi}(w)} \circ \text{Lin}f_{\text{lin},w'}  \right)_{w,x}
 = \sum_{v:V}\left(  \text{Lin}g_{\text{lin},\tilde{\phi}(w)} \right)_{v,x} \circ \left(\text{Lin}f_{\text{lin},w'}  \right)_{w,v}\\
 &\quad\equiv \sum_{v:V} \delta_{\pi(\tilde{\phi}(w)), \psi} \delta_{x, \text{pr}_{X}(g_{\text{cl}}(v,\tilde{\phi}(w)))}\; \delta_{\pi(w'), \phi} \delta_{v, \text{pr}_{V}(f_{\text{cl}}(w,w'))} \;g_{\text{lin},v,\tilde{\phi}(w)} \circ f_{\text{lin},w,w'}
@@ -468,14 +571,13 @@ $$
 
 The exponential map obtains a unitary operator from a Lie algebra element and a real number.
 It is available only for purely quantum types, which we identify via the linearization functor.
-In addition, we only support the Lie algebras $\text{su}(2^n)$, so the only allowed types are $\text{Lin}\begin{bmatrix}\mathbb{C}_{\bullet} \\ \downarrow \\ \{0,1\}^n \end{bmatrix}$, or `i<n>` in IR syntax.
+In addition, we only support the Lie algebras $\text{u}(2^n)$, so the only allowed types are $\text{Lin}\begin{bmatrix}\mathbb{C}_{\bullet} \\ \downarrow \\ \{0,1\}^n \end{bmatrix}$, or `i<n>` in IR syntax.
 The Lie algebra element is given in the basis of Pauli products:
 
 $$
-\text{su}(2^n) = \text{span}\left( \{\sigma_{1} \otimes \dots \otimes \sigma_{n}\} \setminus \{\text{id}\}, \quad \sigma_{1},\dots,\sigma_{n}\in \{\sigma_{X},\sigma_{Y},\sigma_{Z}\}\right)
+\text{u}(2^n) = \text{span}\left( \{\sigma_{1} \otimes \dots \otimes \sigma_{n}\}, \quad \sigma_{1},\dots,\sigma_{n}\in \{\sigma_{X},\sigma_{Y},\sigma_{Z}\}\right)
 $$
 
-**Question:** Should we instead use $\text{u}(2^n)$?
 In IR, we write
 
 ```mlir
