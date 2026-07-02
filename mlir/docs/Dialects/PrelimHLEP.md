@@ -274,7 +274,7 @@ An X-gate is simply a full linearization of a classical not gate. (The `arith` d
 %in_qubit = some.op : !prelim_hlep.lin<i1>
 
 %out_qubit = prelim_hlep.lin (
-	%in_delinearized: i1 from %in_lin: !prelim_hlep.lin<i1>, ...
+	%in_delinearized: i1 from %in_qubit: !prelim_hlep.lin<i1>, ...
 ) -> (!prelim_hlep.lin<i1>) {
 	%one = arith.constant 1 : i1
 	%out_delinearized = arith.xor %in_delinearized, %one : i1
@@ -319,7 +319,7 @@ where $\pi:\{0,1\}\to M(f)=\{0,1\}$ is the identity, so $\delta_{\pi(w),b}=\delt
 %in_qubit = some.op : !prelim_hlep.lin<i1>
 
 %measurement_result = prelim_hlep.lin (
-	%delinearized: i1 from %in_lin: !prelim_hlep.lin<i1>, ...
+	%delinearized: i1 from %in_qubit: !prelim_hlep.lin<i1>, ...
 ) -> (i1) {
 	prelim_hlep.output () carrying (%delinearized)
 }
@@ -360,7 +360,7 @@ In particular, we have $\ket{0} \mapsto \ket{00}, \ket{1} \mapsto \ket{11}$.
 %in_qubit = some.op : !prelim_hlep.lin<i1>
 
 %qubit_a, %qubit_b = prelim_hlep.lin (
-	%delinearized: i1 from %in_lin: !prelim_hlep.lin<i1>, ...
+	%delinearized: i1 from %in_qubit: !prelim_hlep.lin<i1>, ...
 ) -> (!prelim_hlep.lin<i1>, !prelim_hlep.lin<i1>) {
 	prelim_hlep.output (%delinearized, %delinearized)
 }
@@ -399,7 +399,7 @@ The map sends basis states $\ket{b} \mapsto 1$.
 %in_qubit = some.op : !prelim_hlep.lin<i1>
 
 prelim_hlep.lin (
-	%delinearized: i1 from %in_lin: !prelim_hlep.lin<i1>, ...
+	%delinearized: i1 from %in_qubit: !prelim_hlep.lin<i1>, ...
 ) -> () {
 	prelim_hlep.output ()
 }
