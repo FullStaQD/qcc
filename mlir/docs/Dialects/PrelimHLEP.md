@@ -132,7 +132,6 @@ If we are able to capture qrisp alongside the essential concepts of the most pro
   $$This can be thought of as a classical type, together with a quantum phase.
 - Types can be constructed in the following ways:
   - Cartesian product:$$\begin{bmatrix}H_{\bullet} \\ \downarrow \\ W\end{bmatrix} \times \begin{bmatrix}H'_{\bullet} \\ \downarrow \\ W'\end{bmatrix} \equiv \begin{bmatrix}H_{\bullet} \oplus H'_{\bullet} \\ \downarrow \\ W\times W'\end{bmatrix}, \quad \text{Unit: }\begin{bmatrix}0 \\ \downarrow \\ *\end{bmatrix}$$This represents independent quantum systems. It will be avoided by our IR.
-    **Question:** Can we really avoid it?
   - Linear product:$$\begin{bmatrix}H_{\bullet} \\ \downarrow \\ W\end{bmatrix} \otimes \begin{bmatrix}H'_{\bullet} \\ \downarrow \\ W'\end{bmatrix} \equiv \begin{bmatrix}H_{\bullet} \otimes  H'_{\bullet} \\ \downarrow \\ W\times W'\end{bmatrix}, \quad \text{Unit: }\begin{bmatrix}\mathbb{C} \\ \downarrow \\ *\end{bmatrix}$$This represents the ordinary tensor product on purely linear types, and the cartesian types on _classical types with linear halo_. This product will be used implicitly throughout the IR in quantum context.
   - Coproduct/Sum:$$\begin{bmatrix}H_{\bullet} \\ \downarrow \\ W\end{bmatrix} \sqcup \begin{bmatrix}H'_{\bullet} \\ \downarrow \\ W'\end{bmatrix} \equiv \begin{bmatrix}H_{\bullet} \sqcup  H'_{\bullet} \\ \downarrow \\ W \sqcup W'\end{bmatrix}, \quad \text{Unit: }\begin{bmatrix} \emptyset \\ \downarrow \\ \emptyset\end{bmatrix}$$This behaves similar to ordinary sum types.
     **Question:** Do we have explicit ways to deal with this in our IR?
@@ -145,13 +144,17 @@ If we are able to capture qrisp alongside the essential concepts of the most pro
 `func.func` can be decorated with a new singleton attribute `LinearHalo`. Within such functions:
 
 - All classical types are implicitly treated as having a linear halo.
-  - Remark: Mathematically, this operation is hard to motivate and does not have nice properties. However, the point here is one of convenience: Rather than requiring an additional wrapping of all classical values to explicitly move them into the quantum context, we infer this intent within a function that _has_ quantum-ness.
+  - The point here is one of convenience: Rather than requiring an additional wrapping of all classical values to explicitly move them into the quantum context, we infer this intent within a function that _has_ quantum-ness.
     We can use the restricted nature of term formation to get around the awkwardness of checking a type for classicality by inspecting the fibers: Instead, we constructively define all types arising from $\text{Lin}$ via some product combination as non-classical.
-    **Question:** Does this work well in practice?
   - One special case is that of the singleton. It gets transformed into a pure halo. It is important that a halo'ed function does not have zero arguments.
 - Coexisting terms live in the linear product of their types.
   - In particular, in the signature of a haloed function, comma-separation stands for the tensor product.
 - Values that are not purely classical (with halo) must have precisely one use. - Enforced by validation using control flow analysis.
+  Halo'ed functions could also be called quantum kernels. Some remarks on consistency and well-defined-ness:
+- Equipping a purely classical value with a halo is a monoidal functor, transforming cartesian products to linear products.
+- When a halo'ed function calls a regular function $f$, this is interpreted as a call of $\mathbb{C} \times f$.
+- When a regular function calls a halo'ed function, the arguments and return values are wrapped with the unit/counit $W \to \mathbb{C} \times W \to W$. Note that non-classical values are not allowed in regular functions. This semantic wrapping is not visible in IR.
+- We lose the ability to express purely classical values in halo'ed functions, but their halo'ed counterparts are just as expressive. We would have nothing to gain from this, as having just one classical term coexisting with linear terms would render all terms classical by definition of the linear product.
   **IR Realization:** `func.func @my_func() -> ... attributes { prelim_hlep.halo }`
 
 #### (Partial) Linearization
@@ -217,15 +220,160 @@ for the linear fibers.
 }
 ```
 
+Crucially, $M(f)$ or its terms are not part of the IR. $M(f)$ encodes the different possible worlds the particular program could end up in after execution. It is still possible to obtain a measurement result as an IR value, but this will appear as a term of $V'$ (or `%out_aux : <D>` in this example). See also the measurement example below.
+
 ##### Example: X-gate
+
+We start with
+
+$$
+f: \begin{bmatrix}\mathbb{C}_{\bullet} \\ \downarrow \\ \{0,1\}\end{bmatrix} \otimes \begin{bmatrix}\mathbb{C} \\ \downarrow \\ *\end{bmatrix} \to \begin{bmatrix}\mathbb{C}_{\bullet} \\ \downarrow \\ \{0,1\}\end{bmatrix} \otimes \begin{bmatrix}\mathbb{C} \\ \downarrow \\ *\end{bmatrix},
+$$
+
+$$
+f_{\text{cl}} = \text{NOT}: \{0,1\} \to \{0,1\}
+$$
+
+with identities on fibers.
+We observe that
+
+$$
+M(f) \equiv \text{Im}\left( b \mapsto \text{pr}_{*}\left( f_{\text{cl}} (b) \right)  \right).
+$$
+
+is a singleton. This tells us that no measurement is necessary to realize the program.
+Partial linearization yields a map (omitting the unit tensor factors)
+
+$$
+*:M(f) \quad\vdash\quad \text{Lin}f: \begin{bmatrix}\mathbb{C}\{0,1\} \\ \downarrow \\ *\end{bmatrix} \to \begin{bmatrix}\mathbb{C}\{0,1\}\\ \downarrow \\ *\end{bmatrix},
+$$
+
+with unique fiber given as
+...
+**IR Realization:**
+An X-gate is simply a full linearization of a classical not gate. (The `arith` dialect needs a helper constant.)
+
+```mlir
+%in_qubit = some.op : !prelim_hlep.lin<i1>
+
+%out_qubit = prelim_hlep.lin (
+	%in_delinearized: i1 from %in_lin: !prelim_hlep.lin<i1>, ...
+) -> (!prelim_hlep.lin<i1>) {
+	%one = arith.constant 1 : i1
+	%out_delinearized = arith.xor %in_delinearized, %one : i1
+	prelim_hlep.output (%out_lin)
+}
+```
 
 ##### Example: Measurement
 
+For a measurement, the order of the tensor factors is critical (even though we have tensor units), because partial linearization affects only the first tensor factor. The incoming bit of information will be linearized (qubit in, left tensor factor), while the outgoing information remains discrete (bit out, right tensor factor).
+
+$$
+f: \begin{bmatrix}\mathbb{C}_{\bullet} \\ \downarrow \\ \{0,1\}\end{bmatrix} \otimes \begin{bmatrix}\mathbb{C} \\ \downarrow \\ *\end{bmatrix} \to\begin{bmatrix}\mathbb{C} \\ \downarrow \\ *\end{bmatrix} \otimes  \begin{bmatrix}\mathbb{C}_{\bullet} \\ \downarrow \\ \{0,1\}\end{bmatrix}.
+$$
+
+Up to structure morphisms $f_{\text{cl}}$ is the identity, and fiber maps are identities as well.
+We find that
+
+$$
+M(f) \equiv \text{Im}\left( b \mapsto \text{pr}_{\{0,1\}}\left( f_{\text{cl}} (b) \right)  \right) = \mathrm{Im}(\text{id}_{\{0,1\}}) = \{0,1\},
+$$
+
+exhibiting two possible worlds, which means that one measurement must take place for realization.
+For the partially linearized map, we get
+
+$$
+b:\{0,1\} \quad\vdash\quad \text{Lin}f: \begin{bmatrix}\mathbb{C}\{0,1\} \\ \downarrow \\ *\end{bmatrix} \to \begin{bmatrix}\mathbb{C}_{\bullet} \\ \downarrow \\ \{0,1\}\end{bmatrix},
+$$
+
+where the classical part $\text{Lin}f_{\text{cl}}:* \to \{0,1\}$ is determined by $*  \mapsto b$, and on fibers ...
+
+**IR Realization:**
+
+```mlir
+%in_qubit = some.op : !prelim_hlep.lin<i1>
+
+%measurement_result = prelim_hlep.lin (
+	%delinearized: i1 from %in_lin: !prelim_hlep.lin<i1>, ...
+) -> (i1) {
+	prelim_hlep.output () carrying (%delinearized)
+}
+```
+
+Even though $M(f)$ is non-trivial here, it does not show up in the IR. From the IR perspective, we simply get a `%measurement_result : i1` by some means. Semantically, the measurement outcome is a _constant depending on_ the possible world $b : M(f)$.
+
 ##### Example: Copying
+
+It is not possible to copy linear information, but it is possible to linearize a classical copy operation. This will result in copying behavior on the basis states, and mixed behavior otherwise.
+
+While this operation may not be interesting in practice, we demonstrate here that the formalism can unambiguously handle cases which might seem forbidden.
+We start with
+
+$$
+f: \begin{bmatrix}\mathbb{C}_{\bullet} \\ \downarrow \\ \{0,1\}\end{bmatrix} \otimes \begin{bmatrix}\mathbb{C} \\ \downarrow \\ *\end{bmatrix} \to \begin{bmatrix}\mathbb{C}_{\bullet} \\ \downarrow \\ \{0,1\}^2\end{bmatrix} \otimes \begin{bmatrix}\mathbb{C} \\ \downarrow \\ *\end{bmatrix},
+$$
+
+$$
+f_{\text{cl}} = \text{COPY}: \{0,1\} \to \{0,1\}^2
+$$
+
+with identities on fibers. We again find $M(f) = *$, implying no measurements are needed.
+Upon (partial, but in this case full) linearization, we get a unique linear map on the fibers:
+....
+
+In particular, we have $\ket{0} \mapsto \ket{00}, \ket{1} \mapsto \ket{11}$.
+
+**IR Realization:**
+
+```mlir
+%in_qubit = some.op : !prelim_hlep.lin<i1>
+
+%qubit_a, %qubit_b = prelim_hlep.lin (
+	%delinearized: i1 from %in_lin: !prelim_hlep.lin<i1>, ...
+) -> (!prelim_hlep.lin<i1>, !prelim_hlep.lin<i1>) {
+	prelim_hlep.output (%delinearized, %delinearized)
+}
+```
 
 ##### Example: Deleting
 
+...
+**IR Realization:**
+
+```mlir
+%in_qubit = some.op : !prelim_hlep.lin<i1>
+
+prelim_hlep.lin (
+	%delinearized: i1 from %in_lin: !prelim_hlep.lin<i1>, ...
+) -> () {
+	prelim_hlep.output ()
+}
+```
+
 ##### Example: Controlled Gate
+
+...
+**IR Realization:**
+
+```mlir
+%control_qubit = some.op : !prelim_hlep.lin<i1>
+%target_qubit = some.op : !prelim_hlep.lin<i1>
+
+%out_target_qubit = prelim_hlep.lin (
+	%control_bit: i1 from %control_qubit: !prelim_hlep.lin<i1>,
+) -> (!prelim_hlep.lin<i1>) {
+	%out_target = scf.if %control_bit {
+		%modified_target = some.gate %target_qubit : !prelim_hlep.lin<i1>
+		scf.yield %modified_target
+	} else {
+		scf.yield %target_qubit  // CFA must prove that this double use is exactly one use.
+	}
+	prelim_hlep.output (%out_target)
+}
+```
+
+(Of course, other versions exist: return control qubit as well, delinearize target qubit as well (if the gate is free), ...)
 
 ##### Consistency: Composition of linearization ops
 
