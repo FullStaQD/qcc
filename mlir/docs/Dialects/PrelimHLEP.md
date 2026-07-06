@@ -494,14 +494,14 @@ We would like to relate this pair of measurement results to the single measureme
 We therefore define **possible measurement combinations** as those pairs $(\phi,  \psi)$ for which there exists $\rho:M(g\circ f)$ such that
 
 $$
-\iota*{g \circ f} (\rho) = \iota*{g}(\psi) \circ \iota\_{f}(\phi) \; : \; W' \to X'.
+\iota_{g \circ f} (\rho) = \iota_{g}(\psi) \circ \iota_{f}(\phi) \; : \; W' \to X'.
 $$
 
 Due to injectivity of the inclusion, $\rho$ is unique if it exists.
 More formally, the set $M(f) \times_{\text{poss}} M(g)$ of possible measurement combinations is the pullback of the diagram
 
 $$
-M(f) \times M(g) \xrightarrow{\iota*{f} \times \iota*{g}} ((W' \to V') \times (V' \to X')) \xrightarrow{-\circ-} (W' \to X') \xleftarrow{\iota\_{g\circ f}} M(g \circ f).
+M(f) \times M(g) \xrightarrow{\iota_{f} \times \iota_{g}} ((W' \to V') \times (V' \to X')) \xrightarrow{-\circ-} (W' \to X') \xleftarrow{\iota_{g\circ f}} M(g \circ f).
 $$
 
 This constructs a map
@@ -515,7 +515,7 @@ We therefore consider $f$ and $g$ as above in the context $(\phi,\psi):M(f) \tim
 
 $$
 
-(\phi,\psi):M(f) \times*{\text{poss}} M(g)\quad \vdash \quad \text{Lin}\,g*{\psi} \;\circ \text{Lin}\,f*{\phi} \;=\;\text{Lin}(g\circ f)*{\text{fuse}(\phi,\psi)}.
+(\phi,\psi):M(f) \times_{\text{poss}} M(g)\quad \vdash \quad \text{Lin}\,g_{\psi} \;\circ \text{Lin}\,f_{\phi} \;=\;\text{Lin}(g\circ f)_{\text{fuse}(\phi,\psi)}.
 
 
 $$
@@ -524,7 +524,7 @@ From the definitions we immediately get
 
 $$
 
-\text{Lin}g*{\psi,\text{cl}} \circ \text{Lin}f*{\phi,\text{cl}} \equiv \iota*{g}(\psi) \circ \iota*{f}(\phi) = \iota*{g \circ f} (\text{fuse}(\phi, \psi)) = \text{Lin}(g \circ f)*{\text{fuse}(\phi,\psi),\text{cl}}.
+\text{Lin}g_{\psi,\text{cl}} \circ \text{Lin}f_{\phi,\text{cl}} \equiv \iota_{g}(\psi) \circ \iota_{f}(\phi) = \iota_{g \circ f} (\text{fuse}(\phi, \psi)) = \text{Lin}(g \circ f)_{\text{fuse}(\phi,\psi),\text{cl}}.
 
 
 $$
@@ -533,7 +533,7 @@ on the base space. In fibers, we need to check that the following equality of li
 
 $$
 
-H*{w} \otimes H'*{w'} \to L*{x} \otimes L'*{\text{Lin}(g \circ f)\_{\text{fuse}(\phi,\psi),\text{cl}}}
+H_{w} \otimes H'_{w'} \to L_{x} \otimes L'_{\text{Lin}(g \circ f)_{\text{fuse}(\phi,\psi),\text{cl}}}
 
 
 $$
@@ -587,7 +587,7 @@ In IR, we write
 for
 
 $$
-\text{operator} = \sigma_{X} \otimes \text{id} \otimes \sigma_{Y} + 1.5\; \text{id}\otimes \sigma_{Z}\otimes \text{id} \in \text{su}(2^3).
+\text{operator} = \sigma_{X} \otimes \text{id} \otimes \sigma_{Y} + 1.5\; \text{id}\otimes \sigma_{Z}\otimes \text{id} \in \text{u}(2^3).
 $$
 
 Verification or canonicalization should ensure a proper form.
