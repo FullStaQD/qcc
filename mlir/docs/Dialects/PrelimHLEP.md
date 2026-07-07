@@ -475,7 +475,7 @@ $$
 we need to show that, in some sense,
 
 $$
-\text{Lin}\,g \;\circ \text{Lin}\,f \;=\;\text{Lin}(g\circ f).
+\text{Lin}\,g \;\circ \text{Lin}\,f \;\approx\;\text{Lin}(g\circ f).
 $$
 
 This by itself is not a well-defined equation since the terms are dependent: We are given
@@ -490,68 +490,57 @@ $$
 (\phi, \psi):M(f) \times M(g) \;\vdash\; \text{Lin}f \circ \text{Lin}\,g.
 $$
 
-We would like to relate this pair of measurement results to the single measurement result $\rho:M(g\circ f)$ of the joint linearization. Note that we cannot expect to find a map $M(f) \times M(g) \to M(g \circ f)$: Some values $(\phi,  \psi)$ may impossible and will never be measured. These combinations do not have a corresponding measurement result in the joint space.
-We therefore define **possible measurement combinations** as those pairs $(\phi,  \psi)$ for which there exists $\rho:M(g\circ f)$ such that
+We would like to relate this pair of measurement results to the single measurement result $\rho:M(g\circ f)$ of the joint linearization. Note that we cannot expect to find a map $M(f) \times M(g) \to M(g \circ f)$: Some values $(\phi,  \psi)$ may be impossible and will never be measured, and conversely a single pair $(\phi,\psi)$ may be compatible with several joint outcomes $\rho$.
+
+We therefore define **possible measurement combinations** existentially: a pair $(\phi, \psi) \in M(f) \times M(g)$ is _possible_ iff there exist classical inputs $w:W$ and $w':W'$ that jointly witness both outcomes, i.e.
 
 $$
-\iota_{g \circ f} (\rho) = \iota_{g}(\psi) \circ \iota_{f}(\phi) \; : \; W' \to X'.
+\pi_f(w) = \phi \quad\text{and}\quad \pi_g\bigl(f_V(w, w')\bigr) = \psi,
 $$
 
-Due to injectivity of the inclusion, $\rho$ is unique if it exists.
-More formally, the set $M(f) \times_{\text{poss}} M(g)$ of possible measurement combinations is the pullback of the diagram
+where $f_V := \text{pr}_V \circ f_{\text{cl}} : W \times W' \to V$ is the classical residue produced by $f$ on its left (linearized) factor, and $\pi_f, \pi_g$ are the surjections from $W$ (resp. $V$) onto $M(f)$ (resp. $M(g)$). We write $M(f) \times_{\text{poss}} M(g)$ for the set of possible pairs.
+
+TODO: This should be a theorem: Equivalently, $(\phi,\psi)$ is possible iff $\text{Lin}\,g_\psi \circ \text{Lin}\,f_\phi \not\equiv 0$.
+
+We define a **relation**
 
 $$
-M(f) \times M(g) \xrightarrow{\iota_{f} \times \iota_{g}} ((W' \to V') \times (V' \to X')) \xrightarrow{-\circ-} (W' \to X') \xleftarrow{\iota_{g\circ f}} M(g \circ f).
+(\phi,\psi) \sim \rho \quad\iff\quad \exists\, w:W,\, w':W':\; \pi_f(w)=\phi \;\land\; \pi_g\bigl(f_V(w,w')\bigr)=\psi \;\land\; \pi_{g\circ f}(w)=\rho,
 $$
 
-This constructs a map
+where $\pi_{g\circ f}: W \to M(g\circ f)$ is the surjection for the composite (note: a function of $w$ only, since $M(g\circ f) \equiv \text{Im}\bigl(w \mapsto (w' \mapsto \text{pr}_{X'}((g\circ f)_{\text{cl}}(w, w')))\bigr)$). In words: $(\phi,\psi) \sim \rho$ iff some classical input $w$ (with some $w'$) simultaneously witnesses $\phi$ for $f$, $\psi$ for $g$, and $\rho$ for $g\circ f$.
+We say that the pair $(w, w')$ _witnesses_ the compatibility $(\phi,\psi) \sim \rho$.
+
+**The relation $\sim$ is surjective onto $M(g\circ f)$.** For any $\rho \in M(g\circ f)$, surjectivity of $\pi_{g\circ f}: W \to M(g\circ f)$ yields $w:W$ with $\pi_{g\circ f}(w)=\rho$; picking any $w':W'$ and setting $\phi := \pi_f(w)$, $\psi := \pi_g(f_V(w,w'))$ gives $(\phi,\psi) \sim \rho$. $\square$
+
+Note that $\sim$ need not be functional: the same pair $(\phi,\psi)$ may relate to distinct $\rho$'s, because the $\psi$-measurement cannot distinguish classical residues that the joint measurement distinguishes. We therefore cannot expect equality of morphisms $\text{Lin}\,g_{\psi} \circ \text{Lin}\,f_{\phi} = \text{Lin}(g\circ f)_{\rho}$ to hold in general. Instead, we evaluate on basis vectors compatible with the measurement results.
+
+**Composition Theorem.** Let $(\phi,\psi) \sim \rho$ be witnessed by $(w, w')$, i.e., $\pi_f(w) = \phi$, $\pi_g(f_V(w, w')) = \psi$, and $\pi_{g\circ f}(w) = \rho$. Then for any vector $\psi_w \in H_w \otimes H'_{w'}$ (a vector in the $w$-summand of the domain at base $w'$):
 
 $$
-\text{fuse}: M(f) \times_{\text{poss}} M(g) \to M(g\circ f)
+(\phi,\psi) \sim \rho \text{ witnessed by } (w,w') \quad\vdash\quad \text{Lin}\,g_{\psi} \circ \text{Lin}\,f_{\phi}(\psi_w) \;=\; \text{Lin}(g\circ f)_{\rho}(\psi_w).
 $$
 
-**TODO:** Is $\text{fuse}$ surjective?
-We therefore consider $f$ and $g$ as above in the context $(\phi,\psi):M(f) \times_{\text{poss}} M(g)$ and would like to prove (now more precisely):
+By linearity, the maps agree on the subspace spanned by all compatible summands $H_w \otimes H'_{w'}$ (over all $(w,w')$ witnessing $(\phi,\psi)\sim\rho$). When $\sim$ is functional and the witnesses cover all of $W \times W'$, this subspace is the entire domain and we obtain equality of morphisms.
 
-$$
+**Proof.** On the base space, the classical part of $\text{Lin}\,g_\psi \circ \text{Lin}\,f_\phi$ at $w'$ is $\iota_g(\psi) \circ \iota_f(\phi)(w')$. Since $\pi_f(w) = \phi$, we have $\iota_f(\phi)(w') = \text{pr}_{V'}(f_{\text{cl}}(w,w'))$. Since $\pi_g(f_V(w,w')) = \psi$, we may take $v = f_V(w,w')$ in the definition of $\iota_g(\psi)$, giving $\iota_g(\psi)(\text{pr}_{V'}(f_{\text{cl}}(w,w'))) = \text{pr}_{X'}(g_{\text{cl}}(f_V(w,w'), \text{pr}_{V'}(f_{\text{cl}}(w,w')))) = \text{pr}_{X'}((g \circ f)_{\text{cl}}(w,w'))$. Since $\pi_{g\circ f}(w) = \rho$, this equals $\iota_{g\circ f}(\rho)(w') = \text{Lin}(g \circ f)_{\rho,\text{cl}}(w')$.
+TODO: change this into a multi-line equality chain like the one below.
 
-(\phi,\psi):M(f) \times_{\text{poss}} M(g)\quad \vdash \quad \text{Lin}\,g_{\psi} \;\circ \text{Lin}\,f_{\phi} \;=\;\text{Lin}(g\circ f)_{\text{fuse}(\phi,\psi)}.
-
-
-$$
-
-From the definitions we immediately get
-
-$$
-
-\text{Lin}g_{\psi,\text{cl}} \circ \text{Lin}f_{\phi,\text{cl}} \equiv \iota_{g}(\psi) \circ \iota_{f}(\phi) = \iota_{g \circ f} (\text{fuse}(\phi, \psi)) = \text{Lin}(g \circ f)_{\text{fuse}(\phi,\psi),\text{cl}}.
-
-
-$$
-
-on the base space. In fibers, we need to check that the following equality of linear maps
-
-$$
-
-H_{w} \otimes H'_{w'} \to L_{x} \otimes L'_{\text{Lin}(g \circ f)_{\text{fuse}(\phi,\psi),\text{cl}}}
-
-
-$$
-
-holds in terms of matrix elements for all $w:W, w':W', \text{ and }x:X$: (Slightly abusing notation for readability $\phi = \text{Lin}f_{\phi,\text{cl}} : W' \to V'$ and introducing $\tilde{\phi} = \text{pr}_{V}f_\text{cl}(-,w') : W \to V$.)
+In fibers, we evaluate on $\psi_w \in H_w \otimes H'_{w'}$. (Introducing $\tilde{\phi} = f_V(w, w') = \text{pr}_V(f_{\text{cl}}(w,w'))$ and abusing notation $\phi = \text{Lin}\,f_{\phi,\text{cl}} : W' \to V'$.)
 
 $$
 \begin{align}
-&\left(  \text{Lin}g_{\text{lin},\tilde{\phi}(w)} \circ \text{Lin}f_{\text{lin},w'}  \right)_{w,x}
-= \sum_{v:V}\left(  \text{Lin}g_{\text{lin},\tilde{\phi}(w)} \right)_{v,x} \circ \left(\text{Lin}f_{\text{lin},w'}  \right)_{w,v}\\
-&\quad\equiv \sum_{v:V} \delta_{\pi(\tilde{\phi}(w)), \psi} \delta_{x, \text{pr}_{X}(g_{\text{cl}}(v,\tilde{\phi}(w)))}\; \delta_{\pi(w'), \phi} \delta_{v, \text{pr}_{V}(f_{\text{cl}}(w,w'))} \;g_{\text{lin},v,\tilde{\phi}(w)} \circ f_{\text{lin},w,w'}
-\\&\quad= \delta_{\pi(\tilde{\phi}(w)), \psi} \delta_{x, \text{pr}_{X}(g_{\text{cl}}(\text{pr}_{V}(f_{\text{cl}}(w,w')),\tilde{\phi}(w)))}\; \delta_{\pi(w'), \phi} \;g_{\text{lin},\text{pr}_{V}(f_{\text{cl}}(w,w')),\tilde{\phi}(w)} \circ f_{\text{lin},w,w'}
-\\&\quad= \delta_{\pi(\tilde{\phi}(w)), \psi} \delta_{x, \text{pr}_{X}(g_{\text{cl}}(\text{pr}_{V}(f_{\text{cl}}(w,w')),\tilde{\phi}(w)))}\; \delta_{\pi(w'), \phi} \;(g \circ f)_{\text{lin},w,w'}
-\\&\quad= \delta_{\pi(\tilde{\phi}(w)), \psi} \delta_{x,\text{pr}_{X}((g\circ f)_{\text{cl}}(w,w'))}\; \delta_{\pi(w'), \phi} \;(g \circ f)_{\text{lin},w,w'}
-\\&\quad= \delta_{\pi(w'),\text{fuse}(\phi,\psi)}\delta_{x,\text{pr}_{X}((g\circ f)_{\text{cl}}(w,w'))}\;(g \circ f)_{\text{lin},w,w'}
-\\&\quad= \left(  \text{Lin}(g\circ f)_{\text{lin},w'} \right)_{w,x}.
+&\left(  \text{Lin}g_{\text{lin},\tilde{\phi}} \circ \text{Lin}f_{\text{lin},w'}  \right)_{w}(\psi_w)
+= \sum_{v:V}\left(  \text{Lin}g_{\text{lin},\tilde{\phi}} \right)_{v} \circ \left(\text{Lin}f_{\text{lin},w'}  \right)_{w,v}(\psi_w)\\
+&\quad\equiv \sum_{v:V} \delta_{\pi_g(v), \psi} \delta_{\pi_f(w), \phi} \delta_{v, f_V(w,w')} \;g_{\text{lin},v,\tilde{\phi}} \circ f_{\text{lin},w,w'}(\psi_w)
+\\&\quad= \delta_{\pi_g(f_V(w,w')), \psi} \delta_{\pi_f(w), \phi} \;(g \circ f)_{\text{lin},w,w'}(\psi_w)
+\\&\quad= (g \circ f)_{\text{lin},w,w'}(\psi_w)
+\\&\quad= \delta_{\pi_{g\circ f}(w), \rho}\;(g \circ f)_{\text{lin},w,w'}(\psi_w)
+\\&\quad= \left(  \text{Lin}(g\circ f)_{\text{lin},w'} \right)_{w}(\psi_w).
 \end{align}
 $$
+
+where the third line uses $\delta_{v, f_V(w,w')}$ to collapse the sum, the fourth line uses the witnessing conditions ($\delta_{\pi_f(w), \phi} = 1$ and $\delta_{\pi_g(f_V(w,w')), \psi} = 1$), and the fifth line reinserts $\delta_{\pi_{g\circ f}(w), \rho} = 1$ (also from witnessing) to match the definition of $\text{Lin}(g\circ f)_\rho$. $\square$
 
 ##### Lowering Strategy
 
