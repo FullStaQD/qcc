@@ -35,10 +35,25 @@ structure VBundHom (E E' : VBund)
 /-- Identity morphism. -/
 @[simp]
 def VBundHom.id (E : VBund)
-    [∀ w, AddCommGroup (E.fiber w)] [∀ w, Module ℂ (E.fiber w)]
-    [∀ w, FiniteDimensional ℂ (E.fiber w)] : VBundHom E E where
+    [∀ w, AddCommGroup (E.fiber w)] [∀ w, Module ℂ (E.fiber w)] : VBundHom E E where
   cl := fun w => w
   lin := fun _ => LinearMap.id
+
+/-- Two bundle morphisms are equal iff their classical and linear parts agree. -/
+@[ext (iff := false)]
+theorem VBundHom.ext {E E' : VBund}
+    [∀ w, AddCommGroup (E.fiber w)] [∀ w, Module ℂ (E.fiber w)]
+    [∀ w, AddCommGroup (E'.fiber w)] [∀ w, Module ℂ (E'.fiber w)]
+    {f g : VBundHom E E'} (hcl : f.cl = g.cl) (hlin : ∀ w, HEq (f.lin w) (g.lin w)) : f = g := by
+  rcases f with ⟨cl_f, lin_f⟩
+  rcases g with ⟨cl_g, lin_g⟩
+  subst hcl
+  have hlin_eq : lin_f = lin_g := by
+    apply funext
+    intro w
+    exact eq_of_heq (hlin w)
+  subst hlin_eq
+  rfl
 
 /-- Composition of morphisms. -/
 @[simp]
@@ -69,5 +84,14 @@ theorem VBundHom.comp_lin {E E' E'' : VBund}
     [∀ w, AddCommGroup (E''.fiber w)] [∀ w, Module ℂ (E''.fiber w)]
     (g : VBundHom E' E'') (f : VBundHom E E') (w : E.base) :
     (g.comp f).lin w = (g.lin (f.cl w)).comp (f.lin w) := rfl
+
+/-- An isomorphism of vector bundles: a morphism with a two-sided inverse. -/
+structure VBundIso (E E' : VBund)
+    [∀ w, AddCommGroup (E.fiber w)] [∀ w, Module ℂ (E.fiber w)]
+    [∀ w, AddCommGroup (E'.fiber w)] [∀ w, Module ℂ (E'.fiber w)] where
+  hom : VBundHom E E'
+  inv : VBundHom E' E
+  left_inv : inv.comp hom = VBundHom.id E
+  right_inv : hom.comp inv = VBundHom.id E'
 
 end Formalization

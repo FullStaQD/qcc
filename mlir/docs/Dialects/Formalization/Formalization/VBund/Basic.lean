@@ -67,6 +67,10 @@ instance (W : Type) [Fintype W] (w : W) :
 instance (W : Type) [Fintype W] (w : W) :
     FiniteDimensional ℂ ((zeroBundle W).fiber w) :=
   inferInstanceAs (FiniteDimensional ℂ PUnit)
+instance (W : Type) [Fintype W] : ∀ w, AddCommGroup ((zeroBundle W).fiber w) :=
+  fun _ => inferInstanceAs (AddCommGroup PUnit)
+instance (W : Type) [Fintype W] : ∀ w, Module ℂ ((zeroBundle W).fiber w) :=
+  fun _ => inferInstanceAs (Module ℂ PUnit)
 
 /-- The "linear halo" bundle `ℂ × W`: a classical set `W` equipped with the
 tensor unit ℂ as fiber. This is *not* a qubit type — it is a bit with a
@@ -86,6 +90,10 @@ instance (W : Type) [Fintype W] (w : W) :
 instance (W : Type) [Fintype W] (w : W) :
     FiniteDimensional ℂ ((haloBundle W).fiber w) :=
   inferInstanceAs (FiniteDimensional ℂ ℂ)
+instance (W : Type) [Fintype W] : ∀ w, AddCommGroup ((haloBundle W).fiber w) :=
+  fun _ => inferInstanceAs (AddCommGroup ℂ)
+instance (W : Type) [Fintype W] : ∀ w, Module ℂ ((haloBundle W).fiber w) :=
+  fun _ => inferInstanceAs (Module ℂ ℂ)
 
 /-- A purely classical type `W` is the zero bundle over `W`. -/
 def classicalBundle (W : Type) : VBund := zeroBundle W
