@@ -3,3 +3,5 @@
 import Formalization.VBund.Basic
 import Formalization.VBund.Hom
 import Formalization.VBund.Constructors
+import Formalization.Measurement
+import Formalization.Composition
