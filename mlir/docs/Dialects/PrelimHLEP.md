@@ -18,6 +18,8 @@ The hybrid type category most likely has three relevant operations to construct 
 - Cartesian product (classical product, quantum direct sum)
 - Linear product (classical product, quantum tensor product)
 
+(Cartesian and linear product both act as the ordinary classical product on the underlying classical label set; they differ only in the _fiber_ operation — direct sum vs. tensor product of the associated vector spaces. See "Types can be constructed in the following ways" below for the formal definitions.)
+
 From these building blocks, one should be able to construct new types that only exist at compile time and cause no runtime overhead.
 
 In addition, one can consider generics (possibly in the form of dependent types), interfaces (abstract base classes, traits, something like this), or other abstractions.
@@ -52,6 +54,7 @@ Controlled gates have a clear meaning in terms of control flow. This has two imp
   - Nvidia’s `quake` dialect, where control-wires are typed differently from regular wires, and
   - the `unqomp` algorithm for automated uncomputation.
     In both cases, the control-wires are multi-edges and break linearity, exploiting the z-commutativity property of controlled gates on the control qubits.
+    (References for these and other cited languages/algorithms — Nvidia's `quake` dialect, `unqomp`, Qrisp, Quipper, qurts, Silq — should be added once settled on; see "Open Questions / TODOs".)
 
 ### (Linearization of classical types)
 
@@ -106,11 +109,9 @@ If we are able to capture qrisp alongside the essential concepts of the most pro
 - Automatic uncomputation is a common feature of high-level programming languages. If it is implicit, linearity will be broken on the highest level.
 - Just-a-phase style if-let statements are a neat way to define gates from few ingredients and rich structure.
 
-## Goal
-
-- Focus on well-defined semantics for now, lowering later.
-
 ## Draft of the preliminary High Level Entry Point Dialect
+
+Guided by the requirements above, we focus for now on well-defined semantics, leaving lowering for later. Informally, a hybrid type in this model is a classical set of labels, each label carrying its own quantum state space (a finite-dimensional Hilbert space); purely classical and purely quantum types are the special cases where all state spaces are trivial or where there is a single label, respectively. The formal model below makes this precise as a finite-dimensional $\mathbb{C}$-vector bundle over a finite set.
 
 ### Type System
 
@@ -129,7 +130,7 @@ If we are able to capture qrisp alongside the essential concepts of the most pro
   H \\ \downarrow \\ *
   \end{bmatrix}.
   $$
-  However, in order classical types to interact meaningfully with quantum types (e.g. by measurement), they need to be embedded into the quantum context. To this end, they are commonly equipped with an "infinitesimal halo" of linearity, which means they are covered by the tensor unit $\mathbb{C}$:
+  However, in order for classical types to interact meaningfully with quantum types (e.g. by measurement), they need to be embedded into the quantum context. To this end, they are commonly equipped with an "infinitesimal halo" of linearity, which means they are covered by the tensor unit $\mathbb{C}$:
   $$
   \mathbb{C} \times W \equiv\begin{bmatrix}
   \mathbb{C}_{\bullet} \\ \downarrow \\ W
@@ -143,8 +144,7 @@ If we are able to capture qrisp alongside the essential concepts of the most pro
     $$
     This represents independent quantum systems. It will be avoided by our IR.
   - Linear product:$$\begin{bmatrix}H_{\bullet} \\ \downarrow \\ W\end{bmatrix} \otimes \begin{bmatrix}H'_{\bullet} \\ \downarrow \\ W'\end{bmatrix} \equiv \begin{bmatrix}H_{\bullet} \otimes  H'_{\bullet} \\ \downarrow \\ W\times W'\end{bmatrix}, \quad \text{Unit: }\begin{bmatrix}\mathbb{C} \\ \downarrow \\ *\end{bmatrix}$$This represents the ordinary tensor product on purely linear types, and the cartesian types on _classical types with linear halo_. This product will be used implicitly throughout the IR in quantum context.
-  - Coproduct/Sum:$$\begin{bmatrix}H_{\bullet} \\ \downarrow \\ W\end{bmatrix} \sqcup \begin{bmatrix}H'_{\bullet} \\ \downarrow \\ W'\end{bmatrix} \equiv \begin{bmatrix}H_{\bullet} \sqcup  H'_{\bullet} \\ \downarrow \\ W \sqcup W'\end{bmatrix}, \quad \text{Unit: }\begin{bmatrix} \emptyset \\ \downarrow \\ \emptyset\end{bmatrix}$$This behaves similar to ordinary sum types.
-    **Question:** Do we have explicit ways to deal with this in our IR?
+  - Coproduct/Sum:$$\begin{bmatrix}H_{\bullet} \\ \downarrow \\ W\end{bmatrix} \sqcup \begin{bmatrix}H'_{\bullet} \\ \downarrow \\ W'\end{bmatrix} \equiv \begin{bmatrix}H_{\bullet} \sqcup  H'_{\bullet} \\ \downarrow \\ W \sqcup W'\end{bmatrix}, \quad \text{Unit: }\begin{bmatrix} \emptyset \\ \downarrow \\ \emptyset\end{bmatrix}$$This behaves similar to ordinary sum types. (Open question on IR support for this constructor — see "Open Questions / TODOs" below.)
   - Linearization:$$\text{Lin}\begin{bmatrix}H_{\bullet} \\ \downarrow \\ W\end{bmatrix} \equiv \begin{bmatrix}\bigoplus_{w:W} H_{w} \\ \downarrow \\ *\end{bmatrix}$$This turns a mixed type into a purely linear type. The operation is idempotent. Crucially, it transforms classical types with linear halo into the vector space whose basis is the classical set, but it destroys classical types without linear halo: $$\text{Lin}\begin{bmatrix}\mathbb{C}_{\bullet} \\ \downarrow \\ W\end{bmatrix} \equiv \begin{bmatrix}\mathbb{C}W \\ \downarrow \\ *\end{bmatrix}, \qquad \text{Lin}\begin{bmatrix}0_{\bullet} \\ \downarrow \\ W\end{bmatrix} \equiv \begin{bmatrix}0 \\ \downarrow \\ *\end{bmatrix}.$$**IR Realization:** `!prelim_hlep.lin<W>`
 
 ### Core Attributes and Ops
@@ -226,7 +226,7 @@ for the linear fibers.
 ) -> (!prelim_hlep.lin<C>, <D>, ...) {
 	%out_delinearized, %out_aux =
 		some.op (%in_delinearized, %in_capture) : (<A>, <B>) -> (<C>, <D>)
-	prelim_hlep.output (%out_lin) carrying (%out_aux)
+	prelim_hlep.output (%out_delinearized) carrying (%out_aux)
 }
 ```
 
@@ -278,7 +278,7 @@ An X-gate is simply a full linearization of a classical not gate. (The `arith` d
 ) -> (!prelim_hlep.lin<i1>) {
 	%one = arith.constant 1 : i1
 	%out_delinearized = arith.xor %in_delinearized, %one : i1
-	prelim_hlep.output (%out_lin)
+	prelim_hlep.output (%out_delinearized)
 }
 ```
 
@@ -461,7 +461,9 @@ The map therefore acts as $\ket{0}\ket{\psi} \mapsto \ket{\psi}$, $\ket{1}\ket{\
 
 (Of course, other versions exist: return control qubit as well, delinearize target qubit as well (if the gate is free), ...)
 
-##### Consistency: Composition of linearization ops
+##### Composition
+
+Consistency of linearization ops under composition:
 
 - Has to be semantically equivalent.
 - Demonstrate possible combined worlds project into singular worlds.
@@ -500,7 +502,12 @@ $$
 
 where $f_V := \text{pr}_V \circ f_{\text{cl}} : W \times W' \to V$ is the classical residue produced by $f$ on its left (linearized) factor, and $\pi_f, \pi_g$ are the surjections from $W$ (resp. $V$) onto $M(f)$ (resp. $M(g)$). We write $M(f) \times_{\text{poss}} M(g)$ for the set of possible pairs.
 
-TODO: This should be a theorem: Equivalently, $(\phi,\psi)$ is possible iff $\text{Lin}\,g_\psi \circ \text{Lin}\,f_\phi \not\equiv 0$.
+**Proposition (possible pairs are exactly the nonzero blocks).** Assume every fiber map $f_{\text{lin},w,w'}$ (and likewise for $g$) is nonzero — this holds whenever $f$, $g$ arise from genuine, non-degenerate quantum operations, e.g. built from unitaries or isometries. Then $(\phi,\psi)$ is possible iff $\text{Lin}\,g_\psi \circ \text{Lin}\,f_\phi \not\equiv 0$.
+
+_Proof._ ($\Leftarrow$, contrapositive) If $(\phi,\psi)$ is not possible, then for every $w:W,\,w':W'$ at least one of $\delta_{\pi_f(w),\phi}$, $\delta_{\pi_g(f_V(w,w')),\psi}$ vanishes, so every matrix element of $\text{Lin}\,g_\psi \circ \text{Lin}\,f_\phi$ (cf. the fiber formula in the Composition Theorem below) is identically $0$, hence the map is $0$.
+($\Rightarrow$) If $(\phi,\psi)$ is possible, witnessed by some $(w,w')$, the corresponding $w$-summand block of the composite is exactly $g_{\text{lin},f_V(w,w')} \circ f_{\text{lin},w,w'}$ (at $v = f_V(w,w')$) — no Kronecker delta kills it — which is nonzero by the non-degeneracy hypothesis. $\square$
+
+Note the non-degeneracy hypothesis is necessary: without it, a witnessing block could still evaluate to the zero linear map by coincidence, without the pair being "impossible" in the measurement-theoretic sense above.
 
 We define a **relation**
 
@@ -523,8 +530,24 @@ $$
 
 By linearity, the maps agree on the subspace spanned by all compatible summands $H_w \otimes H'_{w'}$ (over all $(w,w')$ witnessing $(\phi,\psi)\sim\rho$). When $\sim$ is functional and the witnesses cover all of $W \times W'$, this subspace is the entire domain and we obtain equality of morphisms.
 
-**Proof.** On the base space, the classical part of $\text{Lin}\,g_\psi \circ \text{Lin}\,f_\phi$ at $w'$ is $\iota_g(\psi) \circ \iota_f(\phi)(w')$. Since $\pi_f(w) = \phi$, we have $\iota_f(\phi)(w') = \text{pr}_{V'}(f_{\text{cl}}(w,w'))$. Since $\pi_g(f_V(w,w')) = \psi$, we may take $v = f_V(w,w')$ in the definition of $\iota_g(\psi)$, giving $\iota_g(\psi)(\text{pr}_{V'}(f_{\text{cl}}(w,w'))) = \text{pr}_{X'}(g_{\text{cl}}(f_V(w,w'), \text{pr}_{V'}(f_{\text{cl}}(w,w')))) = \text{pr}_{X'}((g \circ f)_{\text{cl}}(w,w'))$. Since $\pi_{g\circ f}(w) = \rho$, this equals $\iota_{g\circ f}(\rho)(w') = \text{Lin}(g \circ f)_{\rho,\text{cl}}(w')$.
-TODO: change this into a multi-line equality chain like the one below.
+**Proof.** On the base space, the classical part of $\text{Lin}\,g_\psi \circ \text{Lin}\,f_\phi$ at $w'$ is $\iota_g(\psi) \circ \iota_f(\phi)(w')$. We evaluate:
+
+$$
+\begin{align}
+\iota_g(\psi) \circ \iota_f(\phi)(w')
+&= \iota_g(\psi)\bigl(\text{pr}_{V'}(f_{\text{cl}}(w,w'))\bigr)
+&& \text{since } \pi_f(w) = \phi \\
+&= \iota_g(\psi)(v), \quad v := f_V(w,w')
+&& \text{writing } f_V(w,w') = \text{pr}_{V'}(f_{\text{cl}}(w,w')) \\
+&= \text{pr}_{X'}\bigl(g_{\text{cl}}(v, \text{pr}_{V'}(f_{\text{cl}}(w,w')))\bigr)
+&& \text{since } \pi_g(v) = \pi_g(f_V(w,w')) = \psi \\
+&= \text{pr}_{X'}\bigl((g \circ f)_{\text{cl}}(w,w')\bigr)
+&& \text{definition of } (g\circ f)_{\text{cl}} \\
+&= \iota_{g\circ f}(\rho)(w')
+&& \text{since } \pi_{g\circ f}(w) = \rho \\
+&= \text{Lin}(g \circ f)_{\rho,\text{cl}}(w').
+\end{align}
+$$
 
 In fibers, we evaluate on $\psi_w \in H_w \otimes H'_{w'}$. (Introducing $\tilde{\phi} = f_V(w, w') = \text{pr}_V(f_{\text{cl}}(w,w'))$ and abusing notation $\phi = \text{Lin}\,f_{\phi,\text{cl}} : W' \to V'$.)
 
@@ -590,7 +613,39 @@ Verification or canonicalization should ensure a proper form.
 
 ##### Example: Rotation gate
 
+The single-qubit $Z$-rotation is the exponential map instantiated at $n=1$ with Hamiltonian $\tfrac12\sigma_Z$ and parameter $\theta$:
+
+$$
+R_Z(\theta) = \exp\left(-i\theta \cdot \tfrac12\sigma_Z\right) = \begin{bmatrix} e^{-i\theta/2} & 0 \\ 0 & e^{i\theta/2}\end{bmatrix}.
+$$
+
+$R_X(\theta)$ and $R_Y(\theta)$ arise identically, by swapping the Pauli term in the hamiltonian attribute.
+
+**IR Realization:**
+
+```mlir
+%out_qubit = prelim_hlep.exp %theta hamiltonian<1, 0.5 * Z[0]> %in_qubit :
+	(f64, !prelim_hlep.lin<i1>) -> !prelim_hlep.lin<i1>
+```
+
 ##### Example: GZZ gate
+
+The global-$ZZ$ gate is a common entangling primitive on trapped-ion and neutral-atom hardware, defined as the exponential of a sum of pairwise $ZZ$ interactions:
+
+$$
+\text{GZZ}(\theta) = \exp\left(-i\theta \sum_{j<k}\sigma_Z^{(j)}\sigma_Z^{(k)}\right).
+$$
+
+For two qubits ($n=2$), the Hamiltonian is simply $\sigma_Z^{(0)}\sigma_Z^{(1)}$:
+
+**IR Realization:**
+
+```mlir
+%out_pair = prelim_hlep.exp %theta hamiltonian<2, Z[0] * Z[1]> %in_pair :
+	(f64, !prelim_hlep.lin<i2>) -> !prelim_hlep.lin<i2>
+```
+
+For more than two qubits, the sum over pairs is expressed by summing the corresponding Pauli-product terms in the hamiltonian attribute, following the same syntax as the general example above.
 
 ##### Lowering Strategy
 
@@ -600,3 +655,9 @@ The problem of unitary synthesis is well-known.
 ##### Optimization Strategy
 
 - Merge exponentiation of linearly dependent hamiltonians.
+
+## Open Questions / TODOs
+
+- **Coproduct/Sum in the IR** (see "Coproduct/Sum" under Type System): do we have explicit ways to deal with this constructor in the IR, or is it only needed at the semantic level?
+- **Broad / prior art survey** (see "Existing and proposed high-level languages can be embedded" under Broad): the qurts and silq entries, and the general "From …" bullet, are still unfilled; the qrisp and quipper entries should be treated as the template once these are completed.
+- **Dialect namespace**: `prelim_hlep` bakes in "preliminary" as a namespace prefix. This should be revisited (dropped or renamed) once the dialect graduates from draft status, so the placeholder name doesn't leak into a stable API.
