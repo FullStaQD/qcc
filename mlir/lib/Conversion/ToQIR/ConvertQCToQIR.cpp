@@ -47,6 +47,10 @@ static StringRef mapUnitaryToQIS(qc::UnitaryOpInterface unitaryOp) {
         .Case<qc::XOp>([](auto) { return qcc::qirQisX; })
         .Case<qc::HOp>([](auto) { return qcc::qirQisH; })
         .Case<qc::RZOp>([](auto) { return qcc::qirQisRZ; })
+        // The phase gate P(θ) differs from RZ(θ) only by a global phase,
+        // which does not affect measurement outcomes. QIR has no native
+        // phase gate, so we lower P to RZ.
+        .Case<qc::POp>([](auto) { return qcc::qirQisRZ; })
         .Case<qc::TOp>([](auto) { return qcc::qirQisT; })
         .Case<qc::TdgOp>([](auto) { return qcc::qirQisTdg; })
         .Case<qc::SOp>([](auto) { return qcc::qirQisS; })
@@ -154,6 +158,25 @@ struct MeasureLowering : public OpConversionPattern<qc::MeasureOp> {
   }
 };
 
+struct ResetLowering : public OpConversionPattern<qc::ResetOp> {
+  using OpConversionPattern<qc::ResetOp>::OpConversionPattern;
+
+  LogicalResult matchAndRewrite(qc::ResetOp op, OpAdaptor /*adaptor*/,
+                                ConversionPatternRewriter& rewriter) const override {
+    auto moduleOp = op->getParentOfType<ModuleOp>();
+
+    auto resetFnDecl = moduleOp.lookupSymbol<LLVM::LLVMFuncOp>(qcc::qirQisReset);
+    if (!resetFnDecl) {
+      return emitMissingQIRDeclError(op, qcc::qirQisReset);
+    }
+
+    auto qubitPtr = qubitToPtr(rewriter, op.getQubit());
+    LLVM::CallOp::create(rewriter, op.getLoc(), resetFnDecl, ValueRange{qubitPtr});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
 struct RecordIntLowering : public OpConversionPattern<aux::RecordIntOp> {
   using OpConversionPattern<aux::RecordIntOp>::OpConversionPattern;
 
@@ -255,7 +278,7 @@ protected:
 
     QCToQIRTypeConverter typeConverter(ctx);
     RewritePatternSet patterns(ctx);
-    patterns.add<UnitaryLowering, MeasureLowering, RecordIntLowering>(typeConverter, ctx);
+    patterns.add<UnitaryLowering, MeasureLowering, ResetLowering, RecordIntLowering>(typeConverter, ctx);
 
     if (failed(applyPartialConversion(funcOp, target, std::move(patterns)))) {
       return signalPassFailure();

@@ -11,6 +11,9 @@
 #     prek install
 #
 
+# Patch files must stay byte-exact, so no hook should rewrite them.
+exclude: \.patch$
+
 ci:
   autoupdate_commit_msg: "⬆️🪝 update pre-commit hooks"
   autoupdate_schedule: quarterly
@@ -30,7 +33,7 @@ repos:
 
   ## Check JSON schemata
   - repo: https://github.com/python-jsonschema/check-jsonschema
-    rev: 0.37.1
+    rev: 0.37.4
     hooks:
       - id: check-github-workflows
         priority: 0
@@ -47,14 +50,14 @@ repos:
 
   ## Check for typos
   - repo: https://github.com/adhtruong/mirrors-typos
-    rev: v1.45.0
+    rev: v1.48.0
     hooks:
       - id: typos
         priority: 3
 
   ## Format C++ files with clang-format
   - repo: https://github.com/pre-commit/mirrors-clang-format
-    rev: v22.1.3
+    rev: v22.1.5
     hooks:
       - id: clang-format
         types_or: [c++, c, cuda]
@@ -72,7 +75,7 @@ repos:
 
   ## Format configuration files with prettier
   - repo: https://github.com/rbubley/mirrors-prettier
-    rev: v3.8.2
+    rev: v3.9.4
     hooks:
       - id: prettier
         types_or: [css, html, markdown, json, json5, scss, yaml]

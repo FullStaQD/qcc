@@ -12,8 +12,11 @@
 // RUN: qcc --binary --compile-to=mlir %s -o %t.mlirbc
 // RUN: qcc-opt %t.mlirbc | FileCheck %s --check-prefix=CHECK-MLIR
 
+// The default target (qir) is always available:
+// RUN: qcc --target=qir %s | FileCheck %s --check-prefix=CHECK-LLVM
+
 // Invalid / unimplemented option combinations are hard errors:
-// RUN: not qcc --target=hisep-q %s 2>&1 | FileCheck %s --check-prefix=CHECK-ERR-TARGET
+// RUN: not qcc --target=does-not-exist %s 2>&1 | FileCheck %s --check-prefix=CHECK-ERR-UNKNOWN
 // RUN: not qcc --compile-to=native %s 2>&1 | FileCheck %s --check-prefix=CHECK-ERR-NATIVE
 
 func.func @main() attributes { qcc.entry_point } {
@@ -26,5 +29,5 @@ func.func @main() attributes { qcc.entry_point } {
 
 // CHECK-MLIR: llvm.func @main()
 // CHECK-LLVM: define void @main()
-// CHECK-ERR-TARGET: error: the 'hisep-q' target is not yet implemented
+// CHECK-ERR-UNKNOWN: error: unknown target 'does-not-exist'
 // CHECK-ERR-NATIVE: error: the 'native' stage is not yet implemented

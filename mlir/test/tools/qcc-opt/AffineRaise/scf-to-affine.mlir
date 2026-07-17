@@ -55,9 +55,8 @@ func.func @nested_loop(%arg0: memref<?x?xi32>, %ub1: index, %ub2: index) {
 // CHECK-SAME:  %[[LB:.*]]: i32, %[[UB:.*]]: i32
 // CHECK:         %[[LB_IDX:.*]] = arith.index_cast %[[LB]] : i32 to index
 // CHECK:         %[[UB_IDX:.*]] = arith.index_cast %[[UB]] : i32 to index
-// CHECK:         affine.for %[[IV:.*]] = 0 to #{{.*}}%[[LB_IDX]]{{.*}}%[[UB_IDX]]
-// CHECK:           %[[IDX:.*]] = affine.apply #{{.*}}%[[LB_IDX]]{{.*}}%[[IV]]
-// CHECK:           %[[IV_I32:.*]] = arith.index_cast %[[IDX]] : index to i32
+// CHECK:         affine.for %[[IV:.*]] = %[[LB_IDX]] to %[[UB_IDX]]
+// CHECK:           %[[IV_I32:.*]] = arith.index_cast %[[IV]] : index to i32
 // CHECK:           func.call @some_func(%[[IV_I32]])
 
 func.func private @some_func(%arg: i32)
@@ -98,21 +97,42 @@ func.func @index_cast_unsigned(%lb: i32, %ub: i32) {
 // CHECK:           %[[UB1_IDX:.*]] = arith.index_cast %[[UB1]] : i16 to index
 // CHECK:           %[[UB2_IDX:.*]] = arith.index_cast %[[UB2]] : i16 to index
 // CHECK:           affine.for %[[I_NEW:.*]] = 0 to %[[UB1_IDX]] {
-// CHECK:             %[[I_OLD_IDX:.*]] = affine.apply #{{.*}}%[[I_NEW]]
-// CHECK:             %[[I_OLD:.*]] = arith.index_cast %[[I_OLD_IDX]] : index to i16
+// CHECK:             %[[I_OLD:.*]] = arith.index_cast %[[I_NEW]] : index to i16
 // CHECK:             affine.for %[[J_NEW:.*]] = 0 to %[[UB2_IDX]] {
-// CHECK:               %[[J_OLD_IDX:.*]] = affine.apply #{{.*}}%[[J_NEW]]
-// CHECK:               %[[J_OLD:.*]] = arith.index_cast %[[J_OLD_IDX]] : index to i16
+// CHECK:               %[[J_OLD:.*]] = arith.index_cast %[[J_NEW]] : index to i16
 // CHECK:               func.call @some_func(%[[I_OLD]], %[[J_OLD]]) : (i16, i16) -> ()
 
 func.func private @some_func(%i: i16, %j: i16)
 
 func.func @nested_loop_index_cast(%ub1: i16, %ub2: i16) {
-  %c0_i32 = arith.constant 0 : i32
   %c0 = arith.constant 0 : i16
   %c1 = arith.constant 1 : i16
   scf.for %i = %c0 to %ub1 step %c1 : i16{
     scf.for %j = %c0 to %ub2 step %c1 : i16 {
+      func.call @some_func(%i, %j) : (i16, i16) -> ()
+    }
+  }
+  return
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @nested_nonrect_loop_index_cast(
+// CHECK-SAME:      %[[UB1:.*]]: i16) {
+// CHECK:           %[[UB1_IDX:.*]] = arith.index_cast %[[UB1]] : i16 to index
+// CHECK:           affine.for %[[I_NEW:.*]] = 0 to %[[UB1_IDX]] {
+// CHECK:             %[[I_OLD:.*]] = arith.index_cast %[[I_NEW]] : index to i16
+// CHECK:             affine.for %[[J_NEW:.*]] = 0 to #{{.*}}%[[I_NEW]]{{.*}} {
+// CHECK:               %[[J_OLD:.*]] = arith.index_cast %[[J_NEW]] : index to i16
+// CHECK:               func.call @some_func(%[[I_OLD]], %[[J_OLD]]) : (i16, i16) -> ()
+
+func.func private @some_func(%i: i16, %j: i16)
+
+func.func @nested_nonrect_loop_index_cast(%ub1: i16) {
+  %c0 = arith.constant 0 : i16
+  %c1 = arith.constant 1 : i16
+  scf.for %i = %c0 to %ub1 step %c1 : i16{
+    scf.for %j = %c0 to %i step %c1 : i16 {
       func.call @some_func(%i, %j) : (i16, i16) -> ()
     }
   }

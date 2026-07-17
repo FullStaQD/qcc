@@ -1,0 +1,457 @@
+From 24b72a73bda7fcdcd5553782c04bdb9858b3dcd8 Mon Sep 17 00:00:00 2001
+From: Enrique NB <enrique@naranjobejarano.com>
+Date: Tue, 2 Jun 2026 09:28:25 +0200
+Subject: [PATCH] Add HiSEP-Q Intrinsics (#1)
+
+Added HiSEP-Q (XQV) sub-feature to RISC-V
+
+---------
+
+Signed-off-by: Enrique NB <enrique@naranjobejarano.com>
+Co-authored-by: EnriqueNB <e.bejarano@parityqc.com>
+Co-authored-by: Reinhard Stahn <51020828+rainij@users.noreply.github.com>
+Co-authored-by: Reinhard Stahn <rainij36@proton.me>
+---
+ .../Driver/print-supported-extensions-riscv.c |  1 +
+ llvm/include/llvm/IR/IntrinsicsRISCV.td       |  1 +
+ llvm/include/llvm/IR/IntrinsicsRISCVXQV.td    | 36 +++++++
+ llvm/lib/Target/RISCV/RISCVFeatures.td        |  1 +
+ llvm/lib/Target/RISCV/RISCVFeaturesXQV.td     | 20 ++++
+ llvm/lib/Target/RISCV/RISCVInstrFormatsXQV.td | 88 +++++++++++++++++
+ llvm/lib/Target/RISCV/RISCVInstrInfo.td       |  1 +
+ llvm/lib/Target/RISCV/RISCVInstrInfoXQV.td    | 96 +++++++++++++++++++
+ llvm/test/CodeGen/RISCV/features-info.ll      |  1 +
+ llvm/test/CodeGen/RISCV/rv32xqv-bell.ll       | 51 ++++++++++
+ llvm/test/MC/RISCV/rv32xqv-valid.s            | 27 ++++++
+ .../TargetParser/RISCVISAInfoTest.cpp         |  1 +
+ 12 files changed, 324 insertions(+)
+ create mode 100644 llvm/include/llvm/IR/IntrinsicsRISCVXQV.td
+ create mode 100644 llvm/lib/Target/RISCV/RISCVFeaturesXQV.td
+ create mode 100644 llvm/lib/Target/RISCV/RISCVInstrFormatsXQV.td
+ create mode 100644 llvm/lib/Target/RISCV/RISCVInstrInfoXQV.td
+ create mode 100644 llvm/test/CodeGen/RISCV/rv32xqv-bell.ll
+ create mode 100644 llvm/test/MC/RISCV/rv32xqv-valid.s
+
+diff --git a/clang/test/Driver/print-supported-extensions-riscv.c b/clang/test/Driver/print-supported-extensions-riscv.c
+index 33f3342c66d4..852a2d21ffa9 100644
+--- a/clang/test/Driver/print-supported-extensions-riscv.c
++++ b/clang/test/Driver/print-supported-extensions-riscv.c
+@@ -249,6 +249,7 @@
+ // CHECK-NEXT:     zvqdotq              0.0       'Zvqdotq' (Vector quad widening 4D Dot Product)
+ // CHECK-NEXT:     smpmpmt              0.6       'Smpmpmt' (PMP-based Memory Types Extension)
+ // CHECK-NEXT:     svukte               0.3       'Svukte' (Address-Independent Latency of User-Mode Faults to Supervisor Addresses)
++// CHECK-NEXT:     xqv                  0.1       'XQV' (QV Quantum Extension (HiSEP-Q 2.0))
+ // CHECK-NEXT:     xrivosvisni          0.1       'XRivosVisni' (Rivos Vector Integer Small New)
+ // CHECK-NEXT:     xrivosvizip          0.1       'XRivosVizip' (Rivos Vector Register Zips)
+ // CHECK-NEXT:     xsfmclic             0.1       'XSfmclic' (SiFive CLIC Machine-mode CSRs)
+diff --git a/llvm/include/llvm/IR/IntrinsicsRISCV.td b/llvm/include/llvm/IR/IntrinsicsRISCV.td
+index 9088e5e6a357..a6b9e2421eaa 100644
+--- a/llvm/include/llvm/IR/IntrinsicsRISCV.td
++++ b/llvm/include/llvm/IR/IntrinsicsRISCV.td
+@@ -1985,3 +1985,4 @@ include "llvm/IR/IntrinsicsRISCVXsf.td"
+ include "llvm/IR/IntrinsicsRISCVXCV.td"
+ include "llvm/IR/IntrinsicsRISCVXAndes.td"
+ include "llvm/IR/IntrinsicsRISCVXMIPS.td"
++include "llvm/IR/IntrinsicsRISCVXQV.td"
+diff --git a/llvm/include/llvm/IR/IntrinsicsRISCVXQV.td b/llvm/include/llvm/IR/IntrinsicsRISCVXQV.td
+new file mode 100644
+index 000000000000..c1641289f71a
+--- /dev/null
++++ b/llvm/include/llvm/IR/IntrinsicsRISCVXQV.td
+@@ -0,0 +1,36 @@
++//===- IntrinsicsRISCVQV.td - Defines RISCVQV intrinsics -*- tablegen -*-===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// Standard Vector Quantum extension of RISCV.
++//
++//===----------------------------------------------------------------------===//
++
++// QV.SINGLE vs1, rs2, Block_imm
++class QVSingleIntrinsic : Intrinsic<[], // void return type
++                     [llvm_anyvector_ty, // vs1 (tgt)
++                      llvm_anyint_ty,    // rs2 (tag)
++                      llvm_anyint_ty,    // Block_imm (wait time)
++                      llvm_anyint_ty],   // vl
++                     [IntrHasSideEffects, IntrNoMem]>;
++    
++// QV.Pair vs1, vs2, Block_imm
++class QVPairIntrinsic : Intrinsic<[],
++                     [llvm_anyvector_ty, // vs1 (tgt)
++                      llvm_anyvector_ty, // vs2 (src)
++                      llvm_anyint_ty,    // Block_imm (wait time)
++                      llvm_anyint_ty],   // vl
++                     [IntrHasSideEffects, IntrNoMem]>;
++
++
++let TargetPrefix = "riscv" in {
++    def int_riscv_qv_h : QVSingleIntrinsic;
++    def int_riscv_qv_x : QVSingleIntrinsic;
++    def int_riscv_qv_mz : QVSingleIntrinsic;
++
++    def int_riscv_qv_cx : QVPairIntrinsic;
++}
+diff --git a/llvm/lib/Target/RISCV/RISCVFeatures.td b/llvm/lib/Target/RISCV/RISCVFeatures.td
+index 494371901e64..296d82fc433e 100644
+--- a/llvm/lib/Target/RISCV/RISCVFeatures.td
++++ b/llvm/lib/Target/RISCV/RISCVFeatures.td
+@@ -1975,3 +1975,4 @@ def TuneSiFive7 : SubtargetFeature<"sifive7", "RISCVProcFamily", "SiFive7",
+ def TuneVentanaVeyron : SubtargetFeature<"ventana-veyron", "RISCVProcFamily", "VentanaVeyron",
+                                          "Ventana Veyron-Series processors">;
+ 
++include "RISCVFeaturesXQV.td"
+diff --git a/llvm/lib/Target/RISCV/RISCVFeaturesXQV.td b/llvm/lib/Target/RISCV/RISCVFeaturesXQV.td
+new file mode 100644
+index 000000000000..42c2d3418faf
+--- /dev/null
++++ b/llvm/lib/Target/RISCV/RISCVFeaturesXQV.td
+@@ -0,0 +1,20 @@
++//===-- RISCVFeaturesXQV.td - RISC-V QV Features and Extensions --*- tablegen -*-===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++//  This file contains definitions for the RISC-V QV extension features.
++//
++//===----------------------------------------------------------------------===//
++
++def FeatureVendorXQV
++    : RISCVExperimentalExtension<0, 1, "QV Quantum Extension (HiSEP-Q 2.0)",
++                                [FeatureStdExtV]>;
++
++def HasVendorXQV
++    : Predicate<"Subtarget->hasVendorXQV()">,
++      AssemblerPredicate<(all_of FeatureVendorXQV),
++                         "'XQV' (QV Quantum Extension)">;
+diff --git a/llvm/lib/Target/RISCV/RISCVInstrFormatsXQV.td b/llvm/lib/Target/RISCV/RISCVInstrFormatsXQV.td
+new file mode 100644
+index 000000000000..84728e1d3023
+--- /dev/null
++++ b/llvm/lib/Target/RISCV/RISCVInstrFormatsXQV.td
+@@ -0,0 +1,88 @@
++//===-- RISCVInstrFormatsXQV.td - RISC-V QV Instruction Formats -*- tablegen -*-=//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++//  This file describes the RISC-V QV extension instruction formats.
++//
++//===----------------------------------------------------------------------===//
++
++// TODO: synchronise funct3 slots with HiSEP-Q
++defvar QV_SINGLE_FUNCT3 = 0b000;
++defvar QV_PAIR_FUNCT3   = 0b001;
++defvar QV_GR_FUNCT3     = 0b010;
++defvar QV_VR_FUNCT3     = 0b011;
++
++// Custom list of supported VTypeInfo records for QV instructions.
++defvar SupportedQVVTypes = [VI8M1, VI8M2, VI8M4, VI8M8];
++
++// QV.SINGLE — Single-Qubit Gate
++// Applies a single-qubit gate to the qubits listed in vs1. The 32-bit 
++// scalar payload from rs2 is forwarded to the quantum backend on the 
++// elem2 channel (e.g., as a software tag or timestamp).
++// 31       25   24    20   19    15   14  12   11     7   6     0
++// +---------+----------+----------+--------+----------+---------+
++// |  GateID |   rs2    |  vs1 (S) | 000(S) | Block_imm| 1010111 |
++// +---------+----------+----------+--------+----------+---------+
++
++class RVInstQVSingle<bits<7> gateid, string opcodestr>
++    : RVInst<(outs), 
++             (ins VR:$vs1, GPR:$rs2, uimm5:$block_imm), 
++             opcodestr, 
++             "$vs1, $rs2, $block_imm", 
++             [], 
++             InstFormatR> {
++  bits<5> vs1;
++  bits<5> rs2;
++  bits<5> block_imm;
++
++  let Inst{31-25} = gateid;
++  let Inst{24-20} = rs2;
++  let Inst{19-15} = vs1;
++  let Inst{14-12} = QV_SINGLE_FUNCT3;
++  let Inst{11-7}  = block_imm;
++  let Inst{6-0}   = OPC_OP_V.Value;
++
++  let hasSideEffects = 1;
++  let mayLoad = 0;
++  let mayStore = 0;
++
++  let Uses = [VL, VTYPE];
++}
++
++// QV.PAIR — Two-Qubit Gate
++// Applies a two-qubit gate to element-wise pairs from vs2 (source/control) 
++// and vs1 (target).
++// 31       25   24    20   19    15   14  12   11     7   6     0
++// +---------+----------+----------+--------+----------+---------+
++// |  GateID | vs2(src) | vs1(tgt) | 001(P) | Block_imm| 1010111 |
++// +---------+----------+----------+--------+----------+---------+
++
++class RVInstQVPair<bits<7> gateid, string opcodestr>
++    : RVInst<(outs), 
++             (ins VR:$vs1, VR:$vs2, uimm5:$block_imm), 
++             opcodestr, 
++             "$vs1, $vs2, $block_imm", 
++             [], 
++             InstFormatR> {
++  bits<5> vs1;
++  bits<5> vs2;
++  bits<5> block_imm;
++
++
++  let Inst{31-25} = gateid;
++  let Inst{24-20} = vs2;
++  let Inst{19-15} = vs1;
++  let Inst{14-12} = QV_PAIR_FUNCT3;
++  let Inst{11-7}  = block_imm;
++  let Inst{6-0}   = OPC_OP_V.Value;
++
++  let hasSideEffects = 1;
++  let mayLoad = 0;
++  let mayStore = 0;
++
++  let Uses = [VL, VTYPE];
++}
+diff --git a/llvm/lib/Target/RISCV/RISCVInstrInfo.td b/llvm/lib/Target/RISCV/RISCVInstrInfo.td
+index ff582b8e741c..485b860944ef 100644
+--- a/llvm/lib/Target/RISCV/RISCVInstrInfo.td
++++ b/llvm/lib/Target/RISCV/RISCVInstrInfo.td
+@@ -2364,6 +2364,7 @@ include "RISCVInstrInfoV.td"
+ include "RISCVInstrInfoZvk.td"
+ include "RISCVInstrInfoZvqdotq.td"
+ include "RISCVInstrInfoZvfofp8min.td"
++include "RISCVInstrInfoXQV.td"
+ 
+ // Packed SIMD
+ include "RISCVInstrInfoP.td"
+diff --git a/llvm/lib/Target/RISCV/RISCVInstrInfoXQV.td b/llvm/lib/Target/RISCV/RISCVInstrInfoXQV.td
+new file mode 100644
+index 000000000000..9a75a381bd50
+--- /dev/null
++++ b/llvm/lib/Target/RISCV/RISCVInstrInfoXQV.td
+@@ -0,0 +1,96 @@
++//===-- RISCVInstrInfoXQV.td - RISC-V QV Instruction Info -*- tablegen -*-===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++//
++//===----------------------------------------------------------------------===//
++//
++//  This file describes the RISC-V QV extension instructions.
++//
++//===----------------------------------------------------------------------===//
++
++include "RISCVInstrFormatsXQV.td"
++
++let Predicates = [HasVendorXQV] in {
++
++// TODO: synchronise funct7 slots with HiSEP-Q
++defvar QV_H_FUNCT7  = 0b0001000;
++defvar QV_X_FUNCT7  = 0b0001001;
++defvar QV_MZ_FUNCT7 = 0b1101000;
++defvar QV_CX_FUNCT7 = 0b0001101;
++
++def QV_H  : RVInstQVSingle<QV_H_FUNCT7,  "qv.h">;
++def QV_X  : RVInstQVSingle<QV_X_FUNCT7,  "qv.x">;
++def QV_MZ : RVInstQVSingle<QV_MZ_FUNCT7, "qv.mz">;
++
++def QV_CX : RVInstQVPair<QV_CX_FUNCT7, "qv.cx">;
++
++// Pseudos for VSETVLI insertion and LMUL handling
++multiclass RVPseudoQVSingle {
++  foreach m = MxList in {
++    let VLMul = m.value in {
++      def "_" # m.MX : RISCVVPseudo<(outs),
++                       (ins m.vrclass:$vs1, GPR:$rs2, uimm5:$block_imm, AVL:$vl, sew:$sew)> {
++        let mayLoad = 0;
++        let mayStore = 0;
++        let hasSideEffects = 1;
++        let HasVLOp = 1;
++        let HasSEWOp = 1;
++      }
++    }
++  }
++}
++
++multiclass RVPseudoQVPair {
++  foreach m = MxList in {
++    let VLMul = m.value in {
++      def "_" # m.MX : RISCVVPseudo<(outs),
++                       (ins m.vrclass:$vs1, m.vrclass:$vs2, uimm5:$block_imm, AVL:$vl, sew:$sew)> {
++        let mayLoad = 0;
++        let mayStore = 0;
++        let hasSideEffects = 1;
++        let HasVLOp = 1;
++        let HasSEWOp = 1;
++      }
++    }
++  }
++}
++
++defm PseudoQV_H  : RVPseudoQVSingle;
++defm PseudoQV_X  : RVPseudoQVSingle;
++defm PseudoQV_MZ : RVPseudoQVSingle;
++
++defm PseudoQV_CX : RVPseudoQVPair;
++
++// Patterns to match the intrinsics to the Pseudos
++multiclass RVPatQVSingle<string intrinsic, string inst> {
++  foreach vti = SupportedQVVTypes in {
++    let Predicates = GetVTypeMinimalPredicates<vti>.Predicates in {
++      def : Pat<(!cast<Intrinsic>(intrinsic) (vti.Vector vti.RegClass:$vs1),
++                                             (XLenVT GPR:$rs2), 
++                                             (XLenVT uimm5:$block_imm), (XLenVT GPR:$vl)),
++                (!cast<Instruction>(inst#"_"#vti.LMul.MX) vti.RegClass:$vs1,
++                                                          GPR:$rs2, uimm5:$block_imm,
++                                                          GPR:$vl, vti.Log2SEW)>;
++    }
++  }
++}
++
++multiclass RVPatQVPair<string intrinsic, string inst> {
++  foreach vti = SupportedQVVTypes in {
++    def : Pat<(!cast<Intrinsic>(intrinsic) (vti.Vector vti.RegClass:$vs1),
++                                           (vti.Vector vti.RegClass:$vs2),
++                                           (XLenVT uimm5:$block_imm), (XLenVT GPR:$vl)),
++              (!cast<Instruction>(inst#"_"#vti.LMul.MX) vti.RegClass:$vs1,
++                                                        vti.RegClass:$vs2,
++                                                        uimm5:$block_imm,
++                                                        GPR:$vl, vti.Log2SEW)>;
++  }
++}
++
++defm : RVPatQVSingle<"int_riscv_qv_h",  "PseudoQV_H">;
++defm : RVPatQVSingle<"int_riscv_qv_x",  "PseudoQV_X">;
++defm : RVPatQVSingle<"int_riscv_qv_mz", "PseudoQV_MZ">;
++
++defm : RVPatQVPair<"int_riscv_qv_cx", "PseudoQV_CX">;
++}
+diff --git a/llvm/test/CodeGen/RISCV/features-info.ll b/llvm/test/CodeGen/RISCV/features-info.ll
+index e327fe73d8a4..c06cb3cf63a0 100644
+--- a/llvm/test/CodeGen/RISCV/features-info.ll
++++ b/llvm/test/CodeGen/RISCV/features-info.ll
+@@ -30,6 +30,7 @@
+ ; CHECK-NEXT:   experimental-rvm23u32            - RISC-V experimental-rvm23u32 profile.
+ ; CHECK-NEXT:   experimental-smpmpmt             - 'Smpmpmt' (PMP-based Memory Types Extension).
+ ; CHECK-NEXT:   experimental-svukte              - 'Svukte' (Address-Independent Latency of User-Mode Faults to Supervisor Addresses).
++; CHECK-NEXT:   experimental-xqv                 - 'XQV' (QV Quantum Extension (HiSEP-Q 2.0)).
+ ; CHECK-NEXT:   experimental-xrivosvisni         - 'XRivosVisni' (Rivos Vector Integer Small New).
+ ; CHECK-NEXT:   experimental-xrivosvizip         - 'XRivosVizip' (Rivos Vector Register Zips).
+ ; CHECK-NEXT:   experimental-xsfmclic            - 'XSfmclic' (SiFive CLIC Machine-mode CSRs).
+diff --git a/llvm/test/CodeGen/RISCV/rv32xqv-bell.ll b/llvm/test/CodeGen/RISCV/rv32xqv-bell.ll
+new file mode 100644
+index 000000000000..e898bf8fc0e7
+--- /dev/null
++++ b/llvm/test/CodeGen/RISCV/rv32xqv-bell.ll
+@@ -0,0 +1,51 @@
++; RUN: llc -mtriple=riscv32 -mattr=+experimental-xqv -verify-machineinstrs < %s | FileCheck %s
++
++target datalayout = "e-m:e-p:32:32-i64:64-n32-S128"
++
++; TODO: Check for LMUL>1.
++; qv.h vs1, rs2, Block_imm
++declare void @llvm.riscv.qv.h.nxv8i8.i32.i32.i32(<vscale x 8 x i8>, i32, i32, i32)
++
++; qv.mz vs1, rs2, Block_imm
++declare void @llvm.riscv.qv.mz.nxv8i8.i32.i32.i32(<vscale x 8 x i8>, i32, i32, i32)
++
++; qv.cx vs1, vs2, Block_imm
++declare void @llvm.riscv.qv.cx.nxv8i8.nxv8i8.i32.i32(<vscale x 8 x i8>, <vscale x 8 x i8>, i32, i32)
++
++@ctrl_qubits = local_unnamed_addr constant <8 x i8> <i8 0, i8 2, i8 4, i8 6, i8 8, i8 10, i8 12, i8 14>, align 8
++@tgt_qubits  = local_unnamed_addr constant <8 x i8> <i8 1, i8 3, i8 5, i8 7, i8 9, i8 11, i8 13, i8 15>, align 8
++
++define void @load_vectors() #0 {
++entry:
++  %ctrl = load <vscale x 8 x i8>, ptr @ctrl_qubits, align 8
++  %tgt  = load <vscale x 8 x i8>, ptr @tgt_qubits, align 8
++
++  call void @llvm.riscv.qv.h.nxv8i8.i32.i32.i32(<vscale x 8 x i8> %tgt, i32 85, i32 12, i32 2)
++  call void @llvm.riscv.qv.cx.nxv8i8.nxv8i8.i32.i32(<vscale x 8 x i8> %tgt, <vscale x 8 x i8> %ctrl, i32 12, i32 4)
++  call void @llvm.riscv.qv.mz.nxv8i8.i32.i32.i32(<vscale x 8 x i8> %tgt, i32 85, i32 12, i32 4)
++
++; TODO: output recording, e.g. via __quantum__rt__bool_record_output .
++; Requires support from HiSEP-Q in some form.
++
++  ret void
++}
++
++attributes #0 = { "target-features"="+experimental-xqv" }
++
++; CHECK-LABEL: load_vectors:
++; CHECK:       # %bb.0: # %entry
++; CHECK-NEXT:    lui [[A0:a[0-9]+]], %hi(ctrl_qubits)
++; CHECK-NEXT:    addi [[A0]], [[A0]], %lo(ctrl_qubits)
++; CHECK-NEXT:    lui [[A1:a[0-9]+]], %hi(tgt_qubits)
++; CHECK-NEXT:    addi [[A1]], [[A1]], %lo(tgt_qubits)
++; CHECK-NEXT:    vl1r.v [[V8:v[0-9]+]], ([[A1]])
++; CHECK-NEXT:    li [[A1]], 2
++; CHECK-NEXT:    vl1r.v [[V9:v[0-9]+]], ([[A0]])
++; CHECK-NEXT:    li [[A0]], 85
++; CHECK-NEXT:    vsetvli zero, [[A1]], e8, m1, ta, ma
++; CHECK-NEXT:    qv.h [[V8]], [[A0]], 12
++; CHECK-NEXT:    li [[A1]], 4
++; CHECK-NEXT:    vsetvli zero, [[A1]], e8, m1, ta, ma
++; CHECK-NEXT:    qv.cx [[V8]], [[V9]], 12
++; CHECK-NEXT:    qv.mz [[V8]], [[A0]], 12
++; CHECK-NEXT:    ret
+diff --git a/llvm/test/MC/RISCV/rv32xqv-valid.s b/llvm/test/MC/RISCV/rv32xqv-valid.s
+new file mode 100644
+index 000000000000..fc237ae6311e
+--- /dev/null
++++ b/llvm/test/MC/RISCV/rv32xqv-valid.s
+@@ -0,0 +1,27 @@
++# RUN: llvm-mc -triple=riscv32 -mattr=+experimental-xqv --show-encoding %s \
++# RUN:     | FileCheck %s --check-prefixes=CHECK-ENCODING,CHECK-INST
++
++# TODO: Add disassembler round-trip (llvm-mc -filetype=obj | llvm-objdump -d)
++# once QV_H_FUNCT7 and QV_CX_FUNCT7 are corrected to spec values (0x64 and
++# 0x66); current values overlap with standard V instructions.
++
++# qv.h: single-qubit gate — qv.h vs1, rs2, block_imm
++# gateid=0b0001000, funct3=0b000
++
++# CHECK-INST:     qv.h v8, a0, 12
++# CHECK-ENCODING: [0x57,0x06,0xa4,0x10]
++qv.h v8, a0, 12
++
++# qv.mz: measure-in-Z gate — qv.mz vs1, rs2, block_imm
++# gateid=0b1101000, funct3=0b000
++
++# CHECK-INST:     qv.mz v8, a0, 12
++# CHECK-ENCODING: [0x57,0x06,0xa4,0xd0]
++qv.mz v8, a0, 12
++
++# qv.cx: two-qubit CNOT — qv.cx vs1(tgt), vs2(ctrl), block_imm
++# gateid=0b0001101, funct3=0b001
++
++# CHECK-INST:     qv.cx v8, v9, 12
++# CHECK-ENCODING: [0x57,0x16,0x94,0x1a]
++qv.cx v8, v9, 12
+diff --git a/llvm/unittests/TargetParser/RISCVISAInfoTest.cpp b/llvm/unittests/TargetParser/RISCVISAInfoTest.cpp
+index 4439df755d79..656e220c46d7 100644
+--- a/llvm/unittests/TargetParser/RISCVISAInfoTest.cpp
++++ b/llvm/unittests/TargetParser/RISCVISAInfoTest.cpp
+@@ -1401,6 +1401,7 @@ Experimental extensions
+     zvqdotq              0.0
+     smpmpmt              0.6
+     svukte               0.3
++    xqv                  0.1
+     xrivosvisni          0.1
+     xrivosvizip          0.1
+     xsfmclic             0.1
+-- 
+2.51.1
+

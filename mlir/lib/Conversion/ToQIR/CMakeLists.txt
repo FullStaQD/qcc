@@ -17,6 +17,7 @@ add_mlir_conversion_library(
   MLIRLLVMCommonConversion
   MLIRTransforms
   MLIRFuncToLLVM
+  MLIRMemRefToLLVM
   MLIRSCFToControlFlow
   # Core MLIR
   MLIRIR

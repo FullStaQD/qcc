@@ -7,9 +7,10 @@
 //
 // ===----------------------------------------------------------------------===//
 
-#include "qcc/Compiler/Pipeline.h"
+#include "qcc/Compiler/Compiler.h"
 #include "qcc/Dialect/Aux_/IR/Aux_.h"
 #include "qcc/Dialect/Jasp/IR/Jasp.h"
+#include "qcc/Target/TargetRegistry.h"
 
 #include "mlir/Bytecode/BytecodeWriter.h"
 #include "mlir/Conversion/VectorToSCF/VectorToSCF.h"
@@ -51,27 +52,30 @@ namespace cl = llvm::cl;
 static cl::OptionCategory qccCategory("QCC options");
 
 namespace {
-/// The target determines the backend to compile for, the actual passes
-/// (pipeline), and the runtime.
-enum class Target : uint8_t { Qir, HisepQ };
-
 /// The stage to compile to and emit.
 enum class Stage : uint8_t { Mlir, LlvmIr, Native };
 } // namespace
+
+/// Prints the targets compiled into this build.
+static void printTargets() {
+  llvm::outs() << "Available targets for --target:\n";
+  for (const qcc::Target& backend : qcc::getTargets()) {
+    llvm::outs() << "  " << backend.name << " - " << backend.description << "\n";
+  }
+}
 
 int main(int argc, char** argv) {
   mlir::registerMLIRContextCLOptions();
   mlir::registerPassManagerCLOptions();
   mlir::registerDefaultTimingManagerCLOptions();
 
-  const cl::opt<std::string> inputFilename(cl::Positional, cl::desc("Input-file"), cl::Required, cl::cat(qccCategory));
+  const cl::opt<std::string> inputFilename(cl::Positional, cl::desc("Input-file"), cl::cat(qccCategory));
   const cl::opt<std::string> outputFilename("o", cl::desc("Output-file"), cl::value_desc("filename"), cl::init("-"),
                                             cl::cat(qccCategory));
-  const cl::opt<Target> target(
-      "target", cl::desc("Target pipeline to compile for"), cl::init(Target::Qir),
-      cl::values(clEnumValN(Target::Qir, "qir", "QIR (LLVM-based) target"),
-                 clEnumValN(Target::HisepQ, "hisep-q", "HiSEP-Q QISA target (not yet implemented)")),
-      cl::cat(qccCategory));
+  const cl::opt<std::string> targetName("target", cl::desc("Target backend to compile for (see --list-targets)"),
+                                        cl::init("qir"), cl::value_desc("name"), cl::cat(qccCategory));
+  const cl::opt<bool> listTargets("list-targets", cl::desc("List the available --target backends and exit"),
+                                  cl::init(false), cl::cat(qccCategory));
   const cl::opt<Stage> compileTo(
       "compile-to", cl::desc("Stage to lower to and emit"), cl::init(Stage::LlvmIr),
       cl::values(clEnumValN(Stage::Mlir, "mlir", "MLIR in the LLVM dialect"),
@@ -83,8 +87,19 @@ int main(int argc, char** argv) {
 
   cl::ParseCommandLineOptions(argc, argv, "qcc - quantum compiler collection\n");
 
-  if (target == Target::HisepQ) {
-    llvm::errs() << "error: the 'hisep-q' target is not yet implemented\n";
+  if (listTargets) {
+    printTargets();
+    return 0;
+  }
+
+  if (inputFilename.empty()) {
+    llvm::errs() << "error: no input file specified\n";
+    return 1;
+  }
+
+  const qcc::Target* target = qcc::lookupTarget(targetName);
+  if (target == nullptr) {
+    llvm::errs() << "error: unknown target '" << targetName << "' (see --list-targets)\n";
     return 1;
   }
 
@@ -140,8 +155,7 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  // TODO: Assemble pipeline based on target once a second valid target is added.
-  qcc::buildQuantumPipeline(pm);
+  qcc::buildPipeline(pm, target);
 
   if (mlir::failed(pm.run(*module))) {
     return 1;

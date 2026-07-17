@@ -6,6 +6,7 @@ config.llvm_shlib_ext = "@SHLIBEXT@"
 config.project_binary_dir = "@PROJECT_BINARY_DIR@"
 config.project_source_dir = "@PROJECT_SOURCE_DIR@"
 config.cmake_build_type = "@CMAKE_BUILD_TYPE@"
+config.enable_hisep_q = @QCC_ENABLE_HISEP_Q_PY@
 
 import lit.llvm
 lit.llvm.initialize(lit_config, config)

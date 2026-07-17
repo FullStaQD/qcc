@@ -11,7 +11,7 @@
 
 # /// script
 # dependencies = [
-#   "qrisp @ git+https://github.com/eclipse-qrisp/Qrisp.git@b81ea2f979d21cd8d600e79d8b0c7066fe7cbe1b",
+#   "qrisp==0.9.5",
 #   "xdsl==0.59.0"
 # ]
 # ///

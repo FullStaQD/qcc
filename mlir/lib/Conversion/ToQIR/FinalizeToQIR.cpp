@@ -14,6 +14,7 @@
 #include "mlir/Conversion/FuncToLLVM/ConvertFuncToLLVM.h"
 #include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
 #include "mlir/Conversion/LLVMCommon/TypeConverter.h"
+#include "mlir/Conversion/MemRefToLLVM/MemRefToLLVM.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -77,6 +78,8 @@ protected:
       RewritePatternSet patterns(ctx);
 
       populateFuncToLLVMConversionPatterns(typeConverter, patterns);
+
+      populateFinalizeMemRefToLLVMConversionPatterns(typeConverter, patterns);
 
       populateSCFToControlFlowConversionPatterns(patterns);
       cf::populateControlFlowToLLVMConversionPatterns(typeConverter, patterns);

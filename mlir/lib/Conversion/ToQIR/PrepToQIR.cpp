@@ -44,6 +44,8 @@ protected:
     auto fnMZ = createVoidFnDecl(qcc::qirQisMZ, 2);
     fnMZ.setArgAttr(1, "llvm.writeonly", builder.getUnitAttr());
     fnMZ->setAttr("passthrough", builder.getStrArrayAttr({"irreversible"}));
+    auto fnReset = createVoidFnDecl(qcc::qirQisReset, 1);
+    fnReset->setAttr("passthrough", builder.getStrArrayAttr({"irreversible"}));
     createVoidFnDecl(qcc::qirQisH, 1);
     createVoidFnDecl(qcc::qirQisX, 1);
     createVoidFnDecl(qcc::qirQisS, 1);

@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+LLVM_DIR_DEFAULT=$HOME/external/llvm-project-patched
+
+usage() {
+  cat <<EOF
+Usage: ${0##*/} [LLVM_DIR]
+
+Clone llvm-project at the pinned base revision and apply all patches.
+
+If the repo already exists at the given path cloning will be skipped. Local changes will be
+overwritten. If patches are updated just re-run this script it will abandon the old patches and
+apply the new ones.
+
+Arguments:
+  LLVM_DIR   Directory to clone llvm-project into.
+             Defaults to $LLVM_DIR_DEFAULT.
+EOF
+}
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  usage
+  exit 0
+fi
+
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+REPO_ROOT=$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)
+
+LLVM_3RD="$REPO_ROOT/third-party/llvm"
+BASE_REV=$(cat "$LLVM_3RD/base.rev")
+LLVM_DIR="${1:-$LLVM_DIR_DEFAULT}"
+
+if [[ -d "$LLVM_DIR/.git" ]]; then
+  echo "Repo already cloned at $LLVM_DIR, skipping clone."
+else
+  git clone https://github.com/llvm/llvm-project.git "$LLVM_DIR" \
+    --filter=blob:none
+fi
+
+cd "$LLVM_DIR"
+
+# Discard any interrupted `git am` and any local changes, then reset to the
+# pinned base so patches always apply onto a known-clean tree.
+git am --abort 2>/dev/null || true
+git checkout -f -B fullstaqd-patches "$BASE_REV"
+
+LLVM_QISA_PATCHES=("$LLVM_3RD"/patches/qisa/*.patch)
+
+for p in "${LLVM_QISA_PATCHES[@]}"; do
+  git am --whitespace=nowarn "$p"
+done

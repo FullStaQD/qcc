@@ -424,6 +424,54 @@ struct ConvertJaspDeleteQubitsOp final : OpConversionPattern<jasp::DeleteQubitsO
   }
 };
 
+/// Converts jasp.reset to qc.reset
+///
+//  For a single qubit, this directly emits
+/// `qc.reset`. For a qubit array, an scf.for iterates over all qubits and
+/// resets each individually.
+///
+/// Example (single qubit):
+/// ```mlir
+/// %state1 = jasp.reset %q, %state0 : !jasp.Qubit, !jasp.QuantumState -> !jasp.QuantumState
+/// ```
+/// becomes:
+/// ```mlir
+/// qc.reset %q : !qc.qubit
+/// ```
+struct ConvertJaspResetOp final : OpConversionPattern<jasp::ResetOp> {
+  using OpConversionPattern::OpConversionPattern;
+
+  LogicalResult matchAndRewrite(jasp::ResetOp op, OpAdaptor adaptor,
+                                ConversionPatternRewriter& rewriter) const override {
+    auto loc = op.getLoc();
+    Value resetOperand = adaptor.getQubits();
+    Type resetType = resetOperand.getType();
+
+    // single qubit reset
+    if (!isa<MemRefType>(resetType)) {
+      qc::ResetOp::create(rewriter, loc, resetOperand);
+      rewriter.eraseOp(op);
+      return success();
+    }
+
+    // qubit array reset: iterate over all qubits
+    Value c0Index = arith::ConstantIndexOp::create(rewriter, loc, 0);
+    Value c1Index = arith::ConstantIndexOp::create(rewriter, loc, 1);
+    Value size = memref::DimOp::create(rewriter, loc, resetOperand, c0Index);
+
+    auto forOp = scf::ForOp::create(rewriter, loc, c0Index, size, c1Index, ValueRange{});
+
+    rewriter.setInsertionPointToStart(forOp.getBody());
+    Value iv = forOp.getInductionVar();
+    Value qubit = memref::LoadOp::create(rewriter, loc, resetOperand, ValueRange{iv});
+    qc::ResetOp::create(rewriter, loc, qubit);
+
+    rewriter.setInsertionPointAfter(forOp);
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
 /// Convert Rank-Zero Tensors to their wrapped types in `linalg.generic` operations.
 /// Only operands are affected.
 struct ConvertRankZeroTensorsInLinalg final : OpConversionPattern<linalg::GenericOp> {
@@ -468,7 +516,7 @@ protected:
 
     patterns.add<ConvertJaspCreateQuantumKernelOp, ConvertJaspConsumeQuantumKernelOp, ConvertJaspCreateQubitsOp,
                  ConvertJaspGetQubitOp, ConvertJaspQuantumGateOp, ConvertJaspMeasureOp, ConvertJaspDeleteQubitsOp,
-                 ConvertRankZeroTensorsInLinalg>(typeConverter, context);
+                 ConvertJaspResetOp, ConvertRankZeroTensorsInLinalg>(typeConverter, context);
 
     target.addDynamicallyLegalOp<func::FuncOp>([&](func::FuncOp op) {
       auto islegal = stateDestroyer.isSignatureLegal(op.getFunctionType());
