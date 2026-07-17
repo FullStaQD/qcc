@@ -4,6 +4,7 @@ add_mlir_dialect_library(
   DEPENDS
   QCCPrelimHLEPDialectIncGen
   QCCPrelimHLEPTypesIncGen
+  QCCPrelimHLEPAttrsIncGen
   QCCPrelimHLEPOpsIncGen
   LINK_LIBS
   PRIVATE

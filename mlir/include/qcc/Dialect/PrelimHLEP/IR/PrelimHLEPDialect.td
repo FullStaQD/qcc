@@ -11,12 +11,24 @@ include "mlir/IR/AttrTypeBase.td"
 def PrelimHLEPDialect : Dialect {
     let summary = "PRELIMINARY High-level entry point dialect.";
     let description = [{
+        Preliminary, draft implementation of the "high-level entry point"
+        (HLEP) dialect: a hybrid quantum-classical IR meant to serve as the
+        entry point to the compilation pipeline. See
+        `mlir/docs/Dialects/PrelimHLEP.md` for the design rationale and the
+        formal type-theoretic model this dialect stubs out.
+
+        This is a work in progress. Types, attributes, and operations
+        defined here are currently stubs (declarations without verifiers,
+        builders, or lowering) tracking the draft design; see individual
+        TODOs.
+
         See issue: https://github.com/FullStaQD/compiler/issues/34
     }];
 
     let name = "prelimhlep";
     let cppNamespace = "::qcc::prelimhlep";
     let useDefaultTypePrinterParser = 1;
+    let useDefaultAttributePrinterParser = 1;
 }
 
 

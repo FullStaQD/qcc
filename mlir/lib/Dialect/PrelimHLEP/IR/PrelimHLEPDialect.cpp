@@ -11,6 +11,9 @@ using namespace qcc::prelimhlep;
 #define GET_TYPEDEF_CLASSES
 #include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEPTypes.cpp.inc"
 
+#define GET_ATTRDEF_CLASSES
+#include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEPAttrs.cpp.inc"
+
 #define GET_OP_CLASSES
 #include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEPOps.cpp.inc"
 
@@ -20,7 +23,11 @@ void PrelimHLEPDialect::initialize() {
 #include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEPTypes.cpp.inc"
       >();
 
-  // test comment
+  addAttributes<
+#define GET_ATTRDEF_LIST
+#include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEPAttrs.cpp.inc"
+      >();
+
   addOperations<
 #define GET_OP_LIST
 #include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEPOps.cpp.inc"

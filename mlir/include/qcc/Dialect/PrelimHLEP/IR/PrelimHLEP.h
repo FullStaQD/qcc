@@ -19,6 +19,13 @@
 #include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEPTypes.h.inc"
 
 //===----------------------------------------------------------------------===//
+// PrelimHLEP Attributes
+//===----------------------------------------------------------------------===//
+
+#define GET_ATTRDEF_CLASSES
+#include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEPAttrs.h.inc"
+
+//===----------------------------------------------------------------------===//
 // PrelimHLEP Operations
 //===----------------------------------------------------------------------===//
 
