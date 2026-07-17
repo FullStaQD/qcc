@@ -62,6 +62,16 @@ func.func @lin_op(%q: !prelimhlep.lin<i1>) -> !prelimhlep.lin<i1> {
 // CHECK-LABEL: func.func @lin_op
 // CHECK: prelimhlep.lin
 
+func.func @lin_op_with_auxiliary_result(%q: !prelimhlep.lin<i1>) -> i1 {
+    %0 = "prelimhlep.lin"(%q) ({
+    ^bb0(%b: i1):
+        "prelimhlep.output"(%b) <{operandSegmentSizes = array<i32: 0, 1>}> : (i1) -> ()
+    }) : (!prelimhlep.lin<i1>) -> i1
+    return %0 : i1
+}
+// CHECK-LABEL: func.func @lin_op_with_auxiliary_result
+// CHECK: prelimhlep.lin
+
 func.func private @haloed(%halo: !prelimhlep.linear_unit) -> !prelimhlep.linear_unit attributes { prelimhlep.halo = #prelimhlep.halo }
 // CHECK-LABEL: func.func private @haloed
 // CHECK-SAME: prelimhlep.halo

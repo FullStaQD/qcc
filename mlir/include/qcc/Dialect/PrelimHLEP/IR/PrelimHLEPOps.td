@@ -90,15 +90,19 @@ def LinOp : PrelimHLEPOp<"lin", [SingleBlock]> {
         TODO: this is a coarse stub. Still to design/implement:
           - custom assembly format matching the grammar above (binding
             each delinearized operand's block argument name and source
-            explicitly, rather than the generic op syntax used for now);
-          - verifier tying region argument types to delinearized operand
-            element types, and matching `prelim_hlep.output` operands to
-            the op's result types.
+            explicitly, rather than the generic op syntax used for now).
+
+        The verifier checks that the body block's argument types match the
+        `delinearizedOperands` element types, and that the op's result
+        types are the re-linearization of the `prelim_hlep.output`
+        terminator's delinearized results, followed by its auxiliary
+        results unchanged.
     }];
 
     let arguments = (ins Variadic<LinType>:$delinearizedOperands);
     let results = (outs Variadic<AnyType>:$results);
     let regions = (region SizedRegion<1>:$body);
+    let hasVerifier = 1;
 }
 
 def OutputOp : PrelimHLEPOp<"output", [Terminator, AttrSizedOperandSegments, HasParent<"LinOp">]> {
@@ -112,9 +116,9 @@ def OutputOp : PrelimHLEPOp<"output", [Terminator, AttrSizedOperandSegments, Has
         **IR Realization:**
         `prelim_hlep.output (%out_delinearized, ...) carrying (%out_aux, ...)`
 
-        TODO: custom assembly format matching the syntax above; verifier
-        matching operand types/count against the enclosing `prelim_hlep.lin`
-        results.
+        TODO: custom assembly format matching the syntax above. (Operand
+        types/count are checked against the enclosing `prelim_hlep.lin`'s
+        results by `LinOp`'s verifier.)
     }];
 
     let arguments = (ins Variadic<AnyType>:$delinearizedResults,
