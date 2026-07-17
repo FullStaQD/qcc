@@ -113,6 +113,21 @@ If we are able to capture qrisp alongside the essential concepts of the most pro
 
 Guided by the requirements above, we focus for now on well-defined semantics, leaving lowering for later. Informally, a hybrid type in this model is a classical set of labels, each label carrying its own quantum state space (a finite-dimensional Hilbert space); purely classical and purely quantum types are the special cases where all state spaces are trivial or where there is a single label, respectively. The formal model below makes this precise as a finite-dimensional $\mathbb{C}$-vector bundle over a finite set.
 
+### Philosophy
+
+We observe that the unitary operations forming quantum circuits arise -- in mathematical theory and quantum computing practice alike -- by means of only few paths:
+
+- A (often simple, in some sense) Lie group element is exponentiated.
+  Examples include all so-called "rotation" gates, (global) phase shifts, S and T.
+- A classical, combinatorial function is freely linearized
+  Examples in the Z-basis are the X, Z, SWAP, and CNOT gates.
+- Base-change gates.
+  In particular, the Hadamard gate.
+
+In addition, some gates are combinations, such as controlled-rotation gates.
+Each one of the construction paths comes with its own theory and ways to reason about the resulting unitaries.
+They should therefore be manifestly present in a high-level IR.
+
 ### Type System
 
 - Informed by, but not realizing in full, Linear Homotopy Type Theory.
@@ -166,6 +181,55 @@ Guided by the requirements above, we focus for now on well-defined semantics, le
 - When a regular function calls a halo'ed function, the arguments and return values are wrapped with the unit/counit $W \to \mathbb{C} \times W \to W$. Note that non-classical values are not allowed in regular functions. This semantic wrapping is not visible in IR.
 - We lose the ability to express purely classical values in halo'ed functions, but their halo'ed counterparts are just as expressive. We would have nothing to gain from this, as having just one classical term coexisting with linear terms would render all terms classical by definition of the linear product.
   **IR Realization:** `func.func @my_func() -> ... attributes { prelim_hlep.halo }`
+
+#### Halo Unit Type
+
+Ordinary `mlir` has a builtin unit type `none`. Generic, dialect-agnostic optimizations are free to treat any value of that type as carrying no information at all. This is correct for a purely classical unit.
+
+It is not correct for the halo'ed unit. Recall that the tensor unit of the linear product is
+
+$$
+\begin{bmatrix}\mathbb{C} \\ \downarrow \\ *\end{bmatrix},
+$$
+
+i.e. a $1$-dimensional Hilbert space over the single classical label $*$. A term of this type is a complex scalar, which we also view as a phase, since we don't usually care about the modulus.
+Classically this phase is invisible, but once the term is combined, via the linear product, with other haloed or quantum values (e.g. inside an `scf.if` branch, cf. the Controlled Gate example above), that phase becomes a _relative_ phase between branches, which is observable through interference. A generic optimizer that reuses `mlir`'s builtin unit type for this purpose could legally dead-code-eliminate a "do-nothing" value that is in fact carrying exactly the phase information a computation depends on.
+
+On the flipside, the unique value of `none` type is implicitly left out of IR.
+A function with "no arguments" really is a function with a single argument `%none: none`.
+When `none` becomes halo'ed, it is important to track the actual value.
+
+We therefore introduce a dedicated type `!prelim_hlep.linear_unit`, opaque to generic optimizations, for exactly this fiber bundle.
+Halo'ed functions are not allowed to have no arguments or no returns, instead they should take in or put out a `!prelim_hlep.linear_unit`.
+
+**IR Realization:** `!prelim_hlep.linear_unit`
+
+```mlir
+func.func @global_phase(%halo: !prelim_hlep.linear_unit) -> !prelim_hlep.linear_unit attributes { prelim_hlep.halo } {
+  %phase_change = some.op : complex<f32>
+	%phased = prelim_hlep.scale %phase_change, %halo : (complex<f32>, !prelim_hlep.linear_unit) -> !prelim_hlep.linear_unit
+	return %phased : !prelim_hlep.linear_unit
+}
+
+// Call from classical function:
+func.func main() {
+  %halo = prelim_hlep.unit_value : !prelim_hlep.linear_unit
+  %out_halo = func.call @global_phase(%halo) : !prelim_hlep.linear_unit -> !prelim_hlep.linear_unit
+  // out_halo can be forgotten.
+}
+```
+
+Strictly speaking, the semantic interpretation of `!prelim_hlep.linear_unit` is that it is equal to the `none` type: It is an actual unit type in a classical function, and, as a classical type, implicitly halo'ed in halo'ed functions.
+
+#### Scale, AddPhase
+
+Within halo'ed functions, it is legal to scale all fibres of a type homogeneously by a complex factor.
+We moreover provide the shortcut operation `add_phase` that scales by the exponent of a purely imaginay number.
+
+**IR Realization:**
+
+- `prelim_hlep.scale %factor, %t : (complex<f64>, T) -> T`
+- `prelim_hlep.add_phase %alpha, %t : (f64, T) -> T`
 
 #### (Partial) Linearization
 
@@ -655,6 +719,59 @@ The problem of unitary synthesis is well-known.
 ##### Optimization Strategy
 
 - Merge exponentiation of linearly dependent hamiltonians.
+
+#### Base changes
+
+All quantum types constructed by means of linearization are inherently equipped with a basis.
+We identify the linearization of `i<n>` types with qubit arrays in the computational Z-basis.
+
+However, we would often like to consider different bases, in particular the X- and Y-bases of (multi-) qubit systems.
+To this end we introduce additional _classical_ types `!prelim_hlep.x<n>` and `!prelim_hlep.y<n>`.
+The terms of the former type are length-`n` strings of the symbols `+` and `-`, the symbols for the latter are `->` and `<-`.
+The classical information content is in both cases identical to `i<n>`, and it is legal for classical programs to include these types, introduce operations on them and lower them (though this may not serve a practical purpose).
+
+The key ingredient to make the types useful is the imposition that their linearizations can be identified via a distinguished isomorphism -- obtained from viewing `!prelim_hlep.lin<i<n>>`, `!prelim_hlep.lin<!prelim_hlep.x<n>>`, and `!prelim_hlep.lin<!prelim_hlep.y<n>>` as the _same vector space_ equipped with different bases.
+Between any pair of these three types, the operation
+
+```mlir
+%qubit_in_x_basis = prelim_hlep.base_change %qubit_in_z_basis : !prelim_hlep.lin<i1> -> !prelim_hlep.lin<!prelim_hlep.x<1>>
+```
+
+encodes this distinguished isomorphism.
+
+In order to create literal values of these types, we provide
+
+```mlir
+%xxx = prelim_hlep.constant "++-" : !prelim_hlep.lin<!prelim_hlep.x<3>>
+%yyy = prelim_hlep.constant "><>" : !prelim_hlep.lin<!prelim_hlep.y<3>>
+```
+
+to define constant values from string attributes.
+
+### Further IR examples
+
+Here we provide examples combining the IR ingredients introduced above.
+
+#### Hadamard Gate
+
+```mlir
+func.func @hadamard(%in_qubit: !prelim_hlep.lin<i1>) -> !prelim_hlep.lin<i1> attributes { prelim_hlep.halo } {
+  %out_qubit_x_basis = prelim_hlep.lin (
+    %in_bit: i1 from %in_qubit: !prelim_hlep.lin<i1>,
+  ) -> (!prelim_hlep.lin<!prelim_hlep.x<1>>) {
+    %out_bit_x = scf.if %in_bit {
+      %plus = prelim_hlep.constant "+" : !prelim_hlep.lin<!prelim_hlep.x<1>>
+      scf.yield %plus
+    } else {
+      %minus = prelim_hlep.constant "-" : !prelim_hlep.lin<!prelim_hlep.x<1>>
+      scf.yield %minus
+    }
+    prelim_hlep.output (%out_bit_x)
+  }
+  %out_qubit = prelim_hlep.base_change %out_qubit_x_basis : !prelim_hlep.lin<!prelim_hlep.x<1>> -> !prelim_hlep.lin<i1>
+  return %out_qubit : !prelim_hlep.lin<i1>
+}
+```
 
 ## Open Questions / TODOs
 
