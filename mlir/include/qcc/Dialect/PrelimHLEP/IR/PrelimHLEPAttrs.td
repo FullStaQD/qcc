@@ -34,9 +34,17 @@ def HaloAttr : PrelimHLEPAttr<"Halo", "halo"> {
         (empty) attribute for future extension/verification, or whether
         usages should just be a builtin `UnitAttr` under the
         `prelim_hlep.halo` key.
-        TODO: verifier enforcing halo semantics (no zero-argument/-result
-        haloed functions, single-use of non-classical values via control
-        flow analysis, etc.) is not implemented yet.
+
+        `PrelimHLEPDialect::verifyOperationAttribute` (see
+        PrelimHLEPDialect.cpp) hooks into the verifier of *any* operation
+        this attribute is attached to and currently only checks that the
+        op is function-like (`FunctionOpInterface`) with a non-empty
+        argument and result list, as a placeholder for the doc's "a
+        halo'ed function does not have zero arguments" rule.
+
+        TODO: full halo semantics (single-use of non-classical values via
+        control flow analysis, treating classical types as implicitly
+        haloed, etc.) is not implemented yet.
     }];
 }
 

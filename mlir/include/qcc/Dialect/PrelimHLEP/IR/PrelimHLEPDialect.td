@@ -18,9 +18,9 @@ def PrelimHLEPDialect : Dialect {
         formal type-theoretic model this dialect stubs out.
 
         This is a work in progress. Types, attributes, and operations
-        defined here are currently stubs (declarations without verifiers,
-        builders, or lowering) tracking the draft design; see individual
-        TODOs.
+        defined here are mostly stubs (declarations with at most minimal
+        verification, no builders or lowering yet) tracking the draft
+        design; see individual TODOs.
 
         See issue: https://github.com/FullStaQD/compiler/issues/34
     }];
@@ -29,6 +29,15 @@ def PrelimHLEPDialect : Dialect {
     let cppNamespace = "::qcc::prelimhlep";
     let useDefaultTypePrinterParser = 1;
     let useDefaultAttributePrinterParser = 1;
+
+    let extraClassDeclaration = [{
+        /// Verifies dialect attributes (e.g. `prelimhlep.halo`) attached to
+        /// arbitrary operations, such as `func.func`. See
+        /// PrelimHLEPDialect.cpp.
+        ::mlir::LogicalResult
+        verifyOperationAttribute(::mlir::Operation *op,
+                                  ::mlir::NamedAttribute attribute) override;
+    }];
 }
 
 
