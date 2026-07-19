@@ -39,50 +39,57 @@ func.func @constant_x() -> !prelimhlep.lin<!prelimhlep.x<3>> {
 // CHECK: prelimhlep.constant "++-"
 
 func.func @constant_y() -> !prelimhlep.lin<!prelimhlep.y<3>> {
-    %0 = prelimhlep.constant "><>" : !prelimhlep.lin<!prelimhlep.y<3>>
+    %0 = prelimhlep.constant "-><-->" : !prelimhlep.lin<!prelimhlep.y<3>>
     return %0 : !prelimhlep.lin<!prelimhlep.y<3>>
 }
 // CHECK-LABEL: func.func @constant_y
-// CHECK: prelimhlep.constant "><>"
+// CHECK: prelimhlep.constant "-><-->"
 
-func.func @exp(%theta: f64, %q: !prelimhlep.lin<i1>) -> !prelimhlep.lin<i1> {
+func.func @exp(%theta: f64, %q: !prelimhlep.lin<i1>) -> !prelimhlep.lin<i1> attributes { prelimhlep.halo = #prelimhlep.halo } {
     %0 = prelimhlep.exp %theta hamiltonian<1, []> %q : (f64, !prelimhlep.lin<i1>) -> !prelimhlep.lin<i1>
     return %0 : !prelimhlep.lin<i1>
 }
 // CHECK-LABEL: func.func @exp
 // CHECK: prelimhlep.exp
 
+// TODO: Add test for prelimhlep.exp with actual Hamiltonian terms, once we have a way to construct them in MLIR.
+
 func.func @lin_op(%q: !prelimhlep.lin<i1>) -> !prelimhlep.lin<i1> attributes { prelimhlep.halo = #prelimhlep.halo } {
     %0 = prelimhlep.lin (
         %b : i1 from %q : !prelimhlep.lin<i1>
     ) -> (!prelimhlep.lin<i1>) {
-        "prelimhlep.output"(%b) <{operandSegmentSizes = array<i32: 1, 0>}> : (i1) -> ()
+        // TODO: cleaner syntax for auxiliary results, e.g. `prelimhlep.output (%b: i1)`.
+        prelimhlep.output (%b) carrying () : [i1]
     }
     return %0 : !prelimhlep.lin<i1>
 }
 // CHECK-LABEL: func.func @lin_op
 // CHECK: prelimhlep.lin (%{{.*}} : i1 from %{{.*}} : !prelimhlep.lin<i1>) -> (!prelimhlep.lin<i1>)
+// CHECK: prelimhlep.output(%{{.*}}) carrying() : [i1]
 
 func.func @lin_op_with_auxiliary_result(%q: !prelimhlep.lin<i1>) -> i1 attributes { prelimhlep.halo = #prelimhlep.halo } {
     %0 = prelimhlep.lin (
         %b : i1 from %q : !prelimhlep.lin<i1>
     ) -> (i1) {
-        "prelimhlep.output"(%b) <{operandSegmentSizes = array<i32: 0, 1>}> : (i1) -> ()
+        // TODO: cleaner syntax for auxiliary results, e.g. `prelimhlep.output () carrying (%b: i1)`.
+        prelimhlep.output () carrying (%b) : , [i1]
     }
     return %0 : i1
 }
 // CHECK-LABEL: func.func @lin_op_with_auxiliary_result
 // CHECK: prelimhlep.lin (%{{.*}} : i1 from %{{.*}} : !prelimhlep.lin<i1>) -> (i1)
+// CHECK: prelimhlep.output() carrying(%{{.*}}) :, [i1]
 
 func.func @lin_op_no_operands(%halo: !prelimhlep.linear_unit) -> (i1, !prelimhlep.linear_unit) attributes { prelimhlep.halo = #prelimhlep.halo } {
     %0 = prelimhlep.lin () -> (i1) {
         %v = arith.constant true
-        "prelimhlep.output"(%v) <{operandSegmentSizes = array<i32: 0, 1>}> : (i1) -> ()
+        prelimhlep.output () carrying (%v) : , [i1]
     }
     return %0, %halo : i1, !prelimhlep.linear_unit
 }
 // CHECK-LABEL: func.func @lin_op_no_operands
 // CHECK: prelimhlep.lin () -> (i1)
+// CHECK: prelimhlep.output() carrying(%{{.*}}) :, [i1]
 
 // The halo linearity check proves this is fine: %v is used exactly once on
 // both the `then` and `else` paths of the scf.if.

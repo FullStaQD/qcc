@@ -30,9 +30,9 @@ def ScaleOp : PrelimHLEPOp<"scale"> {
         `prelim_hlep.scale %factor, %t : (complex<f64>, T) -> T`
 
         The verifier checks that the op is nested (directly or indirectly)
-        within a `prelim_hlep.halo`-attributed function.
+        within a `prelim_hlep.halo`-attributed function, and that the
+        operand and result types match.
 
-        TODO: verify that operand and result types match.
         TODO: consider canonicalizing into `prelim_hlep.add_phase`.
         TODO: consider deprecating this in favor of `prelim_hlep.add_phase`.
     }];
@@ -54,10 +54,10 @@ def AddPhaseOp : PrelimHLEPOp<"add_phase"> {
         `prelim_hlep.add_phase %alpha, %t : (f64, T) -> T`
 
         The verifier checks that the op is nested (directly or indirectly)
-        within a `prelim_hlep.halo`-attributed function.
+        within a `prelim_hlep.halo`-attributed function, and that the
+        operand and result types match.
 
-        TODO: verify that operand and result types match; consider folding
-        into `prelim_hlep.scale` or vice versa.
+        TODO: consider folding into `prelim_hlep.scale` or vice versa.
         TODO: consider allowing other types for angles.
     }];
 
@@ -125,15 +125,14 @@ def OutputOp : PrelimHLEPOp<"output", [Terminator, AttrSizedOperandSegments, Has
         `prelim_hlep.output (%out_delinearized, ...) carrying (%out_aux, ...)`
 
         The verifier checks that the op is nested (directly or indirectly)
-        within a `prelim_hlep.halo`-attributed function.
-
-        TODO: custom assembly format matching the syntax above. (Operand
+        within a `prelim_hlep.halo`-attributed function. (Operand
         types/count are checked against the enclosing `prelim_hlep.lin`'s
         results by `LinOp`'s verifier.)
     }];
 
     let arguments = (ins Variadic<AnyType>:$delinearizedResults,
                           Variadic<AnyType>:$auxiliaryResults);
+    let assemblyFormat = "`(` $delinearizedResults `)` `carrying` `(` $auxiliaryResults `)` attr-dict `:` (`[` type($delinearizedResults)^ `]`)? (`,` `[` type($auxiliaryResults)^ `]`)?";
     let hasVerifier = 1;
 }
 
@@ -152,11 +151,10 @@ def ExpOp : PrelimHLEPOp<"exp"> {
             (f64, !prelim_hlep.lin<i1>) -> !prelim_hlep.lin<i1>
         ```
 
-        TODO: custom assembly format inlining the `hamiltonian<...>`
-        attribute (rather than via the generic `attr-dict`); verifier
-        checking the hamiltonian's qubit count against the operand/result
-        type's bit width, and that operand/result types match and are
-        purely-quantum `!prelim_hlep.lin<i<n>>` types.
+        The verifier checks that the hamiltonian's qubit count matches the
+        operand/result type's bit width, and that operand and result types
+        match and are purely-quantum `!prelim_hlep.lin<i<n>>` types.
+
         TODO: double-check the sign convention for the exponent
     }];
 
@@ -164,6 +162,7 @@ def ExpOp : PrelimHLEPOp<"exp"> {
     let results = (outs AnyType:$result);
 
     let assemblyFormat = "$angle `hamiltonian` $hamiltonian $input attr-dict `:` `(` type($angle) `,` type($input) `)` `->` type($result)";
+    let hasVerifier = 1;
 }
 
 def BaseChangeOp : PrelimHLEPOp<"base_change"> {
@@ -181,10 +180,9 @@ def BaseChangeOp : PrelimHLEPOp<"base_change"> {
         ```
 
         The verifier checks that the op is nested (directly or indirectly)
-        within a `prelim_hlep.halo`-attributed function.
-
-        TODO: verifier restricting operand/result types to
-        `!prelim_hlep.lin<...>` over `i<n>`/`x<n>`/`y<n>` of matching `n`.
+        within a `prelim_hlep.halo`-attributed function, and that operand
+        and result types are `!prelim_hlep.lin<...>` over `i<n>`/`x<n>`/
+        `y<n>` of matching `n`.
     }];
 
     let arguments = (ins AnyType:$input);
@@ -208,9 +206,10 @@ def ConstantOp : PrelimHLEPOp<"constant"> {
         %yyy = prelim_hlep.constant "><>" : !prelim_hlep.lin<!prelim_hlep.y<3>>
         ```
 
-        TODO: verifier checking that `value` consists only of valid basis
-        symbols for the result type, with length matching the result type's
-        `n`.
+        The verifier checks that `value` consists only of valid basis
+        symbols for the result type (`+`/`-` for X, `->`/`<-` for Y), with
+        length matching the result type's `n`.
+
         TODO: consider defining a custom attribute instead of a string.
     }];
 
@@ -218,6 +217,7 @@ def ConstantOp : PrelimHLEPOp<"constant"> {
     let results = (outs AnyType:$result);
 
     let assemblyFormat = "$value attr-dict `:` type($result)";
+    let hasVerifier = 1;
 }
 
 def UnitValueOp : PrelimHLEPOp<"unit_value"> {

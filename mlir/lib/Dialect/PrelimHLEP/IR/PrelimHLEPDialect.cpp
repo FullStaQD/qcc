@@ -34,13 +34,139 @@ static LogicalResult verifyWithinHaloedFunction(Operation* op) {
   return success();
 }
 
-LogicalResult ScaleOp::verify() { return verifyWithinHaloedFunction(getOperation()); }
+/// Checks that `op`'s single input/result pair (named accordingly in
+/// diagnostics) have identical types.
+static LogicalResult verifyInputResultTypesMatch(Operation* op, Type inputType, Type resultType) {
+  if (inputType != resultType) {
+    return op->emitOpError("expected result type (") << resultType << ") to match input type (" << inputType << ")";
+  }
+  return success();
+}
 
-LogicalResult AddPhaseOp::verify() { return verifyWithinHaloedFunction(getOperation()); }
+LogicalResult ScaleOp::verify() {
+  if (failed(verifyWithinHaloedFunction(getOperation()))) {
+    return failure();
+  }
+  return verifyInputResultTypesMatch(getOperation(), getInput().getType(), getResult().getType());
+}
 
-LogicalResult BaseChangeOp::verify() { return verifyWithinHaloedFunction(getOperation()); }
+LogicalResult AddPhaseOp::verify() {
+  if (failed(verifyWithinHaloedFunction(getOperation()))) {
+    return failure();
+  }
+  return verifyInputResultTypesMatch(getOperation(), getInput().getType(), getResult().getType());
+}
+
+/// Returns the "size" `n` of a basis element type -- the bit width of `iN`,
+/// or the `n` of `!prelim_hlep.x<n>`/`!prelim_hlep.y<n>` -- or `nullopt` if
+/// `type` is none of these.
+static std::optional<int64_t> getBasisSize(Type type) {
+  if (auto intType = dyn_cast<IntegerType>(type)) {
+    return intType.getWidth();
+  }
+  if (auto xType = dyn_cast<XType>(type)) {
+    return xType.getSize();
+  }
+  if (auto yType = dyn_cast<YType>(type)) {
+    return yType.getSize();
+  }
+  return std::nullopt;
+}
+
+LogicalResult BaseChangeOp::verify() {
+  if (failed(verifyWithinHaloedFunction(getOperation()))) {
+    return failure();
+  }
+
+  auto inputType = dyn_cast<LinType>(getInput().getType());
+  auto resultType = dyn_cast<LinType>(getResult().getType());
+  if (!inputType || !resultType) {
+    return emitOpError("expected input and result types to be '") << LinType::getMnemonic() << "' types";
+  }
+
+  std::optional<int64_t> inputSize = getBasisSize(inputType.getElementType());
+  std::optional<int64_t> resultSize = getBasisSize(resultType.getElementType());
+  if (!inputSize) {
+    return emitOpError("expected input type's element type (")
+           << inputType.getElementType() << ") to be an integer, 'x', or 'y' type";
+  }
+  if (!resultSize) {
+    return emitOpError("expected result type's element type (")
+           << resultType.getElementType() << ") to be an integer, 'x', or 'y' type";
+  }
+  if (*inputSize != *resultSize) {
+    return emitOpError("expected input and result types to have the same qubit count, got ")
+           << *inputSize << " and " << *resultSize;
+  }
+
+  return success();
+}
 
 LogicalResult OutputOp::verify() { return verifyWithinHaloedFunction(getOperation()); }
+
+LogicalResult ConstantOp::verify() {
+  auto resultType = dyn_cast<LinType>(getResult().getType());
+  Type elementType = resultType ? resultType.getElementType() : nullptr;
+  StringRef value = getValue();
+
+  if (auto xType = dyn_cast_or_null<XType>(elementType)) {
+    if (static_cast<int64_t>(value.size()) != xType.getSize()) {
+      return emitOpError("expected a length-")
+             << xType.getSize() << " string for result type " << resultType << ", got length " << value.size();
+    }
+    for (char c : value) {
+      if (c != '+' && c != '-') {
+        return emitOpError("expected only '+'/'-' symbols for result type ") << resultType << ", got '" << c << "'";
+      }
+    }
+    return success();
+  }
+
+  if (auto yType = dyn_cast_or_null<YType>(elementType)) {
+    if (static_cast<int64_t>(value.size()) != 2 * yType.getSize()) {
+      return emitOpError("expected a length-")
+             << (2 * yType.getSize()) << " string (" << yType.getSize() << " '->'/'<-' symbols) for result type "
+             << resultType << ", got length " << value.size();
+    }
+    for (size_t i = 0, e = value.size(); i < e; i += 2) {
+      StringRef symbol = value.substr(i, 2);
+      if (symbol != "->" && symbol != "<-") {
+        return emitOpError("expected only '->'/'<-' symbols for result type ")
+               << resultType << ", got '" << symbol << "'";
+      }
+    }
+    return success();
+  }
+
+  return emitOpError("expected result type to be '")
+         << LinType::getMnemonic() << "<" << XType::getMnemonic() << "<n>>' or '" << LinType::getMnemonic() << "<"
+         << YType::getMnemonic() << "<n>>', got " << getResult().getType();
+}
+
+LogicalResult ExpOp::verify() {
+  if (failed(verifyWithinHaloedFunction(getOperation()))) {
+    return failure();
+  }
+
+  if (failed(verifyInputResultTypesMatch(getOperation(), getInput().getType(), getResult().getType()))) {
+    return failure();
+  }
+
+  auto inputType = dyn_cast<LinType>(getInput().getType());
+  IntegerType elementType = inputType ? dyn_cast<IntegerType>(inputType.getElementType()) : nullptr;
+  if (!elementType) {
+    return emitOpError("expected input/result types to be purely-quantum '")
+           << LinType::getMnemonic() << "<i<n>>' types, got " << getInput().getType();
+  }
+
+  int64_t qubitCount = getHamiltonian().getQubitCount();
+  if (qubitCount != elementType.getWidth()) {
+    return emitOpError("expected hamiltonian qubit count (")
+           << qubitCount << ") to match input/result bit width (" << elementType.getWidth() << ")";
+  }
+
+  return success();
+}
 
 // Parses `( %arg : argType from %operand : operandType, ... ) -> ( resultType, ... ) region`.
 ParseResult LinOp::parse(OpAsmParser& parser, OperationState& result) {
