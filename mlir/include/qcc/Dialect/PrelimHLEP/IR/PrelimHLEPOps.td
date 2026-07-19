@@ -29,8 +29,10 @@ def ScaleOp : PrelimHLEPOp<"scale"> {
         **IR Realization:**
         `prelim_hlep.scale %factor, %t : (complex<f64>, T) -> T`
 
-        TODO: verify that operand and result types match; verify legality
-        (only inside `LinearHalo` functions).
+        The verifier checks that the op is nested (directly or indirectly)
+        within a `prelim_hlep.halo`-attributed function.
+
+        TODO: verify that operand and result types match.
         TODO: consider canonicalizing into `prelim_hlep.add_phase`.
         TODO: consider deprecating this in favor of `prelim_hlep.add_phase`.
     }];
@@ -39,6 +41,7 @@ def ScaleOp : PrelimHLEPOp<"scale"> {
     let results = (outs AnyType:$result);
 
     let assemblyFormat = "$factor `,` $input attr-dict `:` `(` type($factor) `,` type($input) `)` `->` type($result)";
+    let hasVerifier = 1;
 }
 
 def AddPhaseOp : PrelimHLEPOp<"add_phase"> {
@@ -50,6 +53,9 @@ def AddPhaseOp : PrelimHLEPOp<"add_phase"> {
         **IR Realization:**
         `prelim_hlep.add_phase %alpha, %t : (f64, T) -> T`
 
+        The verifier checks that the op is nested (directly or indirectly)
+        within a `prelim_hlep.halo`-attributed function.
+
         TODO: verify that operand and result types match; consider folding
         into `prelim_hlep.scale` or vice versa.
         TODO: consider allowing other types for angles.
@@ -59,6 +65,7 @@ def AddPhaseOp : PrelimHLEPOp<"add_phase"> {
     let results = (outs AnyType:$result);
 
     let assemblyFormat = "$alpha `,` $input attr-dict `:` `(` type($alpha) `,` type($input) `)` `->` type($result)";
+    let hasVerifier = 1;
 }
 
 def LinOp : PrelimHLEPOp<"lin", [SingleBlock]> {
@@ -76,33 +83,34 @@ def LinOp : PrelimHLEPOp<"lin", [SingleBlock]> {
         including the role of the measurement set M(f) and the composition
         theorem.
 
-        **IR Realization** (sketch, see design doc for full grammar):
+        **IR Realization:**
         ```mlir
-        %out_lin, %out_auxiliary = prelim_hlep.lin (
-            %in_delinearized: <A> from %in_lin: !prelim_hlep.lin<A>, ...
-        ) -> (!prelim_hlep.lin<C>, <D>, ...) {
+        %out_lin, %out_auxiliary = prelimhlep.lin (
+            %in_delinearized : i1 from %in_lin : !prelimhlep.lin<i1>, ...
+        ) -> (!prelimhlep.lin<i1>, i1, ...) {
             %out_delinearized, %out_aux =
-                some.op (%in_delinearized, %in_capture) : (<A>, <B>) -> (<C>, <D>)
-            prelim_hlep.output (%out_delinearized) carrying (%out_aux)
+                some.op (%in_delinearized, %in_capture) : (i1, i1) -> (i1, i1)
+            prelimhlep.output (%out_delinearized) carrying (%out_aux)
         }
         ```
+        Each binding's block argument type and the element type of its
+        source operand's `!prelim_hlep.lin<...>` type are independently
+        parsed and are only related by `LinOp`'s verifier, not the grammar
+        itself.
 
-        TODO: this is a coarse stub. Still to design/implement:
-          - custom assembly format matching the grammar above (binding
-            each delinearized operand's block argument name and source
-            explicitly, rather than the generic op syntax used for now).
-
-        The verifier checks that the body block's argument types match the
-        `delinearizedOperands` element types, and that the op's result
-        types are the re-linearization of the `prelim_hlep.output`
-        terminator's delinearized results, followed by its auxiliary
-        results unchanged.
+        The verifier checks that the op is nested (directly or indirectly)
+        within a `prelim_hlep.halo`-attributed function; that the body
+        block's argument types match the `delinearizedOperands` element
+        types; and that the op's result types are the re-linearization of
+        the `prelim_hlep.output` terminator's delinearized results,
+        followed by its auxiliary results unchanged.
     }];
 
     let arguments = (ins Variadic<LinType>:$delinearizedOperands);
     let results = (outs Variadic<AnyType>:$results);
     let regions = (region SizedRegion<1>:$body);
     let hasVerifier = 1;
+    let hasCustomAssemblyFormat = 1;
 }
 
 def OutputOp : PrelimHLEPOp<"output", [Terminator, AttrSizedOperandSegments, HasParent<"LinOp">]> {
@@ -116,6 +124,9 @@ def OutputOp : PrelimHLEPOp<"output", [Terminator, AttrSizedOperandSegments, Has
         **IR Realization:**
         `prelim_hlep.output (%out_delinearized, ...) carrying (%out_aux, ...)`
 
+        The verifier checks that the op is nested (directly or indirectly)
+        within a `prelim_hlep.halo`-attributed function.
+
         TODO: custom assembly format matching the syntax above. (Operand
         types/count are checked against the enclosing `prelim_hlep.lin`'s
         results by `LinOp`'s verifier.)
@@ -123,6 +134,7 @@ def OutputOp : PrelimHLEPOp<"output", [Terminator, AttrSizedOperandSegments, Has
 
     let arguments = (ins Variadic<AnyType>:$delinearizedResults,
                           Variadic<AnyType>:$auxiliaryResults);
+    let hasVerifier = 1;
 }
 
 def ExpOp : PrelimHLEPOp<"exp"> {
@@ -168,6 +180,9 @@ def BaseChangeOp : PrelimHLEPOp<"base_change"> {
             !prelim_hlep.lin<i1> -> !prelim_hlep.lin<!prelim_hlep.x<1>>
         ```
 
+        The verifier checks that the op is nested (directly or indirectly)
+        within a `prelim_hlep.halo`-attributed function.
+
         TODO: verifier restricting operand/result types to
         `!prelim_hlep.lin<...>` over `i<n>`/`x<n>`/`y<n>` of matching `n`.
     }];
@@ -176,6 +191,7 @@ def BaseChangeOp : PrelimHLEPOp<"base_change"> {
     let results = (outs AnyType:$result);
 
     let assemblyFormat = "$input attr-dict `:` type($input) `->` type($result)";
+    let hasVerifier = 1;
 }
 
 def ConstantOp : PrelimHLEPOp<"constant"> {

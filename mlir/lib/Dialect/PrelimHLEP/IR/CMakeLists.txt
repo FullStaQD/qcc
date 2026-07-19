@@ -12,4 +12,5 @@ add_mlir_dialect_library(
   MLIRSupport
   MLIRInferTypeOpInterface
   MLIRSideEffectInterfaces
-  MLIRFunctionInterfaces)
+  MLIRFunctionInterfaces
+  MLIRControlFlowInterfaces)
