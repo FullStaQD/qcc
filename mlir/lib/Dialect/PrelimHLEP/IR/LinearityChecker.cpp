@@ -33,24 +33,31 @@ bool mayExecuteRepeatedly(Operation* user, Region* defRegion) {
   return false;
 }
 
-/// Walks up from `use`'s owning region to `defRegion`, looking for the
-/// nearest ancestor operation that implements `RegionBranchOpInterface`
-/// (i.e. the innermost structured-control-flow op the use is conditionally
-/// nested under, if any). Regions whose parent op does *not* implement the
-/// interface (like `prelim_hlep.lin`'s body) are transparent: they always
-/// execute exactly once alongside their parent op, so they don't affect
-/// whether a use is "direct" (unconditional) relative to `defRegion`.
+/// Walks from `use`'s owning operation up toward `boundaryRegion`, returning
+/// the branch op and its region that most tightly enclose `use` while still
+/// being directly nested inside `boundaryRegion` -- i.e. the first branch op
+/// reached when walking *down* from `boundaryRegion` toward `use` (which may
+/// itself be nested arbitrarily deeper still, under further branch ops
+/// inside that region). Regions whose parent op does *not* implement
+/// `RegionBranchOpInterface` (like `prelim_hlep.lin`'s body) are
+/// transparent: they always execute exactly once alongside their parent op,
+/// so they don't affect whether a use is "direct" (unconditional) relative
+/// to `boundaryRegion`.
 ///
-/// Returns {nullptr, nullptr} if the use is direct, i.e. no such ancestor
-/// exists between `defRegion` and the use.
-std::pair<Operation*, Region*> findNearestBranchAncestor(OpOperand* use, Region* defRegion) {
-  for (Region* region = use->getOwner()->getParentRegion(); (region != nullptr) && region != defRegion;
+/// Returns {nullptr, nullptr} if the use is direct, i.e. no branch op exists
+/// between `boundaryRegion` and the use.
+std::pair<Operation*, Region*> findEnclosingBranchAncestor(OpOperand* use, Region* boundaryRegion) {
+  std::pair<Operation*, Region*> found = {nullptr, nullptr};
+  for (Region* region = use->getOwner()->getParentRegion(); (region != nullptr) && region != boundaryRegion;
        region = region->getParentOp()->getParentRegion()) {
     if (isa<RegionBranchOpInterface>(region->getParentOp())) {
-      return {region->getParentOp(), region};
+      // Keep overwriting: the last match found before reaching
+      // `boundaryRegion` is the outermost one, i.e. the one directly nested
+      // inside `boundaryRegion`.
+      found = {region->getParentOp(), region};
     }
   }
-  return {nullptr, nullptr};
+  return found;
 }
 
 /// Returns a location to point to for `region` when reporting that it does
@@ -88,53 +95,85 @@ void attachUseNotes(InFlightDiagnostic& diag, ArrayRef<OpOperand*> uses) {
   }
 }
 
-/// Handles the group of uses that are all nested (possibly transparently, see
-/// `findNearestBranchAncestor`) in a distinct region of the same
+LogicalResult checkUsesCoverRegion(Operation* diagOp, const Twine& description, Region* region,
+                                   ArrayRef<OpOperand*> uses, bool isRegionUnconditional);
+
+/// Handles the group of uses that are all nested (possibly transitively,
+/// through further nested branch ops, and possibly transparently, see
+/// `findEnclosingBranchAncestor`) in a distinct region of the same
 /// `RegionBranchOpInterface` operation `branchOp` -- e.g. the `then`/`else`
-/// regions of an `scf.if`. Succeeds only if every region of `branchOp`
-/// contains exactly one use and there is no control-flow path that can skip
-/// all of them; otherwise emits a diagnostic on `diagOp` (with `description`
-/// identifying the value) pointing at every relevant location and fails.
+/// regions of an `scf.if`. Succeeds only if every region of `branchOp` is
+/// covered by at least one use, there is no control-flow path that can skip
+/// `branchOp` entirely, the covered regions are pairwise proven mutually
+/// exclusive, and -- recursively -- each region's own uses cover it with
+/// exactly one use on every path through it (see `checkUsesCoverRegion`,
+/// which handles any further nesting); otherwise emits a diagnostic on
+/// `diagOp` (with `description` identifying the value) and fails.
 LogicalResult checkBranchCoverage(Operation* diagOp, const Twine& description, Operation* branchOp,
                                   ArrayRef<std::pair<OpOperand*, Region*>> branchUses) {
-  for (size_t i = 0, e = branchUses.size(); i < e; ++i) {
-    for (size_t j = i + 1; j < e; ++j) {
-      if (branchUses[i].second == branchUses[j].second) {
-        auto diag = diagOp->emitError() << description
-                                        << " is subject to linearity, but is used more than once "
-                                           "on this control-flow path";
-        diag.attachNote(branchUses[i].first->getOwner()->getLoc()) << "used here";
-        diag.attachNote(branchUses[j].first->getOwner()->getLoc()) << "and here";
-        return diag;
-      }
-      if (!insideMutuallyExclusiveRegions(branchUses[i].first->getOwner(), branchUses[j].first->getOwner())) {
-        auto diag = diagOp->emitError() << description
-                                        << " is subject to linearity, but its uses could not be proven to lie on "
-                                           "mutually exclusive control-flow paths";
-        diag.attachNote(branchUses[i].first->getOwner()->getLoc()) << "used here";
-        diag.attachNote(branchUses[j].first->getOwner()->getLoc()) << "and here";
-        return diag;
-      }
-    }
-  }
-
-  // Every region of `branchOp` must have exactly one use; a region with none
-  // is a control-flow path with zero uses of the value.
   auto regionBranchOp = cast<RegionBranchOpInterface>(branchOp);
   SmallVector<RegionSuccessor> entrySuccessors;
   regionBranchOp.getSuccessorRegions(RegionBranchPoint::parent(), entrySuccessors);
   bool hasParentBypass = llvm::any_of(entrySuccessors, [](RegionSuccessor& s) { return s.isParent(); });
 
-  if (branchUses.size() < branchOp->getNumRegions() || hasParentBypass) {
+  SmallVector<std::pair<Region*, SmallVector<OpOperand*>>> byRegion;
+  for (Region& region : branchOp->getRegions()) {
+    SmallVector<OpOperand*> regionUses;
+    for (const auto& [use, useRegion] : branchUses) {
+      if (useRegion == &region) {
+        regionUses.push_back(use);
+      }
+    }
+    byRegion.emplace_back(&region, std::move(regionUses));
+  }
+
+  // Recurse into every region that has at least one use first, so that a
+  // double use (or further unresolvable nesting) confined to a single arm is
+  // reported precisely, rather than being masked by a less specific
+  // coverage-gap diagnostic about some other, entirely unused, arm.
+  for (const auto& [region, regionUses] : byRegion) {
+    if (!regionUses.empty() &&
+        failed(checkUsesCoverRegion(diagOp, description, region, regionUses, /*isRegionUnconditional=*/false))) {
+      return failure();
+    }
+  }
+
+  // The regions that do have uses must be pairwise mutually exclusive (one
+  // representative use per region suffices, since this is a structural
+  // property of the regions, not of the specific uses inside them).
+  for (size_t i = 0, e = byRegion.size(); i < e; ++i) {
+    if (byRegion[i].second.empty()) {
+      continue;
+    }
+    for (size_t j = i + 1; j < e; ++j) {
+      if (byRegion[j].second.empty()) {
+        continue;
+      }
+      Operation* repA = byRegion[i].second.front()->getOwner();
+      Operation* repB = byRegion[j].second.front()->getOwner();
+      if (!insideMutuallyExclusiveRegions(repA, repB)) {
+        auto diag = diagOp->emitError() << description
+                                        << " is subject to linearity, but its uses could not be proven to lie on "
+                                           "mutually exclusive control-flow paths";
+        diag.attachNote(repA->getLoc()) << "used here";
+        diag.attachNote(repB->getLoc()) << "and here";
+        return diag;
+      }
+    }
+  }
+
+  // Every region of `branchOp` must be covered by at least one use; a region
+  // with none is a control-flow path with zero uses of the value.
+  bool allRegionsCovered = llvm::all_of(byRegion, [](const auto& p) { return !p.second.empty(); });
+  if (!allRegionsCovered || hasParentBypass) {
     auto diag = diagOp->emitError() << description
                                     << " is subject to linearity, but is not used on every control-flow path";
     for (const auto& [use, region] : branchUses) {
       diag.attachNote(use->getOwner()->getLoc()) << "used on this control-flow path";
     }
-    for (Region& region : branchOp->getRegions()) {
-      bool used = llvm::any_of(branchUses, [&](auto& pair) { return pair.second == &region; });
-      if (!used) {
-        diag.attachNote(getRegionLoc(&region)) << "not used on this control-flow path";
+    for (const auto& [region, regionUses] : byRegion) {
+      if (regionUses.empty()) {
+        diag.attachNote(getRegionLoc(region)) << "not used on this control-flow path";
       }
     }
     if (hasParentBypass) {
@@ -144,6 +183,77 @@ LogicalResult checkBranchCoverage(Operation* diagOp, const Twine& description, O
   }
 
   return success();
+}
+
+/// Recursively determines whether `uses` -- known to be exactly the uses of
+/// the checked value that are reached when control flow enters `region`
+/// (possibly through several further levels of nested branch ops) -- use the
+/// value exactly once on every control-flow path through `region`. `uses` is
+/// never empty: an empty set for some control-flow path is instead reported
+/// by the caller (see `checkBranchCoverage`), which only recurses into a
+/// region once it knows at least one use reaches it.
+///
+/// This is the recursive core of the linearity analysis: relative to
+/// `region`, it splits `uses` into those reached unconditionally within
+/// `region` ("direct" uses) and those nested under branch ops directly
+/// inside `region` (see `findEnclosingBranchAncestor`). A direct use
+/// combined with any other use is an immediate double use. Otherwise, if all
+/// remaining uses are (transitively) nested under arms of the same single
+/// branch op, `checkBranchCoverage` recurses into each of its regions to
+/// keep resolving any further nesting; uses spread across unrelated branch
+/// ops are rejected, as this analysis cannot reason about them.
+///
+/// `isRegionUnconditional` distinguishes `region` being unconditionally
+/// reached whenever the value is defined (the top-level call, from
+/// `checkPreciselyOneUse`) from `region` itself being one arm of some
+/// enclosing branch op (every recursive call), which only affects how
+/// double-use diagnostics are phrased.
+LogicalResult checkUsesCoverRegion(Operation* diagOp, const Twine& description, Region* region,
+                                   ArrayRef<OpOperand*> uses, bool isRegionUnconditional) {
+  unsigned directUses = 0;
+  Operation* branchOp = nullptr;
+  bool multipleBranchOps = false;
+  SmallVector<std::pair<OpOperand*, Region*>> branchUses;
+  for (OpOperand* use : uses) {
+    auto [ancestorBranchOp, ancestorRegion] = findEnclosingBranchAncestor(use, region);
+    if (ancestorBranchOp == nullptr) {
+      ++directUses;
+      continue;
+    }
+    if (branchOp == nullptr) {
+      branchOp = ancestorBranchOp;
+    } else if (branchOp != ancestorBranchOp) {
+      multipleBranchOps = true;
+    }
+    branchUses.emplace_back(use, ancestorRegion);
+  }
+
+  // A use that always executes, combined with any other (possibly
+  // conditional) use, is a proven double-use on whichever path also takes
+  // the other use.
+  if (directUses > 1 || (directUses == 1 && !branchUses.empty())) {
+    auto diag = diagOp->emitError() << description << " is subject to linearity, but is used more than once";
+    if (!isRegionUnconditional) {
+      diag << " on this control-flow path";
+    }
+    attachUseNotes(diag, uses);
+    return diag;
+  }
+  if (directUses == 1) {
+    return success();
+  }
+
+  // All uses are conditional. This analysis only understands the case where
+  // they are all arms of a single branch operation.
+  if (multipleBranchOps) {
+    auto diag =
+        diagOp->emitError() << description
+                            << " is subject to linearity, but its uses are spread across unrelated control-flow "
+                               "branches, which this analysis cannot reason about";
+    attachUseNotes(diag, uses);
+    return diag;
+  }
+  return checkBranchCoverage(diagOp, description, branchOp, branchUses);
 }
 
 /// Tries to prove that `value` (identified as `description` in diagnostics,
@@ -175,52 +285,7 @@ LogicalResult checkPreciselyOneUse(Operation* diagOp, Value value, const Twine& 
     }
   }
 
-  // Split the uses into those reached unconditionally (relative to
-  // `defRegion`) and those (transitively) nested under some branch op.
-  unsigned directUses = 0;
-  Operation* branchOp = nullptr;
-  bool multipleBranchOps = false;
-  SmallVector<std::pair<OpOperand*, Region*>> branchUses;
-  for (OpOperand* use : uses) {
-    auto [ancestorBranchOp, ancestorRegion] = findNearestBranchAncestor(use, defRegion);
-    if (ancestorBranchOp == nullptr) {
-      ++directUses;
-      continue;
-    }
-    if (branchOp == nullptr) {
-      branchOp = ancestorBranchOp;
-    } else if (branchOp != ancestorBranchOp) {
-      multipleBranchOps = true;
-    }
-    branchUses.emplace_back(use, ancestorRegion);
-  }
-  // TODO: I believe we can handle nested branching as follows: traverse the tree of branch ops upwards. All branches of
-  // all of these branch ops must have exactly one use, and the union of all of these uses must be all uses of the
-  // value. It suffices to check this for the first use.
-
-  // A use that always executes, combined with any other (possibly
-  // conditional) use, is a proven double-use on whichever path also takes
-  // the other use.
-  if (directUses > 1 || (directUses == 1 && !branchUses.empty())) {
-    auto diag = diagOp->emitError() << description << " is subject to linearity, but is used more than once";
-    attachUseNotes(diag, uses);
-    return diag;
-  }
-  if (directUses == 1) {
-    return success();
-  }
-
-  // All uses are conditional. This analysis only understands the case where
-  // they are all arms of a single branch operation.
-  if (multipleBranchOps) {
-    auto diag =
-        diagOp->emitError() << description
-                            << " is subject to linearity, but its uses are spread across unrelated control-flow "
-                               "branches, which this analysis cannot reason about";
-    attachUseNotes(diag, uses);
-    return diag;
-  }
-  return checkBranchCoverage(diagOp, description, branchOp, branchUses);
+  return checkUsesCoverRegion(diagOp, description, defRegion, uses, /*isRegionUnconditional=*/true);
 }
 
 /// Returns true if `type` is not purely classical, i.e. subject to

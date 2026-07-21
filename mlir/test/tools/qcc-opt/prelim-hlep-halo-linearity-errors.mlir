@@ -52,13 +52,64 @@ func.func private @make_qubit() -> !prelimhlep.lin<i1>
 // expected-error @below {{'prelimhlep.halo' function argument #1 is subject to linearity, but is used more than once on this control-flow path}}
 func.func private @if_double_use_in_one_arm(%cond: i1, %v: !prelimhlep.lin<i1>) -> (!prelimhlep.lin<i1>, !prelimhlep.lin<i1>) attributes { prelimhlep.halo = #prelimhlep.halo } {
     %r0, %r1 = scf.if %cond -> (!prelimhlep.lin<i1>, !prelimhlep.lin<i1>) {
-        // expected-note @below {{used here}}
-        // expected-note @below {{and here}}
+        // expected-note @below {{used 2 times here}}
         scf.yield %v, %v : !prelimhlep.lin<i1>, !prelimhlep.lin<i1>
     } else {
         %u0 = func.call @make_qubit() : () -> !prelimhlep.lin<i1>
         %u1 = func.call @make_qubit() : () -> !prelimhlep.lin<i1>
         scf.yield %u0, %u1 : !prelimhlep.lin<i1>, !prelimhlep.lin<i1>
+    }
+    return %r0, %r1 : !prelimhlep.lin<i1>, !prelimhlep.lin<i1>
+}
+
+// -----
+
+func.func private @make_qubit() -> !prelimhlep.lin<i1>
+
+// Nested scf.if: the outer `else` uses the argument, and the outer `then`
+// contains a nested scf.if -- but that nested if's `else` arm does not use
+// it, so this control-flow path (outer `then`, inner `else`) has zero uses.
+// expected-error @below {{'prelimhlep.halo' function argument #2 is subject to linearity, but is not used on every control-flow path}}
+func.func private @nested_if_missing_use_in_inner_arm(%cond0: i1, %cond1: i1, %v: !prelimhlep.lin<i1>) -> !prelimhlep.lin<i1> attributes { prelimhlep.halo = #prelimhlep.halo } {
+    %r = scf.if %cond0 -> (!prelimhlep.lin<i1>) {
+        %inner = scf.if %cond1 -> (!prelimhlep.lin<i1>) {
+            // expected-note @below {{used on this control-flow path}}
+            scf.yield %v : !prelimhlep.lin<i1>
+        } else {
+            // expected-note @below {{not used on this control-flow path}}
+            %u = func.call @make_qubit() : () -> !prelimhlep.lin<i1>
+            scf.yield %u : !prelimhlep.lin<i1>
+        }
+        scf.yield %inner : !prelimhlep.lin<i1>
+    } else {
+        scf.yield %v : !prelimhlep.lin<i1>
+    }
+    return %r : !prelimhlep.lin<i1>
+}
+
+// -----
+
+func.func private @make_qubit() -> !prelimhlep.lin<i1>
+
+// Nested scf.if where a nested `then` arm uses the argument twice; the outer
+// `else` also uses it once, but that alone is fine -- it's the inner double
+// use that makes this control-flow path invalid.
+// expected-error @below {{'prelimhlep.halo' function argument #2 is subject to linearity, but is used more than once on this control-flow path}}
+func.func private @nested_if_double_use_in_inner_arm(%cond0: i1, %cond1: i1, %v: !prelimhlep.lin<i1>)
+    -> (!prelimhlep.lin<i1>, !prelimhlep.lin<i1>) attributes { prelimhlep.halo = #prelimhlep.halo } {
+    %r0, %r1 = scf.if %cond0 -> (!prelimhlep.lin<i1>, !prelimhlep.lin<i1>) {
+        %i0, %i1 = scf.if %cond1 -> (!prelimhlep.lin<i1>, !prelimhlep.lin<i1>) {
+            // expected-note @below {{used 2 times here}}
+            scf.yield %v, %v : !prelimhlep.lin<i1>, !prelimhlep.lin<i1>
+        } else {
+            %u0 = func.call @make_qubit() : () -> !prelimhlep.lin<i1>
+            %u1 = func.call @make_qubit() : () -> !prelimhlep.lin<i1>
+            scf.yield %u0, %u1 : !prelimhlep.lin<i1>, !prelimhlep.lin<i1>
+        }
+        scf.yield %i0, %i1 : !prelimhlep.lin<i1>, !prelimhlep.lin<i1>
+    } else {
+        %u2 = func.call @make_qubit() : () -> !prelimhlep.lin<i1>
+        scf.yield %v, %u2 : !prelimhlep.lin<i1>, !prelimhlep.lin<i1>
     }
     return %r0, %r1 : !prelimhlep.lin<i1>, !prelimhlep.lin<i1>
 }
