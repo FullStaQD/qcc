@@ -494,6 +494,28 @@ LogicalResult checkPreciselyOneUse(Operation* diagOp, Value value, const Twine& 
   }
   return checkBranchCoverage(diagOp, description, branchOp, branchUses);
 }
+
+/// Returns true if `type` is not purely classical, i.e. subject to
+/// linearity checking. For now this only recognizes `!prelim_hlep.lin<...>`
+/// itself; it does not look inside aggregate types that might contain one.
+/// Note that `!prelim_hlep.unit`, despite being the unit of the linear
+/// product, is itself a purely classical type (isomorphic to `none`), and so
+/// is not subject to linearity checking.
+bool isNotPurelyClassical(Type type) { return isa<LinType>(type); }
+
+/// Builds a human-readable description of `value` (a linearity-checked
+/// function argument, block argument, or op result) for use in diagnostics.
+std::string describeLinearValue(FunctionOpInterface funcOp, Value value) {
+  if (auto blockArg = dyn_cast<BlockArgument>(value)) {
+    if (blockArg.getOwner() == &funcOp.getFunctionBody().front()) {
+      return ("function argument #" + Twine(blockArg.getArgNumber())).str();
+    }
+    return ("block argument #" + Twine(blockArg.getArgNumber())).str();
+  }
+  OpResult result = cast<OpResult>(value);
+  return ("result #" + Twine(result.getResultNumber()) + " of '" + result.getOwner()->getName().getStringRef() + "'")
+      .str();
+}
 } // namespace
 
 LogicalResult PrelimHLEPDialect::verifyOperationAttribute(Operation* op, NamedAttribute attribute) {
@@ -510,24 +532,37 @@ LogicalResult PrelimHLEPDialect::verifyOperationAttribute(Operation* op, NamedAt
   if (funcOp.getNumArguments() == 0) {
     return op->emitError("'") << haloAttrName
                               << "' function must not have zero arguments; use "
-                                 "'!prelim_hlep.linear_unit' instead";
+                                 "'!prelim_hlep.unit' instead";
   }
   if (funcOp.getNumResults() == 0) {
     return op->emitError("'") << haloAttrName
                               << "' function must not have zero results; use "
-                                 "'!prelim_hlep.linear_unit' instead";
+                                 "'!prelim_hlep.unit' instead";
   }
 
   if (!funcOp.isExternal()) {
-    for (BlockArgument arg : funcOp.getArguments()) {
-      // TODO: not only arguments, and not all arguments should be checked.
-      // Instead, every value appearing within the function body that is not purely classical
-      // should be checked. "Not purely classical" should be its own helper function,
-      // and for now only checks if the type is !prelim_hlep.lin<something>
-      if (failed(checkPreciselyOneUse(op, arg,
-                                      "'" + haloAttrName + "' function argument #" + Twine(arg.getArgNumber())))) {
-        return failure();
+    LogicalResult result = success();
+    op->walk([&](Operation* nestedOp) {
+      for (Region& region : nestedOp->getRegions()) {
+        for (Block& block : region) {
+          for (BlockArgument arg : block.getArguments()) {
+            if (isNotPurelyClassical(arg.getType()) &&
+                failed(checkPreciselyOneUse(op, arg, "'" + haloAttrName + "' " + describeLinearValue(funcOp, arg)))) {
+              result = failure();
+            }
+          }
+        }
       }
+      for (OpResult opResult : nestedOp->getResults()) {
+        if (isNotPurelyClassical(opResult.getType()) &&
+            failed(checkPreciselyOneUse(op, opResult,
+                                        "'" + haloAttrName + "' " + describeLinearValue(funcOp, opResult)))) {
+          result = failure();
+        }
+      }
+    });
+    if (failed(result)) {
+      return failure();
     }
   }
 

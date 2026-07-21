@@ -34,10 +34,10 @@ def LinType : PrelimHLEPType<"Lin", "lin"> {
     let assemblyFormat = "`<` $elementType `>`";
 }
 
-def LinearUnitType : PrelimHLEPType<"LinearUnit", "linear_unit"> {
+def UnitType : PrelimHLEPType<"Unit", "unit"> {
     let summary = "The tensor unit of the linear product, opaque to generic optimizations.";
     let description = [{
-        `!prelim_hlep.linear_unit` represents the fiber bundle
+        `!prelim_hlep.unit` represents the fiber bundle
 
             [ C ]
             [ | ]

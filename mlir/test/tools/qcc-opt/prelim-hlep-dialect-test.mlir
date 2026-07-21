@@ -17,9 +17,9 @@ func.func @add_phase(%alpha: f64, %t: !prelimhlep.lin<i1>) -> !prelimhlep.lin<i1
 // CHECK-LABEL: func.func @add_phase
 // CHECK: prelimhlep.add_phase
 
-func.func @unit_value() -> !prelimhlep.linear_unit {
-    %0 = prelimhlep.unit_value : !prelimhlep.linear_unit
-    return %0 : !prelimhlep.linear_unit
+func.func @unit_value() -> !prelimhlep.unit {
+    %0 = prelimhlep.unit_value : !prelimhlep.unit
+    return %0 : !prelimhlep.unit
 }
 // CHECK-LABEL: func.func @unit_value
 // CHECK: prelimhlep.unit_value
@@ -80,12 +80,12 @@ func.func @lin_op_with_auxiliary_result(%q: !prelimhlep.lin<i1>) -> i1 attribute
 // CHECK: prelimhlep.lin (%{{.*}} : i1 from %{{.*}} : !prelimhlep.lin<i1>) -> (i1)
 // CHECK: prelimhlep.output() carrying(%{{.*}}) :, [i1]
 
-func.func @lin_op_no_operands(%halo: !prelimhlep.linear_unit) -> (i1, !prelimhlep.linear_unit) attributes { prelimhlep.halo = #prelimhlep.halo } {
+func.func @lin_op_no_operands(%halo: !prelimhlep.unit) -> (i1, !prelimhlep.unit) attributes { prelimhlep.halo = #prelimhlep.halo } {
     %0 = prelimhlep.lin () -> (i1) {
         %v = arith.constant true
         prelimhlep.output () carrying (%v) : , [i1]
     }
-    return %0, %halo : i1, !prelimhlep.linear_unit
+    return %0, %halo : i1, !prelimhlep.unit
 }
 // CHECK-LABEL: func.func @lin_op_no_operands
 // CHECK: prelimhlep.lin () -> (i1)
@@ -93,16 +93,16 @@ func.func @lin_op_no_operands(%halo: !prelimhlep.linear_unit) -> (i1, !prelimhle
 
 // The halo linearity check proves this is fine: %v is used exactly once on
 // both the `then` and `else` paths of the scf.if.
-func.func @halo_linearity_if_ok(%cond: i1, %v: !prelimhlep.linear_unit) -> !prelimhlep.linear_unit attributes { prelimhlep.halo = #prelimhlep.halo } {
-    %r = scf.if %cond -> (!prelimhlep.linear_unit) {
-        scf.yield %v : !prelimhlep.linear_unit
+func.func @halo_linearity_if_ok(%cond: i1, %v: !prelimhlep.lin<i1>) -> !prelimhlep.lin<i1> attributes { prelimhlep.halo = #prelimhlep.halo } {
+    %r = scf.if %cond -> (!prelimhlep.lin<i1>) {
+        scf.yield %v : !prelimhlep.lin<i1>
     } else {
-        scf.yield %v : !prelimhlep.linear_unit
+        scf.yield %v : !prelimhlep.lin<i1>
     }
-    return %r : !prelimhlep.linear_unit
+    return %r : !prelimhlep.lin<i1>
 }
 // CHECK-LABEL: func.func @halo_linearity_if_ok
 
-func.func private @haloed(%halo: !prelimhlep.linear_unit) -> !prelimhlep.linear_unit attributes { prelimhlep.halo = #prelimhlep.halo }
+func.func private @haloed(%halo: !prelimhlep.unit) -> !prelimhlep.unit attributes { prelimhlep.halo = #prelimhlep.halo }
 // CHECK-LABEL: func.func private @haloed
 // CHECK-SAME: prelimhlep.halo

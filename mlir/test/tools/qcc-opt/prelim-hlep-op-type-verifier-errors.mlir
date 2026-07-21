@@ -21,10 +21,10 @@ func.func private @add_phase_mismatched_types(%alpha: f64, %t: !prelimhlep.lin<i
 
 // -----
 
-func.func private @base_change_not_lin(%t: !prelimhlep.linear_unit) -> !prelimhlep.lin<i1>
+func.func private @base_change_not_lin(%t: !prelimhlep.unit) -> !prelimhlep.lin<i1>
     attributes { prelimhlep.halo = #prelimhlep.halo } {
     // expected-error @below {{expected input and result types to be 'lin' types}}
-    %0 = prelimhlep.base_change %t : !prelimhlep.linear_unit -> !prelimhlep.lin<i1>
+    %0 = prelimhlep.base_change %t : !prelimhlep.unit -> !prelimhlep.lin<i1>
     return %0 : !prelimhlep.lin<i1>
 }
 

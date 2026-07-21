@@ -199,27 +199,27 @@ On the flipside, the unique value of `none` type is implicitly left out of IR.
 A function with "no arguments" really is a function with a single argument `%none: none`.
 When `none` becomes halo'ed, it is important to track the actual value.
 
-We therefore introduce a dedicated type `!prelim_hlep.linear_unit`, opaque to generic optimizations, for exactly this fiber bundle.
-Halo'ed functions are not allowed to have no arguments or no returns, instead they should take in or put out a `!prelim_hlep.linear_unit`.
+We therefore introduce a dedicated type `!prelim_hlep.unit`, opaque to generic optimizations, for exactly this fiber bundle.
+Halo'ed functions are not allowed to have no arguments or no returns, instead they should take in or put out a `!prelim_hlep.unit`.
 
-**IR Realization:** `!prelim_hlep.linear_unit`
+**IR Realization:** `!prelim_hlep.unit`
 
 ```mlir
-func.func @global_phase(%halo: !prelim_hlep.linear_unit) -> !prelim_hlep.linear_unit attributes { prelim_hlep.halo } {
+func.func @global_phase(%halo: !prelim_hlep.unit) -> !prelim_hlep.unit attributes { prelim_hlep.halo } {
   %phase_change = some.op : complex<f32>
-	%phased = prelim_hlep.scale %phase_change, %halo : (complex<f32>, !prelim_hlep.linear_unit) -> !prelim_hlep.linear_unit
-	return %phased : !prelim_hlep.linear_unit
+	%phased = prelim_hlep.scale %phase_change, %halo : (complex<f32>, !prelim_hlep.unit) -> !prelim_hlep.unit
+	return %phased : !prelim_hlep.unit
 }
 
 // Call from classical function:
 func.func main() {
-  %halo = prelim_hlep.unit_value : !prelim_hlep.linear_unit
-  %out_halo = func.call @global_phase(%halo) : !prelim_hlep.linear_unit -> !prelim_hlep.linear_unit
+  %halo = prelim_hlep.unit_value : !prelim_hlep.unit
+  %out_halo = func.call @global_phase(%halo) : !prelim_hlep.unit -> !prelim_hlep.unit
   // out_halo can be forgotten.
 }
 ```
 
-Strictly speaking, the semantic interpretation of `!prelim_hlep.linear_unit` is that it is equal to the `none` type: It is an actual unit type in a classical function, and, as a classical type, implicitly halo'ed in halo'ed functions.
+Strictly speaking, the semantic interpretation of `!prelim_hlep.unit` is that it is equal to the `none` type: It is an actual unit type in a classical function, and, as a classical type, implicitly halo'ed in halo'ed functions.
 
 #### Scale, AddPhase
 

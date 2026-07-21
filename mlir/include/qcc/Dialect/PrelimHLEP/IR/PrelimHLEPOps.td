@@ -221,18 +221,18 @@ def ConstantOp : PrelimHLEPOp<"constant"> {
 }
 
 def UnitValueOp : PrelimHLEPOp<"unit_value"> {
-    let summary = "Constructs the unique value of !prelim_hlep.linear_unit.";
+    let summary = "Constructs the unique value of !prelim_hlep.unit.";
     let description = [{
-        Creates a `!prelim_hlep.linear_unit` value, e.g. to pass into a
+        Creates a `!prelim_hlep.unit` value, e.g. to pass into a
         `LinearHalo` function called from a classical (non-haloed) context.
         See "Halo Unit Type" in the design doc.
 
         **IR Realization:**
-        `%halo = prelim_hlep.unit_value : !prelim_hlep.linear_unit`
+        `%halo = prelim_hlep.unit_value : !prelim_hlep.unit`
     }];
 
     let arguments = (ins);
-    let results = (outs LinearUnitType:$result);
+    let results = (outs UnitType:$result);
 
     let assemblyFormat = "attr-dict `:` type($result)";
 }
