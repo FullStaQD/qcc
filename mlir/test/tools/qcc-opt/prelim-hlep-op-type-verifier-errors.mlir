@@ -91,7 +91,7 @@ func.func private @constant_bad_result_type() -> !prelimhlep.lin<i2> {
 func.func private @exp_mismatched_types(%theta: f64, %q: !prelimhlep.lin<i1>) -> !prelimhlep.lin<i2>
     attributes { prelimhlep.halo = #prelimhlep.halo } {
     // expected-error @below {{expected result type ('!prelimhlep.lin<i2>') to match input type ('!prelimhlep.lin<i1>')}}
-    %0 = "prelimhlep.exp"(%theta, %q) <{hamiltonian = #prelimhlep.hamiltonian<1, []>}> : (f64, !prelimhlep.lin<i1>) -> !prelimhlep.lin<i2>
+    %0 = "prelimhlep.exp"(%theta, %q) <{hamiltonian = #prelimhlep.hamiltonian<1, Z[0]>}> : (f64, !prelimhlep.lin<i1>) -> !prelimhlep.lin<i2>
     return %0 : !prelimhlep.lin<i2>
 }
 
@@ -100,7 +100,7 @@ func.func private @exp_mismatched_types(%theta: f64, %q: !prelimhlep.lin<i1>) ->
 func.func private @exp_not_purely_quantum(%theta: f64, %q: !prelimhlep.lin<!prelimhlep.x<1>>) -> !prelimhlep.lin<!prelimhlep.x<1>>
     attributes { prelimhlep.halo = #prelimhlep.halo } {
     // expected-error @below {{expected input/result types to be purely-quantum 'lin<i<n>>' types, got '!prelimhlep.lin<!prelimhlep.x<1>>'}}
-    %0 = "prelimhlep.exp"(%theta, %q) <{hamiltonian = #prelimhlep.hamiltonian<1, []>}> : (f64, !prelimhlep.lin<!prelimhlep.x<1>>) -> !prelimhlep.lin<!prelimhlep.x<1>>
+    %0 = "prelimhlep.exp"(%theta, %q) <{hamiltonian = #prelimhlep.hamiltonian<1, Z[0]>}> : (f64, !prelimhlep.lin<!prelimhlep.x<1>>) -> !prelimhlep.lin<!prelimhlep.x<1>>
     return %0 : !prelimhlep.lin<!prelimhlep.x<1>>
 }
 
@@ -109,6 +109,6 @@ func.func private @exp_not_purely_quantum(%theta: f64, %q: !prelimhlep.lin<!prel
 func.func private @exp_qubit_count_mismatch(%theta: f64, %q: !prelimhlep.lin<i2>) -> !prelimhlep.lin<i2>
     attributes { prelimhlep.halo = #prelimhlep.halo } {
     // expected-error @below {{expected hamiltonian qubit count (1) to match input/result bit width (2)}}
-    %0 = prelimhlep.exp %theta hamiltonian<1, []> %q : (f64, !prelimhlep.lin<i2>) -> !prelimhlep.lin<i2>
+    %0 = prelimhlep.exp %theta hamiltonian<1, Z[0]> %q : (f64, !prelimhlep.lin<i2>) -> !prelimhlep.lin<i2>
     return %0 : !prelimhlep.lin<i2>
 }

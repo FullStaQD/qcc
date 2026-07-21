@@ -57,7 +57,6 @@ def AddPhaseOp : PrelimHLEPOp<"add_phase"> {
         within a `prelim_hlep.halo`-attributed function, and that the
         operand and result types match.
 
-        TODO: consider folding into `prelim_hlep.scale` or vice versa.
         TODO: consider allowing other types for angles.
     }];
 
@@ -90,7 +89,7 @@ def LinOp : PrelimHLEPOp<"lin", [SingleBlock]> {
         ) -> (!prelimhlep.lin<i1>, i1, ...) {
             %out_delinearized, %out_aux =
                 some.op (%in_delinearized, %in_capture) : (i1, i1) -> (i1, i1)
-            prelimhlep.output (%out_delinearized) carrying (%out_aux)
+            prelimhlep.output (%out_delinearized : i1) carrying (%out_aux : i1)
         }
         ```
         Each binding's block argument type and the element type of its
@@ -122,7 +121,11 @@ def OutputOp : PrelimHLEPOp<"output", [Terminator, AttrSizedOperandSegments, Has
         linearized. See "(Partial) Linearization" in the design doc.
 
         **IR Realization:**
-        `prelim_hlep.output (%out_delinearized, ...) carrying (%out_aux, ...)`
+        `prelim_hlep.output (%out_delinearized : T, ...) carrying (%out_aux : T, ...)`
+
+        Each operand's type is written inline next to it, rather than in a
+        trailing type list. The `carrying (...)` group is omitted entirely
+        when there are no auxiliary results.
 
         The verifier checks that the op is nested (directly or indirectly)
         within a `prelim_hlep.halo`-attributed function. (Operand
@@ -132,7 +135,7 @@ def OutputOp : PrelimHLEPOp<"output", [Terminator, AttrSizedOperandSegments, Has
 
     let arguments = (ins Variadic<AnyType>:$delinearizedResults,
                           Variadic<AnyType>:$auxiliaryResults);
-    let assemblyFormat = "`(` $delinearizedResults `)` `carrying` `(` $auxiliaryResults `)` attr-dict `:` (`[` type($delinearizedResults)^ `]`)? (`,` `[` type($auxiliaryResults)^ `]`)?";
+    let hasCustomAssemblyFormat = 1;
     let hasVerifier = 1;
 }
 

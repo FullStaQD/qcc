@@ -60,16 +60,46 @@ def HamiltonianAttr : PrelimHLEPAttr<"Hamiltonian", "hamiltonian"> {
         ```
         denoting sigma_X (x) id (x) sigma_Y + 1.5 * id (x) sigma_Z (x) id in u(2^3).
 
-        TODO: `terms` is a placeholder representation (a flat array of
-        opaque sub-attributes). Design a proper structured representation
-        of a sum of scaled Pauli-product terms, together with a custom
-        parser/printer matching the algebraic syntax shown above, and
-        canonicalization/verification ensuring a normalized form (e.g. no
-        duplicate/zero terms, qubit indices in range).
+        A term with a coefficient of 1 may omit the `coefficient *` prefix, as
+        in the `X[0] * Y[2]` term above. A term's factors may name each qubit
+        (in `[0, qubitCount)`) at most once; qubits it does not name are
+        implicitly the identity. Terms are stored internally as a flattened
+        `termHeaders`/`factors` pair (grouping `factors` into per-term runs,
+        one per `termHeaders` entry) rather than as nested arrays, to keep
+        attribute storage allocation trivial; use `getTerms()` to recover the
+        structured `Term` list.
+
+        The verifier checks that `qubitCount` is positive, that every
+        factor's qubit index is in range and unique within its term, that no
+        term has a zero coefficient, and that no two terms are identical up
+        to reordering of factors.
+
+        TODO: consider canonicalization to merge terms that differ only by
+        the order qubits were declared once operator-level canonicalization
+        exists.
     }];
 
-    let parameters = (ins "int64_t":$qubitCount, "::mlir::ArrayAttr":$terms);
-    let assemblyFormat = "`<` $qubitCount `,` $terms `>`";
+    let parameters = (ins
+        "int64_t":$qubitCount,
+        ArrayRefParameter<"::qcc::prelimhlep::HamiltonianTermHeader", "coefficient and factor count of each term">:$termHeaders,
+        ArrayRefParameter<"::qcc::prelimhlep::PauliFactor", "Pauli factors of all terms, flattened and grouped by $termHeaders">:$factors
+    );
+
+    let extraClassDeclaration = [{
+      /// A single summand `coefficient * factors[0] * factors[1] * ...` of a
+      /// `HamiltonianAttr`.
+      struct Term {
+        double coefficient;
+        ::llvm::ArrayRef<::qcc::prelimhlep::PauliFactor> factors;
+      };
+
+      /// Reconstructs the structured list of terms from the flattened
+      /// `coefficients`/`termSizes`/`factors` parameters.
+      ::llvm::SmallVector<Term> getTerms() const;
+    }];
+
+    let hasCustomAssemblyFormat = 1;
+    let genVerifyDecl = 1;
 }
 
 #endif // INCLUDE_QCC_DIALECT_PRELIMHLEP_IR_PRELIMHLEPATTRS_TD_

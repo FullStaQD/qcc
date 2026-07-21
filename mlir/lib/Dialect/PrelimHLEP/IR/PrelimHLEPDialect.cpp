@@ -19,6 +19,7 @@ using namespace qcc::prelimhlep;
 #define GET_OP_CLASSES
 #include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEPOps.cpp.inc"
 
+#include "HamiltonianAttr.cpp"
 #include "LinearityChecker.cpp"
 
 /// Checks that `op` is nested (directly or indirectly) within a
@@ -102,6 +103,55 @@ LogicalResult BaseChangeOp::verify() {
   }
 
   return success();
+}
+
+// Parses `( %operand : type, ... ) (`carrying` ( %operand : type, ... ))?`.
+// The `carrying (...)` group is omitted entirely when there are no
+// auxiliary results, both on parse and on print.
+ParseResult OutputOp::parse(OpAsmParser& parser, OperationState& result) {
+  SmallVector<OpAsmParser::UnresolvedOperand> delinearizedResults;
+  SmallVector<Type> delinearizedResultTypes;
+  auto parseTypedOperand = [&](SmallVectorImpl<OpAsmParser::UnresolvedOperand>& operands,
+                               SmallVectorImpl<Type>& types) -> ParseResult {
+    return failure(parser.parseOperand(operands.emplace_back()) || parser.parseColonType(types.emplace_back()));
+  };
+
+  if (parser.parseCommaSeparatedList(OpAsmParser::Delimiter::Paren, [&]() {
+        return parseTypedOperand(delinearizedResults, delinearizedResultTypes);
+      })) {
+    return failure();
+  }
+
+  SmallVector<OpAsmParser::UnresolvedOperand> auxiliaryResults;
+  SmallVector<Type> auxiliaryResultTypes;
+  if (succeeded(parser.parseOptionalKeyword("carrying")) &&
+      parser.parseCommaSeparatedList(OpAsmParser::Delimiter::Paren,
+                                     [&]() { return parseTypedOperand(auxiliaryResults, auxiliaryResultTypes); })) {
+    return failure();
+  }
+
+  llvm::SMLoc loc = parser.getCurrentLocation();
+  if (parser.resolveOperands(delinearizedResults, delinearizedResultTypes, loc, result.operands) ||
+      parser.resolveOperands(auxiliaryResults, auxiliaryResultTypes, loc, result.operands)) {
+    return failure();
+  }
+  result.addAttribute(OutputOp::getOperandSegmentSizesAttrName(result.name),
+                      parser.getBuilder().getDenseI32ArrayAttr({static_cast<int32_t>(delinearizedResults.size()),
+                                                                static_cast<int32_t>(auxiliaryResults.size())}));
+
+  return parser.parseOptionalAttrDict(result.attributes);
+}
+
+void OutputOp::print(OpAsmPrinter& p) {
+  p << " (";
+  llvm::interleaveComma(getDelinearizedResults(), p, [&](Value value) { p << value << " : " << value.getType(); });
+  p << ")";
+  if (!getAuxiliaryResults().empty()) {
+    p << " carrying (";
+    llvm::interleaveComma(getAuxiliaryResults(), p, [&](Value value) { p << value << " : " << value.getType(); });
+    p << ")";
+  }
+  p.printOptionalAttrDict((*this)->getAttrs(), {OutputOp::getOperandSegmentSizesAttrName((*this)->getName())});
 }
 
 LogicalResult OutputOp::verify() { return verifyWithinHaloedFunction(getOperation()); }
