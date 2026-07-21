@@ -308,13 +308,17 @@ LogicalResult PrelimHLEPDialect::verifyOperationAttribute(Operation* op, NamedAt
   }
 
   if (!funcOp.isExternal()) {
+    if (failed(checkSingleBlockRegions(op, haloAttrName))) {
+      return failure();
+    }
+
     LogicalResult result = success();
     op->walk([&](Operation* nestedOp) {
       for (Region& region : nestedOp->getRegions()) {
         for (Block& block : region) {
           for (BlockArgument arg : block.getArguments()) {
             if (isNotPurelyClassical(arg.getType()) &&
-                failed(checkPreciselyOneUse(op, arg, "'" + haloAttrName + "' " + describeLinearValue(funcOp, arg)))) {
+                failed(checkPreciselyOneUse(arg, "'" + haloAttrName + "' " + describeLinearValue(funcOp, arg)))) {
               result = failure();
             }
           }
@@ -322,8 +326,7 @@ LogicalResult PrelimHLEPDialect::verifyOperationAttribute(Operation* op, NamedAt
       }
       for (OpResult opResult : nestedOp->getResults()) {
         if (isNotPurelyClassical(opResult.getType()) &&
-            failed(checkPreciselyOneUse(op, opResult,
-                                        "'" + haloAttrName + "' " + describeLinearValue(funcOp, opResult)))) {
+            failed(checkPreciselyOneUse(opResult, "'" + haloAttrName + "' " + describeLinearValue(funcOp, opResult)))) {
           result = failure();
         }
       }

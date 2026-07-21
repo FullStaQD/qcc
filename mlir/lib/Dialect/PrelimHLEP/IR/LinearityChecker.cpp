@@ -19,6 +19,18 @@ Region* getDefiningRegion(Value value) {
   return value.getDefiningOp()->getParentRegion();
 }
 
+/// Returns the operation that "defines" `value` for diagnostic purposes: the
+/// defining op itself for an op result, or the op that owns the block a
+/// block argument belongs to (e.g. the `func.func` for a function argument,
+/// or the structured-control-flow op for a block argument of one of its
+/// regions).
+Operation* getDefiningAnchorOp(Value value) {
+  if (auto blockArg = dyn_cast<BlockArgument>(value)) {
+    return blockArg.getOwner()->getParentOp();
+  }
+  return value.getDefiningOp();
+}
+
 /// Returns true if `user` may be reached a variable number of times (zero,
 /// once, or many) relative to `defRegion`, because it is nested within a
 /// repetitive (loop-like) region somewhere between `defRegion` and `user`.
@@ -95,8 +107,8 @@ void attachUseNotes(InFlightDiagnostic& diag, ArrayRef<OpOperand*> uses) {
   }
 }
 
-LogicalResult checkUsesCoverRegion(Operation* diagOp, const Twine& description, Region* region,
-                                   ArrayRef<OpOperand*> uses, bool isRegionUnconditional);
+LogicalResult checkUsesCoverRegion(const Twine& description, Region* region, ArrayRef<OpOperand*> uses,
+                                   bool isRegionUnconditional);
 
 /// Handles the group of uses that are all nested (possibly transitively,
 /// through further nested branch ops, and possibly transparently, see
@@ -107,9 +119,10 @@ LogicalResult checkUsesCoverRegion(Operation* diagOp, const Twine& description, 
 /// `branchOp` entirely, the covered regions are pairwise proven mutually
 /// exclusive, and -- recursively -- each region's own uses cover it with
 /// exactly one use on every path through it (see `checkUsesCoverRegion`,
-/// which handles any further nesting); otherwise emits a diagnostic on
-/// `diagOp` (with `description` identifying the value) and fails.
-LogicalResult checkBranchCoverage(Operation* diagOp, const Twine& description, Operation* branchOp,
+/// which handles any further nesting); otherwise emits a diagnostic (with
+/// `description` identifying the value), anchored at whichever op is most
+/// relevant to the specific failure, and fails.
+LogicalResult checkBranchCoverage(const Twine& description, Operation* branchOp,
                                   ArrayRef<std::pair<OpOperand*, Region*>> branchUses) {
   auto regionBranchOp = cast<RegionBranchOpInterface>(branchOp);
   SmallVector<RegionSuccessor> entrySuccessors;
@@ -133,7 +146,7 @@ LogicalResult checkBranchCoverage(Operation* diagOp, const Twine& description, O
   // coverage-gap diagnostic about some other, entirely unused, arm.
   for (const auto& [region, regionUses] : byRegion) {
     if (!regionUses.empty() &&
-        failed(checkUsesCoverRegion(diagOp, description, region, regionUses, /*isRegionUnconditional=*/false))) {
+        failed(checkUsesCoverRegion(description, region, regionUses, /*isRegionUnconditional=*/false))) {
       return failure();
     }
   }
@@ -152,9 +165,12 @@ LogicalResult checkBranchCoverage(Operation* diagOp, const Twine& description, O
       Operation* repA = byRegion[i].second.front()->getOwner();
       Operation* repB = byRegion[j].second.front()->getOwner();
       if (!insideMutuallyExclusiveRegions(repA, repB)) {
-        auto diag = diagOp->emitError() << description
-                                        << " is subject to linearity, but its uses could not be proven to lie on "
-                                           "mutually exclusive control-flow paths";
+        // Anchor on the branch op itself: it's the specific control-flow
+        // construct whose paths couldn't be reconciled, which is more
+        // localized than either individual use.
+        auto diag = branchOp->emitError() << description
+                                          << " is subject to linearity, but its uses could not be proven to lie on "
+                                             "mutually exclusive control-flow paths";
         diag.attachNote(repA->getLoc()) << "used here";
         diag.attachNote(repB->getLoc()) << "and here";
         return diag;
@@ -166,8 +182,10 @@ LogicalResult checkBranchCoverage(Operation* diagOp, const Twine& description, O
   // with none is a control-flow path with zero uses of the value.
   bool allRegionsCovered = llvm::all_of(byRegion, [](const auto& p) { return !p.second.empty(); });
   if (!allRegionsCovered || hasParentBypass) {
-    auto diag = diagOp->emitError() << description
-                                    << " is subject to linearity, but is not used on every control-flow path";
+    // Anchor on the branch op itself: it's the specific construct that
+    // introduces the uncovered control-flow path.
+    auto diag = branchOp->emitError() << description
+                                      << " is subject to linearity, but is not used on every control-flow path";
     for (const auto& [use, region] : branchUses) {
       diag.attachNote(use->getOwner()->getLoc()) << "used on this control-flow path";
     }
@@ -208,11 +226,11 @@ LogicalResult checkBranchCoverage(Operation* diagOp, const Twine& description, O
 /// `checkPreciselyOneUse`) from `region` itself being one arm of some
 /// enclosing branch op (every recursive call), which only affects how
 /// double-use diagnostics are phrased.
-LogicalResult checkUsesCoverRegion(Operation* diagOp, const Twine& description, Region* region,
-                                   ArrayRef<OpOperand*> uses, bool isRegionUnconditional) {
+LogicalResult checkUsesCoverRegion(const Twine& description, Region* region, ArrayRef<OpOperand*> uses,
+                                   bool isRegionUnconditional) {
   unsigned directUses = 0;
   Operation* branchOp = nullptr;
-  bool multipleBranchOps = false;
+  OpOperand* conflictingUse = nullptr;
   SmallVector<std::pair<OpOperand*, Region*>> branchUses;
   for (OpOperand* use : uses) {
     auto [ancestorBranchOp, ancestorRegion] = findEnclosingBranchAncestor(use, region);
@@ -222,17 +240,19 @@ LogicalResult checkUsesCoverRegion(Operation* diagOp, const Twine& description, 
     }
     if (branchOp == nullptr) {
       branchOp = ancestorBranchOp;
-    } else if (branchOp != ancestorBranchOp) {
-      multipleBranchOps = true;
+    } else if (branchOp != ancestorBranchOp && conflictingUse == nullptr) {
+      conflictingUse = use;
     }
     branchUses.emplace_back(use, ancestorRegion);
   }
 
   // A use that always executes, combined with any other (possibly
   // conditional) use, is a proven double-use on whichever path also takes
-  // the other use.
+  // the other use. Anchor the diagnostic on one of the offending uses
+  // itself, rather than on some unrelated enclosing op.
   if (directUses > 1 || (directUses == 1 && !branchUses.empty())) {
-    auto diag = diagOp->emitError() << description << " is subject to linearity, but is used more than once";
+    auto diag = uses.back()->getOwner()->emitError()
+                << description << " is subject to linearity, but is used more than once";
     if (!isRegionUnconditional) {
       diag << " on this control-flow path";
     }
@@ -245,47 +265,49 @@ LogicalResult checkUsesCoverRegion(Operation* diagOp, const Twine& description, 
 
   // All uses are conditional. This analysis only understands the case where
   // they are all arms of a single branch operation.
-  if (multipleBranchOps) {
-    auto diag =
-        diagOp->emitError() << description
-                            << " is subject to linearity, but its uses are spread across unrelated control-flow "
-                               "branches, which this analysis cannot reason about";
+  if (conflictingUse != nullptr) {
+    auto diag = conflictingUse->getOwner()->emitError()
+                << description
+                << " is subject to linearity, but its uses are spread across consecutive control-flow "
+                   "branches, which cannot be proven to be mutually exclusive";
     attachUseNotes(diag, uses);
     return diag;
   }
-  return checkBranchCoverage(diagOp, description, branchOp, branchUses);
+  return checkBranchCoverage(description, branchOp, branchUses);
 }
 
 /// Tries to prove that `value` (identified as `description` in diagnostics,
 /// e.g. "function argument #0") is used exactly once on every control-flow
-/// path, emitting a diagnostic on `diagOp` and failing otherwise -- including
-/// when the analysis simply cannot draw a conclusion (loops, unstructured
-/// control flow, branch operations it doesn't understand, ...). This is a
-/// best-effort analysis: it only ever accepts IR it can *positively prove*
-/// linear, so extending it to understand more control-flow patterns can only
-/// ever accept more (never less) IR.
-LogicalResult checkPreciselyOneUse(Operation* diagOp, Value value, const Twine& description) {
+/// path, emitting a diagnostic and failing otherwise -- including when the
+/// analysis simply cannot draw a conclusion (loops, unstructured control
+/// flow, branch operations it doesn't understand, ...). Each diagnostic is
+/// anchored at whichever op is most helpful for that specific failure (the
+/// defining op when there is no use at all, one of the uses when there are
+/// too many, ...), rather than uniformly at some distant enclosing op. This
+/// is a best-effort analysis: it only ever accepts IR it can *positively
+/// prove* linear, so extending it to understand more control-flow patterns
+/// can only ever accept more (never less) IR.
+LogicalResult checkPreciselyOneUse(Value value, const Twine& description) {
   SmallVector<OpOperand*> uses;
   for (OpOperand& use : value.getUses()) {
     uses.push_back(&use);
   }
 
   if (uses.empty()) {
-    return diagOp->emitError() << description << " is subject to linearity, but is never used";
+    return getDefiningAnchorOp(value)->emitError() << description << " is subject to linearity, but is never used";
   }
 
   Region* defRegion = getDefiningRegion(value);
   for (OpOperand* use : uses) {
     if (mayExecuteRepeatedly(use->getOwner(), defRegion)) {
-      auto diag = diagOp->emitError() << description
-                                      << " is subject to linearity, but is used inside a loop, where the "
-                                         "number of dynamic uses cannot be determined statically";
-      diag.attachNote(use->getOwner()->getLoc()) << "used here";
-      return diag;
+      return use->getOwner()->emitError()
+             << description
+             << " is subject to linearity, but is used inside a loop, where the number of dynamic uses cannot be "
+                "determined statically";
     }
   }
 
-  return checkUsesCoverRegion(diagOp, description, defRegion, uses, /*isRegionUnconditional=*/true);
+  return checkUsesCoverRegion(description, defRegion, uses, /*isRegionUnconditional=*/true);
 }
 
 /// Returns true if `type` is not purely classical, i.e. subject to
@@ -295,6 +317,53 @@ LogicalResult checkPreciselyOneUse(Operation* diagOp, Value value, const Twine& 
 /// product, is itself a purely classical type (isomorphic to `none`), and so
 /// is not subject to linearity checking.
 bool isNotPurelyClassical(Type type) { return isa<LinType>(type); }
+
+/// Returns true if `region` directly contains -- in one of its own blocks,
+/// not looking into the regions of ops nested inside it, which are checked
+/// independently -- any value (a block argument, or an op operand or
+/// result) of a type subject to linearity checking.
+bool regionHasLinearValue(Region& region) {
+  for (Block& block : region) {
+    if (llvm::any_of(block.getArgumentTypes(), isNotPurelyClassical)) {
+      return true;
+    }
+    for (Operation& op : block) {
+      if (llvm::any_of(op.getOperandTypes(), isNotPurelyClassical) ||
+          llvm::any_of(op.getResultTypes(), isNotPurelyClassical)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/// Verifies that every region (transitively) nested inside `op` that
+/// contains a value subject to linearity checking (see
+/// `regionHasLinearValue`) has exactly one block. The rest of the linearity
+/// analysis (`checkPreciselyOneUse` and friends) reasons about control flow
+/// purely in terms of `RegionBranchOpInterface` nesting -- it has no notion
+/// of unstructured, `cf`-dialect-style branching between multiple blocks of
+/// the *same* region (`cf.br`, `cf.cond_br`, ...), so such branching could
+/// silently make its conclusions unsound (e.g. two uses in different blocks
+/// of the same region would be treated as both being reached unconditionally,
+/// even though a `cf.cond_br` between them might mean only one ever runs, or
+/// neither does). Rejecting it here, upfront, keeps that assumption honest.
+LogicalResult checkSingleBlockRegions(Operation* op, const Twine& haloAttrName) {
+  LogicalResult result = success();
+  op->walk([&](Operation* nestedOp) {
+    for (Region& region : nestedOp->getRegions()) {
+      if (!region.hasOneBlock() && !region.empty() && regionHasLinearValue(region)) {
+        nestedOp->emitError() << "'" << haloAttrName
+                              << "' function has a region with multiple blocks that uses a value subject to "
+                                 "linearity; the linearity checker only understands structured control flow (e.g. "
+                                 "'scf.if'), not unstructured, 'cf'-dialect-style branching between blocks of the "
+                                 "same region";
+        result = failure();
+      }
+    }
+  });
+  return result;
+}
 
 /// Builds a human-readable description of `value` (a linearity-checked
 /// function argument, block argument, or op result) for use in diagnostics.
