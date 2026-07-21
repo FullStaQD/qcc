@@ -365,6 +365,32 @@ LogicalResult checkSingleBlockRegions(Operation* op, const Twine& haloAttrName) 
   return result;
 }
 
+/// Verifies that no `SelectLikeOpInterface` op (e.g. `arith.select`)
+/// anywhere (transitively) inside `op` has an operand or result of a type
+/// subject to linearity checking. Unlike a `RegionBranchOpInterface` op such
+/// as `scf.if`, a select doesn't skip evaluating whichever operand it
+/// doesn't choose: `getTrueValue()` and `getFalseValue()` are ordinary SSA
+/// operands that must both already exist by the time the select executes,
+/// and which one ends up "discarded" is a dynamic property of the condition,
+/// not something this (or any static) analysis can derive from the IR.
+/// Rather than silently letting a linear value be dropped this way, we
+/// reject any use of one in a select-like op outright.
+LogicalResult checkNoSelectOfLinearValues(Operation* op, const Twine& haloAttrName) {
+  LogicalResult result = success();
+  op->walk([&](SelectLikeOpInterface selectOp) {
+    if (llvm::any_of(selectOp->getOperandTypes(), isNotPurelyClassical) ||
+        llvm::any_of(selectOp->getResultTypes(), isNotPurelyClassical)) {
+      selectOp->emitError() << "'" << haloAttrName
+                            << "' function uses a value subject to linearity as an operand or result of a "
+                               "select-like op; only one of a select's operands is ever actually produced, but "
+                               "both must exist unconditionally, so this analysis cannot prove the other one isn't "
+                               "silently discarded";
+      result = failure();
+    }
+  });
+  return result;
+}
+
 /// Builds a human-readable description of `value` (a linearity-checked
 /// function argument, block argument, or op result) for use in diagnostics.
 std::string describeLinearValue(FunctionOpInterface funcOp, Value value) {

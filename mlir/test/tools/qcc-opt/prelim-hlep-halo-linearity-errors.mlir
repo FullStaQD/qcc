@@ -234,3 +234,29 @@ func.func private @cf_branch_containing_scf_if(%cond: i1, %v: !prelimhlep.lin<i1
     }
     return %r : !prelimhlep.lin<i1>
 }
+
+// -----
+
+// Tests for the check that rejects any use of a value subject to linearity
+// as an operand or result of a `SelectLikeOpInterface` op (see
+// `checkNoSelectOfLinearValues` in LinearityChecker.cpp). Unlike `scf.if`,
+// which only ever executes one of its regions, a select's "unchosen"
+// operand is an ordinary SSA value that must already exist by the time the
+// select runs -- it's just not returned. There is no way for this analysis
+// to know, from the IR alone, which operand that will dynamically be, so it
+// cannot rule out that a linear value passed to a select is silently
+// dropped without ever being properly consumed.
+
+func.func private @make_qubit() -> !prelimhlep.lin<i1>
+
+// A halo'ed argument and a locally-produced qubit, selected between: even
+// though both are individually used exactly once, one of them is discarded
+// by the select depending on %cond, which this analysis cannot account for.
+// The error is anchored at the `arith.select` op itself.
+func.func private @select_between_linear_values(%cond: i1, %v: !prelimhlep.lin<i1>) -> !prelimhlep.lin<i1>
+    attributes { prelimhlep.halo = #prelimhlep.halo } {
+    %u = func.call @make_qubit() : () -> !prelimhlep.lin<i1>
+    // expected-error @below {{'prelimhlep.halo' function uses a value subject to linearity as an operand or result of a select-like op; only one of a select's operands is ever actually produced, but both must exist unconditionally, so this analysis cannot prove the other one isn't silently discarded}}
+    %r = arith.select %cond, %v, %u : !prelimhlep.lin<i1>
+    return %r : !prelimhlep.lin<i1>
+}

@@ -136,3 +136,18 @@ func.func @cf_branching_in_subregion_on_classical_value_ok(%cond: i1, %v: !preli
     return %r, %v : i1, !prelimhlep.lin<i1>
 }
 // CHECK-LABEL: func.func @cf_branching_in_subregion_on_classical_value_ok
+
+// The select check (`checkNoSelectOfLinearValues`) only rejects an
+// `arith.select` (or other `SelectLikeOpInterface` op) whose operands or
+// result are subject to linearity; selecting between two classical values,
+// alongside an unconditional, unrelated use of the halo'ed argument, is
+// fine (see prelim-hlep-halo-linearity-errors.mlir for the case where the
+// select itself touches a linear value).
+func.func @select_on_classical_value_ok(%cond: i1, %v: !prelimhlep.lin<i1>) -> (i1, !prelimhlep.lin<i1>)
+    attributes { prelimhlep.halo = #prelimhlep.halo } {
+    %true = arith.constant true
+    %false = arith.constant false
+    %r = arith.select %cond, %true, %false : i1
+    return %r, %v : i1, !prelimhlep.lin<i1>
+}
+// CHECK-LABEL: func.func @select_on_classical_value_ok

@@ -311,6 +311,9 @@ LogicalResult PrelimHLEPDialect::verifyOperationAttribute(Operation* op, NamedAt
     if (failed(checkSingleBlockRegions(op, haloAttrName))) {
       return failure();
     }
+    if (failed(checkNoSelectOfLinearValues(op, haloAttrName))) {
+      return failure();
+    }
 
     LogicalResult result = success();
     op->walk([&](Operation* nestedOp) {
