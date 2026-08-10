@@ -74,7 +74,6 @@ protected:
 
       OpBuilder builder(retOp);
 
-      // auto size = static_cast<int64_t>(oldReturnOperands.size());
       auto loc = retOp.getLoc();
 
       for (Value v : oldReturnOperands) {
