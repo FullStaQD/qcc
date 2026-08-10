@@ -1,4 +1,4 @@
-// RUN: qcc-opt %s -pass-pipeline="builtin.module(prep-to-qir,func.func(convert-arith-to-llvm,convert-qc-to-qir),convert-cf-to-llvm,finalize-to-qir)" | mlir-translate -mlir-to-llvmir | FileCheck %s
+// RUN: qcc-opt %s -pass-pipeline="builtin.module(prep-to-qir,func.func(convert-arith-to-llvm),convert-qc-to-qir,convert-cf-to-llvm,finalize-to-qir)" | mlir-translate -mlir-to-llvmir | FileCheck %s
 
 func.func @simple_quantum_with_branching() -> i64 attributes { qcc.entry_point } {
     %0 = qc.static 1 : !qc.qubit

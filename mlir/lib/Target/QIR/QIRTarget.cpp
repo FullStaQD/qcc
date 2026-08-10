@@ -25,7 +25,7 @@ void addLoweringPassesQIR(mlir::PassManager& pm) {
   pm.addPass(qcc::createPrepToQIR());
   mlir::OpPassManager& fpm = pm.nest<mlir::func::FuncOp>();
   fpm.addPass(mlir::createArithToLLVMConversionPass());
-  fpm.addPass(qcc::createConvertQCToQIR());
+  pm.addPass(qcc::createConvertQCToQIR());
   pm.addPass(mlir::createConvertControlFlowToLLVMPass());
   pm.addPass(qcc::createFinalizeToQIR());
 

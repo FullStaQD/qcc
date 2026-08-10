@@ -28,11 +28,11 @@ def PrepToQIR : Pass<"prep-to-qir", "mlir::ModuleOp"> {
   ];
 }
 
-def ConvertQCToQIR : Pass<"convert-qc-to-qir", "mlir::func::FuncOp"> {
+def ConvertQCToQIR : Pass<"convert-qc-to-qir", "mlir::ModuleOp"> {
   let summary = "Lowers the QC dialect into QIR (adaptive) conforming LLVM dialect.";
 
   let description = [{
-      The pass anchors to a function and guarantees the following:
+      The pass anchors to a module and guarantees the following:
 
       - The QIR initialization function is inserted at the start of the function.
       - Required QIR attributes (like `required_num_qubits`) are added to the function. Via `passthrough`.

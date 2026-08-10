@@ -343,11 +343,11 @@ protected:
         ;
       }
 
-      if (failed(setEntryPointAttrs())) {
+      if (failed(setEntryPointAttrs(funcOp))) {
         return WalkResult::interrupt();
       }
 
-      if (failed(insertRtInit())) {
+      if (failed(insertRtInit(funcOp, module))) {
         return WalkResult::interrupt();
       }
 
@@ -372,7 +372,7 @@ protected:
       if (failed(applyPartialConversion(funcOp, target, std::move(patterns)))) {
         return WalkResult::interrupt();
       }
-      removeQCStaticOps();
+      removeQCStaticOps(funcOp);
       return WalkResult::advance();
     });
 
@@ -382,11 +382,8 @@ protected:
   }
 
 private:
-  LogicalResult insertRtInit() {
-    func::FuncOp funcOp = getOperation();
-    auto moduleOp = funcOp->getParentOfType<ModuleOp>();
-    auto* ctx = funcOp.getContext();
-
+  LogicalResult static insertRtInit(func::FuncOp funcOp, ModuleOp moduleOp) {
+    auto* ctx = moduleOp.getContext();
     auto initFnDecl = moduleOp.lookupSymbol<LLVM::LLVMFuncOp>(qcc::qirRtInit);
 
     if (!initFnDecl) {
@@ -404,8 +401,8 @@ private:
     return llvm::success();
   }
 
-  uint64_t getRequiredNumQubits() {
-    const func::FuncOp funcOp = getOperation();
+  uint64_t static getRequiredNumQubits(func::FuncOp funcOp) {
+
     uint64_t numQubits = 0;
     funcOp->walk([&](qc::StaticOp op) -> void {
       auto index = op.getIndex();
@@ -415,11 +412,10 @@ private:
   }
 
   /// Attaches all the relevant QIR attributes (like `required_num_qubits`) to the function.
-  LogicalResult setEntryPointAttrs() {
-    func::FuncOp funcOp = getOperation();
+  LogicalResult static setEntryPointAttrs(func::FuncOp funcOp) {
     OpBuilder builder(funcOp.getContext());
 
-    auto requiredNumQubits = getRequiredNumQubits();
+    auto requiredNumQubits = getRequiredNumQubits(funcOp);
     auto requiredNumResults = requiredNumQubits; // TODO: holds only for HiSEP-Q!
 
     auto getKV = [&](StringRef key, StringRef value) {
@@ -437,8 +433,8 @@ private:
     return success();
   }
 
-  void removeQCStaticOps() {
-    getOperation()->walk([](qc::StaticOp op) { op.erase(); });
+  void static removeQCStaticOps(func::FuncOp funcOp) {
+    funcOp->walk([](qc::StaticOp op) { op.erase(); });
   }
 };
 
