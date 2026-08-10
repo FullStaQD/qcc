@@ -334,45 +334,51 @@ struct ConvertQCToQIR final : impl::ConvertQCToQIRBase<ConvertQCToQIR> {
 
 protected:
   void runOnOperation() override {
-    func::FuncOp funcOp = getOperation();
-    auto* ctx = funcOp.getContext();
+    auto module = cast<mlir::ModuleOp>(getOperation());
+    auto* ctx = module.getContext();
+    auto walkResult = module.walk([&](func::FuncOp funcOp) {
+      // TODO: assume that only entrypoints contain quantum ops.
+      if (!funcOp->hasAttr("qcc.entry_point")) {
+        return WalkResult::advance();
+        ;
+      }
 
-    // TODO: assume that only entrypoints contain quantum ops.
-    if (!funcOp->hasAttr("qcc.entry_point")) {
-      return;
-    }
+      if (failed(setEntryPointAttrs())) {
+        return WalkResult::interrupt();
+      }
 
-    if (failed(setEntryPointAttrs())) {
+      if (failed(insertRtInit())) {
+        return WalkResult::interrupt();
+      }
+
+      auto [recordCount, firstRecordOp] = countRecordsAndGetFirstRecordOp(funcOp);
+      if (recordCount > 1 && firstRecordOp != nullptr) {
+        insertRtTupleRecord(funcOp, firstRecordOp, recordCount);
+      };
+
+      ConversionTarget target(*ctx);
+      target.addLegalDialect<LLVM::LLVMDialect>();
+      target.addIllegalDialect<qc::QCDialect>();
+      target.addIllegalDialect<qcc::aux::AuxDialect>();
+      target.addLegalOp<qc::StaticOp>(); // take care of slightly later.
+
+      QCToQIRTypeConverter typeConverter(ctx);
+      RewritePatternSet patterns(ctx);
+      patterns.add<UnitaryLowering, MeasureLowering, RecordIntLowering, RecordMemrefLowering, ResetLowering>(
+          typeConverter, ctx);
+
+      populateFinalizeMemRefToLLVMConversionPatterns(typeConverter, patterns);
+
+      if (failed(applyPartialConversion(funcOp, target, std::move(patterns)))) {
+        return WalkResult::interrupt();
+      }
+      removeQCStaticOps();
+      return WalkResult::advance();
+    });
+
+    if (walkResult.wasInterrupted()) {
       return signalPassFailure();
     }
-
-    if (failed(insertRtInit())) {
-      return signalPassFailure();
-    }
-
-    auto [recordCount, firstRecordOp] = countRecordsAndGetFirstRecordOp(funcOp);
-    if (recordCount > 1 && firstRecordOp != nullptr) {
-      insertRtTupleRecord(funcOp, firstRecordOp, recordCount);
-    };
-
-    ConversionTarget target(*ctx);
-    target.addLegalDialect<LLVM::LLVMDialect>();
-    target.addIllegalDialect<qc::QCDialect>();
-    target.addIllegalDialect<qcc::aux::AuxDialect>();
-    target.addLegalOp<qc::StaticOp>(); // take care of slightly later.
-
-    QCToQIRTypeConverter typeConverter(ctx);
-    RewritePatternSet patterns(ctx);
-    patterns.add<UnitaryLowering, MeasureLowering, RecordIntLowering, RecordMemrefLowering, ResetLowering>(
-        typeConverter, ctx);
-
-    populateFinalizeMemRefToLLVMConversionPatterns(typeConverter, patterns);
-
-    if (failed(applyPartialConversion(funcOp, target, std::move(patterns)))) {
-      return signalPassFailure();
-    }
-
-    removeQCStaticOps();
   }
 
 private:
