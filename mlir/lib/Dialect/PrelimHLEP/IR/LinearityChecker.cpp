@@ -9,6 +9,14 @@ using namespace mlir;
 using namespace qcc::prelimhlep;
 
 namespace {
+
+// Forward declarations of the diagnostics helpers defined at the bottom of
+// this file. They cannot live in a header: this file is textually included
+// into `PrelimHLEPDialect.cpp` and everything in it has internal linkage.
+std::string describeLinearValue(FunctionOpInterface funcOp, Value value);
+Location getRegionLoc(Region* region);
+void attachUseNotes(InFlightDiagnostic& diag, ArrayRef<OpOperand*> uses);
+
 Region* getDefiningRegion(Value value) {
   if (auto blockArg = dyn_cast<BlockArgument>(value)) {
     return blockArg.getOwner()->getParent();
@@ -49,6 +57,30 @@ std::pair<Operation*, Region*> findEnclosingBranchAncestor(OpOperand* use, Regio
 LogicalResult checkUsesCoverRegion(const Twine& description, Region* region, ArrayRef<OpOperand*> uses,
                                    bool isRegionUnconditional);
 
+/// Collects, in deterministic order, the regions of `branchOp` that control
+/// flow may actually enter. This is usually all of the op's regions, but an
+/// implementation of `getSuccessorRegions` may statically rule some out (and
+/// an op may hold regions that are not part of its control flow at all), so
+/// the successor relation is what we walk: starting at the entry successors
+/// and following each region's own successors transitively.
+SmallVector<Region*> collectReachableRegions(RegionBranchOpInterface branchOp) {
+  SmallVector<RegionSuccessor> successors;
+  branchOp.getSuccessorRegions(RegionBranchPoint::parent(), successors);
+
+  SmallVector<Region*> reachable;
+  SmallPtrSet<Region*, 4> seen;
+  // `successors` grows as we discover more; indexing keeps that safe.
+  for (size_t i = 0; i < successors.size(); ++i) {
+    Region* region = successors[i].getSuccessor();
+    if (region == nullptr || !seen.insert(region).second) {
+      continue;
+    }
+    reachable.push_back(region);
+    branchOp.getSuccessorRegions(*region, successors);
+  }
+  return reachable;
+}
+
 /// Succeeds only if every branch of `branchOp` is
 /// covered by at least one use, and -- recursively -- each region's own uses cover it with
 /// exactly one use on every path through it; otherwise fails.
@@ -57,23 +89,26 @@ LogicalResult checkUsesCoverRegion(const Twine& description, Region* region, Arr
 LogicalResult checkBranchCoverage(const Twine& description, Operation* branchOp,
                                   ArrayRef<std::pair<OpOperand*, Region*>> branchUses) {
   auto regionBranchOp = cast<RegionBranchOpInterface>(branchOp);
+  // An entry successor that is the parent op means control flow can skip all
+  // regions of `branchOp` and go straight to its results -- an `scf.if`
+  // without an `else` region, for instance, lists its parent as an entry
+  // successor.
   SmallVector<RegionSuccessor> entrySuccessors;
-  // TODO: I believe this checks e.g. for if-without-else. Double-check.
   regionBranchOp.getSuccessorRegions(RegionBranchPoint::parent(), entrySuccessors);
   bool hasParentBypass = llvm::any_of(entrySuccessors, [](RegionSuccessor& s) { return s.isParent(); });
 
-  // Mapping Regions -> uses. Include regions with no uses.
-  SmallVector<std::pair<Region*, SmallVector<OpOperand*>>>
-      byRegion;                                   // TODO: Check if another type like DenseMap could fit here.
-  for (Region& region : branchOp->getRegions()) { // TODO: Really we want to iterate over all successor regions, don't
-                                                  // we? I don't think it makes a difference in practice.
+  // Mapping Regions -> uses. Include regions with no uses. A vector (rather
+  // than a map) keeps the diagnostics below deterministically ordered, and the
+  // number of regions is tiny -- two for `scf.if`.
+  SmallVector<std::pair<Region*, SmallVector<OpOperand*>>> byRegion;
+  for (Region* region : collectReachableRegions(regionBranchOp)) {
     SmallVector<OpOperand*> regionUses;
     for (const auto& [use, useRegion] : branchUses) {
-      if (useRegion == &region) {
+      if (useRegion == region) {
         regionUses.push_back(use);
       }
     }
-    byRegion.emplace_back(&region, std::move(regionUses));
+    byRegion.emplace_back(region, std::move(regionUses));
   }
 
   // Recurse into every region that has at least one use first, so that a
@@ -116,10 +151,8 @@ LogicalResult checkBranchCoverage(const Twine& description, Operation* branchOp,
     }
   }
 
-  // Every region of `branchOp` must be covered by at least one use; a region
-  // with none is a control-flow path with zero uses of the value.
-  // TODO: As before, this assumes that the regions of `branchOp` are exactly the successor regions, which is true for
-  // `scf.if`.
+  // Every reachable region of `branchOp` must be covered by at least one use;
+  // a region with none is a control-flow path with zero uses of the value.
   bool allRegionsCovered = llvm::all_of(byRegion, [](const auto& p) { return !p.second.empty(); });
   if (!allRegionsCovered || hasParentBypass) {
     // Anchor on the branch op itself: it's the specific construct that
@@ -287,8 +320,7 @@ LogicalResult checkNoSelectOfLinearValues(Operation* op, const Twine& haloAttrNa
 // -------
 // DIAGNOSTICS HELPERS
 // -------
-
-// TODO: These need declarations upfront. Create header?
+// (Declared at the top of this file, since the checks above use them.)
 
 /// Builds a human-readable description of `value` (a linearity-checked
 /// function argument, block argument, or op result) for use in diagnostics.
