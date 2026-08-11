@@ -57,104 +57,173 @@ std::pair<Operation*, Region*> findEnclosingBranchAncestor(OpOperand* use, Regio
 LogicalResult checkUsesCoverRegion(const Twine& description, Region* region, ArrayRef<OpOperand*> uses,
                                    bool isRegionUnconditional);
 
-/// Collects, in deterministic order, the regions of `branchOp` that control
-/// flow may actually enter. This is usually all of the op's regions, but an
-/// implementation of `getSuccessorRegions` may statically rule some out (and
-/// an op may hold regions that are not part of its control flow at all), so
-/// the successor relation is what we walk: starting at the entry successors
-/// and following each region's own successors transitively.
-SmallVector<Region*> collectReachableRegions(RegionBranchOpInterface branchOp) {
-  SmallVector<RegionSuccessor> successors;
-  branchOp.getSuccessorRegions(RegionBranchPoint::parent(), successors);
+/// Bitmask of the numbers of uses that may have accumulated at some point of
+/// the control flow through a branch op, saturating at "two or more" (which is
+/// already a linearity violation, so the exact number stops mattering).
+///
+/// Example usage: `(counts | kOneUse) & (counts | kTwoOrMoreUses)` means that
+/// there exists a path with one use and a path with two or more uses.
+enum UseCounts : unsigned {
+  kNoPath = 0,
+  kZeroUses = 1U << 0,
+  kOneUse = 1U << 1,
+  kTwoOrMoreUses = 1U << 2,
+};
 
-  SmallVector<Region*> reachable;
-  SmallPtrSet<Region*, 4> seen;
-  // `successors` grows as we discover more; indexing keeps that safe.
-  for (size_t i = 0; i < successors.size(); ++i) {
-    Region* region = successors[i].getSuccessor();
-    if (region == nullptr || !seen.insert(region).second) {
-      continue;
-    }
-    reachable.push_back(region);
-    branchOp.getSuccessorRegions(*region, successors);
+/// Adds one use to every count in `counts`.
+UseCounts addOneUse(UseCounts counts) {
+  unsigned result = 0;
+  if ((counts & kZeroUses) != 0) {
+    result |= kOneUse;
   }
-  return reachable;
+  if ((counts & (kOneUse | kTwoOrMoreUses)) != 0) {
+    result |= kTwoOrMoreUses;
+  }
+  return static_cast<UseCounts>(result);
 }
 
-/// Succeeds only if every branch of `branchOp` is
-/// covered by at least one use, and -- recursively -- each region's own uses cover it with
-/// exactly one use on every path through it; otherwise fails.
+/// Appends the control-flow successors of `region` -- another region of the
+/// same op, or the parent op itself -- to `successors`.
+///
+/// This is `RegionBranchOpInterface::getSuccessorRegions(Region&, ...)` plus
+/// the convention that a block whose terminator does not implement
+/// `RegionBranchTerminatorOpInterface` (`scf.yield`, for instance) returns to
+/// the parent op. That convention is what upstream's own region-graph
+/// traversals assume, and erring towards *more* edges is the safe direction
+/// here: extra edges can only make the check below reject more.
+void getRegionSuccessors(RegionBranchOpInterface branchOp, Region* region,
+                         SmallVectorImpl<RegionSuccessor>& successors) {
+  for (Block& block : *region) {
+    if (block.empty()) {
+      continue;
+    }
+    auto terminator = dyn_cast<RegionBranchTerminatorOpInterface>(block.back());
+    if (!terminator) {
+      successors.emplace_back(branchOp, branchOp->getResults());
+      continue;
+    }
+    branchOp.getSuccessorRegions(RegionBranchPoint(terminator), successors);
+  }
+}
+
+/// Succeeds only if every control-flow path through `branchOp` carries exactly
+/// one use of the value, and -- recursively -- each region's own uses cover it
+/// with exactly one use on every path through it; otherwise fails.
 ///
 /// Recursive back-and-forth with `checkUsesCoverRegion`.
 LogicalResult checkBranchCoverage(const Twine& description, Operation* branchOp,
                                   ArrayRef<std::pair<OpOperand*, Region*>> branchUses) {
   auto regionBranchOp = cast<RegionBranchOpInterface>(branchOp);
-  // An entry successor that is the parent op means control flow can skip all
-  // regions of `branchOp` and go straight to its results -- an `scf.if`
-  // without an `else` region, for instance, lists its parent as an entry
-  // successor.
-  SmallVector<RegionSuccessor> entrySuccessors;
-  regionBranchOp.getSuccessorRegions(RegionBranchPoint::parent(), entrySuccessors);
-  bool hasParentBypass = llvm::any_of(entrySuccessors, [](RegionSuccessor& s) { return s.isParent(); });
 
-  // Mapping Regions -> uses. Include regions with no uses. A vector (rather
-  // than a map) keeps the diagnostics below deterministically ordered, and the
-  // number of regions is tiny -- two for `scf.if`.
+  // Mapping Regions -> uses, for the regions that have any. A vector (rather
+  // than a map) keeps the diagnostics below deterministically ordered, and it
+  // holds one entry per region actually mentioning the value.
   SmallVector<std::pair<Region*, SmallVector<OpOperand*>>> byRegion;
-  for (Region* region : collectReachableRegions(regionBranchOp)) {
-    SmallVector<OpOperand*> regionUses;
-    for (const auto& [use, useRegion] : branchUses) {
-      if (useRegion == region) {
-        regionUses.push_back(use);
-      }
+  for (const auto& [use, useRegion] : branchUses) {
+    auto* it = llvm::find_if(byRegion, [&](const auto& p) { return p.first == useRegion; });
+    if (it == byRegion.end()) {
+      byRegion.emplace_back(useRegion, SmallVector<OpOperand*>{use});
+    } else {
+      it->second.push_back(use);
     }
-    byRegion.emplace_back(region, std::move(regionUses));
   }
 
   // Recurse into every region that has at least one use first, so that a
-  // double use (or further unresolvable nesting) confined to a single arm is
-  // reported precisely, rather than being masked by a less specific
-  // coverage-gap diagnostic about some other, entirely unused, arm.
+  // double use (or further unresolvable nesting) confined to a single region
+  // is reported precisely, rather than being masked by a less specific
+  // coverage-gap diagnostic about the op as a whole.
   for (const auto& [region, regionUses] : byRegion) {
-    if (!regionUses.empty() &&
-        failed(checkUsesCoverRegion(description, region, regionUses, /*isRegionUnconditional=*/false))) {
+    if (failed(checkUsesCoverRegion(description, region, regionUses, /*isRegionUnconditional=*/false))) {
       return failure();
     }
   }
 
-  // We know here: Every region that has at least one use is covered by exactly one use on every control-flow path
-  // through it.
+  // We know here: every region that has at least one use contributes exactly
+  // one use whenever control flow passes through it.
+  // Therefore `usesValue` means "uses value exactly once".
+  auto usesValue = [&byRegion](Region* region) {
+    return llvm::any_of(byRegion, [&](const auto& p) { return p.first == region; });
+  };
 
-  // The regions that do have uses must be pairwise mutually exclusive (one
-  // representative use per region suffices, since this is a structural
-  // property of the regions, not of the specific uses inside them).
-  for (size_t i = 0, e = byRegion.size(); i < e; ++i) {
-    const auto& [regionA, regionUsesA] = byRegion[i];
-    if (regionUsesA.empty()) {
-      continue;
+  // Forward propagation over the region successor graph. `incoming` maps a
+  // region to the counts control flow may have accumulated when *entering* it;
+  // `exitCounts` collects the counts of the paths leaving the op. The masks
+  // only ever grow, so the fixpoint is reached in bounded time.
+  DenseMap<Region*, UseCounts> incoming;
+  SmallVector<Region*> visitOrder; // Deterministic order for the diagnostics.
+  SmallVector<Region*> worklist;
+  UseCounts exitCounts = kNoPath;
+  auto propagate = [&](const RegionSuccessor& successor, UseCounts counts) {
+    Region* target = successor.getSuccessor();
+    if (target == nullptr) { // The parent op itself, i.e. a path leaving the op.
+      exitCounts = static_cast<UseCounts>(exitCounts | counts);
+      return;
     }
-    for (size_t j = i + 1; j < e; ++j) {
-      const auto& [regionB, regionUsesB] = byRegion[j];
-      if (regionUsesB.empty()) {
-        continue;
-      }
-      Operation* repA = regionUsesA.front()->getOwner();
-      Operation* repB = regionUsesB.front()->getOwner();
-      if (!insideMutuallyExclusiveRegions(repA, repB)) {
-        auto diag = branchOp->emitError() << description
-                                          << " is subject to linearity, but its uses could not be proven to lie on "
-                                             "mutually exclusive control-flow paths";
-        diag.attachNote(repA->getLoc()) << "used here";
-        diag.attachNote(repB->getLoc()) << "and here";
-        return diag;
-      }
+    auto [it, inserted] = incoming.try_emplace(target, kNoPath);
+    auto& targetCounts = it->second;
+    if (inserted) {
+      visitOrder.push_back(target);
+    }
+    if ((targetCounts | counts) == targetCounts) {
+      return;
+    }
+    targetCounts = static_cast<UseCounts>(targetCounts | counts);
+    worklist.push_back(target);
+  };
+
+  SmallVector<RegionSuccessor> successors;
+  regionBranchOp.getSuccessorRegions(RegionBranchPoint::parent(), successors);
+  // An entry successor that is the parent op means control flow can skip all
+  // regions of `branchOp` and go straight to its results -- an `scf.if`
+  // without an `else` region, for instance, lists its parent as an entry
+  // successor.
+  bool hasParentBypass = llvm::any_of(successors, [](RegionSuccessor& s) { return s.isParent(); });
+  for (const RegionSuccessor& successor : successors) {
+    propagate(successor, kZeroUses); // Initializes the worklist.
+  }
+  while (!worklist.empty()) {
+    Region* region = worklist.pop_back_val();
+    UseCounts leaving = usesValue(region) ? addOneUse(incoming[region]) : incoming[region];
+    successors.clear();
+    getRegionSuccessors(regionBranchOp, region, successors);
+    for (const RegionSuccessor& successor : successors) {
+      propagate(successor, leaving); // Also adds the successors to the worklist if their counts changed.
     }
   }
 
-  // Every reachable region of `branchOp` must be covered by at least one use;
-  // a region with none is a control-flow path with zero uses of the value.
-  bool allRegionsCovered = llvm::all_of(byRegion, [](const auto& p) { return !p.second.empty(); });
-  if (!allRegionsCovered || hasParentBypass) {
+  // The counts each region *leaves* with, for the diagnostics below.
+  DenseMap<Region*, UseCounts> outgoing;
+  for (Region* region : visitOrder) {
+    outgoing[region] = usesValue(region) ? addOneUse(incoming[region]) : incoming[region];
+  }
+
+  // A use in a region the propagation never reached is a use the analysis has
+  // not accounted for, so it cannot claim the value is used exactly once.
+  for (const auto& [region, regionUses] : byRegion) {
+    if (!incoming.contains(region)) {
+      auto diag = branchOp->emitError() << description
+                                        << " is subject to linearity, but is used inside a region that this "
+                                           "operation does not report as reachable by its control flow";
+      diag.attachNote(getRegionLoc(region)) << "used in this region";
+      return diag;
+    }
+  }
+
+  if ((exitCounts & kTwoOrMoreUses) != 0) {
+    // Anchor on the branch op: no single use is at fault, it is the
+    // combination of uses across its regions that double-uses the value.
+    auto diag = branchOp->emitError()
+                << description
+                << " is subject to linearity, but is used more than once on a control-flow path through this operation";
+    SmallVector<OpOperand*> uses;
+    for (const auto& [use, region] : branchUses) {
+      uses.push_back(use);
+    }
+    attachUseNotes(diag, uses);
+    return diag;
+  }
+
+  if ((exitCounts & kZeroUses) != 0) {
     // Anchor on the branch op itself: it's the specific construct that
     // introduces the uncovered control-flow path.
     auto diag = branchOp->emitError() << description
@@ -162,8 +231,32 @@ LogicalResult checkBranchCoverage(const Twine& description, Operation* branchOp,
     for (const auto& [use, region] : branchUses) {
       diag.attachNote(use->getOwner()->getLoc()) << "used on this control-flow path";
     }
-    for (const auto& [region, regionUses] : byRegion) {
-      if (regionUses.empty()) {
+    // Point at the regions a use-free path runs through on its way out of the
+    // op -- these are exactly the places where adding the missing use would
+    // close the gap. (A region that uses the value never leaves with a count
+    // of zero, so it is never among them.) In the "if-then-else-finally" shape
+    // with a use only in `then`, that is both `else` and `finally`; for an
+    // `scf.if`, it is just the arm that is missing the use.
+    SmallPtrSet<Region*, 4> onUseFreeExitPath;
+    for (bool changed = true; changed;) {
+      changed = false;
+      for (Region* region : visitOrder) {
+        if ((outgoing[region] & kZeroUses) == 0 || onUseFreeExitPath.contains(region)) {
+          continue;
+        }
+        successors.clear();
+        getRegionSuccessors(regionBranchOp, region, successors);
+        bool leadsOutWithoutUse = llvm::any_of(successors, [&](RegionSuccessor& s) {
+          return s.isParent() || onUseFreeExitPath.contains(s.getSuccessor());
+        });
+        if (leadsOutWithoutUse) {
+          onUseFreeExitPath.insert(region);
+          changed = true;
+        }
+      }
+    }
+    for (Region* region : visitOrder) {
+      if (onUseFreeExitPath.contains(region)) {
         diag.attachNote(getRegionLoc(region)) << "not used on this control-flow path";
       }
     }
