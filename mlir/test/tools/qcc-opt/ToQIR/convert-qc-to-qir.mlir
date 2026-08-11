@@ -1,4 +1,4 @@
-// RUN: qcc-opt %s -convert-qc-to-qir | FileCheck %s
+// RUN: qcc-opt %s -convert-qc-to-qir --split-input-file | FileCheck %s
 
 func.func @test() -> i64 attributes { qcc.entry_point } {
     // CHECK-LABEL:   func.func @test() -> i64 attributes {
@@ -75,6 +75,25 @@ func.func @test() -> i64 attributes { qcc.entry_point } {
     // CHECK:           %[[EXIT_CODE:.*]] = arith.constant 0 : i64
     // CHECK:           return %[[EXIT_CODE]] : i64
 }
+
+// The pass assumes that these decls already exist.
+llvm.func @__quantum__rt__initialize(!llvm.ptr)
+llvm.func @__quantum__rt__bool_record_output(i1, !llvm.ptr)
+llvm.func @__quantum__rt__int_record_output(i64, !llvm.ptr)
+llvm.func @__quantum__rt__tuple_record_output(i64, !llvm.ptr)
+llvm.func @__quantum__rt__array_record_output(i64, !llvm.ptr)
+llvm.func @__quantum__rt__read_result(!llvm.ptr {llvm.readonly}) -> i1
+llvm.func @__quantum__qis__mz__body(!llvm.ptr, !llvm.ptr {llvm.writeonly}) attributes {passthrough = ["irreversible"]}
+llvm.func @__quantum__qis__h__body(!llvm.ptr)
+llvm.func @__quantum__qis__x__body(!llvm.ptr)
+llvm.func @__quantum__qis__cx__body(!llvm.ptr, !llvm.ptr)
+llvm.func @__quantum__qis__rz__body(f64, !llvm.ptr)
+
+// The label needed to lower `aux.record_int` to its corresponding runtime function:
+llvm.mlir.global internal constant @".qir_dummy_label"("dummy_label\00") {addr_space = 0 : i32}
+
+
+// -----
 
 func.func @test_memref_lowering() -> i64 attributes { qcc.entry_point } {
     %t = memref.alloc() : memref<3xi64>
