@@ -34,12 +34,11 @@ def ConvertQCToQIR : Pass<"convert-qc-to-qir", "mlir::ModuleOp"> {
   let description = [{
       The pass anchors to a module and guarantees the following:
 
-      - The QIR initialization function is inserted at the start of the function.
+      - Lowers all functions with the qcc.entry_point attribute to QIR conforming LLVM dialect.
+      - The QIR initialization function is inserted at the start of each of those functions.
       - Required QIR attributes (like `required_num_qubits`) are added to the function. Via `passthrough`.
       - `qc` gate and measurement ops are translated to QIR QIS function calls.
       - Only the llvm dialect (in the function body) is considered legal after this pass.
-      - TODO: To support some kind of output recording: We lower `aux.record_bool` to the
-        bool recording function. Currently no other output recording function are in use.
 
       TODO: For simplicity we assume that only entry point functions have
       quantum operations. Before we extend support we have to figure out how to
