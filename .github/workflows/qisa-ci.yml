@@ -1,0 +1,163 @@
+name: QISA CI
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  merge_group:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read # Needed to fetch code
+
+env:
+  # Bump this to invalidate the LLVM install cache when the LLVM CMake flags
+  # below change (the cache key does not track them).
+  LLVM_CACHE_VERSION: v1
+  # Do not set ccache max size too high. Total cache limit at the time of
+  # writing this is 10GB. Note that LLVM install cache competes with this one.
+  # See also
+  # https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching.
+  CCACHE_MAXSIZE: 2G # should be plenty, but compare with ccache -s output if in doubt
+
+jobs:
+  # Builds qcc with QCC_ENABLE_HISEP_Q=ON and runs the lit suite, which then
+  # includes the `REQUIRES: hisep-q` tests. The HiSEP-Q target needs a patched
+  # LLVM (see third-party/llvm/README.md) that no prebuilt package provides, so
+  # this job builds LLVM from source and caches the install prefix. On a warm
+  # cache the LLVM build is skipped entirely and only qcc is rebuilt.
+  qisa-tests:
+    name: 🇨‌ Test QISA 🐧
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300 # we expect 3h + variance on a full re-build
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          # We only install a few small tools; We *must* turn off the cache
+          # here. The dependency cache would never invalidate (no Python project
+          # files). We would be in danger of serving very old binaries.
+          enable-cache: false
+
+      # Same tool set as .devcontainer/Dockerfile. LIT_BIN and MLIR_DIR are
+      # consumed by the `base` CMake preset; qir-runner is needed by lit tests.
+      # LLVM_INSTALL_DIR and CCACHE_DIR must be absolute paths without `..`
+      # (actions/cache rejects relative pathing), hence $HOME via GITHUB_ENV
+      # instead of the workflow-level env block.
+      - name: Install build and test tools
+        run: |
+          uv tool install cmake
+          uv tool install ninja
+          uv tool install lit
+          uv tool install qirrunner
+          LLVM_INSTALL_DIR="$HOME/llvm-install"
+          {
+            echo "LLVM_INSTALL_DIR=$LLVM_INSTALL_DIR"
+            echo "CCACHE_DIR=$HOME/ccache-llvm"
+            echo "LIT_BIN=$(which lit)"
+            echo "MLIR_DIR=$LLVM_INSTALL_DIR/lib/cmake/mlir"
+          } >> "$GITHUB_ENV"
+
+      - name: Restore patched LLVM install
+        id: llvm-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.LLVM_INSTALL_DIR }}
+          key: llvm-qisa-${{ runner.os }}-${{ runner.arch }}-${{ env.LLVM_CACHE_VERSION }}-${{ hashFiles('third-party/llvm/base.rev', 'third-party/llvm/patches/qisa/*.patch') }}
+
+      # ccache only matters when LLVM itself is rebuilt. The restore-keys
+      # prefix lets a rebuild after an LLVM version/patch bump reuse most
+      # object files instead of starting cold.
+      - name: Restore ccache
+        if: steps.llvm-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-qisa-${{ runner.os }}-${{ runner.arch }}-${{ env.LLVM_CACHE_VERSION }}-${{ github.run_id }}
+          restore-keys: |
+            ccache-qisa-${{ runner.os }}-${{ runner.arch }}-${{ env.LLVM_CACHE_VERSION }}-
+
+      - name: Install LLVM build dependencies
+        if: steps.llvm-cache.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ccache clang lld
+
+      # Drop large preinstalled toolchains first to maximize available free disk
+      # space on our runner.
+      - name: Free disk space
+        if: steps.llvm-cache.outputs.cache-hit != 'true'
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup
+          df -h /
+
+      - name: Provision patched LLVM sources
+        if: steps.llvm-cache.outputs.cache-hit != 'true'
+        # The script applies the QISA patches with `git am`, which needs a
+        # committer identity that CI runners do not have configured.
+        env:
+          GIT_COMMITTER_NAME: qcc ci
+          GIT_COMMITTER_EMAIL: qcc@example.com
+        run: ./utils/provision-llvm "$RUNNER_TEMP/llvm-project"
+
+      # Derived from the configuration in third-party/llvm/README.md, trimmed
+      # for CI. HiSEP-Q is a RISCV subtarget. LLVM_INSTALL_UTILS installs and
+      # exports FileCheck, count, and not, which check-qcc depends on.
+      - name: Configure LLVM
+        if: steps.llvm-cache.outputs.cache-hit != 'true'
+        run: |
+          cmake -G Ninja -S "$RUNNER_TEMP/llvm-project/llvm" -B "$RUNNER_TEMP/llvm-project/build" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DLLVM_ENABLE_ASSERTIONS=ON \
+            -DLLVM_ENABLE_RTTI=ON \
+            -DLLVM_ENABLE_PROJECTS=mlir \
+            -DLLVM_TARGETS_TO_BUILD="Native;RISCV" \
+            -DLLVM_INSTALL_UTILS=ON \
+            -DLLVM_OPTIMIZED_TABLEGEN=ON \
+            -DLLVM_BUILD_EXAMPLES=OFF \
+            -DLLVM_CCACHE_BUILD=ON \
+            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DLLVM_ENABLE_LLD=ON \
+            -DLLVM_PARALLEL_LINK_JOBS=2 \
+            -DCMAKE_INSTALL_PREFIX="$LLVM_INSTALL_DIR"
+
+      - name: Build and install LLVM
+        if: steps.llvm-cache.outputs.cache-hit != 'true'
+        run: |
+          cmake --build "$RUNNER_TEMP/llvm-project/build" --target install
+          ccache -s
+          df -h /
+
+      # On "always() && ...": Without it github would wrap this into "success()
+      # && ...". Here we want to save even when the build failed or timed out,
+      # so a retry can pick up where the compiler cache left off.
+      - name: Save ccache
+        if: always() && steps.llvm-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-qisa-${{ runner.os }}-${{ runner.arch }}-${{ env.LLVM_CACHE_VERSION }}-${{ github.run_id }}
+
+      - name: Save patched LLVM install
+        if: steps.llvm-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.LLVM_INSTALL_DIR }}
+          key: ${{ steps.llvm-cache.outputs.cache-primary-key }}
+
+      - name: Configure qcc
+        run: cmake --preset release -DQCC_ENABLE_HISEP_Q=ON -DLLVM_ENABLE_ASSERTIONS=ON
+
+      - name: Build qcc
+        run: cmake --build build/release
+
+      - name: Test qcc
+        run: LIT_OPTS="--time-tests" cmake --build build/release --target check-qcc

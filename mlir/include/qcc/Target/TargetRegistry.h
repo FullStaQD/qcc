@@ -16,7 +16,18 @@
 
 #include <functional>
 
+namespace llvm {
+class Module;
+class raw_pwrite_stream;
+} // namespace llvm
+
 namespace qcc {
+
+/// Options controlling native (QISA) code emission for a target.
+struct NativeCodegenOptions {
+  /// Emit a binary object file instead of textual assembly.
+  bool binary = false;
+};
 // Simplified form of the descriptor-plus-factory pattern in LLVM's
 // `llvm/MC/TargetRegistry.h`: `Target` is a flat, non-polymorphic registry
 // entry carrying metadata plus a factory (`addLoweringPasses`) for the target's
@@ -30,6 +41,9 @@ struct Target {
   llvm::StringRef description;
   /// Assembles the lowering pipeline for this target.
   std::function<void(mlir::PassManager&)> addLoweringPasses;
+  /// Emits native code for an already-lowered, LLVM-translated module. Null when
+  /// the target has no native backend (e.g. QIR). Returns true on failure.
+  std::function<bool(llvm::Module&, llvm::raw_pwrite_stream&, const NativeCodegenOptions&)> emitNative;
 };
 
 /// Returns the targets compiled into this build.

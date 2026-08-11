@@ -11,8 +11,7 @@
 
 # /// script
 # dependencies = [
-#   "qrisp==0.9.5",
-#   "xdsl==0.59.0"
+#   "qrisp[xdsl]==0.9.6",
 # ]
 # ///
 
@@ -66,6 +65,43 @@ def _find_qrisp_function(module):
     return candidates[0]
 
 
+def _to_selective_generic_mlir(module) -> str:
+    """Serialize an xDSL module with only ``jasp`` ops in generic form.
+
+    Rationale: custom jasp assembly has shown to be inconsistent between MLIR
+    and xdsl (qrisp has to duplicate dialect definitions). Well-known standard
+    dialects are still printed in custom assembly form for readability.
+    """
+    from io import StringIO
+
+    from xdsl.context import Context
+    from xdsl.dialects import arith, builtin, func, linalg, math, scf, tensor
+    from xdsl.parser import Parser
+    from xdsl.printer import Printer
+
+    # Print to buffer in generic format.
+    buf = StringIO()
+    Printer(stream=buf, print_generic_format=True).print_op(module)
+
+    # Load dialects we do not want to see in generic format in the reparsed
+    # string below. Do not include jasp.
+    ctx = Context()
+    ctx.allow_unregistered = True
+    for dialect in (
+        builtin.Builtin,
+        func.Func,
+        arith.Arith,
+        tensor.Tensor,
+        scf.Scf,
+        linalg.Linalg,
+        math.Math,
+    ):
+        ctx.load_dialect(dialect)
+
+    reparsed = Parser(ctx, buf.getvalue()).parse_module()
+    return str(reparsed)
+
+
 def _get_qrisp_version() -> str:
     """Return the installed Qrisp version as reported by ``uv pip freeze``."""
     try:
@@ -94,11 +130,12 @@ def main(argv):
         return 1
 
     path = argv[1]
-    module = _load_module_from_path(path)
-    qrisp_function = _find_qrisp_function(module)
+    source_module = _load_module_from_path(path)
+    qrisp_function = _find_qrisp_function(source_module)
     qrisp_version = _get_qrisp_version()
 
-    mlir = str(make_jaspr(qrisp_function)().to_mlir(lower_stablehlo=True))
+    mlir_module = make_jaspr(qrisp_function)().to_mlir(lower_stablehlo=True)
+    mlir = _to_selective_generic_mlir(mlir_module)
 
     print(
         f"// GENERATED FROM QRISP VERSION {qrisp_version}\n\n"

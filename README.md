@@ -142,7 +142,17 @@ settings:
 
 ---
 
-## License headers
+## License
+
+QCC is licensed under the Apache License v2.0 with LLVM Exceptions; see
+[`LICENSE.txt`](LICENSE.txt).
+
+Third-party components live under `third-party/`, and each subdirectory's
+`README.md` records its provenance and license if relevant. When a component is
+distributed under a different license, its full text is shipped alongside it —
+for example [`third-party/qrisp/`](third-party/qrisp/) (EPL-2.0).
+
+### License headers
 
 The license headers in this repository are managed using the [`license-eye`](https://github.com/apache/skywalking-eyes) tool.
 
@@ -158,4 +168,4 @@ license-eye header fix
 
 The license headers are checked by a GitHub Actions workflow.
 If the workflow fails in a PR, run the command above.
-Alternatively, it is of course possible to copy the license header from another file.
+Alternatively, copy the license header from another file.

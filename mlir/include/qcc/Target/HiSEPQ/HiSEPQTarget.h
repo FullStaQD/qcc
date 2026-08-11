@@ -13,11 +13,22 @@
 
 #pragma once
 
+#include "qcc/Target/TargetRegistry.h"
+
 #include <mlir/Pass/PassManager.h>
+
+namespace llvm {
+class Module;
+class raw_pwrite_stream;
+} // namespace llvm
 
 namespace qcc {
 
 /// `Target::addLoweringPasses` for the HiSEP-Q target.
 void addLoweringPassesHiSEPQ(mlir::PassManager& pm);
+
+/// `Target::emitNative` for the HiSEP-Q target: lowers the QV-intrinsic LLVM
+/// module to RISC-V assembly or an object file. Returns true on failure.
+bool emitNativeHiSEPQ(llvm::Module& module, llvm::raw_pwrite_stream& os, const NativeCodegenOptions& options);
 
 } // namespace qcc

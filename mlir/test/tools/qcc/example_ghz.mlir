@@ -1,4 +1,5 @@
 // RUN: qcc --compile-to=mlir -o - %s | FileCheck %s
+// RUN: %if hisep-q %{ qcc --target=hisep-q --compile-to=mlir -o - %s | FileCheck %s --check-prefix=CHECK-INTRINSICS %}
 
 /// Prepare GHZ state (without loop so far).
 ///
@@ -72,3 +73,29 @@ func.func @main() attributes { qcc.entry_point } {
 
 // CHECK:         llvm.module_flags
 // CHECK:         llvm.mlir.global internal constant @".qir_dummy_label"("dummy_label\00") {addr_space = 0 : i32}
+
+// CHECK-INTRINSICS-LABEL: llvm.func @main()
+// CHECK-INTRINSICS-NOT:     llvm.call @__quantum__qis
+// CHECK-INTRINSICS-NOT:     llvm.call @__quantum__rt
+// CHECK-INTRINSICS-DAG:     %[[Q0:.*]] = llvm.mlir.constant(0 : i8) : i8
+// CHECK-INTRINSICS-DAG:     %[[Q1:.*]] = llvm.mlir.constant(1 : i8) : i8
+// CHECK-INTRINSICS-DAG:     %[[Q2:.*]] = llvm.mlir.constant(2 : i8) : i8
+// CHECK-INTRINSICS:         llvm.call_intrinsic "llvm.riscv.qv.h"({{.*}})
+// CHECK-INTRINSICS:         llvm.call_intrinsic "llvm.riscv.qv.cx"({{.*}})
+// CHECK-INTRINSICS:         llvm.call_intrinsic "llvm.riscv.qv.cx"({{.*}})
+// CHECK-INTRINSICS:         llvm.call_intrinsic "llvm.riscv.qv.mz"({{.*}})
+// CHECK-INTRINSICS:         llvm.call_intrinsic "llvm.riscv.qv.mz"({{.*}})
+// CHECK-INTRINSICS:         llvm.call_intrinsic "llvm.riscv.qv.mz"({{.*}})
+// CHECK-INTRINSICS:         llvm.return
+
+// Declarations for the gates used (and their rt helpers) are removed.
+// Unmapped declarations (s, sdg, t, tdg, rz) declared by PrepToQIR but unused
+// in the GHZ circuit are left in place, as they have no intrinsic mapping.
+// CHECK-INTRINSICS-NOT: llvm.func @__quantum__qis__h__body
+// CHECK-INTRINSICS-NOT: llvm.func @__quantum__qis__x__body
+// CHECK-INTRINSICS-NOT: llvm.func @__quantum__qis__cx__body
+// CHECK-INTRINSICS-NOT: llvm.func @__quantum__qis__mz__body
+// CHECK-INTRINSICS-NOT: llvm.func @__quantum__rt__initialize
+// CHECK-INTRINSICS-NOT: llvm.func @__quantum__rt__read_result
+// CHECK-INTRINSICS-NOT: llvm.func @__quantum__rt__bool_record_output
+// CHECK-INTRINSICS-NOT: llvm.func @__quantum__rt__int_record_output
