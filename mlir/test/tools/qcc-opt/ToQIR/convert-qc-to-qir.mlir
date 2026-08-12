@@ -1,5 +1,6 @@
 // RUN: qcc-opt %s -convert-qc-to-qir --split-input-file | FileCheck %s
-
+// Fix-Me: The `--split-input-file` option is a workaround for the fact that the `convert-qc-to-qir`
+// works on the function level but memref lowering is operation on module level. This can lead to race conditions.
 func.func @test() -> i64 attributes { qcc.entry_point } {
     // CHECK-LABEL:   func.func @test() -> i64 attributes {
     // CHECK-SAME:        passthrough = [
