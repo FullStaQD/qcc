@@ -158,9 +158,17 @@ They should therefore be manifestly present in a high-level IR.
     \begin{bmatrix}H_{\bullet} \\ \downarrow \\ W\end{bmatrix} \times \begin{bmatrix}H'_{\bullet} \\ \downarrow \\ W'\end{bmatrix} \equiv \begin{bmatrix}H_{\bullet} \oplus H'_{\bullet} \\ \downarrow \\ W\times W'\end{bmatrix}, \quad \text{Unit: }\begin{bmatrix}0 \\ \downarrow \\ *\end{bmatrix}
     $$
     This represents independent quantum systems. It will be avoided by our IR.
-  - Linear product:$$\begin{bmatrix}H_{\bullet} \\ \downarrow \\ W\end{bmatrix} \otimes \begin{bmatrix}H'_{\bullet} \\ \downarrow \\ W'\end{bmatrix} \equiv \begin{bmatrix}H_{\bullet} \otimes  H'_{\bullet} \\ \downarrow \\ W\times W'\end{bmatrix}, \quad \text{Unit: }\begin{bmatrix}\mathbb{C} \\ \downarrow \\ *\end{bmatrix}$$This represents the ordinary tensor product on purely linear types, and the cartesian types on _classical types with linear halo_. This product will be used implicitly throughout the IR in quantum context.
-  - Coproduct/Sum:$$\begin{bmatrix}H_{\bullet} \\ \downarrow \\ W\end{bmatrix} \sqcup \begin{bmatrix}H'_{\bullet} \\ \downarrow \\ W'\end{bmatrix} \equiv \begin{bmatrix}H_{\bullet} \sqcup  H'_{\bullet} \\ \downarrow \\ W \sqcup W'\end{bmatrix}, \quad \text{Unit: }\begin{bmatrix} \emptyset \\ \downarrow \\ \emptyset\end{bmatrix}$$This behaves similar to ordinary sum types. (Open question on IR support for this constructor — see "Open Questions / TODOs" below.)
-  - Linearization:$$\text{Lin}\begin{bmatrix}H_{\bullet} \\ \downarrow \\ W\end{bmatrix} \equiv \begin{bmatrix}\bigoplus_{w:W} H_{w} \\ \downarrow \\ *\end{bmatrix}$$This turns a mixed type into a purely linear type. The operation is idempotent. Crucially, it transforms classical types with linear halo into the vector space whose basis is the classical set, but it destroys classical types without linear halo: $$\text{Lin}\begin{bmatrix}\mathbb{C}_{\bullet} \\ \downarrow \\ W\end{bmatrix} \equiv \begin{bmatrix}\mathbb{C}W \\ \downarrow \\ *\end{bmatrix}, \qquad \text{Lin}\begin{bmatrix}0_{\bullet} \\ \downarrow \\ W\end{bmatrix} \equiv \begin{bmatrix}0 \\ \downarrow \\ *\end{bmatrix}.$$**IR Realization:** `!prelim_hlep.lin<W>`
+  - Linear product:
+    $$\begin{bmatrix}H_{\bullet} \\ \downarrow \\ W\end{bmatrix} \otimes \begin{bmatrix}H'_{\bullet} \\ \downarrow \\ W'\end{bmatrix} \equiv \begin{bmatrix}H_{\bullet} \otimes  H'_{\bullet} \\ \downarrow \\ W\times W'\end{bmatrix}, \quad \text{Unit: }\begin{bmatrix}\mathbb{C} \\ \downarrow \\ *\end{bmatrix}$$
+    This represents the ordinary tensor product on purely linear types, and the cartesian types on _classical types with linear halo_. This product will be used implicitly throughout the IR in quantum context.
+  - Coproduct/Sum:
+    $$\begin{bmatrix}H_{\bullet} \\ \downarrow \\ W\end{bmatrix} \sqcup \begin{bmatrix}H'_{\bullet} \\ \downarrow \\ W'\end{bmatrix} \equiv \begin{bmatrix}H_{\bullet} \sqcup  H'_{\bullet} \\ \downarrow \\ W \sqcup W'\end{bmatrix}, \quad \text{Unit: }\begin{bmatrix} \emptyset \\ \downarrow \\ \emptyset\end{bmatrix}$$
+    This behaves similar to ordinary sum types. (Open question on IR support for this constructor — see "Open Questions / TODOs" below.)
+  - Linearization:
+    $$\text{Lin}\begin{bmatrix}H_{\bullet} \\ \downarrow \\ W\end{bmatrix} \equiv \begin{bmatrix}\bigoplus_{w:W} H_{w} \\ \downarrow \\ *\end{bmatrix}$$
+    This turns a mixed type into a purely linear type. The operation is idempotent. Crucially, it transforms classical types with linear halo into the vector space whose basis is the classical set, but it destroys classical types without linear halo:
+    $$\text{Lin}\begin{bmatrix}\mathbb{C}_{\bullet} \\ \downarrow \\ W\end{bmatrix} \equiv \begin{bmatrix}\mathbb{C}W \\ \downarrow \\ *\end{bmatrix}, \qquad \text{Lin}\begin{bmatrix}0_{\bullet} \\ \downarrow \\ W\end{bmatrix} \equiv \begin{bmatrix}0 \\ \downarrow \\ *\end{bmatrix}.$$
+    **IR Realization:** `!prelim_hlep.lin<W>`
 
 ### Core Attributes and Ops
 
