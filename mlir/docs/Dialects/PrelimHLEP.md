@@ -130,8 +130,21 @@ They should therefore be manifestly present in a high-level IR.
 
 ### Type System
 
+#### Notational conventions
+
+We use the notation of (linear homotopy) type theory throughout:
+
+- $a : A$ is the typing judgment "$a$ is a term of type $A$". We use it uniformly, also where a set-theoretic text would write $a \in A$.
+- $a :\equiv b$ _defines_ $a$ to be $b$.
+- $a \equiv b$ is judgmental equality (e.g. two terms that become identical after unfolding definitions).
+- $a = b$ is an equality that has to be derived, i.e. the statement of a proposition or the conclusion of a computation.
+- $\Gamma \vdash J$ is the hypothetical judgment "$J$ holds in context $\Gamma$". We use it for the dependence of a linearized map on its measurement result.
+- $\text{Type}$ is the universe of hybrid types described below.
+
+#### Semantics
+
 - Informed by, but not realizing in full, Linear Homotopy Type Theory.
-- Denotational semantic model: A type is a finite-dimensional $\mathbb{C}$-vector bundle over a finite set, e.g. $$H_{\bullet} \equiv\begin{bmatrix}H_{\bullet} \\ \downarrow \\ W\end{bmatrix} : \text{Type},$$where $W$ is a finite set and $H_{\bullet}$ is a $W$-indexed family of finite-dimensional $\mathbb{C}$-vector spaces.
+- Denotational semantic model: A type is a finite-dimensional $\mathbb{C}$-vector bundle over a finite set, e.g. $$H_{\bullet} :\equiv\begin{bmatrix}H_{\bullet} \\ \downarrow \\ W\end{bmatrix} : \text{Type},$$where $W$ is a finite set and $H_{\bullet}$ is a $W$-indexed family of finite-dimensional $\mathbb{C}$-vector spaces.
 - We are only concerned with pure functions. A function
   $$
   f: \begin{bmatrix}H_{\bullet} \\ \downarrow \\ W\end{bmatrix} \to \begin{bmatrix}H'_{\bullet} \\ \downarrow \\ W'\end{bmatrix}
@@ -139,15 +152,15 @@ They should therefore be manifestly present in a high-level IR.
   is given by a classical part $f_{\text{cl}}:W\to W'$, together with a $W$-family of linear maps $f_{\text{lin},w}:H_{w}\to H_{f_{\text{cl}}(w)}$.
 - Purely classical types $W$ are embedded into this type system as covered by the Zero space, and purely linear types $H$ (i.e. vector spaces) cover the singleton:
   $$
-  W \equiv\begin{bmatrix}
+  W :\equiv\begin{bmatrix}
   0_{\bullet} \\ \downarrow \\ W
-  \end{bmatrix},\qquad H \equiv\begin{bmatrix}
+  \end{bmatrix},\qquad H :\equiv\begin{bmatrix}
   H \\ \downarrow \\ *
   \end{bmatrix}.
   $$
   However, in order for classical types to interact meaningfully with quantum types (e.g. by measurement), they need to be embedded into the quantum context. To this end, they are commonly equipped with an "infinitesimal halo" of linearity, which means they are covered by the tensor unit $\mathbb{C}$:
   $$
-  \mathbb{C} \times W \equiv\begin{bmatrix}
+  \mathbb{C} \times W :\equiv\begin{bmatrix}
   \mathbb{C}_{\bullet} \\ \downarrow \\ W
   \end{bmatrix}.
   $$
@@ -155,19 +168,19 @@ They should therefore be manifestly present in a high-level IR.
 - Types can be constructed in the following ways:
   - Cartesian product:
     $$
-    \begin{bmatrix}H_{\bullet} \\ \downarrow \\ W\end{bmatrix} \times \begin{bmatrix}H'_{\bullet} \\ \downarrow \\ W'\end{bmatrix} \equiv \begin{bmatrix}H_{\bullet} \oplus H'_{\bullet} \\ \downarrow \\ W\times W'\end{bmatrix}, \quad \text{Unit: }\begin{bmatrix}0 \\ \downarrow \\ *\end{bmatrix}
+    \begin{bmatrix}H_{\bullet} \\ \downarrow \\ W\end{bmatrix} \times \begin{bmatrix}H'_{\bullet} \\ \downarrow \\ W'\end{bmatrix} :\equiv \begin{bmatrix}H_{\bullet} \oplus H'_{\bullet} \\ \downarrow \\ W\times W'\end{bmatrix}, \quad \text{Unit: }\begin{bmatrix}0 \\ \downarrow \\ *\end{bmatrix}
     $$
     This represents independent quantum systems. It will be avoided by our IR.
   - Linear product:
-    $$\begin{bmatrix}H_{\bullet} \\ \downarrow \\ W\end{bmatrix} \otimes \begin{bmatrix}H'_{\bullet} \\ \downarrow \\ W'\end{bmatrix} \equiv \begin{bmatrix}H_{\bullet} \otimes  H'_{\bullet} \\ \downarrow \\ W\times W'\end{bmatrix}, \quad \text{Unit: }\begin{bmatrix}\mathbb{C} \\ \downarrow \\ *\end{bmatrix}$$
-    This represents the ordinary tensor product on purely linear types, and the cartesian types on _classical types with linear halo_. This product will be used implicitly throughout the IR in quantum context.
+    $$\begin{bmatrix}H_{\bullet} \\ \downarrow \\ W\end{bmatrix} \otimes \begin{bmatrix}H'_{\bullet} \\ \downarrow \\ W'\end{bmatrix} :\equiv \begin{bmatrix}H_{\bullet} \otimes  H'_{\bullet} \\ \downarrow \\ W\times W'\end{bmatrix}, \quad \text{Unit: }\begin{bmatrix}\mathbb{C} \\ \downarrow \\ *\end{bmatrix}$$
+    This represents the ordinary tensor product on purely linear types, and the Cartesian product on _classical types with linear halo_. This product will be used implicitly throughout the IR in quantum context.
   - Coproduct/Sum:
-    $$\begin{bmatrix}H_{\bullet} \\ \downarrow \\ W\end{bmatrix} \sqcup \begin{bmatrix}H'_{\bullet} \\ \downarrow \\ W'\end{bmatrix} \equiv \begin{bmatrix}H_{\bullet} \sqcup  H'_{\bullet} \\ \downarrow \\ W \sqcup W'\end{bmatrix}, \quad \text{Unit: }\begin{bmatrix} \emptyset \\ \downarrow \\ \emptyset\end{bmatrix}$$
+    $$\begin{bmatrix}H_{\bullet} \\ \downarrow \\ W\end{bmatrix} \sqcup \begin{bmatrix}H'_{\bullet} \\ \downarrow \\ W'\end{bmatrix} :\equiv \begin{bmatrix}H_{\bullet} \sqcup  H'_{\bullet} \\ \downarrow \\ W \sqcup W'\end{bmatrix}, \quad \text{Unit: }\begin{bmatrix} \emptyset \\ \downarrow \\ \emptyset\end{bmatrix}$$
     This behaves similar to ordinary sum types. (Open question on IR support for this constructor — see "Open Questions / TODOs" below.)
   - Linearization:
-    $$\text{Lin}\begin{bmatrix}H_{\bullet} \\ \downarrow \\ W\end{bmatrix} \equiv \begin{bmatrix}\bigoplus_{w:W} H_{w} \\ \downarrow \\ *\end{bmatrix}$$
+    $$\text{Lin}\,\begin{bmatrix}H_{\bullet} \\ \downarrow \\ W\end{bmatrix} :\equiv \begin{bmatrix}\bigoplus_{w:W} H_{w} \\ \downarrow \\ *\end{bmatrix}$$
     This turns a mixed type into a purely linear type. The operation is idempotent. Crucially, it transforms classical types with linear halo into the vector space whose basis is the classical set, but it destroys classical types without linear halo:
-    $$\text{Lin}\begin{bmatrix}\mathbb{C}_{\bullet} \\ \downarrow \\ W\end{bmatrix} \equiv \begin{bmatrix}\mathbb{C}W \\ \downarrow \\ *\end{bmatrix}, \qquad \text{Lin}\begin{bmatrix}0_{\bullet} \\ \downarrow \\ W\end{bmatrix} \equiv \begin{bmatrix}0 \\ \downarrow \\ *\end{bmatrix}.$$
+    $$\text{Lin}\,\begin{bmatrix}\mathbb{C}_{\bullet} \\ \downarrow \\ W\end{bmatrix} \equiv \begin{bmatrix}\mathbb{C}W \\ \downarrow \\ *\end{bmatrix}, \qquad \text{Lin}\,\begin{bmatrix}0_{\bullet} \\ \downarrow \\ W\end{bmatrix} \equiv \begin{bmatrix}0 \\ \downarrow \\ *\end{bmatrix}.$$
     **IR Realization:** `!prelim_hlep.lin<W>`
 
 ### Core Attributes and Ops
@@ -231,8 +244,8 @@ Strictly speaking, the semantic interpretation of `!prelim_hlep.unit` is that it
 
 #### Scale, AddPhase
 
-Within halo'ed functions, it is legal to scale all fibres of a type homogeneously by a complex factor.
-We moreover provide the shortcut operation `add_phase` that scales by the exponent of a purely imaginay number.
+Within halo'ed functions, it is legal to scale all fibers of a type homogeneously by a complex factor.
+We moreover provide the shortcut operation `add_phase` that scales by the exponent of a purely imaginary number.
 
 **IR Realization:**
 
@@ -251,38 +264,38 @@ $$
 partial linearization (by convention always on the left tensor factors) gives a map
 
 $$
-\phi:M(f) \quad\vdash\quad \text{Lin}f: \text{Lin}\begin{bmatrix}H_{\bullet} \\ \downarrow \\ W\end{bmatrix} \otimes \begin{bmatrix}H'_{\bullet} \\ \downarrow \\ W'\end{bmatrix} \to \text{Lin}\begin{bmatrix}K_{\bullet} \\ \downarrow \\ V\end{bmatrix} \otimes \begin{bmatrix}K'_{\bullet} \\ \downarrow \\ V'\end{bmatrix},
+\phi:M(f) \quad\vdash\quad \text{Lin}\,f: \text{Lin}\,\begin{bmatrix}H_{\bullet} \\ \downarrow \\ W\end{bmatrix} \otimes \begin{bmatrix}H'_{\bullet} \\ \downarrow \\ W'\end{bmatrix} \to \text{Lin}\,\begin{bmatrix}K_{\bullet} \\ \downarrow \\ V\end{bmatrix} \otimes \begin{bmatrix}K'_{\bullet} \\ \downarrow \\ V'\end{bmatrix},
 $$
 
-formally dependent on the measurement result $\phi$, which may take values in the set
+i.e. a family of maps in the context of a measurement result $\phi$, whose type is
 
 $$
-M(f) \equiv \text{Im}\left( w \mapsto \left(  w' \mapsto \text{pr}_{V'}\left( f_{\text{cl}} (w, w') \right) \right)  \right).
+M(f) :\equiv \text{Im}\left( w \mapsto \left(  w' \mapsto \text{pr}_{V'}\left( f_{\text{cl}} (w, w') \right) \right)  \right).
 $$
 
-In practice, $M(f)$ will be a product of bit-sets to be measured, or a quotient thereof. Note that there is a surjection-injection-factorization
+In practice, $M(f)$ will be a product of bit-types to be measured, or a quotient thereof. Note that there is a surjection-injection-factorization
 
 $$
 W \xtwoheadrightarrow{\pi} M(f) \xhookrightarrow{\iota} (W' \to V'),
 $$
 
-the last expression denoting the set of functions from $W'$ to $V'$.
+the last expression denoting the function type from $W'$ to $V'$.
 Writing out the tensor products, we define
 
 $$
-\phi:M(f) \quad\vdash\quad \text{Lin}f: \begin{bmatrix}\bigoplus_{w:W}H_{w} \otimes H'_{\bullet} \\ \downarrow \\ W'\end{bmatrix}  \to \begin{bmatrix}\bigoplus_{v:V}K_{v} \otimes K'_{\bullet} \\ \downarrow \\ V'\end{bmatrix}
+\phi:M(f) \quad\vdash\quad \text{Lin}\,f: \begin{bmatrix}\bigoplus_{w:W}H_{w} \otimes H'_{\bullet} \\ \downarrow \\ W'\end{bmatrix}  \to \begin{bmatrix}\bigoplus_{v:V}K_{v} \otimes K'_{\bullet} \\ \downarrow \\ V'\end{bmatrix}
 $$
 
 via
 
 $$
-\text{Lin}f_{\text{cl}} \equiv \iota(\phi)
+\text{Lin}\,f_{\text{cl}} :\equiv \iota(\phi)
 $$
 
-for the classical part, and in matrix elements $(\text{Lin}f_{\text{lin},w'})_{w,v}: H_{w} \otimes H'_{w'} \to K_{v} \otimes K'_{\text{Lin}f_{\text{cl}}(w')}$ via
+for the classical part, and in matrix elements $(\text{Lin}\,f_{\text{lin},w'})_{w,v}: H_{w} \otimes H'_{w'} \to K_{v} \otimes K'_{\text{Lin}\,f_{\text{cl}}(w')}$ via
 
 $$
-(\text{Lin}f_{\text{lin},w'})_{w,v} \equiv \delta_{\pi(w),\phi}\delta_{v,\text{pr}_{V}(f_{\text{cl}}(w,w'))}\;f_{\text{lin},w,w'}.
+(\text{Lin}\,f_{\text{lin},w'})_{w,v} :\equiv \delta_{\pi(w),\phi}\,\delta_{v,\text{pr}_{V}(f_{\text{cl}}(w,w'))}\;f_{\text{lin},w,w'}
 $$
 
 for the linear fibers.
@@ -313,28 +326,28 @@ f: \begin{bmatrix}\mathbb{C}_{\bullet} \\ \downarrow \\ \{0,1\}\end{bmatrix} \ot
 $$
 
 $$
-f_{\text{cl}} = \text{NOT}: \{0,1\} \to \{0,1\}
+f_{\text{cl}} :\equiv \text{NOT}: \{0,1\} \to \{0,1\}
 $$
 
 with identities on fibers.
 We observe that
 
 $$
-M(f) \equiv \text{Im}\left( b \mapsto \text{pr}_{*}\left( f_{\text{cl}} (b) \right)  \right).
+M(f) :\equiv \text{Im}\left( b \mapsto \text{pr}_{*}\left( f_{\text{cl}} (b) \right)  \right)
 $$
 
 is a singleton. This tells us that no measurement is necessary to realize the program.
 Partial linearization yields a map (omitting the unit tensor factors)
 
 $$
-*:M(f) \quad\vdash\quad \text{Lin}f: \begin{bmatrix}\mathbb{C}\{0,1\} \\ \downarrow \\ *\end{bmatrix} \to \begin{bmatrix}\mathbb{C}\{0,1\}\\ \downarrow \\ *\end{bmatrix},
+*:M(f) \quad\vdash\quad \text{Lin}\,f: \begin{bmatrix}\mathbb{C}\{0,1\} \\ \downarrow \\ *\end{bmatrix} \to \begin{bmatrix}\mathbb{C}\{0,1\}\\ \downarrow \\ *\end{bmatrix},
 $$
 
 with unique fiber given as
 
 $$
-(\text{Lin}f_{\text{lin},*})_{w,v} = \delta_{\pi(w),*}\,\delta_{v,\,\text{NOT}(w)}\;\text{id}_{\mathbb{C}}
-\qquad (w,v \in \{0,1\}),
+(\text{Lin}\,f_{\text{lin},*})_{w,v} = \delta_{\pi(w),*}\,\delta_{v,\,\text{NOT}(w)}\;\text{id}_{\mathbb{C}}
+\qquad (w,v : \{0,1\}),
 $$
 
 where $\pi:\{0,1\}\to *$ is the unique map, so the first Kronecker delta is identically $1$. The map therefore sends $\ket{w} \mapsto \ket{\text{NOT}(w)}$, i.e. $\ket{0}\mapsto\ket{1}$, $\ket{1}\mapsto\ket{0}$, which is the Pauli-$X$ gate.
@@ -366,21 +379,21 @@ Up to structure morphisms $f_{\text{cl}}$ is the identity, and fiber maps are id
 We find that
 
 $$
-M(f) \equiv \text{Im}\left( b \mapsto \text{pr}_{\{0,1\}}\left( f_{\text{cl}} (b) \right)  \right) = \mathrm{Im}(\text{id}_{\{0,1\}}) = \{0,1\},
+M(f) :\equiv \text{Im}\left( b \mapsto \text{pr}_{\{0,1\}}\left( f_{\text{cl}} (b) \right)  \right) \equiv \text{Im}(\text{id}_{\{0,1\}}) = \{0,1\},
 $$
 
 exhibiting two possible worlds, which means that one measurement must take place for realization.
 For the partially linearized map, we get
 
 $$
-b:\{0,1\} \quad\vdash\quad \text{Lin}f: \begin{bmatrix}\mathbb{C}\{0,1\} \\ \downarrow \\ *\end{bmatrix} \to \begin{bmatrix}\mathbb{C}_{\bullet} \\ \downarrow \\ \{0,1\}\end{bmatrix},
+b:M(f) \quad\vdash\quad \text{Lin}\,f: \begin{bmatrix}\mathbb{C}\{0,1\} \\ \downarrow \\ *\end{bmatrix} \to \begin{bmatrix}\mathbb{C}_{\bullet} \\ \downarrow \\ \{0,1\}\end{bmatrix},
 $$
 
-where the classical part $\text{Lin}f_{\text{cl}}:* \to \{0,1\}$ is determined by $*  \mapsto b$, and on fibers
+where the classical part $\text{Lin}\,f_{\text{cl}}:* \to \{0,1\}$ is determined by $*  \mapsto b$, and on fibers
 
 $$
-(\text{Lin}f_{\text{lin},b})_{w,*} = \delta_{\pi(w),\,b}\,\delta_{*,\,*}\;\text{id}_{\mathbb{C}}
-\qquad (w \in \{0,1\}),
+(\text{Lin}\,f_{\text{lin},b})_{w,*} = \delta_{\pi(w),\,b}\,\delta_{*,\,*}\;\text{id}_{\mathbb{C}}
+\qquad (w : \{0,1\}),
 $$
 
 where $\pi:\{0,1\}\to M(f)=\{0,1\}$ is the identity, so $\delta_{\pi(w),b}=\delta_{w,b}$. In world $b$, the fiber map $\mathbb{C}\{0,1\}\to\mathbb{C}$ is therefore the projection onto the $b$-th basis vector.
@@ -411,15 +424,15 @@ f: \begin{bmatrix}\mathbb{C}_{\bullet} \\ \downarrow \\ \{0,1\}\end{bmatrix} \ot
 $$
 
 $$
-f_{\text{cl}} = \text{COPY}: \{0,1\} \to \{0,1\}^2
+f_{\text{cl}} :\equiv \text{COPY}: \{0,1\} \to \{0,1\}^2
 $$
 
 with identities on fibers. We again find $M(f) = *$, implying no measurements are needed.
 Upon (partial, but in this case full) linearization, we get a unique linear map on the fibers:
 
 $$
-(\text{Lin}f_{\text{lin},*})_{w,v} = \delta_{\pi(w),*}\,\delta_{v,\,(w,w)}\;\text{id}_{\mathbb{C}}
-\qquad (w \in \{0,1\},\; v \in \{0,1\}^2),
+(\text{Lin}\,f_{\text{lin},*})_{w,v} = \delta_{\pi(w),*}\,\delta_{v,\,(w,w)}\;\text{id}_{\mathbb{C}}
+\qquad (w : \{0,1\},\; v : \{0,1\}^2),
 $$
 
 where $\pi:\{0,1\}\to *$ is the unique map. The map sends $\ket{w} \mapsto \ket{(w,w)}$.
@@ -447,20 +460,20 @@ f: \begin{bmatrix}\mathbb{C}_{\bullet} \\ \downarrow \\ \{0,1\}\end{bmatrix} \ot
 $$
 
 $$
-f_{\text{cl}} = : \{0,1\} \to *,
+f_{\text{cl}} :\equiv\; !_{\{0,1\}} : \{0,1\} \to *,
 $$
 
-with identity on fibers. We find $M(f) = *$, so no measurement is needed. Partial (here full) linearization yields
+the unique map into the terminal set, with identity on fibers. We find $M(f) = *$, so no measurement is needed. Partial (here full) linearization yields
 
 $$
-*:M(f) \quad\vdash\quad \text{Lin}f: \begin{bmatrix}\mathbb{C}\{0,1\} \\ \downarrow \\ *\end{bmatrix} \to \begin{bmatrix}\mathbb{C} \\ \downarrow \\ *\end{bmatrix},
+*:M(f) \quad\vdash\quad \text{Lin}\,f: \begin{bmatrix}\mathbb{C}\{0,1\} \\ \downarrow \\ *\end{bmatrix} \to \begin{bmatrix}\mathbb{C} \\ \downarrow \\ *\end{bmatrix},
 $$
 
 with fiber
 
 $$
-(\text{Lin}f_{\text{lin},*})_{w,*} = \delta_{\pi(w),*}\,\delta_{*,\,*}\;\text{id}_{\mathbb{C}} = \text{id}_{\mathbb{C}}
-\qquad (w \in \{0,1\}).
+(\text{Lin}\,f_{\text{lin},*})_{w,*} = \delta_{\pi(w),*}\,\delta_{*,\,*}\;\text{id}_{\mathbb{C}} = \text{id}_{\mathbb{C}}
+\qquad (w : \{0,1\}).
 $$
 
 The map sends basis states $\ket{b} \mapsto 1$.
@@ -485,29 +498,29 @@ $$
 f: \begin{bmatrix}\mathbb{C}_{\bullet} \\ \downarrow \\ \{0,1\}\end{bmatrix} \otimes \begin{bmatrix}H' \\ \downarrow \\ *\end{bmatrix} \to \begin{bmatrix}\mathbb{C}_{\bullet} \\ \downarrow \\ *\end{bmatrix} \otimes \begin{bmatrix}H' \\ \downarrow \\ *\end{bmatrix},
 $$
 
-where $H' = \mathbb{C}^2$ is the target qubit. The classical part is forgetting the control (the identity would be an alternative),
+where $H' :\equiv \mathbb{C}^2$ is the target qubit. The classical part is forgetting the control (the identity would be an alternative),
 
 $$
-f_{\text{cl}} = \text{id} : \{0,1\} \to *,
+f_{\text{cl}} :\equiv\; !_{\{0,1\}} : \{0,1\} \to *,
 $$
 
 and the fiber maps branch on the control value:
 
 $$
-f_{\text{lin},b} = \begin{cases} U & b = 1 \\ \text{id}_{H'} & b = 0 \end{cases}.
+f_{\text{lin},b} :\equiv \begin{cases} U & b = 1 \\ \text{id}_{H'} & b = 0 \end{cases}.
 $$
 
 Since $W' = V' = *$, we have $M(f) = *$: no measurement is needed. Partial linearization yields
 
 $$
-*:M(f) \quad\vdash\quad \text{Lin}f: \begin{bmatrix}\mathbb{C}\{0,1\} \otimes H' \\ \downarrow \\ *\end{bmatrix} \to \begin{bmatrix} H' \\ \downarrow \\ *\end{bmatrix},
+*:M(f) \quad\vdash\quad \text{Lin}\,f: \begin{bmatrix}\mathbb{C}\{0,1\} \otimes H' \\ \downarrow \\ *\end{bmatrix} \to \begin{bmatrix} H' \\ \downarrow \\ *\end{bmatrix},
 $$
 
 with fiber
 
 $$
-(\text{Lin}f_{\text{lin},*})_{w,*} = \delta_{\pi(w),*}\;f_{\text{lin},w} = f_{\text{lin},w}
-\qquad (w\in \{0,1\}).
+(\text{Lin}\,f_{\text{lin},*})_{w,*} = \delta_{\pi(w),*}\;f_{\text{lin},w} = f_{\text{lin},w}
+\qquad (w : \{0,1\}).
 $$
 
 The map therefore acts as $\ket{0}\ket{\psi} \mapsto \ket{\psi}$, $\ket{1}\ket{\psi} \mapsto U\ket{\psi}$, which is a controlled-$U$ gate.
@@ -549,30 +562,30 @@ $$
 we need to show that, in some sense,
 
 $$
-\text{Lin}\,g \;\circ \text{Lin}\,f \;\approx\;\text{Lin}(g\circ f).
+\text{Lin}\,g \;\circ \text{Lin}\,f \;\approx\;\text{Lin}\,(g\circ f).
 $$
 
 This by itself is not a well-defined equation since the terms are dependent: We are given
 
 $$
-\phi:M(f) \;\vdash\; \text{Lin}f,\quad \psi:M(g) \;\vdash\; \text{Lin}\,g,\quad \text{and} \quad \rho:M(g\circ f) \;\vdash\; \text{Lin}(g\circ f).
+\phi:M(f) \;\vdash\; \text{Lin}\,f,\quad \psi:M(g) \;\vdash\; \text{Lin}\,g,\quad \text{and} \quad \rho:M(g\circ f) \;\vdash\; \text{Lin}\,(g\circ f).
 $$
 
 As such, we can form
 
 $$
-(\phi, \psi):M(f) \times M(g) \;\vdash\; \text{Lin}f \circ \text{Lin}\,g.
+(\phi, \psi):M(f) \times M(g) \;\vdash\; \text{Lin}\,g \circ \text{Lin}\,f.
 $$
 
 We would like to relate this pair of measurement results to the single measurement result $\rho:M(g\circ f)$ of the joint linearization. Note that we cannot expect to find a map $M(f) \times M(g) \to M(g \circ f)$: Some values $(\phi,  \psi)$ may be impossible and will never be measured, and conversely a single pair $(\phi,\psi)$ may be compatible with several joint outcomes $\rho$.
 
-We therefore define **possible measurement combinations** existentially: a pair $(\phi, \psi) \in M(f) \times M(g)$ is _possible_ iff there exist classical inputs $w:W$ and $w':W'$ that jointly witness both outcomes, i.e.
+We therefore define **possible measurement combinations** existentially: a pair $(\phi, \psi) : M(f) \times M(g)$ is _possible_ iff there exist classical inputs $w:W$ and $w':W'$ that jointly witness both outcomes, i.e.
 
 $$
 \pi_f(w) = \phi \quad\text{and}\quad \pi_g\bigl(f_V(w, w')\bigr) = \psi,
 $$
 
-where $f_V := \text{pr}_V \circ f_{\text{cl}} : W \times W' \to V$ is the classical residue produced by $f$ on its left (linearized) factor, and $\pi_f, \pi_g$ are the surjections from $W$ (resp. $V$) onto $M(f)$ (resp. $M(g)$). We write $M(f) \times_{\text{poss}} M(g)$ for the set of possible pairs.
+where $f_V :\equiv \text{pr}_V \circ f_{\text{cl}} : W \times W' \to V$ is the classical residue produced by $f$ on its left (linearized) factor, and $\pi_f, \pi_g$ are the surjections from $W$ (resp. $V$) onto $M(f)$ (resp. $M(g)$). We write $M(f) \times_{\text{poss}} M(g)$ for the type of possible pairs.
 
 **Proposition (possible pairs are exactly the nonzero blocks).** Assume every fiber map $f_{\text{lin},w,w'}$ (and likewise for $g$) is nonzero — this holds whenever $f$, $g$ arise from genuine, non-degenerate quantum operations, e.g. built from unitaries or isometries. Then $(\phi,\psi)$ is possible iff $\text{Lin}\,g_\psi \circ \text{Lin}\,f_\phi \not\equiv 0$.
 
@@ -587,17 +600,17 @@ $$
 (\phi,\psi) \sim \rho \quad\iff\quad \exists\, w:W,\, w':W':\; \pi_f(w)=\phi \;\land\; \pi_g\bigl(f_V(w,w')\bigr)=\psi \;\land\; \pi_{g\circ f}(w)=\rho,
 $$
 
-where $\pi_{g\circ f}: W \to M(g\circ f)$ is the surjection for the composite (note: a function of $w$ only, since $M(g\circ f) \equiv \text{Im}\bigl(w \mapsto (w' \mapsto \text{pr}_{X'}((g\circ f)_{\text{cl}}(w, w')))\bigr)$). In words: $(\phi,\psi) \sim \rho$ iff some classical input $w$ (with some $w'$) simultaneously witnesses $\phi$ for $f$, $\psi$ for $g$, and $\rho$ for $g\circ f$.
+where $\pi_{g\circ f}: W \to M(g\circ f)$ is the surjection for the composite (note: a function of $w$ only, since $M(g\circ f) :\equiv \text{Im}\bigl(w \mapsto (w' \mapsto \text{pr}_{X'}((g\circ f)_{\text{cl}}(w, w')))\bigr)$). In words: $(\phi,\psi) \sim \rho$ iff some classical input $w$ (with some $w'$) simultaneously witnesses $\phi$ for $f$, $\psi$ for $g$, and $\rho$ for $g\circ f$.
 We say that the pair $(w, w')$ _witnesses_ the compatibility $(\phi,\psi) \sim \rho$.
 
-**The relation $\sim$ is surjective onto $M(g\circ f)$.** For any $\rho \in M(g\circ f)$, surjectivity of $\pi_{g\circ f}: W \to M(g\circ f)$ yields $w:W$ with $\pi_{g\circ f}(w)=\rho$; picking any $w':W'$ and setting $\phi := \pi_f(w)$, $\psi := \pi_g(f_V(w,w'))$ gives $(\phi,\psi) \sim \rho$. $\square$
+**The relation $\sim$ is surjective onto $M(g\circ f)$.** For any $\rho : M(g\circ f)$, surjectivity of $\pi_{g\circ f}: W \to M(g\circ f)$ yields $w:W$ with $\pi_{g\circ f}(w)=\rho$; picking any $w':W'$ and setting $\phi :\equiv \pi_f(w)$, $\psi :\equiv \pi_g(f_V(w,w'))$ gives $(\phi,\psi) \sim \rho$. $\square$
 
-Note that $\sim$ need not be functional: the same pair $(\phi,\psi)$ may relate to distinct $\rho$'s, because the $\psi$-measurement cannot distinguish classical residues that the joint measurement distinguishes. We therefore cannot expect equality of morphisms $\text{Lin}\,g_{\psi} \circ \text{Lin}\,f_{\phi} = \text{Lin}(g\circ f)_{\rho}$ to hold in general. Instead, we evaluate on basis vectors compatible with the measurement results.
+Note that $\sim$ need not be functional: the same pair $(\phi,\psi)$ may relate to distinct $\rho$'s, because the $\psi$-measurement cannot distinguish classical residues that the joint measurement distinguishes. We therefore cannot expect equality of morphisms $\text{Lin}\,g_{\psi} \circ \text{Lin}\,f_{\phi} = \text{Lin}\,(g\circ f)_{\rho}$ to hold in general. Instead, we evaluate on basis vectors compatible with the measurement results.
 
-**Composition Theorem.** Let $(\phi,\psi) \sim \rho$ be witnessed by $(w, w')$, i.e., $\pi_f(w) = \phi$, $\pi_g(f_V(w, w')) = \psi$, and $\pi_{g\circ f}(w) = \rho$. Then for any vector $\psi_w \in H_w \otimes H'_{w'}$ (a vector in the $w$-summand of the domain at base $w'$):
+**Composition Theorem.** Let $(\phi,\psi) \sim \rho$ be witnessed by $(w, w')$, i.e., $\pi_f(w) = \phi$, $\pi_g(f_V(w, w')) = \psi$, and $\pi_{g\circ f}(w) = \rho$. Then for any term $\xi_w : H_w \otimes H'_{w'}$ (a term of the $w$-summand of the domain at base $w'$):
 
 $$
-(\phi,\psi) \sim \rho \text{ witnessed by } (w,w') \quad\vdash\quad \text{Lin}\,g_{\psi} \circ \text{Lin}\,f_{\phi}(\psi_w) \;=\; \text{Lin}(g\circ f)_{\rho}(\psi_w).
+(\phi,\psi) \sim \rho \text{ witnessed by } (w,w') \quad\vdash\quad \text{Lin}\,g_{\psi} \circ \text{Lin}\,f_{\phi}(\xi_w) \;=\; \text{Lin}\,(g\circ f)_{\rho}(\xi_w).
 $$
 
 By linearity, the maps agree on the subspace spanned by all compatible summands $H_w \otimes H'_{w'}$ (over all $(w,w')$ witnessing $(\phi,\psi)\sim\rho$). When $\sim$ is functional and the witnesses cover all of $W \times W'$, this subspace is the entire domain and we obtain equality of morphisms.
@@ -609,7 +622,7 @@ $$
 \iota_g(\psi) \circ \iota_f(\phi)(w')
 &= \iota_g(\psi)\bigl(\text{pr}_{V'}(f_{\text{cl}}(w,w'))\bigr)
 && \text{since } \pi_f(w) = \phi \\
-&= \iota_g(\psi)(v), \quad v := f_V(w,w')
+&= \iota_g(\psi)(v), \quad v :\equiv f_V(w,w')
 && \text{writing } f_V(w,w') = \text{pr}_{V'}(f_{\text{cl}}(w,w')) \\
 &= \text{pr}_{X'}\bigl(g_{\text{cl}}(v, \text{pr}_{V'}(f_{\text{cl}}(w,w')))\bigr)
 && \text{since } \pi_g(v) = \pi_g(f_V(w,w')) = \psi \\
@@ -617,25 +630,25 @@ $$
 && \text{definition of } (g\circ f)_{\text{cl}} \\
 &= \iota_{g\circ f}(\rho)(w')
 && \text{since } \pi_{g\circ f}(w) = \rho \\
-&= \text{Lin}(g \circ f)_{\rho,\text{cl}}(w').
+&= \text{Lin}\,(g \circ f)_{\rho,\text{cl}}(w').
 \end{align}
 $$
 
-In fibers, we evaluate on $\psi_w \in H_w \otimes H'_{w'}$. (Introducing $\tilde{\phi} = f_V(w, w') = \text{pr}_V(f_{\text{cl}}(w,w'))$ and abusing notation $\phi = \text{Lin}\,f_{\phi,\text{cl}} : W' \to V'$.)
+In fibers, we evaluate on $\xi_w : H_w \otimes H'_{w'}$. (Introducing $\tilde{\phi} = f_V(w, w') = \text{pr}_V(f_{\text{cl}}(w,w'))$ and abusing notation $\phi = \text{Lin}\,f_{\phi,\text{cl}} : W' \to V'$.)
 
 $$
 \begin{align}
-&\left(  \text{Lin}g_{\text{lin},\tilde{\phi}} \circ \text{Lin}f_{\text{lin},w'}  \right)_{w}(\psi_w)
-= \sum_{v:V}\left(  \text{Lin}g_{\text{lin},\tilde{\phi}} \right)_{v} \circ \left(\text{Lin}f_{\text{lin},w'}  \right)_{w,v}(\psi_w)\\
-&\quad\equiv \sum_{v:V} \delta_{\pi_g(v), \psi} \delta_{\pi_f(w), \phi} \delta_{v, f_V(w,w')} \;g_{\text{lin},v,\tilde{\phi}} \circ f_{\text{lin},w,w'}(\psi_w)
-\\&\quad= \delta_{\pi_g(f_V(w,w')), \psi} \delta_{\pi_f(w), \phi} \;(g \circ f)_{\text{lin},w,w'}(\psi_w)
-\\&\quad= (g \circ f)_{\text{lin},w,w'}(\psi_w)
-\\&\quad= \delta_{\pi_{g\circ f}(w), \rho}\;(g \circ f)_{\text{lin},w,w'}(\psi_w)
-\\&\quad= \left(  \text{Lin}(g\circ f)_{\text{lin},w'} \right)_{w}(\psi_w).
+&\left(  \text{Lin}\,g_{\text{lin},\tilde{\phi}} \circ \text{Lin}\,f_{\text{lin},w'}  \right)_{w}(\xi_w)
+= \sum_{v:V}\left(  \text{Lin}\,g_{\text{lin},\tilde{\phi}} \right)_{v} \circ \left(\text{Lin}\,f_{\text{lin},w'}  \right)_{w,v}(\xi_w)\\
+&\quad\equiv \sum_{v:V} \delta_{\pi_g(v), \psi} \delta_{\pi_f(w), \phi} \delta_{v, f_V(w,w')} \;g_{\text{lin},v,\tilde{\phi}} \circ f_{\text{lin},w,w'}(\xi_w)
+\\&\quad= \delta_{\pi_g(f_V(w,w')), \psi} \delta_{\pi_f(w), \phi} \;(g \circ f)_{\text{lin},w,w'}(\xi_w)
+\\&\quad= (g \circ f)_{\text{lin},w,w'}(\xi_w)
+\\&\quad= \delta_{\pi_{g\circ f}(w), \rho}\;(g \circ f)_{\text{lin},w,w'}(\xi_w)
+\\&\quad= \left(  \text{Lin}\,(g\circ f)_{\text{lin},w'} \right)_{w}(\xi_w).
 \end{align}
 $$
 
-where the third line uses $\delta_{v, f_V(w,w')}$ to collapse the sum, the fourth line uses the witnessing conditions ($\delta_{\pi_f(w), \phi} = 1$ and $\delta_{\pi_g(f_V(w,w')), \psi} = 1$), and the fifth line reinserts $\delta_{\pi_{g\circ f}(w), \rho} = 1$ (also from witnessing) to match the definition of $\text{Lin}(g\circ f)_\rho$. $\square$
+where the third line uses $\delta_{v, f_V(w,w')}$ to collapse the sum, the fourth line uses the witnessing conditions ($\delta_{\pi_f(w), \phi} = 1$ and $\delta_{\pi_g(f_V(w,w')), \psi} = 1$), and the fifth line reinserts $\delta_{\pi_{g\circ f}(w), \rho} = 1$ (also from witnessing) to match the definition of $\text{Lin}\,(g\circ f)_\rho$. $\square$
 
 ##### Lowering Strategy
 
@@ -659,7 +672,7 @@ In addition, we only support the Lie algebras $\text{u}(2^n)$, so the only allow
 The Lie algebra element is given in the basis of Pauli products:
 
 $$
-\text{u}(2^n) = \text{span}\left( \{\sigma_{1} \otimes \dots \otimes \sigma_{n}\}, \quad \sigma_{1},\dots,\sigma_{n}\in \{\sigma_{X},\sigma_{Y},\sigma_{Z}\}\right)
+\text{u}(2^n) = \text{span}\left( \{\sigma_{1} \otimes \dots \otimes \sigma_{n}\}, \quad \sigma_{1},\dots,\sigma_{n} : \{\sigma_{X},\sigma_{Y},\sigma_{Z}\}\right)
 $$
 
 In IR, we write
@@ -671,7 +684,7 @@ In IR, we write
 for
 
 $$
-\text{operator} = \sigma_{X} \otimes \text{id} \otimes \sigma_{Y} + 1.5\; \text{id}\otimes \sigma_{Z}\otimes \text{id} \in \text{u}(2^3).
+\text{operator} = \sigma_{X} \otimes \text{id} \otimes \sigma_{Y} + 1.5\; \text{id}\otimes \sigma_{Z}\otimes \text{id} : \text{u}(2^3).
 $$
 
 Verification or canonicalization should ensure a proper form.
