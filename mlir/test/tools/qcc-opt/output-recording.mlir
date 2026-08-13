@@ -33,6 +33,7 @@ func.func @test_void_entry_point() attributes { qcc.entry_point } {
 // CHECK:     return
 // CHECK:   }
 
+
 //===----------------------------------------------------------------------===//
 // Multiple i64 return values should be transformed
 //===----------------------------------------------------------------------===//
@@ -85,12 +86,47 @@ func.func @test_multiple_returns() -> (i64, i1) attributes { qcc.entry_point } {
 // CHECK:     return
 // CHECK:   }
 
+
 // -----
 
-// expected-error @+1 {{Non-integer return types are not supported.}}
+// expected-error @+1 {{Return types other than integers}}
 func.func @test_unsupported_returns() -> (!qc.qubit, i1) attributes { qcc.entry_point } {
   %0 = qc.alloc("q", 1, 0) : !qc.qubit
   %1 = arith.constant 1 : i1
 
   return %0, %1 : !qc.qubit, i1
+}
+
+// -----
+
+func.func @test_memref_output(%argo: memref<4xi64>) -> memref<4xi64> attributes { qcc.entry_point } {
+  %c = arith.constant 1 : i64
+  return %argo :  memref<4xi64>
+}
+
+// CHECK-LABEL: func.func @test_memref_output(%arg0: memref<4xi64>) attributes {qcc.entry_point} {
+// CHECK: %[[constant:.*]] = arith.constant 1 : i64
+// CHECK: aux.record_memref %arg0 : memref<4xi64>
+// CHECK:     return
+// CHECK:   }
+
+// -----
+
+func.func @test_multiple_outputs_with_memref(%argo: memref<4xi64>) -> (memref<4xi64>, i64) attributes { qcc.entry_point } {
+  %c = arith.constant 1 : i64
+  return %argo, %c :  memref<4xi64>, i64
+}
+
+// CHECK-LABEL: func.func @test_multiple_outputs_with_memref(%arg0: memref<4xi64>) attributes {qcc.entry_point} {
+// CHECK: %[[constant:.*]] = arith.constant 1 : i64
+// CHECK: aux.record_memref %arg0 : memref<4xi64>
+// CHECK: aux.record_int %[[constant]] : i64
+// CHECK:     return
+// CHECK:   }
+
+// -----
+
+// expected-error @+2 {{expected memref to have a fully static shape, but got dynamic shape}}
+func.func @test_unsupported_returns(%m : memref<?xi64>) -> (memref<?xi64>) attributes { qcc.entry_point } {
+  return %m : memref<?xi64>
 }

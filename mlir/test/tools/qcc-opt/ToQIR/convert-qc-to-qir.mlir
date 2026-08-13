@@ -57,6 +57,9 @@ func.func @test() -> i64 attributes { qcc.entry_point } {
     // CHECK:           llvm.call @__quantum__rt__read_result
 
     aux.record_int %m5 : i1
+    // CHECK:           %[[LLVM_CONST:.*]] = llvm.mlir.constant(3 : i64) : i64
+    // CHECK:           %[[LABEL_PTR_0:.*]] = llvm.mlir.addressof @".qir_dummy_label" : !llvm.ptr
+    // CHECK:           llvm.call @__quantum__rt__tuple_record_output(%[[LLVM_CONST]], %[[LABEL_PTR_0]]) : (i64, !llvm.ptr) -> ()
     // CHECK:           %[[LABEL_PTR:.*]] = llvm.mlir.addressof @".qir_dummy_label" : !llvm.ptr
     // CHECK:           llvm.call @__quantum__rt__bool_record_output(%[[MR5]], %[[LABEL_PTR]]) : (i1, !llvm.ptr) -> ()
     aux.record_int %m7 : i1
@@ -73,10 +76,77 @@ func.func @test() -> i64 attributes { qcc.entry_point } {
     // CHECK:           return %[[EXIT_CODE]] : i64
 }
 
+func.func @test_memref_lowering() -> i64 attributes { qcc.entry_point } {
+    %t = memref.alloc() : memref<3xi64>
+    aux.record_memref %t : memref<3xi64>
+    %exit_code = arith.constant 0 : i64
+    return %exit_code : i64
+}
+
+// CHECK-LABEL:  func.func @test_memref_lowering()
+// CHECK:     %[[zero:.*]] = llvm.mlir.zero : !llvm.ptr
+// CHECK:     llvm.call @__quantum__rt__initialize(%[[zero]])
+// CHECK:     %[[label:.*]] = llvm.mlir.addressof @".qir_dummy_label"
+// CHECK:     %[[count:.*]] = llvm.mlir.constant(3 : i64)
+// CHECK:     llvm.call @__quantum__rt__array_record_output(%[[count]], %[[label]])
+// CHECK:     %[[extract:.*]] = llvm.extractvalue %[[LLVM_STRUCT:.*]][1]
+// CHECK:     %[[zero_idx:.*]] = llvm.mlir.constant(0 : i64)
+// CHECK:     %[[getelem:.*]] = llvm.getelementptr %[[extract]][%[[zero_idx]]]
+// CHECK:     %[[load:.*]] = llvm.load %[[getelem]]
+// CHECK:     llvm.call @__quantum__rt__int_record_output(%[[load]], %[[label]])
+// CHECK:     %[[one:.*]] = llvm.mlir.constant(1 : i64)
+// CHECK:     %[[getelem2:.*]] = llvm.getelementptr %[[extract]][%[[one]]]
+// CHECK:     %[[load2:.*]] = llvm.load %[[getelem2]]
+// CHECK:     llvm.call @__quantum__rt__int_record_output(%[[load2]], %[[label]])
+// CHECK:     %[[two:.*]] = llvm.mlir.constant(2 : i64)
+// CHECK:     %[[getelem3:.*]] = llvm.getelementptr %[[extract]][%[[two]]]
+// CHECK:     %[[load3:.*]] = llvm.load %[[getelem3]]
+// CHECK:     llvm.call @__quantum__rt__int_record_output(%[[load3]], %[[label]])
+// CHECK:     %[[const:.*]] = arith.constant 0 : i64
+// CHECK:     return %[[const]] : i64
+// CHECK:  }
+
+func.func @test_lowering_of_structured_output_recording() -> i64 attributes { qcc.entry_point } {
+    // CHECK-LABEL:   func.func @test_lowering_of_structured_output_recording
+    %ref = memref.alloc() : memref<3xi64>
+
+   // Supported measurement operations.
+    %q = qc.static 5 : !qc.qubit
+    %m = qc.measure %q : !qc.qubit -> i1
+    // CHECK:           %[[MR5:.*]] = llvm.call @__quantum__rt__read_result(%[[RP5:.*]]) : (!llvm.ptr) -> i1
+    aux.record_int %m : i1
+    // CHECK:           %[[LLVM_CONST:.*]] = llvm.mlir.constant(2 : i64) : i64
+    // CHECK:           %[[LABEL_PTR_0:.*]] = llvm.mlir.addressof @".qir_dummy_label" : !llvm.ptr
+    // CHECK:           llvm.call @__quantum__rt__tuple_record_output(%[[LLVM_CONST]], %[[LABEL_PTR_0]]) : (i64, !llvm.ptr) -> ()
+    // CHECK:           %[[LABEL_PTR_1:.*]] = llvm.mlir.addressof @".qir_dummy_label" : !llvm.ptr
+    // CHECK:           llvm.call @__quantum__rt__bool_record_output(%[[MR5]], %[[LABEL_PTR_1]]) : (i1, !llvm.ptr) -> ()
+    aux.record_memref %ref : memref<3xi64>
+    // CHECK:           %[[LABEL_PTR_2:.*]] = llvm.mlir.addressof @".qir_dummy_label" : !llvm.ptr
+    // CHECK:           %[[LLVM_CONST_1:.*]] = llvm.mlir.constant(3 : i64) : i64
+    // CHECK:           llvm.call @__quantum__rt__array_record_output(%[[LLVM_CONST_1]], %[[LABEL_PTR_2]]) : (i64, !llvm.ptr) -> ()
+    // CHECK:           %[[value:.*]] = llvm.extractvalue %[[LLVM_STRUCT:.*]][1] : !llvm.struct<(ptr, ptr, i64, array<1 x i64>, array<1 x i64>)>
+    // CHECK:           %[[CONST_1:.*]] = llvm.mlir.constant(0 : i64) : i64
+    // CHECK:           %[[ELEM_PTR:.*]] = llvm.getelementptr %[[value]][%[[CONST_1]]] : (!llvm.ptr, i64) -> !llvm.ptr, i64
+    // CHECK:           %[[LOAD:.*]] = llvm.load %[[ELEM_PTR]] : !llvm.ptr -> i64
+    // CHECK:           llvm.call @__quantum__rt__int_record_output(%[[LOAD]], %[[LABEL_PTR_2]]) : (i64, !llvm.ptr) -> ()
+    // CHECK:           %[[CONST2:.*]] = llvm.mlir.constant(1 : i64) : i64
+    // CHECK:           %[[ELEM_PTR2:.*]] = llvm.getelementptr %[[value]][%[[CONST2]]] : (!llvm.ptr, i64) -> !llvm.ptr, i64
+    // CHECK:           %[[LOAD2:.*]] = llvm.load %[[ELEM_PTR2]] : !llvm.ptr -> i64
+    // CHECK:           llvm.call @__quantum__rt__int_record_output(%[[LOAD2]], %[[LABEL_PTR_2]]) : (i64, !llvm.ptr) -> ()
+    // CHECK:           %[[CONST3:.*]] = llvm.mlir.constant(2 : i64) : i64
+    // CHECK:           %[[ELEM_PTR3:.*]] = llvm.getelementptr %[[value]][%[[CONST3]]] : (!llvm.ptr, i64) -> !llvm.ptr, i64
+    // CHECK:           %[[LOAD3:.*]] = llvm.load %[[ELEM_PTR3]] : !llvm.ptr -> i64
+    // CHECK:           llvm.call @__quantum__rt__int_record_output(%[[LOAD3]], %[[LABEL_PTR_2]]) : (i64, !llvm.ptr) -> ()
+    %exit_code = arith.constant 0 : i64
+    return %exit_code : i64
+}
+
 // The pass assumes that these decls already exist.
 llvm.func @__quantum__rt__initialize(!llvm.ptr)
 llvm.func @__quantum__rt__bool_record_output(i1, !llvm.ptr)
 llvm.func @__quantum__rt__int_record_output(i64, !llvm.ptr)
+llvm.func @__quantum__rt__tuple_record_output(i64, !llvm.ptr)
+llvm.func @__quantum__rt__array_record_output(i64, !llvm.ptr)
 llvm.func @__quantum__rt__read_result(!llvm.ptr {llvm.readonly}) -> i1
 llvm.func @__quantum__qis__mz__body(!llvm.ptr, !llvm.ptr {llvm.writeonly}) attributes {passthrough = ["irreversible"]}
 llvm.func @__quantum__qis__h__body(!llvm.ptr)

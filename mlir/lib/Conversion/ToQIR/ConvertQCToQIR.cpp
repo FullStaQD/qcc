@@ -8,10 +8,10 @@
 // ===----------------------------------------------------------------------===//
 
 #include "qcc/Conversion/ToQIR/Constants.h"
-#include "qcc/Conversion/ToQIR/ToQIR.h"
 #include "qcc/Dialect/Aux_/IR/Aux_.h"
 
 #include "mlir/Conversion/LLVMCommon/TypeConverter.h"
+#include "mlir/Conversion/MemRefToLLVM/MemRefToLLVM.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
@@ -31,7 +31,10 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/TypeSwitch.h"
 
-#include <cstdint>
+#include <mlir/Dialect/Arith/IR/Arith.h>
+#include <mlir/Dialect/MemRef/IR/MemRef.h>
+#include <mlir/Dialect/SCF/IR/SCF.h>
+#include <mlir/Pass/Pass.h>
 
 using namespace mlir;
 using namespace qcc;
@@ -117,6 +120,34 @@ static SmallVector<Value> qubitsToPtrs(OpBuilder& builder, ValueRange qubitValue
 /// To be used in a rewrite pattern.
 static InFlightDiagnostic emitMissingQIRDeclError(Operation* op, StringRef name) {
   return op->emitError() << "missing required declaration of QIR function: '" << name << "'";
+}
+
+static std::tuple<int64_t, Operation*> countRecordsAndGetFirstRecordOp(func::FuncOp funcOp) {
+  int64_t recordCount = 0;
+  Operation* firstRecordOp = nullptr;
+
+  funcOp.walk([&](Operation* op) {
+    if (isa<qcc::aux::RecordMemRefOp, qcc::aux::RecordIntOp>(op)) {
+      recordCount++;
+      if (firstRecordOp == nullptr) {
+        firstRecordOp = op;
+      }
+    }
+  });
+  return std::make_tuple(recordCount, firstRecordOp);
+}
+
+static void insertRtTupleRecord(func::FuncOp funcOp, Operation* firstRecordOp, int64_t recordCount) {
+  StringRef labelName = qcc::qirDummyLabelGlobalSymbolName;
+  OpBuilder builder(funcOp.getContext());
+  Location loc = firstRecordOp->getLoc();
+
+  builder.setInsertionPoint(firstRecordOp);
+
+  Value countVal = LLVM::ConstantOp::create(builder, loc, builder.getI64Type(), builder.getI64IntegerAttr(recordCount));
+  auto addressOf = LLVM::AddressOfOp::create(builder, loc, LLVM::LLVMPointerType::get(builder.getContext()), labelName);
+
+  LLVM::CallOp::create(builder, loc, TypeRange(), qirRtTupleRecordOutput, ValueRange{countVal, addressOf});
 }
 
 namespace {
@@ -240,6 +271,55 @@ struct UnitaryLowering : public ConversionPattern {
   }
 };
 
+struct RecordMemrefLowering : public OpConversionPattern<aux::RecordMemRefOp> {
+  using OpConversionPattern<aux::RecordMemRefOp>::OpConversionPattern;
+
+  LogicalResult matchAndRewrite(aux::RecordMemRefOp op, OpAdaptor adaptor,
+                                ConversionPatternRewriter& rewriter) const override {
+    auto loc = op.getLoc();
+    auto* ctx = rewriter.getContext();
+    StringRef labelName = qcc::qirDummyLabelGlobalSymbolName;
+
+    // 1. Get the address representation of your dummy label
+    auto addressOf = LLVM::AddressOfOp::create(rewriter, loc, LLVM::LLVMPointerType::get(ctx), labelName);
+
+    // 2. Extract the compile-time static size from the original memref operand
+    MemRefType memrefType = cast<MemRefType>(op.getValue().getType());
+    int64_t staticSize = memrefType.getDimSize(0);
+
+    // 3. Emit the runtime function tracking the size of the array using pure LLVM constants
+    auto i64Type = rewriter.getI64Type();
+    Value totalElementsConst = LLVM::ConstantOp::create(rewriter, loc, i64Type, rewriter.getI64IntegerAttr(staticSize));
+
+    LLVM::CallOp::create(rewriter, loc, TypeRange(), qirRtArrayRecordOutput, ValueRange{totalElementsConst, addressOf});
+
+    // 4. Extract the aligned pointer from the LLVM memref descriptor struct (adaptor value)
+    // Under the MLIR type converter, a standard MemRef maps to an LLVM struct
+    // where index 1 is the aligned data pointer.
+    Value memrefDescriptor = adaptor.getValue();
+    Value alignedPtr = LLVM::ExtractValueOp::create(rewriter, loc, memrefDescriptor, 1);
+
+    // 5. Sequentially emit GEP and Load operations for each index using pure LLVM Dialect
+    for (int64_t i = 0; i < staticSize; ++i) {
+      // Create a compile-time index for GEP (GepOp expects i32 or i64 attributes/values)
+      Value llvmIndex = LLVM::ConstantOp::create(rewriter, loc, i64Type, rewriter.getI64IntegerAttr(i));
+
+      // Calculate the specific element address: ptr = alignedPtr + i
+      auto elementPtr = LLVM::GEPOp::create(rewriter, loc, alignedPtr.getType(), memrefType.getElementType(),
+                                            alignedPtr, ValueRange{llvmIndex});
+
+      // Load the value out of that calculated element pointer
+      auto elementValue = LLVM::LoadOp::create(rewriter, loc, memrefType.getElementType(), elementPtr);
+
+      // Call the QIR runtime function for this specific element
+      LLVM::CallOp::create(rewriter, loc, TypeRange(), qirRtIntRecordOutput, ValueRange{elementValue, addressOf});
+    }
+
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
 } // namespace
 
 namespace qcc {
@@ -270,6 +350,11 @@ protected:
       return signalPassFailure();
     }
 
+    auto [recordCount, firstRecordOp] = countRecordsAndGetFirstRecordOp(funcOp);
+    if (recordCount > 1 && firstRecordOp != nullptr) {
+      insertRtTupleRecord(funcOp, firstRecordOp, recordCount);
+    };
+
     ConversionTarget target(*ctx);
     target.addLegalDialect<LLVM::LLVMDialect>();
     target.addIllegalDialect<qc::QCDialect>();
@@ -278,7 +363,13 @@ protected:
 
     QCToQIRTypeConverter typeConverter(ctx);
     RewritePatternSet patterns(ctx);
-    patterns.add<UnitaryLowering, MeasureLowering, ResetLowering, RecordIntLowering>(typeConverter, ctx);
+    patterns.add<UnitaryLowering, MeasureLowering, RecordIntLowering, RecordMemrefLowering, ResetLowering>(
+        typeConverter, ctx);
+
+    // TODO: This used to reconcile unrealized conversion casts for us. But it
+    // seems wrong to run it at the function scope. See issue
+    // https://github.com/FullStaQD/compiler/issues/130.
+    // populateFinalizeMemRefToLLVMConversionPatterns(typeConverter, patterns);
 
     if (failed(applyPartialConversion(funcOp, target, std::move(patterns)))) {
       return signalPassFailure();

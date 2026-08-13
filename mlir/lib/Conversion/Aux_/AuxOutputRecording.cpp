@@ -20,6 +20,8 @@
 #include "mlir/Transforms/DialectConversion.h"
 
 #include <llvm/Support/Casting.h>
+#include <mlir/Dialect/Arith/IR/Arith.h>
+#include <mlir/IR/BuiltinAttributes.h>
 #include <mlir/Support/WalkResult.h>
 
 namespace qcc {
@@ -28,6 +30,14 @@ namespace qcc {
 #include "qcc/Conversion/Aux_/AuxOutputRecording.h.inc"
 
 using namespace mlir;
+
+static bool isMemRefOfIntegers(mlir::Type type) {
+  // Check if memref is a memref of integer type
+  if (auto memrefType = llvm::dyn_cast<mlir::MemRefType>(type)) {
+    return llvm::isa<mlir::IntegerType>(memrefType.getElementType());
+  }
+  return false;
+}
 
 namespace {
 
@@ -58,8 +68,6 @@ protected:
       auto oldType = funcOp.getFunctionType();
       auto newType = FunctionType::get(funcOp->getContext(), oldType.getInputs(), {});
 
-      funcOp.setType(newType);
-
       auto& body = funcOp.getBody().front();
       auto retOp = cast<func::ReturnOp>(body.getTerminator());
       auto oldReturnOperands = retOp.getOperands();
@@ -67,16 +75,21 @@ protected:
       OpBuilder builder(retOp);
 
       auto loc = retOp.getLoc();
+
       for (Value v : oldReturnOperands) {
         Type ty = v.getType();
         if (ty.isInteger()) {
           aux::RecordIntOp::create(builder, loc, v);
-        } else {
+        } else if (isMemRefOfIntegers(ty)) {
           // TODO: Add support for other types as needed.
-          funcOp.emitError("Non-integer return types are not supported.");
+          aux::RecordMemRefOp::create(builder, loc, v);
+        } else {
+          funcOp.emitError("Return types other than integers and memory references are not supported.");
           return WalkResult::interrupt();
         }
-      }
+      };
+
+      funcOp.setType(newType);
       // Remove the old return with values and replace with a void return
       retOp.erase();
       builder.setInsertionPointToEnd(&body);

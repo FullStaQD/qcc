@@ -12,6 +12,9 @@ func.func @test() -> i64 attributes { qcc.entry_point } {
 // CHECK:         }
 // CHECK-DAG:     llvm.func @__quantum__rt__initialize(!llvm.ptr)
 // CHECK-DAG:     llvm.func @__quantum__rt__bool_record_output(i1, !llvm.ptr)
+// CHECK-DAG:     llvm.func @__quantum__rt__int_record_output(i64, !llvm.ptr)
+// CHECK-DAG:     llvm.func @__quantum__rt__array_record_output(i1, !llvm.ptr)
+// CHECK-DAG:     llvm.func @__quantum__rt__tuple_record_output(i64, !llvm.ptr)
 // CHECK-DAG:     llvm.func @__quantum__rt__read_result(!llvm.ptr {llvm.readonly}) -> i1
 // CHECK-DAG:     llvm.func @__quantum__qis__mz__body(!llvm.ptr, !llvm.ptr {llvm.writeonly}) attributes {passthrough = ["irreversible"]}
 // CHECK-DAG:     llvm.func @__quantum__qis__h__body(!llvm.ptr)
