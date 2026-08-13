@@ -2,7 +2,7 @@
 // RUN: FileCheck %s --check-prefix=CHECK-QIR < %t.ll
 // RUN: qir-runner --file %t.ll -s 5 | FileCheck %s --check-prefix=CHECK-SIM
 
-// GENERATED FROM QRISP VERSION 0.9.5
+// GENERATED FROM QRISP VERSION 0.9.6
 
 builtin.module @jasp_module {
   func.func public @main(%arg0: !jasp.QuantumState) -> (tensor<i64>, tensor<i64>, !jasp.QuantumState) {
