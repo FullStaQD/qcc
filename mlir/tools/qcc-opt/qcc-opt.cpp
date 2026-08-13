@@ -26,6 +26,7 @@
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
 #include "mlir/Dialect/Bufferization/Transforms/FuncBufferizableOpInterfaceImpl.h"
 #include "mlir/Dialect/Bufferization/Transforms/Passes.h"
+#include "mlir/Dialect/Complex/IR/Complex.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlow.h"
 #include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Dialect/Func/Extensions/InlinerExtension.h"
@@ -59,6 +60,7 @@ int main(int argc, char** argv) {
     mlir::arith::ArithDialect,
     mlir::tensor::TensorDialect,
     mlir::bufferization::BufferizationDialect,
+    mlir::complex::ComplexDialect,
     mlir::linalg::LinalgDialect,
     mlir::cf::ControlFlowDialect,
     mlir::scf::SCFDialect,
