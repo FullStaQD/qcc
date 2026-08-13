@@ -366,7 +366,10 @@ protected:
     patterns.add<UnitaryLowering, MeasureLowering, RecordIntLowering, RecordMemrefLowering, ResetLowering>(
         typeConverter, ctx);
 
-    populateFinalizeMemRefToLLVMConversionPatterns(typeConverter, patterns);
+    // TODO: This used to reconcile unrealized conversion casts for us. But it
+    // seems wrong to run it at the function scope. See issue
+    // https://github.com/FullStaQD/compiler/issues/130.
+    // populateFinalizeMemRefToLLVMConversionPatterns(typeConverter, patterns);
 
     if (failed(applyPartialConversion(funcOp, target, std::move(patterns)))) {
       return signalPassFailure();
