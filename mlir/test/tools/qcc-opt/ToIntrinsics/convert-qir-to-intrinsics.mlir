@@ -19,7 +19,7 @@ llvm.func @__quantum__qis__mz__body(!llvm.ptr, !llvm.ptr) -> ()
 llvm.mlir.global internal constant @".qir_dummy_label"("dummy_label\00") {addr_space = 0 : i32}
 
 
-llvm.func @single_qubit_gates() attributes { passthrough = ["entry_point"] } {
+llvm.func @single_qubit_gates() {
   %c0 = llvm.mlir.constant(0 : i64) : i64
   %q0 = llvm.inttoptr %c0 : i64 to !llvm.ptr
   %c1 = llvm.mlir.constant(1 : i64) : i64
@@ -44,7 +44,7 @@ llvm.func @single_qubit_gates() attributes { passthrough = ["entry_point"] } {
 // CHECK:         llvm.call_intrinsic "llvm.riscv.qv.x"(%[[VEC1]], %[[ZERO]], %[[ZERO]], %[[ONE]])
 
 
-llvm.func @two_qubit_gates() attributes { passthrough = ["entry_point"] } {
+llvm.func @two_qubit_gates() {
   %c2 = llvm.mlir.constant(2 : i64) : i64
   %ctrl = llvm.inttoptr %c2 : i64 to !llvm.ptr
   %c3 = llvm.mlir.constant(3 : i64) : i64
@@ -68,7 +68,7 @@ llvm.func @two_qubit_gates() attributes { passthrough = ["entry_point"] } {
 // TODO: HiSEP-Q doesn't yet have a `qv.read_result` intrinsic, so the `__quantum__rt__read_result`
 // call is replaced with `poison : i1` for now. Once the intrinsic is available, this test should be
 // updated to check for it.
-llvm.func @measurement() -> i1 attributes { passthrough = ["entry_point"] } {
+llvm.func @measurement() -> i1 {
   %c0 = llvm.mlir.constant(0 : i64) : i64
   %qptr = llvm.inttoptr %c0 : i64 to !llvm.ptr
   %rptr = llvm.inttoptr %c0 : i64 to !llvm.ptr
@@ -91,7 +91,7 @@ llvm.func @measurement() -> i1 attributes { passthrough = ["entry_point"] } {
 // CHECK:         llvm.return %[[POISON_I1]] : i1
 
 
-llvm.func @rt_calls_erased() attributes { passthrough = ["entry_point"] } {
+llvm.func @rt_calls_erased() {
   %null = llvm.mlir.zero : !llvm.ptr
   llvm.call @__quantum__rt__initialize(%null) : (!llvm.ptr) -> ()
 
@@ -126,7 +126,7 @@ llvm.func @rt_calls_erased() attributes { passthrough = ["entry_point"] } {
 
 llvm.func @__quantum__qis__x__body(!llvm.ptr) -> ()
 
-llvm.func @non_constant_qubit_ptr(%q: !llvm.ptr) attributes { passthrough = ["entry_point"] } {
+llvm.func @non_constant_qubit_ptr(%q: !llvm.ptr) {
   // expected-error @+1 {{cannot extract qubit index from ptr for '__quantum__qis__x__body'}}
   llvm.call @__quantum__qis__x__body(%q) : (!llvm.ptr) -> ()
   llvm.return
@@ -138,7 +138,7 @@ llvm.func @non_constant_qubit_ptr(%q: !llvm.ptr) attributes { passthrough = ["en
 
 llvm.func @__quantum__qis__x__body(!llvm.ptr) -> ()
 
-llvm.func @out_of_range_qubit_index() attributes { passthrough = ["entry_point"] } {
+llvm.func @out_of_range_qubit_index() {
   %c256 = llvm.mlir.constant(256 : i64) : i64
   %q = llvm.inttoptr %c256 : i64 to !llvm.ptr
   // expected-error @+1 {{qubit index 256 out of range for '__quantum__qis__x__body'}}
@@ -153,7 +153,7 @@ llvm.func @out_of_range_qubit_index() attributes { passthrough = ["entry_point"]
 
 llvm.func @__quantum__qis__cx__body(!llvm.ptr) -> ()
 
-llvm.func @too_few_qubit_operands() attributes { passthrough = ["entry_point"] } {
+llvm.func @too_few_qubit_operands() {
   %c0 = llvm.mlir.constant(0 : i64) : i64
   %q = llvm.inttoptr %c0 : i64 to !llvm.ptr
   // expected-error @+1 {{'__quantum__qis__cx__body' expects at least 2 qubit operand(s), got 1}}

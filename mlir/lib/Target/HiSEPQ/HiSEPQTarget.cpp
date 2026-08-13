@@ -48,6 +48,7 @@ bool emitNativeHiSEPQ(llvm::Module& module, llvm::raw_pwrite_stream& os, const N
   LLVMInitializeRISCVTarget();
   LLVMInitializeRISCVTargetMC();
   LLVMInitializeRISCVAsmPrinter();
+  LLVMInitializeRISCVAsmParser();
 
   const std::string attrsStr = "+experimental-xqv";
   llvm::Triple triple(llvm::Triple::normalize("riscv32-unknown-unknown"));
@@ -59,7 +60,10 @@ bool emitNativeHiSEPQ(llvm::Module& module, llvm::raw_pwrite_stream& os, const N
     return true;
   }
 
-  const llvm::TargetOptions targetOptions;
+  llvm::TargetOptions targetOptions;
+  // hisepq.ld puts `.text._start` at the boot address, which needs each function in its own
+  // `.text.<name>` section.
+  targetOptions.FunctionSections = true;
   std::unique_ptr<llvm::TargetMachine> targetMachine(
       theTarget->createTargetMachine(triple, /*cpu=*/"", attrsStr, targetOptions, std::nullopt));
 
