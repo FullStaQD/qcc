@@ -1,6 +1,5 @@
 // RUN: qcc-opt %s | FileCheck %s
 
-
 func.func @zero_state(%_ : !prelimhlep.unit) -> !prelimhlep.lin<i1> attributes { prelimhlep.halo = #prelimhlep.halo } {
     %out_qubit = prelimhlep.lin (
     ) -> (!prelimhlep.lin<i1>) {
