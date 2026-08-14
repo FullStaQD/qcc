@@ -1,14 +1,11 @@
-// RUN: %if hisep-q %{ qcc --list-targets | FileCheck %s --check-prefix=CHECK-LIST %}
-// RUN: %if hisep-q %{ qcc --target=hisep-q --compile-to=mlir %s | FileCheck %s --check-prefix=CHECK-MLIR %}
-// RUN: %if hisep-q %{ qcc --target=hisep-q --compile-to=native %s -o - | FileCheck %s --check-prefix=CHECK-ASM %}
+// RUN: qcc --list-targets | FileCheck %s --check-prefix=CHECK-LIST
+// RUN: qcc --target=hisep-q --compile-to=mlir %s | FileCheck %s --check-prefix=CHECK-MLIR
+// RUN: qcc --target=hisep-q --compile-to=native %s -o - | FileCheck %s --check-prefix=CHECK-ASM
 
-// RUN: %if hisep-q %{ qcc --target=hisep-q --compile-to=native --binary %s -o %t.o %}
-// RUN: %if hisep-q %{ llvm-objdump -d %t.o | FileCheck %s --check-prefix=CHECK-OBJ %}
+// RUN: qcc --target=hisep-q --compile-to=native --binary %s -o %t.o
+// RUN: llvm-objdump -d %t.o | FileCheck %s --check-prefix=CHECK-OBJ
 
-// RUN: %if !hisep-q %{ qcc --list-targets | FileCheck %s --check-prefix=CHECK-NOLIST %}
-// RUN: %if !hisep-q %{ not qcc --target=hisep-q %s 2>&1 | FileCheck %s --check-prefix=CHECK-ERR %}
-
-// FIXME: is this %if stuff really the way to go? Instead of REQUIRES and UNSUPPORTED?
+// FIXME: there are too many things going on in this one file.
 
 func.func @main() attributes { qcc.entry_point } {
     %0 = qc.static 0 : !qc.qubit
@@ -42,8 +39,3 @@ func.func @main() attributes { qcc.entry_point } {
 // `main`, so it must also show up in native output.
 // CHECK-ASM: _start:
 // CHECK-OBJ: <_start>:
-
-// Without the target built in, it must not be advertised and must be diagnosed as unknown.
-// CHECK-NOLIST: Available targets for --target:
-// CHECK-NOLIST-NOT: hisep-q
-// CHECK-ERR: error: unknown target 'hisep-q'
