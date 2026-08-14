@@ -1,0 +1,248 @@
+From 66bc2b5734e400ca50a706fbcda7623a017096b7 Mon Sep 17 00:00:00 2001
+From: Enrique NB <enrique@naranjobejarano.com>
+Date: Thu, 30 Jul 2026 09:05:17 +0200
+Subject: [PATCH 2/2] Update instruction encoding (#4)
+
+---
+ llvm/lib/Target/RISCV/RISCVInstrFormatsXQV.td | 26 ++++------
+ llvm/lib/Target/RISCV/RISCVInstrInfoXQV.td    | 34 +++++--------
+ llvm/lib/Target/RISCV/RISCVXQVGates.td        | 48 +++++++++++++++++++
+ llvm/test/MC/RISCV/rv32xqv-valid.s            | 23 +++++----
+ 4 files changed, 85 insertions(+), 46 deletions(-)
+ create mode 100644 llvm/lib/Target/RISCV/RISCVXQVGates.td
+
+diff --git a/llvm/lib/Target/RISCV/RISCVInstrFormatsXQV.td b/llvm/lib/Target/RISCV/RISCVInstrFormatsXQV.td
+index 84728e1d3023..97fbae8f12c1 100644
+--- a/llvm/lib/Target/RISCV/RISCVInstrFormatsXQV.td
++++ b/llvm/lib/Target/RISCV/RISCVInstrFormatsXQV.td
+@@ -10,22 +10,16 @@
+ //
+ //===----------------------------------------------------------------------===//
+ 
+-// TODO: synchronise funct3 slots with HiSEP-Q
+-defvar QV_SINGLE_FUNCT3 = 0b000;
+-defvar QV_PAIR_FUNCT3   = 0b001;
+-defvar QV_GR_FUNCT3     = 0b010;
+-defvar QV_VR_FUNCT3     = 0b011;
+-
+ // Custom list of supported VTypeInfo records for QV instructions.
+-defvar SupportedQVVTypes = [VI8M1, VI8M2, VI8M4, VI8M8];
++defvar SupportedQVVTypes = [VI8MF4, VI8MF2, VI8M1, VI8M2, VI8M4, VI8M8];
+ 
+ // QV.SINGLE — Single-Qubit Gate
+-// Applies a single-qubit gate to the qubits listed in vs1. The 32-bit 
+-// scalar payload from rs2 is forwarded to the quantum backend on the 
++// Applies a single-qubit gate to the qubits listed in vs1. The 32-bit
++// scalar payload from rs2 is forwarded to the quantum backend on the
+ // elem2 channel (e.g., as a software tag or timestamp).
+ // 31       25   24    20   19    15   14  12   11     7   6     0
+ // +---------+----------+----------+--------+----------+---------+
+-// |  GateID |   rs2    |  vs1 (S) | 000(S) | Block_imm| 1010111 |
++// |  GateID |   rs2    |  vs1 (S) | 000(S) | Block_imm| CUSTOM_0|
+ // +---------+----------+----------+--------+----------+---------+
+ 
+ class RVInstQVSingle<bits<7> gateid, string opcodestr>
+@@ -42,9 +36,9 @@ class RVInstQVSingle<bits<7> gateid, string opcodestr>
+   let Inst{31-25} = gateid;
+   let Inst{24-20} = rs2;
+   let Inst{19-15} = vs1;
+-  let Inst{14-12} = QV_SINGLE_FUNCT3;
++  let Inst{14-12} = QVSingle.Funct3;
+   let Inst{11-7}  = block_imm;
+-  let Inst{6-0}   = OPC_OP_V.Value;
++  let Inst{6-0}   = OPC_CUSTOM_0.Value;
+ 
+   let hasSideEffects = 1;
+   let mayLoad = 0;
+@@ -54,11 +48,11 @@ class RVInstQVSingle<bits<7> gateid, string opcodestr>
+ }
+ 
+ // QV.PAIR — Two-Qubit Gate
+-// Applies a two-qubit gate to element-wise pairs from vs2 (source/control) 
++// Applies a two-qubit gate to element-wise pairs from vs2 (source/control)
+ // and vs1 (target).
+ // 31       25   24    20   19    15   14  12   11     7   6     0
+ // +---------+----------+----------+--------+----------+---------+
+-// |  GateID | vs2(src) | vs1(tgt) | 001(P) | Block_imm| 1010111 |
++// |  GateID | vs2(src) | vs1(tgt) | 001(P) | Block_imm| CUSTOM_0|
+ // +---------+----------+----------+--------+----------+---------+
+ 
+ class RVInstQVPair<bits<7> gateid, string opcodestr>
+@@ -76,9 +70,9 @@ class RVInstQVPair<bits<7> gateid, string opcodestr>
+   let Inst{31-25} = gateid;
+   let Inst{24-20} = vs2;
+   let Inst{19-15} = vs1;
+-  let Inst{14-12} = QV_PAIR_FUNCT3;
++  let Inst{14-12} = QVPair.Funct3;
+   let Inst{11-7}  = block_imm;
+-  let Inst{6-0}   = OPC_OP_V.Value;
++  let Inst{6-0}   = OPC_CUSTOM_0.Value;
+ 
+   let hasSideEffects = 1;
+   let mayLoad = 0;
+diff --git a/llvm/lib/Target/RISCV/RISCVInstrInfoXQV.td b/llvm/lib/Target/RISCV/RISCVInstrInfoXQV.td
+index 9a75a381bd50..3cb44a45694c 100644
+--- a/llvm/lib/Target/RISCV/RISCVInstrInfoXQV.td
++++ b/llvm/lib/Target/RISCV/RISCVInstrInfoXQV.td
+@@ -9,22 +9,12 @@
+ //
+ //===----------------------------------------------------------------------===//
+ 
++// RISCVInstrFormatsXQV.td takes funct3 from the class records, so the gate table comes first.
++include "RISCVXQVGates.td"
+ include "RISCVInstrFormatsXQV.td"
+ 
+ let Predicates = [HasVendorXQV] in {
+ 
+-// TODO: synchronise funct7 slots with HiSEP-Q
+-defvar QV_H_FUNCT7  = 0b0001000;
+-defvar QV_X_FUNCT7  = 0b0001001;
+-defvar QV_MZ_FUNCT7 = 0b1101000;
+-defvar QV_CX_FUNCT7 = 0b0001101;
+-
+-def QV_H  : RVInstQVSingle<QV_H_FUNCT7,  "qv.h">;
+-def QV_X  : RVInstQVSingle<QV_X_FUNCT7,  "qv.x">;
+-def QV_MZ : RVInstQVSingle<QV_MZ_FUNCT7, "qv.mz">;
+-
+-def QV_CX : RVInstQVPair<QV_CX_FUNCT7, "qv.cx">;
+-
+ // Pseudos for VSETVLI insertion and LMUL handling
+ multiclass RVPseudoQVSingle {
+   foreach m = MxList in {
+@@ -56,12 +46,6 @@ multiclass RVPseudoQVPair {
+   }
+ }
+ 
+-defm PseudoQV_H  : RVPseudoQVSingle;
+-defm PseudoQV_X  : RVPseudoQVSingle;
+-defm PseudoQV_MZ : RVPseudoQVSingle;
+-
+-defm PseudoQV_CX : RVPseudoQVPair;
+-
+ // Patterns to match the intrinsics to the Pseudos
+ multiclass RVPatQVSingle<string intrinsic, string inst> {
+   foreach vti = SupportedQVVTypes in {
+@@ -88,9 +72,15 @@ multiclass RVPatQVPair<string intrinsic, string inst> {
+   }
+ }
+ 
+-defm : RVPatQVSingle<"int_riscv_qv_h",  "PseudoQV_H">;
+-defm : RVPatQVSingle<"int_riscv_qv_x",  "PseudoQV_X">;
+-defm : RVPatQVSingle<"int_riscv_qv_mz", "PseudoQV_MZ">;
++foreach g = QVSingleGates in {
++  def "QV_" # g.Suffix : RVInstQVSingle<g.GateID, g.Mnemonic>;
++  defm "PseudoQV_" # g.Suffix : RVPseudoQVSingle;
++  defm : RVPatQVSingle<g.IntrinsicRecord, "PseudoQV_" # g.Suffix>;
++}
+ 
+-defm : RVPatQVPair<"int_riscv_qv_cx", "PseudoQV_CX">;
++foreach g = QVPairGates in {
++  def "QV_" # g.Suffix : RVInstQVPair<g.GateID, g.Mnemonic>;
++  defm "PseudoQV_" # g.Suffix : RVPseudoQVPair;
++  defm : RVPatQVPair<g.IntrinsicRecord, "PseudoQV_" # g.Suffix>;
++}
+ }
+diff --git a/llvm/lib/Target/RISCV/RISCVXQVGates.td b/llvm/lib/Target/RISCV/RISCVXQVGates.td
+new file mode 100644
+index 000000000000..af5a751082fc
+--- /dev/null
++++ b/llvm/lib/Target/RISCV/RISCVXQVGates.td
+@@ -0,0 +1,48 @@
++//===-- RISCVXQVGates.td - HiSEP-Q QV Gate Encoding Table -*- tablegen -*-===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// Encoding table for the HiSEP-Q QV extension: the funct3 of each instruction
++// class and the funct7 (GateID) of each gate. RISCVInstrFormatsXQV.td and
++// RISCVInstrInfoXQV.td derive the formats, instructions, pseudos and selection
++// patterns from these records.
++//
++//===----------------------------------------------------------------------===//
++
++// Instruction class. funct3 selects the class within the custom-0 opcode.
++class QVClass<string name, bits<3> funct3> {
++  string Name    = name;
++  bits<3> Funct3 = funct3;
++}
++
++// `suffix` names the records generated for this gate (QV_<suffix>,
++// PseudoQV_<suffix>); everything else is derived from the mnemonic.
++class QVGate<string suffix, string mnemonic, bits<7> gateID, QVClass instClass> {
++  string Suffix          = suffix;
++  string Mnemonic        = mnemonic;
++  string IntrinsicRecord = "int_riscv_" # !subst(".", "_", mnemonic);
++  bits<7> GateID         = gateID;
++  string InstClass       = instClass.Name;
++}
++
++// Gate classes for the QV extension.
++def QVSingle : QVClass<"Single", 0b000>;
++def QVPair   : QVClass<"Pair",   0b001>;
++def QVRotG   : QVClass<"RotG",   0b010>;
++def QVRotV   : QVClass<"RotV",   0b011>;
++
++// GateIDs match the HiSEP-Q hardware (H = 7'h64, CX = 7'h66, MEASURE = 7'h68).
++// X has no fixed GateID in HiSEP-Q yet; its value here is a placeholder.
++def Gate_H  : QVGate<"H",  "qv.h",  0b1100100, QVSingle>;
++def Gate_X  : QVGate<"X",  "qv.x",  0b0000010, QVSingle>;
++def Gate_MZ : QVGate<"MZ", "qv.mz", 0b1101000, QVSingle>;
++def Gate_CX : QVGate<"CX", "qv.cx", 0b1100110, QVPair>;
++
++// RISCVInstrInfoXQV.td iterates these to build the instructions, pseudos and
++// selection patterns. A new gate must be listed here as well as defined above.
++defvar QVSingleGates = [Gate_H, Gate_X, Gate_MZ];
++defvar QVPairGates   = [Gate_CX];
+diff --git a/llvm/test/MC/RISCV/rv32xqv-valid.s b/llvm/test/MC/RISCV/rv32xqv-valid.s
+index fc237ae6311e..387bca647f38 100644
+--- a/llvm/test/MC/RISCV/rv32xqv-valid.s
++++ b/llvm/test/MC/RISCV/rv32xqv-valid.s
+@@ -1,27 +1,34 @@
+ # RUN: llvm-mc -triple=riscv32 -mattr=+experimental-xqv --show-encoding %s \
+ # RUN:     | FileCheck %s --check-prefixes=CHECK-ENCODING,CHECK-INST
+ 
+-# TODO: Add disassembler round-trip (llvm-mc -filetype=obj | llvm-objdump -d)
+-# once QV_H_FUNCT7 and QV_CX_FUNCT7 are corrected to spec values (0x64 and
+-# 0x66); current values overlap with standard V instructions.
++# TODO: Add disassembler round-trip (llvm-mc -filetype=obj | llvm-objdump -d).
++# H, CX and MZ GateIDs match the HiSEP-Q hardware; X has no fixed GateID
++# there yet and is a placeholder. See RISCVXQVGates.td.
+ 
+ # qv.h: single-qubit gate — qv.h vs1, rs2, block_imm
+-# gateid=0b0001000, funct3=0b000
++# gateid=0b1100100, funct3=0b000
+ 
+ # CHECK-INST:     qv.h v8, a0, 12
+-# CHECK-ENCODING: [0x57,0x06,0xa4,0x10]
++# CHECK-ENCODING: [0x0b,0x06,0xa4,0xc8]
+ qv.h v8, a0, 12
+ 
++# qv.x: single-qubit gate — qv.x vs1, rs2, block_imm
++# gateid=0b0000010, funct3=0b000
++
++# CHECK-INST:     qv.x v8, a0, 12
++# CHECK-ENCODING: [0x0b,0x06,0xa4,0x04]
++qv.x v8, a0, 12
++
+ # qv.mz: measure-in-Z gate — qv.mz vs1, rs2, block_imm
+ # gateid=0b1101000, funct3=0b000
+ 
+ # CHECK-INST:     qv.mz v8, a0, 12
+-# CHECK-ENCODING: [0x57,0x06,0xa4,0xd0]
++# CHECK-ENCODING: [0x0b,0x06,0xa4,0xd0]
+ qv.mz v8, a0, 12
+ 
+ # qv.cx: two-qubit CNOT — qv.cx vs1(tgt), vs2(ctrl), block_imm
+-# gateid=0b0001101, funct3=0b001
++# gateid=0b1100110, funct3=0b001
+ 
+ # CHECK-INST:     qv.cx v8, v9, 12
+-# CHECK-ENCODING: [0x57,0x16,0x94,0x1a]
++# CHECK-ENCODING: [0x0b,0x16,0x94,0xcc]
+ qv.cx v8, v9, 12
+-- 
+2.51.1
+

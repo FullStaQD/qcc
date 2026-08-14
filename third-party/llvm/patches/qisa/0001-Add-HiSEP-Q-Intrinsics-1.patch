@@ -1,7 +1,7 @@
 From 24b72a73bda7fcdcd5553782c04bdb9858b3dcd8 Mon Sep 17 00:00:00 2001
 From: Enrique NB <enrique@naranjobejarano.com>
 Date: Tue, 2 Jun 2026 09:28:25 +0200
-Subject: [PATCH] Add HiSEP-Q Intrinsics (#1)
+Subject: [PATCH 1/2] Add HiSEP-Q Intrinsics (#1)
 
 Added HiSEP-Q (XQV) sub-feature to RISC-V
 
