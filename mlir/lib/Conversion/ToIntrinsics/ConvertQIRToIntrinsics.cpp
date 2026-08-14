@@ -13,6 +13,7 @@
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/PatternMatch.h"
+#include "mlir/IR/SymbolTable.h"
 #include "mlir/IR/Value.h"
 #include "mlir/IR/ValueRange.h"
 #include "mlir/Pass/Pass.h" // FIXME: why does clangd complain about unused include?
@@ -62,12 +63,8 @@ static std::optional<QISOpInfo> getQISOpInfo(StringRef qisName) {
   return it == table.end() ? std::nullopt : std::optional(it->second);
 }
 
-/// Returns true when `name` is a QIR runtime / QIS symbol that this pass
-/// handles (and therefore must not appear in the output).
-static bool isHandledQIRSymbol(StringRef name) {
-  return name == qcc::qirRtInit || name == qcc::qirRtReadResult || name == qcc::qirRtBoolRecordOutput ||
-         name == qcc::qirRtIntRecordOutput || getQISOpInfo(name).has_value();
-}
+/// Returns true when `name` is a QIR runtime / QIS symbol.
+static bool isQIRSymbol(StringRef name) { return name.starts_with("__quantum__"); }
 
 /// Tries to extract the qubit index encoded in a ptr obtained via:
 ///   `llvm.inttoptr (llvm.mlir.constant N : i64) : !llvm.ptr`
@@ -228,8 +225,8 @@ struct RtInitLowering : public OpRewritePattern<LLVM::CallOp> {
   }
 };
 
-/// Erases `llvm.call @__quantum__rt__bool_record_output` and
-/// `llvm.call @__quantum__rt__int_record_output`.
+/// Erases the QIR output-recording runtime calls
+/// (`__quantum__rt__{bool,int,array,tuple}_record_output`).
 ///
 /// TODO: No intrinsic equivalent for output recording exists yet.
 struct RecordOutputLowering : public OpRewritePattern<LLVM::CallOp> {
@@ -241,7 +238,8 @@ struct RecordOutputLowering : public OpRewritePattern<LLVM::CallOp> {
       return failure();
     }
 
-    if (*callee != qcc::qirRtBoolRecordOutput && *callee != qcc::qirRtIntRecordOutput) {
+    if (*callee != qcc::qirRtBoolRecordOutput && *callee != qcc::qirRtIntRecordOutput &&
+        *callee != qcc::qirRtArrayRecordOutput && *callee != qcc::qirRtTupleRecordOutput) {
       return failure();
     }
 
@@ -289,7 +287,7 @@ protected:
       return signalPassFailure();
     }
 
-    removeQIRDeclarations();
+    removeUnusedQIRDeclarations();
 
     FailureOr<LLVM::LLVMFuncOp> entryPoint = getEntryPoint(moduleOp);
     if (failed(entryPoint)) {
@@ -326,14 +324,17 @@ private:
     return entryPoint;
   }
 
-  /// Removes leftover QIR function declarations whose call sites were erased.
-  void removeQIRDeclarations() {
+  /// Removes QIR function declarations that have no remaining uses.
+  void removeUnusedQIRDeclarations() {
+    ModuleOp moduleOp = getOperation();
     SmallVector<LLVM::LLVMFuncOp> toErase;
-    getOperation()->walk([&](LLVM::LLVMFuncOp funcOp) {
-      if (isHandledQIRSymbol(funcOp.getName())) {
+
+    moduleOp.walk([&](LLVM::LLVMFuncOp funcOp) {
+      if (isQIRSymbol(funcOp.getName()) && SymbolTable::symbolKnownUseEmpty(funcOp, moduleOp)) {
         toErase.push_back(funcOp);
       }
     });
+
     for (auto funcOp : toErase) {
       funcOp.erase();
     }
