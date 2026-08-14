@@ -1,10 +1,7 @@
 // RUN: qcc --compile-to=mlir -o - %s | FileCheck %s
 // RUN: %if hisep-q %{ qcc --target=hisep-q --compile-to=mlir -o - %s | FileCheck %s --check-prefix=CHECK-INTRINSICS %}
 
-/// Prepare GHZ state (without loop so far).
-///
-/// TODO: This must be replaced by a test starting from jasp. Currently the frontend and the
-/// backend do not fit together.
+/// Prepare GHZ state without control flow.
 func.func @main() attributes { qcc.entry_point } {
     %0 = qc.static 0 : !qc.qubit
     %1 = qc.static 1 : !qc.qubit
@@ -90,14 +87,5 @@ func.func @main() attributes { qcc.entry_point } {
 // CHECK-INTRINSICS:         llvm.call_intrinsic "llvm.riscv.qv.mz"({{.*}})
 // CHECK-INTRINSICS:         llvm.return
 
-// Declarations for the gates used (and their rt helpers) are removed.
-// Unmapped declarations (s, sdg, t, tdg, rz) declared by PrepToQIR but unused
-// in the GHZ circuit are left in place, as they have no intrinsic mapping.
-// CHECK-INTRINSICS-NOT: llvm.func @__quantum__qis__h__body
-// CHECK-INTRINSICS-NOT: llvm.func @__quantum__qis__x__body
-// CHECK-INTRINSICS-NOT: llvm.func @__quantum__qis__cx__body
-// CHECK-INTRINSICS-NOT: llvm.func @__quantum__qis__mz__body
-// CHECK-INTRINSICS-NOT: llvm.func @__quantum__rt__initialize
-// CHECK-INTRINSICS-NOT: llvm.func @__quantum__rt__read_result
-// CHECK-INTRINSICS-NOT: llvm.func @__quantum__rt__bool_record_output
-// CHECK-INTRINSICS-NOT: llvm.func @__quantum__rt__int_record_output
+// CHECK-INTRINSICS-NOT: llvm.func @__quantum__qis__{{.*}}
+// CHECK-INTRINSICS-NOT: llvm.func @__quantum__rt__{{.*}}
