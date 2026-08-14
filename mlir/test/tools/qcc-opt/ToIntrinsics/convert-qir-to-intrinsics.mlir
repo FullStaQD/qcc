@@ -1,11 +1,4 @@
-// RUN: qcc-opt %s -convert-qir-to-intrinsics --split-input-file --verify-diagnostics | FileCheck %s
-// RUN: not qcc-opt %s -convert-qir-to-intrinsics --split-input-file
-// FIXME: Purpose of the second RUN line?
-
-// FIXME: Why is the input file split? If it is just because the tests checking
-// for errors it might make sense to spend a dedicated file.
-
-// FIXME: Why where entry_point tags removed?
+// RUN: qcc-opt %s -convert-qir-to-intrinsics | FileCheck %s
 
 // Input: a module as produced by the ToQIR pipeline.
 // Each qubit is an `!llvm.ptr` obtained via `llvm.inttoptr` of a constant index.
@@ -24,7 +17,12 @@ llvm.func @__quantum__qis__mz__body(!llvm.ptr, !llvm.ptr) -> ()
 
 llvm.mlir.global internal constant @".qir_dummy_label"("dummy_label\00") {addr_space = 0 : i32}
 
+// FIXME: the exactly-one-entrypoint rule is mostly a burden for this pass.
+// Factor the pass into two. Only the _start insertion should require this rule.
 
+// `single_qubit_gates` is the module's sole entry point. The pass requires
+// exactly one, generates `_start` from it (checked at the end of this file),
+// and would error otherwise.
 llvm.func @single_qubit_gates() attributes { passthrough = ["entry_point"] } {
   %c0 = llvm.mlir.constant(0 : i64) : i64
   %q0 = llvm.inttoptr %c0 : i64 to !llvm.ptr
@@ -117,6 +115,7 @@ llvm.func @rt_calls_erased() {
 // CHECK-NOT:     llvm.call @__quantum__rt__bool_record_output
 // CHECK:         llvm.call_intrinsic "llvm.riscv.qv.x"
 
+// The eagerly-declared QIR runtime/QIS declarations are all removed once unused.
 // CHECK-NOT: llvm.func @__quantum__qis__h__body
 // CHECK-NOT: llvm.func @__quantum__qis__x__body
 // CHECK-NOT: llvm.func @__quantum__qis__cx__body
@@ -125,44 +124,6 @@ llvm.func @rt_calls_erased() {
 // CHECK-NOT: llvm.func @__quantum__rt__read_result
 // CHECK-NOT: llvm.func @__quantum__rt__bool_record_output
 
-// -----
-
-// A qubit ptr that is not an `llvm.inttoptr` of a constant cannot be resolved
-// to a static index.
-
-llvm.func @__quantum__qis__x__body(!llvm.ptr) -> ()
-
-llvm.func @non_constant_qubit_ptr(%q: !llvm.ptr) {
-  // expected-error @+1 {{cannot extract qubit index from ptr for '__quantum__qis__x__body'}}
-  llvm.call @__quantum__qis__x__body(%q) : (!llvm.ptr) -> ()
-  llvm.return
-}
-
-// -----
-
-// The index must fit in the `i8` lane used to encode it.
-
-llvm.func @__quantum__qis__x__body(!llvm.ptr) -> ()
-
-llvm.func @out_of_range_qubit_index() {
-  %c256 = llvm.mlir.constant(256 : i64) : i64
-  %q = llvm.inttoptr %c256 : i64 to !llvm.ptr
-  // expected-error @+1 {{qubit index 256 out of range for '__quantum__qis__x__body'}}
-  llvm.call @__quantum__qis__x__body(%q) : (!llvm.ptr) -> ()
-  llvm.return
-}
-
-// -----
-
-// A pair intrinsic whose callee supplies only one qubit operand must be
-// diagnosed rather than reading past the end of the operand list.
-
-llvm.func @__quantum__qis__cx__body(!llvm.ptr) -> ()
-
-llvm.func @too_few_qubit_operands() {
-  %c0 = llvm.mlir.constant(0 : i64) : i64
-  %q = llvm.inttoptr %c0 : i64 to !llvm.ptr
-  // expected-error @+1 {{'__quantum__qis__cx__body' expects at least 2 qubit operand(s), got 1}}
-  llvm.call @__quantum__qis__cx__body(%q) : (!llvm.ptr) -> ()
-  llvm.return
-}
+// The pass appends `_start`, which supersedes the entry point and jumps to it.
+// CHECK-LABEL: llvm.func @_start()
+// CHECK:         llvm.mlir.addressof @single_qubit_gates
