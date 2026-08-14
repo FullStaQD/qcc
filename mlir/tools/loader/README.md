@@ -1,5 +1,7 @@
 # HiSEP-Q loader
 
+FIXME: This isn't really a tool. Find a better place to put the linker script and this README into.
+
 `qcc --target=hisep-q` only compiles: it lowers a circuit down to native RISC-V
 QISA (`--compile-to=native`) and stops there. Getting from there to something
 the [HiSEP-Q-2.0](https://github.com/caps-tum/HiSEP-Q-2.0) co-simulation

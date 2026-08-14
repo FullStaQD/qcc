@@ -15,7 +15,7 @@
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Value.h"
 #include "mlir/IR/ValueRange.h"
-#include "mlir/Pass/Pass.h"
+#include "mlir/Pass/Pass.h" // FIXME: why does clangd complain about unused include?
 #include "mlir/Support/LogicalResult.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
@@ -257,9 +257,8 @@ namespace qcc {
 #define GEN_PASS_DEF_CONVERTQIRTOINTRINSICS
 #include "qcc/Conversion/ToIntrinsics/ToIntrinsics.h.inc"
 
-/// Whether `funcOp` carries the `entry_point` passthrough attribute set by
-/// `ConvertQCToQIR::setEntryPointAttrs`.
-static bool isEntryPointFunc(LLVM::LLVMFuncOp funcOp) {
+/// Whether `funcOp` carries the `entry_point` passthrough attribute.
+static bool isEntryPointFunc(LLVM::LLVMFuncOp funcOp) { // FIXME: find a better place
   auto passthrough = funcOp->getAttrOfType<ArrayAttr>("passthrough");
   if (!passthrough) {
     return false;
@@ -281,11 +280,6 @@ protected:
     ModuleOp moduleOp = getOperation();
     auto* ctx = moduleOp.getContext();
 
-    FailureOr<LLVM::LLVMFuncOp> entryPoint = findEntryPoint(moduleOp);
-    if (failed(entryPoint)) {
-      return signalPassFailure();
-    }
-
     bool hadError = false;
     RewritePatternSet patterns(ctx);
     patterns.add<QISCallLowering>(ctx, &hadError);
@@ -297,27 +291,38 @@ protected:
 
     removeQIRDeclarations();
 
+    FailureOr<LLVM::LLVMFuncOp> entryPoint = getEntryPoint(moduleOp);
+    if (failed(entryPoint)) {
+      return signalPassFailure();
+    }
+
     if (*entryPoint) {
       emitStartFunc(moduleOp, *entryPoint);
     }
   }
 
 private:
-  /// Returns the entry point of the module, or a null func if it has none. At most one function may
-  /// be tagged, as the hardware boots at a single address.
-  static FailureOr<LLVM::LLVMFuncOp> findEntryPoint(ModuleOp moduleOp) {
+  /// Returns the entry point of the module. Fails if not exactly one function
+  /// is tagged, as the hardware boots at a single address.
+  static FailureOr<LLVM::LLVMFuncOp> getEntryPoint(ModuleOp moduleOp) {
     LLVM::LLVMFuncOp entryPoint;
+
     for (auto funcOp : moduleOp.getOps<LLVM::LLVMFuncOp>()) {
       if (!isEntryPointFunc(funcOp)) {
         continue;
       }
       if (entryPoint) {
-        funcOp.emitError("expected at most one function tagged as the entry point, but found '")
-            << entryPoint.getName() << "' and '" << funcOp.getName() << "'";
-        return failure();
+        return funcOp.emitError("expected at most one function tagged as the entry point, but found '")
+               << entryPoint.getName() << "' and '" << funcOp.getName()
+               << "'"; // FIXME: if funcOp emits the error do we really need to print the name?
       }
       entryPoint = funcOp;
     }
+
+    if (!entryPoint) {
+      return moduleOp->emitError("did not find any entry point");
+    }
+
     return entryPoint;
   }
 
@@ -335,7 +340,7 @@ private:
   }
 
   /// Emits `_start`, which supersedes `entryPoint` as the entry point of the hardware.
-  static void emitStartFunc(ModuleOp moduleOp, LLVM::LLVMFuncOp entryPoint) {
+  static void emitStartFunc(ModuleOp moduleOp, LLVM::LLVMFuncOp entryPoint) { // FIXME: in-depth understanding of this
     OpBuilder builder(moduleOp.getContext());
     builder.setInsertionPointToEnd(moduleOp.getBody());
     Location loc = entryPoint.getLoc();

@@ -11,7 +11,7 @@
 
 #include "llvm/Support/Error.h"
 
-namespace llvm {
+namespace llvm { // FIXME: best practice?
 class MemoryBuffer;
 class raw_ostream;
 } // namespace llvm
@@ -25,6 +25,7 @@ namespace qcc {
 /// hex words, emitting an `@<address>` line whenever a segment does not immediately follow the
 /// previous one. Getting the memory layout right (entry code at the hardware's boot address,
 /// sensible section placement) is the linker script's job (see mlir/tools/loader/hisepq.ld).
-llvm::Error convertElfToMem(const llvm::MemoryBuffer& elfBuffer, llvm::raw_ostream& os);
+llvm::Error convertElfToMem(const llvm::MemoryBuffer& elfBuffer,
+                            llvm::raw_ostream& os); // FIXME: check the llvm::Error return type.
 
 } // namespace qcc

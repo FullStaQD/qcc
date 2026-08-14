@@ -9,14 +9,14 @@
 
 include "mlir/Pass/PassBase.td"
 
-def ConvertQIRToIntrinsics : Pass<"convert-qir-to-intrinsics", "mlir::ModuleOp"> {
-  let summary = "Replaces QIR QIS call ops with RISC-V quantum vector intrinsics.";
+def ConvertQIRToIntrinsics : Pass<"convert-qir-to-intrinsics", "mlir::ModuleOp"> { // FIXME: ...to-hisepq-intrinsics ?
+  let summary = "Replaces QIR QIS call ops with HiSEP-Q intrinsics.";
 
   let description = [{
       Takes a module that has already been lowered to QIR (i.e., the body
       contains `llvm.call` ops targeting `__quantum__qis__*__body` functions)
       and replaces those calls with `llvm.call_intrinsic` ops targeting the
-      RISC-V QV extension (e.g. `llvm.riscv.qv.h`, `llvm.riscv.qv.cx`).
+      RISC-V QV extension, aka HiSEP-Q (e.g. `llvm.riscv.qv.h`, `llvm.riscv.qv.cx`).
 
       Each qubit pointer argument (produced by `llvm.inttoptr` of a constant
       integer index) is re-encoded as a `vector<[8]xi8>` scalable-vector value
