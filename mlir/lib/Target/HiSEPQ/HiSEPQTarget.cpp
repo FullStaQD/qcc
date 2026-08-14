@@ -63,7 +63,7 @@ bool emitNativeHiSEPQ(llvm::Module& module, llvm::raw_pwrite_stream& os, const N
   llvm::TargetOptions targetOptions;
   // hisepq.ld puts `.text._start` at the boot address, which needs each function in its own
   // `.text.<name>` section.
-  targetOptions.FunctionSections = true;
+  targetOptions.FunctionSections = true; // FIXME: better understand this.
   std::unique_ptr<llvm::TargetMachine> targetMachine(
       theTarget->createTargetMachine(triple, /*cpu=*/"", attrsStr, targetOptions, std::nullopt));
 

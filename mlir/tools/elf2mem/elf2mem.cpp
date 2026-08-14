@@ -34,6 +34,7 @@ int main(int argc, char** argv) {
   const cl::opt<std::string> outputFilename("o", cl::desc("Output .mem file"), cl::value_desc("filename"),
                                             cl::init("-"), cl::cat(elf2memCategory));
 
+  // FIXME: this message looks a bit technical (especially the "$readmemh" thingy).
   cl::ParseCommandLineOptions(argc, argv,
                               "elf2mem - convert a HiSEP-Q ELF image into a Verilog $readmemh memory file\n");
 
@@ -42,6 +43,8 @@ int main(int argc, char** argv) {
     llvm::errs() << inputFilename << ": " << ec.message() << "\n";
     return 1;
   }
+
+  // FIXME: on error reporting: is there a better way than just doing llvm::errs()?
 
   std::error_code ec;
   llvm::ToolOutputFile outFile(outputFilename, ec, llvm::sys::fs::OF_Text);

@@ -42,6 +42,8 @@ Error convertElfToMem(const MemoryBuffer& elfBuffer, raw_ostream& os) {
     return binaryOrErr.takeError();
   }
 
+  // FIXME: can we point somewhere inside LLVM to express why the boilerplate looks like this?
+
   auto* elfObj = dyn_cast<object::ELF32LEObjectFile>(binaryOrErr->get());
   if (elfObj == nullptr) {
     return createStringError(inconvertibleErrorCode(), "expected a 32-bit little-endian ELF (e.g. riscv32)");
@@ -49,7 +51,7 @@ Error convertElfToMem(const MemoryBuffer& elfBuffer, raw_ostream& os) {
 
   const object::ELFFile<object::ELF32LE>& elfFile = elfObj->getELFFile();
 
-  auto phdrsOrErr = elfFile.program_headers();
+  auto phdrsOrErr = elfFile.program_headers(); // FIXME: bad name
   if (!phdrsOrErr) {
     return phdrsOrErr.takeError();
   }
@@ -78,11 +80,12 @@ Error convertElfToMem(const MemoryBuffer& elfBuffer, raw_ostream& os) {
 
   for (size_t i = 0; i < segments.size(); ++i) {
     if (segments[i].addr % 4 != 0) {
-      std::string message;
+      std::string message; // FIXME: not possible with Twine?
       raw_string_ostream(message) << format("segment at address 0x%08X is not word (4-byte) aligned", segments[i].addr);
       return createStringError(inconvertibleErrorCode(), message);
     }
     if (i > 0 && segments[i].addr < segments[i - 1].addr + segments[i - 1].memSize) {
+      // FIXME: can this happen? If yes, why? Why do *we* check it *here*?
       return createStringError(inconvertibleErrorCode(), "overlapping loadable segments");
     }
   }

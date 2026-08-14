@@ -1,5 +1,11 @@
 // RUN: qcc-opt %s -convert-qir-to-intrinsics --split-input-file --verify-diagnostics | FileCheck %s
 // RUN: not qcc-opt %s -convert-qir-to-intrinsics --split-input-file
+// FIXME: Purpose of the second RUN line?
+
+// FIXME: Why is the input file split? If it is just because the tests checking
+// for errors it might make sense to spend a dedicated file.
+
+// FIXME: Why where entry_point tags removed?
 
 // Input: a module as produced by the ToQIR pipeline.
 // Each qubit is an `!llvm.ptr` obtained via `llvm.inttoptr` of a constant index.
@@ -19,7 +25,7 @@ llvm.func @__quantum__qis__mz__body(!llvm.ptr, !llvm.ptr) -> ()
 llvm.mlir.global internal constant @".qir_dummy_label"("dummy_label\00") {addr_space = 0 : i32}
 
 
-llvm.func @single_qubit_gates() {
+llvm.func @single_qubit_gates() attributes { passthrough = ["entry_point"] } {
   %c0 = llvm.mlir.constant(0 : i64) : i64
   %q0 = llvm.inttoptr %c0 : i64 to !llvm.ptr
   %c1 = llvm.mlir.constant(1 : i64) : i64
