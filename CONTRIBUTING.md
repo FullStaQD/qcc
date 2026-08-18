@@ -58,6 +58,9 @@ In particular, the following headers require angle brackets:
 
 See also our `.clang-format` file.
 
+Prefer an `#include` over a forward declaration; only forward-declare a type where upstream LLVM/MLIR
+does so for that same type, and justify it in a brief comment at the declaration.
+
 Also note that MLIR based projects typically do not _strictly_ follow const correctness.
 The details can be found in [MLIR on the usage of 'const'](https://mlir.llvm.org/docs/Rationale/UsageOfConst/).
 The slightly simplified gist is as follows:
