@@ -2,7 +2,7 @@
 
 FIXME: This isn't really a tool. Find a better place to put the linker script and this README into.
 
-`qcc --target=hisep-q` only compiles: it lowers a circuit down to native RISC-V
+`qcc --target=hisepq` only compiles: it lowers a circuit down to native RISC-V
 QISA (`--compile-to=native`) and stops there. Getting from there to something
 the [HiSEP-Q-2.0](https://github.com/caps-tum/HiSEP-Q-2.0) co-simulation
 testbench (the RTL sim in that repo's `demo/`, runnable via Vivado `xsim` or
@@ -17,7 +17,7 @@ Then convert the linked ELF into the `$readmemh` memory image the simulator
 loads, using the `elf2mem` tool (`mlir/tools/elf2mem`).
 
 ```sh
-qcc --target=hisep-q --compile-to=native --binary input.mlir -o out.o
+qcc --target=hisepq --compile-to=native --binary input.mlir -o out.o
 ld.lld -T mlir/tools/loader/hisepq.ld out.o -o out.elf
 elf2mem out.elf -o out.mem
 ```

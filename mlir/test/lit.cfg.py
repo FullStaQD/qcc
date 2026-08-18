@@ -32,10 +32,10 @@ llvm_config.use_default_substitutions()
 config.excludes = []
 
 # Gate HiSEP-Q target tests: only available when qcc was built with the HiSEP-Q
-# target (QCC_ENABLE_HISEP_Q). Tests opt in via `REQUIRES: hisep-q` (or exclude
-# with `UNSUPPORTED: hisep-q`).
-if config.enable_hisep_q:
-    config.available_features.add("hisep-q")
+# target (QCC_ENABLE_HISEPQ). Tests opt in via `REQUIRES: hisepq` (or exclude
+# with `UNSUPPORTED: hisepq`).
+if config.enable_hisepq:
+    config.available_features.add("hisepq")
 
 # test_exec_root: The root path where tests should be run.
 config.test_exec_root = Path(config.project_binary_dir) / "test"

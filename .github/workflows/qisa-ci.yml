@@ -25,8 +25,8 @@ env:
   CCACHE_MAXSIZE: 2G # should be plenty, but compare with ccache -s output if in doubt
 
 jobs:
-  # Builds qcc with QCC_ENABLE_HISEP_Q=ON and runs the lit suite, which then
-  # includes the `REQUIRES: hisep-q` tests. The HiSEP-Q target needs a patched
+  # Builds qcc with QCC_ENABLE_HISEPQ=ON and runs the lit suite, which then
+  # includes the `REQUIRES: hisepq` tests. The HiSEP-Q target needs a patched
   # LLVM (see third-party/llvm/README.md) that no prebuilt package provides, so
   # this job builds LLVM from source and caches the install prefix. On a warm
   # cache the LLVM build is skipped entirely and only qcc is rebuilt.
@@ -154,7 +154,7 @@ jobs:
           key: ${{ steps.llvm-cache.outputs.cache-primary-key }}
 
       - name: Configure qcc
-        run: cmake --preset release -DQCC_ENABLE_HISEP_Q=ON -DLLVM_ENABLE_ASSERTIONS=ON
+        run: cmake --preset release -DQCC_ENABLE_HISEPQ=ON -DLLVM_ENABLE_ASSERTIONS=ON
 
       - name: Build qcc
         run: cmake --build build/release

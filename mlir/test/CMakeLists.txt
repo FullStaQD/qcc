@@ -1,8 +1,8 @@
 # For lit config:
-if(QCC_ENABLE_HISEP_Q)
-  set(QCC_ENABLE_HISEP_Q_PY True)
+if(QCC_ENABLE_HISEPQ)
+  set(QCC_ENABLE_HISEPQ_PY True)
 else()
-  set(QCC_ENABLE_HISEP_Q_PY False)
+  set(QCC_ENABLE_HISEPQ_PY False)
 endif()
 
 configure_lit_site_cfg(${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in ${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py

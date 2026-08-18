@@ -9,7 +9,7 @@
 //
 // HiSEP-Q backend implementation. This is the ONLY place in the project allowed
 // to depend on the HiSEP-Q LLVM fork (its headers and libraries); it is compiled
-// only when QCC_ENABLE_HISEP_Q is enabled.
+// only when QCC_ENABLE_HISEPQ is enabled.
 //
 // ===----------------------------------------------------------------------===//
 
