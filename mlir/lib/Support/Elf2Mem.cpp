@@ -9,7 +9,7 @@
 
 #include "qcc/Support/Elf2Mem.h"
 
-#include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/Object/Binary.h"
 #include "llvm/Object/ELFObjectFile.h"
@@ -19,7 +19,6 @@
 
 #include <cstdint>
 #include <optional>
-#include <string>
 #include <vector>
 
 using namespace llvm;
@@ -28,7 +27,7 @@ namespace {
 
 struct Segment {
   uint32_t addr;
-  ArrayRef<uint8_t> fileBytes;
+  ArrayRef<uint8_t> bytes;
   uint32_t memSize;
 };
 
@@ -42,8 +41,6 @@ Error convertElfToMem(const MemoryBuffer& elfBuffer, raw_ostream& os) {
     return binaryOrErr.takeError();
   }
 
-  // FIXME: can we point somewhere inside LLVM to express why the boilerplate looks like this?
-
   auto* elfObj = dyn_cast<object::ELF32LEObjectFile>(binaryOrErr->get());
   if (elfObj == nullptr) {
     return createStringError(inconvertibleErrorCode(), "expected a 32-bit little-endian ELF (e.g. riscv32)");
@@ -51,13 +48,13 @@ Error convertElfToMem(const MemoryBuffer& elfBuffer, raw_ostream& os) {
 
   const object::ELFFile<object::ELF32LE>& elfFile = elfObj->getELFFile();
 
-  auto phdrsOrErr = elfFile.program_headers(); // FIXME: bad name
-  if (!phdrsOrErr) {
-    return phdrsOrErr.takeError();
+  auto progHeadersOrErr = elfFile.program_headers();
+  if (!progHeadersOrErr) {
+    return progHeadersOrErr.takeError();
   }
 
   std::vector<Segment> segments;
-  for (const auto& phdr : *phdrsOrErr) {
+  for (const auto& phdr : *progHeadersOrErr) {
     if (phdr.p_type != ELF::PT_LOAD || phdr.p_memsz == 0) {
       continue;
     }
@@ -67,27 +64,25 @@ Error convertElfToMem(const MemoryBuffer& elfBuffer, raw_ostream& os) {
       return bytesOrErr.takeError();
     }
 
-    segments.push_back({.addr = static_cast<uint32_t>(phdr.p_vaddr),
-                        .fileBytes = *bytesOrErr,
+    segments.push_back({.addr = static_cast<uint32_t>(phdr.p_vaddr), // FIXME: use p_paddr instead?
+                        .bytes = *bytesOrErr,
                         .memSize = static_cast<uint32_t>(phdr.p_memsz)});
   }
 
   if (segments.empty()) {
-    return createStringError(inconvertibleErrorCode(), "no loadable (PT_LOAD) segments found");
+    return createStringError("no loadable (PT_LOAD) segments found");
   }
 
-  llvm::sort(segments, [](const Segment& lhs, const Segment& rhs) { return lhs.addr < rhs.addr; });
-
-  for (size_t i = 0; i < segments.size(); ++i) {
-    if (segments[i].addr % 4 != 0) {
-      std::string message; // FIXME: not possible with Twine?
-      raw_string_ostream(message) << format("segment at address 0x%08X is not word (4-byte) aligned", segments[i].addr);
-      return createStringError(inconvertibleErrorCode(), message);
+  // gABI compliant ELF should satisfy the below checks.
+  uint64_t minNextAddr = 0;
+  for (const Segment& seg : segments) {
+    if (seg.addr % 4 != 0) {
+      return createStringError("segment at address 0x%08X is not word (4-byte) aligned", seg.addr);
     }
-    if (i > 0 && segments[i].addr < segments[i - 1].addr + segments[i - 1].memSize) {
-      // FIXME: can this happen? If yes, why? Why do *we* check it *here*?
-      return createStringError(inconvertibleErrorCode(), "overlapping loadable segments");
+    if (seg.addr < minNextAddr) {
+      return createStringError("loadable segments are not in ascending, non-overlapping address order");
     }
+    minNextAddr = uint64_t{seg.addr} + seg.memSize;
   }
 
   std::optional<uint32_t> nextExpectedAddr;
@@ -100,7 +95,7 @@ Error convertElfToMem(const MemoryBuffer& elfBuffer, raw_ostream& os) {
       uint32_t word = 0;
       for (uint32_t b = 0; b < 4; ++b) {
         uint32_t idx = off + b;
-        uint8_t byte = idx < seg.fileBytes.size() ? seg.fileBytes[idx] : 0;
+        uint8_t byte = idx < seg.bytes.size() ? seg.bytes[idx] : 0;
         word |= static_cast<uint32_t>(byte) << (8 * b);
       }
       os << format("%08X\n", word);
