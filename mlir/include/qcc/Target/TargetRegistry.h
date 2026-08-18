@@ -13,12 +13,12 @@
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include <functional>
 
 namespace llvm {
-class Module;
-class raw_pwrite_stream;
+class Module; // Exception to include-by-default: llvm/IR/Module.h is huge; cf. mlir/Target/LLVMIR/Export.h.
 } // namespace llvm
 
 namespace qcc {
