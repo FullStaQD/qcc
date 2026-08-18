@@ -10,11 +10,8 @@
 #pragma once
 
 #include "llvm/Support/Error.h"
-
-namespace llvm { // FIXME: best practice?
-class MemoryBuffer;
-class raw_ostream;
-} // namespace llvm
+#include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/raw_ostream.h"
 
 namespace qcc {
 
