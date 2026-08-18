@@ -1,8 +1,8 @@
 // RUN: qcc --list-targets | FileCheck %s --check-prefix=CHECK-LIST
-// RUN: qcc --target=hisep-q --compile-to=mlir %s | FileCheck %s --check-prefix=CHECK-MLIR
-// RUN: qcc --target=hisep-q --compile-to=native %s -o - | FileCheck %s --check-prefix=CHECK-ASM
+// RUN: qcc --target=hisepq --compile-to=mlir %s | FileCheck %s --check-prefix=CHECK-MLIR
+// RUN: qcc --target=hisepq --compile-to=native %s -o - | FileCheck %s --check-prefix=CHECK-ASM
 
-// RUN: qcc --target=hisep-q --compile-to=native --binary %s -o %t.o
+// RUN: qcc --target=hisepq --compile-to=native --binary %s -o %t.o
 // RUN: llvm-objdump -d %t.o | FileCheck %s --check-prefix=CHECK-OBJ
 
 // FIXME: there are too many things going on in this one file.
@@ -13,8 +13,7 @@ func.func @main() attributes { qcc.entry_point } {
     return
 }
 
-// FIXME: calling hisepq (not hisep-q)?
-// CHECK-LIST: hisep-q - HiSEP-Q QISA target
+// CHECK-LIST: hisepq - HiSEP-Q QISA target
 
 // The HiSEP-Q lowering runs the full QIR pipeline and then replaces the QIS
 // call ops with RISC-V QV intrinsics.

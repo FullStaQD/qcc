@@ -7,7 +7,7 @@
  *
  * ===----------------------------------------------------------------------===
  *
- * Linker script for the --target=hisep-q output of qcc.
+ * Linker script for the --target=hisepq output of qcc.
  *
  * The HiSEP-Q simulator loads the image into a single flat memory, so the
  * layout only has to satisfy two constraints: the core fetches from
