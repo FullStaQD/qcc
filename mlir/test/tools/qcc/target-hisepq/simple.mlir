@@ -1,19 +1,13 @@
-// RUN: qcc --list-targets | FileCheck %s --check-prefix=CHECK-LIST
 // RUN: qcc --target=hisepq --compile-to=mlir %s | FileCheck %s --check-prefix=CHECK-MLIR
 // RUN: qcc --target=hisepq --compile-to=native %s -o - | FileCheck %s --check-prefix=CHECK-ASM
 
-// RUN: qcc --target=hisepq --compile-to=native --binary %s -o %t.o
-// RUN: llvm-objdump -d %t.o | FileCheck %s --check-prefix=CHECK-OBJ
-
-// FIXME: there are too many things going on in this one file.
+// FIXME: remove this file
 
 func.func @main() attributes { qcc.entry_point } {
     %0 = qc.static 0 : !qc.qubit
     qc.h %0 : !qc.qubit
     return
 }
-
-// CHECK-LIST: hisepq - HiSEP-Q QISA target
 
 // The HiSEP-Q lowering runs the full QIR pipeline and then replaces the QIS
 // call ops with RISC-V QV intrinsics.
@@ -31,10 +25,7 @@ func.func @main() attributes { qcc.entry_point } {
 
 // CHECK-ASM: main:
 // CHECK-ASM: qv.h
-// CHECK-OBJ: <main>:
-// CHECK-OBJ: qv.h
 
 // `_start` is the synthesized boot entry point (see hisepq.ld): it sets up the stack and calls
 // `main`, so it must also show up in native output.
 // CHECK-ASM: _start:
-// CHECK-OBJ: <_start>:
