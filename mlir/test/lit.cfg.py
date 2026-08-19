@@ -15,7 +15,7 @@ config.name = "QCC_MLIR_COMPILER"
 config.test_format = lit.formats.ShTest(execute_external=False)
 
 # suffixes: A list of file extensions to treat as test files.
-config.suffixes = [".mlir"]
+config.suffixes = [".mlir", ".test"]
 
 # test_source_root: The root path where tests are located.
 config.test_source_root = Path(__file__).parent
@@ -65,6 +65,9 @@ for candidate_dir in candidate_dirs:
 
 if not found:
     lit_config.fatal(f"Could not find qcc and qcc-opt anywhere under {base_tool_dir}.")
+
+if config.enable_hisepq:
+    llvm_config.add_tool_substitutions(["hisepq-elf2mem"], [str(candidate_dir)])
 
 # If `qir-runner` is not already available in the environment, fall back to
 # running it ephemerally via `uvx`.
