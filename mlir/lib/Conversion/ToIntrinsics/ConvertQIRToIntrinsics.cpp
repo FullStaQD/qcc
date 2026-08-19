@@ -91,6 +91,9 @@ static std::optional<int64_t> getQubitIndexFromPtr(Value ptrValue) {
 /// The index is inserted into lane 0 of a poison vector. The `nxv8i8` element
 /// type matches the HiSEP-Q RISC-V backend's QV instruction-selection patterns.
 ///
+/// The poison base is deliberate. We emit every QV intrinsic with `vl = 1`, so
+/// only lane 0 is ever read and the lanes above it are genuinely don't-care.
+///
 /// `index` must fit in an unsigned i8 (callers are expected to have validated
 /// this already and to report a compiler error otherwise).
 static Value qubitIndexToVec(OpBuilder& builder, Location loc, int64_t index) {
@@ -341,7 +344,8 @@ private:
   }
 
   /// Emits `_start`, which supersedes `entryPoint` as the entry point of the hardware.
-  static void emitStartFunc(ModuleOp moduleOp, LLVM::LLVMFuncOp entryPoint) { // FIXME: in-depth understanding of this
+  static void emitStartFunc(ModuleOp moduleOp,
+                            LLVM::LLVMFuncOp entryPoint) { // FIXME: in-depth understanding of this, and testing.
     OpBuilder builder(moduleOp.getContext());
     builder.setInsertionPointToEnd(moduleOp.getBody());
     Location loc = entryPoint.getLoc();

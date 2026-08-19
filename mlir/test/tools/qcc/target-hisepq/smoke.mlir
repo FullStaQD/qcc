@@ -25,28 +25,28 @@ func.func @main() attributes { qcc.entry_point } {
     return
 }
 
-// FIXME: this has to be polished
+// CHECK:      main:
+// CHECK-DAG:     vsetvli  {{.*}}, zero, e8, m1, ta, ma
+// CHECK-DAG:     vmv.s.x  [[V1:v[0-9]+]], zero
+// CHECK-DAG:     vmv.v.i  [[V2:v[0-9]+]], 1
+// CHECK-DAG:     vmv.v.i  [[V3:v[0-9]+]], 2
+// CHECK-DAG:     li       [[AVL:a[0-9]+]], 1
+// CHECK:         vsetvli  zero, [[AVL]], e8, m1, ta, ma
+// CHECK:         qv.h     [[V1]], zero, 0
+// CHECK:         qv.cx    [[V1]], [[V2]], 0
+// CHECK:         qv.cx    [[V2]], [[V3]], 0
+// CHECK-DAG:     qv.mz    [[V1]], zero, 0
+// CHECK-DAG:     qv.mz    [[V2]], zero, 0
+// CHECK-DAG:     qv.mz    [[V3]], zero, 0
+// CHECK:         ret
 
-// CHECK: main:
-// CHECK:	vsetvli	a0, zero, e8, m1, ta, ma
-// CHECK:	vmv.s.x	v8, zero
-// CHECK:	li	a0, 1
-// CHECK:	vmv.v.i	v9, 1
-// CHECK:	vmv.v.i	v10, 2
-// CHECK:	vsetvli	zero, a0, e8, m1, ta, ma
-// CHECK:	qv.h	v8, zero, 0
-// CHECK:	qv.cx	v8, v9, 0
-// CHECK:	qv.cx	v9, v10, 0
-// CHECK:	qv.mz	v8, zero, 0
-// CHECK:	qv.mz	v9, zero, 0
-// CHECK:	qv.mz	v10, zero, 0
-// CHECK:	ret
-
-// CHECK: _start:
-// CHECK: 	lui	a0, %hi(__stack_top)
-// CHECK: 	addi	a0, a0, %lo(__stack_top)
-// CHECK: 	lui	a1, %hi(main)
-// CHECK: 	addi	a1, a1, %lo(main)
-// CHECK: 	#APP
-// CHECK: 	mv	sp, a0
-// CHECK: 	jalr	a1
+// CHECK:      _start:
+// CHECK-NEXT:    lui     [[R1:a[0-9]+]], %hi(__stack_top)
+// CHECK-NEXT:    addi    [[R1]], [[R1]], %lo(__stack_top)
+// CHECK-NEXT:    lui     [[R2:a[0-9]+]], %hi(main)
+// CHECK-NEXT:    addi    [[R2]], [[R2]], %lo(main)
+// CHECK:         mv      sp, [[R1]]
+// CHECK:         jalr    [[R2]]
+// TODO: infinite loop correct?
+// CHECK:         [[LOOP:\.Ltmp[0-9]+]]:
+// CHECK:         j     [[LOOP]]
