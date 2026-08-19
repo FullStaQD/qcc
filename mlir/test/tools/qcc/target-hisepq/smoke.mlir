@@ -25,6 +25,9 @@ func.func @main() attributes { qcc.entry_point } {
     return
 }
 
+// Record that we need the HiSEP-Q vendor extension (RISC-V).
+// CHECK:      .attribute 5, "{{.*}}_xqv0p1"
+
 // CHECK:      main:
 // CHECK-DAG:     vsetvli  {{.*}}, zero, e8, m1, ta, ma
 // CHECK-DAG:     vmv.s.x  [[V1:v[0-9]+]], zero
@@ -39,6 +42,10 @@ func.func @main() attributes { qcc.entry_point } {
 // CHECK-DAG:     qv.mz    [[V2]], zero, 0
 // CHECK-DAG:     qv.mz    [[V3]], zero, 0
 // CHECK:         ret
+
+// Two preconditions that the linker script hisepq.ld depends on silently.
+// CHECK:      .section .text._start,"ax",@progbits
+// CHECK:      .globl  _start
 
 // CHECK:      _start:
 // CHECK-NEXT:    lui     [[R1:a[0-9]+]], %hi(__stack_top)
