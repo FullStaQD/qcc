@@ -290,7 +290,7 @@ protected:
       return signalPassFailure();
     }
 
-    removeUnusedQIRDeclarations();
+    removeUnusedQIRSymbols();
 
     FailureOr<LLVM::LLVMFuncOp> entryPoint = getEntryPoint(moduleOp);
     if (failed(entryPoint)) {
@@ -327,10 +327,13 @@ private:
     return entryPoint;
   }
 
-  /// Removes QIR function declarations that have no remaining uses.
-  void removeUnusedQIRDeclarations() {
+  /// Removes QIR function declarations and globals that have no remaining uses.
+  ///
+  /// Besides the `__quantum__*` declarations this also drops the dummy output
+  /// label.
+  void removeUnusedQIRSymbols() {
     ModuleOp moduleOp = getOperation();
-    SmallVector<LLVM::LLVMFuncOp> toErase;
+    SmallVector<Operation*> toErase;
 
     moduleOp.walk([&](LLVM::LLVMFuncOp funcOp) {
       if (isQIRSymbol(funcOp.getName()) && SymbolTable::symbolKnownUseEmpty(funcOp, moduleOp)) {
@@ -338,8 +341,15 @@ private:
       }
     });
 
-    for (auto funcOp : toErase) {
-      funcOp.erase();
+    moduleOp.walk([&](LLVM::GlobalOp globalOp) {
+      if (globalOp.getSymName() == qcc::qirDummyLabelGlobalSymbolName &&
+          SymbolTable::symbolKnownUseEmpty(globalOp, moduleOp)) {
+        toErase.push_back(globalOp);
+      }
+    });
+
+    for (auto* op : toErase) {
+      op->erase();
     }
   }
 
