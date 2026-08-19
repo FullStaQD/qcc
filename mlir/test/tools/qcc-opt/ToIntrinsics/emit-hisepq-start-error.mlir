@@ -1,8 +1,5 @@
 // RUN: qcc-opt %s -emit-hisepq-start --split-input-file --verify-diagnostics
 
-// The hardware boots at a single address, so at most one function may be tagged
-// as the entry point.
-
 llvm.func @first_entry() attributes { passthrough = ["entry_point"] } {
   llvm.return
 }
@@ -13,8 +10,6 @@ llvm.func @second_entry() attributes { passthrough = ["entry_point"] } {
 }
 
 // -----
-
-// ... and at least one, as there is nothing to boot into otherwise.
 
 // expected-error @below {{did not find any entry point}}
 module {

@@ -15,6 +15,9 @@ llvm.func @__quantum__qis__x__body(!llvm.ptr) -> ()
 llvm.func @__quantum__qis__cx__body(!llvm.ptr, !llvm.ptr) -> ()
 llvm.func @__quantum__qis__mz__body(!llvm.ptr, !llvm.ptr) -> ()
 
+// CHECK-NOT: llvm.func @__quantum__rt__{{.*}}
+// CHECK-NOT: llvm.func @__quantum__qis__{{.*}}
+
 llvm.mlir.global internal constant @".qir_dummy_label"("dummy_label\00") {addr_space = 0 : i32}
 
 llvm.func @single_qubit_gates() {
@@ -108,12 +111,3 @@ llvm.func @rt_calls_erased() {
 // CHECK-NOT:     llvm.call @__quantum__rt__initialize
 // CHECK-NOT:     llvm.call @__quantum__rt__bool_record_output
 // CHECK:         llvm.call_intrinsic "llvm.riscv.qv.x"
-
-// The eagerly-declared QIR runtime/QIS declarations are all removed once unused.
-// CHECK-NOT: llvm.func @__quantum__qis__h__body
-// CHECK-NOT: llvm.func @__quantum__qis__x__body
-// CHECK-NOT: llvm.func @__quantum__qis__cx__body
-// CHECK-NOT: llvm.func @__quantum__qis__mz__body
-// CHECK-NOT: llvm.func @__quantum__rt__initialize
-// CHECK-NOT: llvm.func @__quantum__rt__read_result
-// CHECK-NOT: llvm.func @__quantum__rt__bool_record_output
