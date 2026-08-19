@@ -18,6 +18,7 @@
 #include "qcc/Conversion/ToIntrinsics/ToIntrinsics.h"
 #include "qcc/Target/QIR/QIRTarget.h"
 
+#include "llvm/IR/Function.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
 #include "llvm/MC/TargetRegistry.h"
@@ -66,6 +67,12 @@ bool emitNativeHiSEPQ(llvm::Module& module, llvm::raw_pwrite_stream& os, const N
   targetOptions.FunctionSections = true; // FIXME: better understand this.
   std::unique_ptr<llvm::TargetMachine> targetMachine(
       theTarget->createTargetMachine(triple, /*cpu=*/"", attrsStr, targetOptions, std::nullopt));
+
+  // Nothing unwinds on HiSEP-Q. Without `nounwind` LLVM emits things like
+  // `.cfi_startproc` (which is garbage for us).
+  for (llvm::Function& func : module) {
+    func.setDoesNotThrow(); // adds nounwind attribute
+  }
 
   module.setDataLayout(targetMachine->createDataLayout());
   module.setTargetTriple(triple);
