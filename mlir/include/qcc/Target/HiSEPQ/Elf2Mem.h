@@ -30,6 +30,6 @@ namespace qcc {
 /// 000005B7
 /// ...
 /// ```
-llvm::Error convertElfToMem(const llvm::MemoryBuffer& elfBuffer, llvm::raw_ostream& os);
+llvm::Error convertElfToHiSEPQMem(const llvm::MemoryBuffer& elfBuffer, llvm::raw_ostream& os);
 
 } // namespace qcc
