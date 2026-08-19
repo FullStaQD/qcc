@@ -1,6 +1,8 @@
 // RUN: qcc --compile-to=mlir -o - %s | FileCheck %s
 // RUN: %if hisepq %{ qcc --target=hisepq --compile-to=mlir -o - %s | FileCheck %s --check-prefix=CHECK-INTRINSICS %}
 
+// FIXME: remove this file
+
 /// Prepare GHZ state without control flow.
 func.func @main() attributes { qcc.entry_point } {
     %0 = qc.static 0 : !qc.qubit
