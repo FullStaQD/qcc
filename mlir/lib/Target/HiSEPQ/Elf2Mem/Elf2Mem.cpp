@@ -7,7 +7,7 @@
 //
 // ===----------------------------------------------------------------------===//
 
-#include "qcc/Support/Elf2Mem.h"
+#include "qcc/Target/HiSEPQ/Elf2Mem.h"
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/BinaryFormat/ELF.h"
@@ -35,7 +35,7 @@ struct Segment {
 
 namespace qcc {
 
-Error convertElfToMem(const MemoryBuffer& elfBuffer, raw_ostream& os) {
+Error convertElfToHiSEPQMem(const MemoryBuffer& elfBuffer, raw_ostream& os) {
   Expected<std::unique_ptr<object::Binary>> binaryOrErr = object::createBinary(elfBuffer.getMemBufferRef());
   if (!binaryOrErr) {
     return binaryOrErr.takeError();
