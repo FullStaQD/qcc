@@ -12,8 +12,9 @@
 // demo/verilator). See qcc/Target/HiSEPQ/Elf2Mem.h for the conversion itself;
 // this is a thin CLI wrapper around it. It is the last step of the HiSEP-Q
 // pipeline: `qcc --compile-to=native --binary` emits an object file, `ld` links
-// it against mlir/lib/Target/HiSEPQ/hisepq.ld into an ELF, and hisepq-elf2mem
-// turns that ELF into the .mem image (see mlir/lib/Target/HiSEPQ/README.md).
+// it against mlir/lib/Target/HiSEPQ/Scripts/hisepq.ld into an ELF, and
+// hisepq-elf2mem turns that ELF into the .mem image (see
+// mlir/lib/Target/HiSEPQ/README.md).
 //
 // ===----------------------------------------------------------------------===//
 
