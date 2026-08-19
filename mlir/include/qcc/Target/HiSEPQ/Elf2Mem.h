@@ -21,7 +21,11 @@ namespace qcc {
 ///
 /// This function walks the ELF's loadable segments in address order and dumps
 /// their bytes as 32-bit hex words, emitting an `@<address>` line whenever a
-/// segment does not immediately follow the previous one. Output looks like this
+/// segment does not immediately follow the previous one. A segment is dumped up
+/// to its `p_memsz`, so the SHT_NOBITS tail (`.bss`) is materialized as zero
+/// words -- nothing zeroes it at run time.
+///
+/// Output looks like this
 ///
 /// ```
 /// @00000020
