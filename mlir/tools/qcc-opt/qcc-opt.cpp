@@ -99,6 +99,7 @@ int main(int argc, char** argv) {
   qcc::registerConvertMemrefToStaticQubits();
   mlir::registerConvertFuncToLLVMPass();
   qcc::registerConvertQIRToIntrinsics();
+  qcc::registerEmitHiSEPQStart();
 
   // Extension registration
   mlir::arith::registerBufferizableOpInterfaceExternalModels(registry);

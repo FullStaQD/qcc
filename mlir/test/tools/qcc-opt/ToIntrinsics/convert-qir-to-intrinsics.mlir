@@ -17,13 +17,7 @@ llvm.func @__quantum__qis__mz__body(!llvm.ptr, !llvm.ptr) -> ()
 
 llvm.mlir.global internal constant @".qir_dummy_label"("dummy_label\00") {addr_space = 0 : i32}
 
-// FIXME: the exactly-one-entrypoint rule is mostly a burden for this pass.
-// Factor the pass into two. Only the _start insertion should require this rule.
-
-// `single_qubit_gates` is the module's sole entry point. The pass requires
-// exactly one, generates `_start` from it (checked at the end of this file),
-// and would error otherwise.
-llvm.func @single_qubit_gates() attributes { passthrough = ["entry_point"] } {
+llvm.func @single_qubit_gates() {
   %c0 = llvm.mlir.constant(0 : i64) : i64
   %q0 = llvm.inttoptr %c0 : i64 to !llvm.ptr
   %c1 = llvm.mlir.constant(1 : i64) : i64
@@ -123,7 +117,3 @@ llvm.func @rt_calls_erased() {
 // CHECK-NOT: llvm.func @__quantum__rt__initialize
 // CHECK-NOT: llvm.func @__quantum__rt__read_result
 // CHECK-NOT: llvm.func @__quantum__rt__bool_record_output
-
-// The pass appends `_start`, which supersedes the entry point and jumps to it.
-// CHECK-LABEL: llvm.func @_start()
-// CHECK:         llvm.mlir.addressof @single_qubit_gates

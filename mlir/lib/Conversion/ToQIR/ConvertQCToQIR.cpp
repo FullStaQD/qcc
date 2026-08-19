@@ -7,6 +7,7 @@
 //
 // ===----------------------------------------------------------------------===//
 
+#include "qcc/Constants.h"
 #include "qcc/Conversion/ToQIR/Constants.h"
 #include "qcc/Dialect/Aux_/IR/Aux_.h"
 
@@ -338,7 +339,7 @@ protected:
     auto* ctx = funcOp.getContext();
 
     // TODO: assume that only entrypoints contain quantum ops.
-    if (!funcOp->hasAttr("qcc.entry_point")) {
+    if (!funcOp->hasAttr(qcc::entryPointAttrName)) {
       return;
     }
 
@@ -425,11 +426,11 @@ private:
 
     // Assuming numQubits and numResults are variables
     const SmallVector<Attribute> passthrough = {
-        builder.getStringAttr("entry_point"), getKV("output_labeling_schema", "schema_id"),
+        builder.getStringAttr(qcc::qirEntryPointPassthrough), getKV("output_labeling_schema", "schema_id"),
         getKV("qir_profiles", "adaptive_profile"), getKV("required_num_qubits", std::to_string(requiredNumQubits)),
         getKV("required_num_results", std::to_string(requiredNumResults))};
 
-    funcOp->setAttr("passthrough", builder.getArrayAttr(passthrough));
+    funcOp->setAttr(qcc::passthroughAttrName, builder.getArrayAttr(passthrough));
 
     return success();
   }
