@@ -15,3 +15,13 @@ ld.lld -T mlir/lib/Target/HiSEPQ/Scripts/hisepq.ld out.o -o out.elf
 # Convert to memory image for simulator.
 hisepq-elf2mem out.elf -o out.mem
 ```
+
+## Why we ship these files
+
+Both the linker script and `hisepq-elf2mem` really belong to HiSEP-Q rather than
+to the compiler. We carry them because HiSEP-Q ships no BSP (Board Support
+Package).
+
+TODO: Once HiSEP-Q ships a crt0, qcc emits a plain `main`, drops the `_start`
+synthesis, and both files leave this tree. Our future compiler driver likely
+gains a `--sysroot`-style override so an external BSP can take over.
