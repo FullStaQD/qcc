@@ -58,6 +58,9 @@ def EmitHiSEPQStart : Pass<"emit-hisepq-start", "mlir::ModuleOp"> {
       `__stack_top`, jumps to the original entry point and loops forever when
       that returns.
 
+      TODO: Check with HiSEP-Q Team if looping forever is the only thing we can
+      do at the end.
+
       Both symbol names are contractual with the HiSEP-Q linker script
       (`hisepq.ld`), which declares `ENTRY(_start)`, pulls `.text._start` to
       the boot address and provides `__stack_top`.

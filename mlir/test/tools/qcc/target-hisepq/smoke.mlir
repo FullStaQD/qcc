@@ -54,6 +54,6 @@ func.func @main() attributes { qcc.entry_point } {
 // CHECK-NEXT:    addi    [[R2]], [[R2]], %lo(main)
 // CHECK:         mv      sp, [[R1]]
 // CHECK:         jalr    [[R2]]
-// TODO: infinite loop correct?
+// Infinite loop:
 // CHECK:         [[LOOP:\.Ltmp[0-9]+]]:
 // CHECK:         j     [[LOOP]]
