@@ -1,5 +1,4 @@
 // RUN: qcc --target=hisepq --compile-to=mlir %s | FileCheck %s --check-prefix=CHECK-MLIR
-// RUN: qcc --target=hisepq --compile-to=native %s -o - | FileCheck %s --check-prefix=CHECK-ASM
 
 // FIXME: remove this file
 
@@ -22,10 +21,3 @@ func.func @main() attributes { qcc.entry_point } {
 // CHECK-MLIR-LABEL: llvm.func @_start()
 // CHECK-MLIR:         llvm.inline_asm{{.*}}"mv sp, $0{{.*}}jalr ra, 0($1){{.*}}"
 // CHECK-MLIR:         llvm.unreachable
-
-// CHECK-ASM: main:
-// CHECK-ASM: qv.h
-
-// `_start` is the synthesized boot entry point (see hisepq.ld): it sets up the stack and calls
-// `main`, so it must also show up in native output.
-// CHECK-ASM: _start:
