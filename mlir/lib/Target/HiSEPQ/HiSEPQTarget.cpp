@@ -36,10 +36,9 @@
 namespace qcc {
 
 void addLoweringPassesHiSEPQ(mlir::PassManager& pm) {
-  // HiSEP-Q shares the full QIR lowering, then replaces the QIS call ops with
-  // RISC-V QV intrinsics so the module can be emitted as native QISA.
   addLoweringPassesQIR(pm);
   pm.addPass(qcc::createConvertQIRToIntrinsics());
+  pm.addPass(qcc::createEmitHiSEPQStart());
 }
 
 bool emitNativeHiSEPQ(llvm::Module& module, llvm::raw_pwrite_stream& os, const NativeCodegenOptions& options) {

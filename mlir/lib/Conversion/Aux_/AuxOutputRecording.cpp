@@ -9,6 +9,7 @@
 
 #include "qcc/Conversion/Aux_/AuxOutputRecording.h" // IWYU pragma: keep
 
+#include "qcc/Constants.h"
 #include "qcc/Dialect/Aux_/IR/Aux_.h"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -50,7 +51,7 @@ protected:
     auto module = cast<mlir::ModuleOp>(getOperation());
 
     auto walkResult = module.walk([&](func::FuncOp funcOp) {
-      if (!funcOp->hasAttr("qcc.entry_point")) {
+      if (!funcOp->hasAttr(qcc::entryPointAttrName)) {
         return WalkResult::advance();
       }
 

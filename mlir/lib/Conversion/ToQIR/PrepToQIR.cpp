@@ -7,6 +7,7 @@
 //
 // ===----------------------------------------------------------------------===//
 
+#include "qcc/Constants.h"
 #include "qcc/Conversion/ToQIR/Constants.h"
 #include "qcc/Conversion/ToQIR/ToQIR.h"
 
@@ -45,9 +46,9 @@ protected:
     // QIS:
     auto fnMZ = createVoidFnDecl(qcc::qirQisMZ, 2);
     fnMZ.setArgAttr(1, "llvm.writeonly", builder.getUnitAttr());
-    fnMZ->setAttr("passthrough", builder.getStrArrayAttr({"irreversible"}));
+    fnMZ->setAttr(qcc::passthroughAttrName, builder.getStrArrayAttr({"irreversible"}));
     auto fnReset = createVoidFnDecl(qcc::qirQisReset, 1);
-    fnReset->setAttr("passthrough", builder.getStrArrayAttr({"irreversible"}));
+    fnReset->setAttr(qcc::passthroughAttrName, builder.getStrArrayAttr({"irreversible"}));
     createVoidFnDecl(qcc::qirQisH, 1);
     createVoidFnDecl(qcc::qirQisX, 1);
     createVoidFnDecl(qcc::qirQisS, 1);
