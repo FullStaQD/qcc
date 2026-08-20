@@ -9,7 +9,7 @@
 
 include "mlir/Pass/PassBase.td"
 
-def ConvertQIRToIntrinsics : Pass<"convert-qir-to-intrinsics", "mlir::ModuleOp"> { // FIXME: ...to-hisepq-intrinsics ?
+def ConvertQIRToHiSEPQIntrinsics : Pass<"convert-qir-to-hisepq-intrinsics", "mlir::ModuleOp"> {
   let summary = "Replaces QIR QIS call ops with HiSEP-Q intrinsics.";
 
   let description = [{

@@ -37,7 +37,7 @@ static bool isEntryPointFunc(LLVM::LLVMFuncOp funcOp) {
 namespace qcc {
 
 #define GEN_PASS_DEF_EMITHISEPQSTART
-#include "qcc/Conversion/ToIntrinsics/ToIntrinsics.h.inc"
+#include "qcc/Conversion/ToHiSEPQ/ToHiSEPQ.h.inc"
 
 namespace {
 

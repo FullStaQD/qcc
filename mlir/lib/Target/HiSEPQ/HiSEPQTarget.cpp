@@ -15,7 +15,7 @@
 
 #include "qcc/Target/HiSEPQ/HiSEPQTarget.h"
 
-#include "qcc/Conversion/ToIntrinsics/ToIntrinsics.h"
+#include "qcc/Conversion/ToHiSEPQ/ToHiSEPQ.h"
 #include "qcc/Target/QIR/QIRTarget.h"
 
 #include "llvm/IR/Function.h"
@@ -37,7 +37,7 @@ namespace qcc {
 
 void addLoweringPassesHiSEPQ(mlir::PassManager& pm) {
   addLoweringPassesQIR(pm);
-  pm.addPass(qcc::createConvertQIRToIntrinsics());
+  pm.addPass(qcc::createConvertQIRToHiSEPQIntrinsics());
   pm.addPass(qcc::createEmitHiSEPQStart());
 }
 

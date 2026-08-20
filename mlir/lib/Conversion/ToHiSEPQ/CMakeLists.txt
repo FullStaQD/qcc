@@ -1,10 +1,10 @@
 file(GLOB CONVERSION_SOURCES *.cpp)
 
 add_mlir_conversion_library(
-  QCCToIntrinsics
+  QCCToHiSEPQ
   ${CONVERSION_SOURCES}
   DEPENDS
-  QCCToIntrinsicsIncGen
+  QCCToHiSEPQIncGen
   QCCAuxDialectIncGen
   QCCAuxOpsIncGen
   LINK_LIBS
