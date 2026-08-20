@@ -1,6 +1,6 @@
 # REQUIRES: hisepq
 
-# The diagnostics the CLI wrapper itself produces (see mlir/tools/hisepq-elf2mem/hisepq-elf2mem.cpp).
+# The diagnostics the CLI wrapper hisepq-elf2mem itself produces.
 
 # An unreadable input is reported with its name
 # RUN: not hisepq-elf2mem %t.does-not-exist.elf 2>&1 | FileCheck %s --check-prefix=CHECK-NO-INPUT -DMSG=%errc_ENOENT
