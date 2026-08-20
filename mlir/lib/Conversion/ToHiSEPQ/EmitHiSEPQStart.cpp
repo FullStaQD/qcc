@@ -67,9 +67,9 @@ private:
         continue;
       }
       if (entryPoint) {
-        return funcOp.emitError("expected at most one function tagged as the entry point, but found '")
-               << entryPoint.getName() << "' and '" << funcOp.getName()
-               << "'"; // FIXME: if funcOp emits the error do we really need to print the name?
+        InFlightDiagnostic diag = funcOp.emitOpError("expected at most one function tagged as the entry point");
+        diag.attachNote(entryPoint.getLoc()) << "previous entry point declared here";
+        return diag;
       }
       entryPoint = funcOp;
     }
