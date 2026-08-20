@@ -20,14 +20,41 @@
 
 #include "qcc/Target/HiSEPQ/Elf2Mem.h"
 
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/ToolOutputFile.h"
+#include "llvm/Support/WithColor.h"
+#include "llvm/Support/raw_ostream.h"
 
 namespace cl = llvm::cl;
 
+/// The name this tool was invoked as; prefixes every diagnostic.
+static llvm::StringRef toolName;
+
+/// Reports `err` on stderr as `<tool>: error: '<file>': <message>`.
+///
+/// This follows the convention of the LLVM binary utilities (compare
+/// llvm-readobj's reportError() or llvm-dwarfutil).
+static void reportError(llvm::StringRef file, llvm::Error err) {
+  // The .mem image goes to stdout by default, so flush it first to avoid
+  // interleaving the error message with it.
+  llvm::outs().flush();
+
+  if (file == "-") {
+    file = "<stdin>";
+  }
+
+  llvm::handleAllErrors(llvm::createFileError(file, std::move(err)), [](const llvm::ErrorInfoBase& info) {
+    llvm::WithColor::error(llvm::errs(), toolName) << info.message() << "\n";
+  });
+}
+
 int main(int argc, char** argv) {
+  toolName = argv[0]; // NOLINT(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+
   static cl::OptionCategory elf2memCategory("hisepq-elf2mem options");
 
   const cl::opt<std::string> inputFilename(cl::Positional, cl::desc("<elf-file>"), cl::Required,
@@ -35,27 +62,24 @@ int main(int argc, char** argv) {
   const cl::opt<std::string> outputFilename("o", cl::desc("Output .mem file"), cl::value_desc("filename"),
                                             cl::init("-"), cl::cat(elf2memCategory));
 
-  // FIXME: this message looks a bit technical (especially the "$readmemh" thingy).
   cl::ParseCommandLineOptions(argc, argv,
                               "hisepq-elf2mem - convert a HiSEP-Q ELF image into a Verilog $readmemh memory file\n");
 
   llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> bufferOrErr = llvm::MemoryBuffer::getFileOrSTDIN(inputFilename);
-  if (std::error_code ec = bufferOrErr.getError()) {
-    llvm::errs() << inputFilename << ": " << ec.message() << "\n";
+  if (const std::error_code ec = bufferOrErr.getError()) {
+    reportError(inputFilename, llvm::errorCodeToError(ec));
     return 1;
   }
-
-  // FIXME: on error reporting: is there a better way than just doing llvm::errs()?
 
   std::error_code ec;
   llvm::ToolOutputFile outFile(outputFilename, ec, llvm::sys::fs::OF_Text);
   if (ec) {
-    llvm::errs() << outputFilename << ": " << ec.message() << "\n";
+    reportError(outputFilename, llvm::errorCodeToError(ec));
     return 1;
   }
 
-  if (auto err = qcc::convertElfToHiSEPQMem(**bufferOrErr, outFile.os())) {
-    llvm::errs() << inputFilename << ": " << llvm::toString(std::move(err)) << "\n";
+  if (llvm::Error err = qcc::convertElfToHiSEPQMem(**bufferOrErr, outFile.os())) {
+    reportError(inputFilename, std::move(err));
     return 1;
   }
 
