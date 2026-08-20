@@ -69,6 +69,10 @@ if not found:
 if config.enable_hisepq:
     llvm_config.add_tool_substitutions(["hisepq-elf2mem"], [str(candidate_dir)])
 
+# Tests opt in via `REQUIRES: lld`.
+if shutil.which("ld.lld", path=config.environment["PATH"]) is not None:
+    config.available_features.add("lld")
+
 # If `qir-runner` is not already available in the environment, fall back to
 # running it ephemerally via `uvx`.
 if shutil.which("qir-runner", path=config.environment["PATH"]) is None:
