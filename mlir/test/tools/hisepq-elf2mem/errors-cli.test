@@ -1,0 +1,18 @@
+# REQUIRES: hisepq
+
+# The diagnostics the CLI wrapper itself produces (see mlir/tools/hisepq-elf2mem/hisepq-elf2mem.cpp).
+
+# An unreadable input is reported with its name
+# RUN: not hisepq-elf2mem %t.does-not-exist.elf 2>&1 | FileCheck %s --check-prefix=CHECK-NO-INPUT -DMSG=%errc_ENOENT
+# CHECK-NO-INPUT: error: '{{.*}}.does-not-exist.elf': [[MSG]]
+
+# RUN: echo 'not an ELF' > %t.bin
+# RUN: not hisepq-elf2mem %t.bin -o %t.mem 2>&1 | FileCheck %s --check-prefix=CHECK-NOT-OBJECT
+# CHECK-NOT-OBJECT: error: '{{.*}}.bin': The file was not recognized as a valid object file
+
+# A failed run must not leave the output file behind
+# RUN: %python -c "import os, sys; sys.exit(os.path.exists(r'%t.mem'))"
+
+# An output file that cannot be created names the output, not the input.
+# RUN: not hisepq-elf2mem %t.bin -o %t.no-such-dir/out.mem 2>&1 | FileCheck %s --check-prefix=CHECK-NO-OUTPUT -DMSG=%errc_ENOENT
+# CHECK-NO-OUTPUT: error: '{{.*}}.no-such-dir{{[/\\]}}out.mem': [[MSG]]
