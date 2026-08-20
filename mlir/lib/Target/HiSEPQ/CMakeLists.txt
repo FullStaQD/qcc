@@ -18,6 +18,6 @@ add_mlir_library(
   LINK_LIBS
   MLIRPass
   QCCTargetQIR
-  QCCToIntrinsics)
+  QCCToHiSEPQ)
 
 add_subdirectory(Elf2Mem)

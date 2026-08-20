@@ -25,7 +25,7 @@ target_link_libraries(
           MLIRBufferizationTransforms
           QCCJaspToQC
           MLIRFuncToLLVM
-          QCCToIntrinsics
+          QCCToHiSEPQ
           QCCToQIR
           QCCAuxOutputRecording
           QCCAffineRaise

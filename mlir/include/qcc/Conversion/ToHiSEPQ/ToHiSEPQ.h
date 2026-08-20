@@ -14,9 +14,9 @@
 namespace qcc {
 
 #define GEN_PASS_DECL
-#include "qcc/Conversion/ToIntrinsics/ToIntrinsics.h.inc"
+#include "qcc/Conversion/ToHiSEPQ/ToHiSEPQ.h.inc"
 
 #define GEN_PASS_REGISTRATION
-#include "qcc/Conversion/ToIntrinsics/ToIntrinsics.h.inc"
+#include "qcc/Conversion/ToHiSEPQ/ToHiSEPQ.h.inc"
 
 } // namespace qcc

@@ -1,4 +1,4 @@
-// RUN: qcc-opt %s -convert-qir-to-intrinsics --split-input-file --verify-diagnostics
+// RUN: qcc-opt %s -convert-qir-to-hisepq-intrinsics --split-input-file --verify-diagnostics
 
 llvm.func @__quantum__qis__x__body(!llvm.ptr) -> ()
 

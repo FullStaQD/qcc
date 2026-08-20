@@ -252,13 +252,13 @@ struct RecordOutputLowering : public OpRewritePattern<LLVM::CallOp> {
 
 namespace qcc {
 
-#define GEN_PASS_DEF_CONVERTQIRTOINTRINSICS
-#include "qcc/Conversion/ToIntrinsics/ToIntrinsics.h.inc"
+#define GEN_PASS_DEF_CONVERTQIRTOHISEPQINTRINSICS
+#include "qcc/Conversion/ToHiSEPQ/ToHiSEPQ.h.inc"
 
 namespace {
 
-struct ConvertQIRToIntrinsics final : impl::ConvertQIRToIntrinsicsBase<ConvertQIRToIntrinsics> {
-  using ConvertQIRToIntrinsicsBase::ConvertQIRToIntrinsicsBase;
+struct ConvertQIRToHiSEPQIntrinsics final : impl::ConvertQIRToHiSEPQIntrinsicsBase<ConvertQIRToHiSEPQIntrinsics> {
+  using ConvertQIRToHiSEPQIntrinsicsBase::ConvertQIRToHiSEPQIntrinsicsBase;
 
 protected:
   void runOnOperation() override {

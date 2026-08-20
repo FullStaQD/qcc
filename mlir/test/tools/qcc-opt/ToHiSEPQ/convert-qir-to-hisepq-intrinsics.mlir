@@ -1,4 +1,4 @@
-// RUN: qcc-opt %s -convert-qir-to-intrinsics | FileCheck %s
+// RUN: qcc-opt %s -convert-qir-to-hisepq-intrinsics | FileCheck %s
 
 // Input: a module as produced by the ToQIR pipeline.
 // Each qubit is an `!llvm.ptr` obtained via `llvm.inttoptr` of a constant index.
