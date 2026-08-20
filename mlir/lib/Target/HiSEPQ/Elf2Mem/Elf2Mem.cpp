@@ -64,7 +64,7 @@ Error convertElfToHiSEPQMem(const MemoryBuffer& elfBuffer, raw_ostream& os) {
       return bytesOrErr.takeError();
     }
 
-    segments.push_back({.addr = static_cast<uint32_t>(phdr.p_vaddr), // FIXME: use p_paddr instead?
+    segments.push_back({.addr = static_cast<uint32_t>(phdr.p_vaddr),
                         .bytes = *bytesOrErr,
                         .memSize = static_cast<uint32_t>(phdr.p_memsz)});
   }
