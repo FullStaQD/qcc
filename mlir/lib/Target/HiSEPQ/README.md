@@ -25,3 +25,17 @@ Package).
 TODO: Once HiSEP-Q ships a crt0, qcc emits a plain `main`, drops the `_start`
 synthesis, and both files leave this tree. Our future compiler driver likely
 gains a `--sysroot`-style override so an external BSP can take over.
+
+## Simulating
+
+You can download a prebuilt simulator `sim_hisepq` with our
+`utils/provision-sim-hisepq` script. Then use it like so
+
+```shell
+# Run it on the RTL testbench:
+sim_hisepq +MEM_FILE=out.mem
+```
+
+Note that `sim_hisepq` exits 0 unconditionally -- even when it loads no memory
+image at all it still prints `RESULT: PASS`, having executed nothing. Judge a
+run by its instruction trace and event counters, not by its exit status.
