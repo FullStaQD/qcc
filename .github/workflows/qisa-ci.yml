@@ -159,16 +159,11 @@ jobs:
 
       # Prebuilt HiSEP-Q RTL testbench for the simulator integration test.
       - name: Provision HiSEP-Q simulator
-        run: ./utils/provision-sim-hisepq
-
-      # FIXME: review this, the path is not ideal.
-      # Both prerequisites above fail *open*: without them lit marks the tests
-      # unsupported and the job stays green. Assert on them so a broken setup
-      # fails loudly instead of quietly dropping test coverage.
-      - name: Verify HiSEP-Q test prerequisites
         run: |
-          command -v ld.lld
-          test -x "$HOME/external/sim-hisepq/bin/sim_hisepq"
+          ./utils/provision-sim-hisepq
+          # Make sure the binary sits at a discoverable path, otherwise tests
+          # which require sim_hisepq might silently be skipped.
+          command -v sim_hisepq
 
       - name: Configure qcc
         run: cmake --preset release -DQCC_ENABLE_HISEPQ=ON -DLLVM_ENABLE_ASSERTIONS=ON

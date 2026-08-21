@@ -5,12 +5,11 @@ else()
   set(QCC_ENABLE_HISEPQ_PY False)
 endif()
 
-# FIXME: review this
 if(QCC_ENABLE_HISEPQ)
   find_program(
     QCC_SIM_HISEPQ_EXECUTABLE
     NAMES sim_hisepq
-    HINTS "$ENV{HOME}/external/sim-hisepq/bin"
+    HINTS "$ENV{HOME}/.local/bin"
     DOC "Path to the prebuilt HiSEP-Q Verilator testbench (sim_hisepq)")
 endif()
 
