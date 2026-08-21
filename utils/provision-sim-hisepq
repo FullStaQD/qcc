@@ -8,17 +8,18 @@ ASSET_REPO=FullStaQD/prebuilt-artifacts
 # FIXME: reconsider this
 PREFIX_DEFAULT=$HOME/external/sim-hisepq
 
-# FIXME: use the sha of the file sim_hisepq itself.
-# SHA256 of `$TAG-<os>-<arch>.tar.gz`, one variable per published platform. Add
-# a line here when the companion repo starts shipping another platform.
-SHA256_linux_x86_64=f59e5e67e48cc2b9a21fb5996533676e7ca41a959966da22101cb11ddd3c315d
+# SHA256 of the `sim_hisepq` executable itself, one variable per published
+# platform. Add a line here when the asset repo starts shipping another
+# platform.
+SHA256_linux_x86_64=791722ec760418b806f941b536c88095499fe2452e3283742d316decf9cd324f
 
 usage() {
   cat <<EOF
 Usage: ${0##*/} [--prefix PREFIX] [--force]
 
-Download the prebuilt HiSEP-Q simulator (\`sim_hisepq\`) from our companion
-repo, verify it against the pinned SHA256, and install it as PREFIX/bin/sim_hisepq.
+Download the prebuilt HiSEP-Q simulator (\`sim_hisepq\`) from our asset
+repo, verify the executable against its pinned SHA256, and install it as
+PREFIX/bin/sim_hisepq.
 
   repo:    https://github.com/$ASSET_REPO
   release: $TAG
@@ -83,10 +84,9 @@ x86_64 | amd64) ARCH=x86_64 ;;
 *) ARCH=unsupported ;;
 esac
 
-# FIXME: verify this.
 CHECKSUM_VAR="SHA256_${OS}_${ARCH}"
 if [[ -z "${!CHECKSUM_VAR:-}" ]]; then
-  # Derive the supported list from the checksums we actually pin.
+  # Derive the supported list from the checksums we pinned above.
   SUPPORTED=$(compgen -A variable SHA256_ | sed 's/^SHA256_//; s/_/-/' | tr '\n' ' ')
   echo "${0##*/}: no prebuilt sim_hisepq for $(uname -s)-$(uname -m)." >&2
   echo "Release $TAG ships: ${SUPPORTED% }" >&2
@@ -111,16 +111,17 @@ echo "Downloading $URL"
 curl --fail --location --silent --show-error --proto '=https' --tlsv1.2 \
   -o "$TMP/$ASSET" "$URL"
 
-ACTUAL=$(sha256sum "$TMP/$ASSET" | cut -d' ' -f1)
+# Extract the one archive member (sim_hisepq) we expect:
+tar -xzf "$TMP/$ASSET" -C "$TMP" --no-same-owner sim_hisepq
+
+ACTUAL=$(sha256sum "$TMP/sim_hisepq" | cut -d' ' -f1)
 if [[ "$ACTUAL" != "${!CHECKSUM_VAR}" ]]; then
-  echo "${0##*/}: SHA256 mismatch for $ASSET, refusing to install." >&2
+  echo "${0##*/}: SHA256 mismatch for sim_hisepq from $ASSET, refusing to install." >&2
   echo "  expected: ${!CHECKSUM_VAR}" >&2
   echo "  actual:   $ACTUAL" >&2
   exit 1
 fi
 
-# The tarball is flat: a single `sim_hisepq` executable.
-tar -xzf "$TMP/$ASSET" -C "$TMP"
 install -D -m 0755 "$TMP/sim_hisepq" "$EXE"
 echo "$TAG" >"$STAMP"
 
