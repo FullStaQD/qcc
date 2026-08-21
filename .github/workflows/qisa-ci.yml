@@ -160,10 +160,7 @@ jobs:
       # Prebuilt HiSEP-Q RTL testbench for the simulator integration test.
       - name: Provision HiSEP-Q simulator
         run: |
-          ./utils/provision-sim-hisepq
-          # Make sure the binary sits at a discoverable path, otherwise tests
-          # which require sim_hisepq might silently be skipped.
-          command -v sim_hisepq
+          ./utils/provision-sim-hisepq --prefix $HOME/.local
 
       - name: Configure qcc
         run: cmake --preset release -DQCC_ENABLE_HISEPQ=ON -DLLVM_ENABLE_ASSERTIONS=ON
