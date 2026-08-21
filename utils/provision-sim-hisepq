@@ -1,0 +1,127 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+TAG=sim-hisepq-20260619-g817e42e-r1
+ASSET_REPO=FullStaQD/prebuilt-artifacts
+
+# FIXME: reconsider this
+PREFIX_DEFAULT=$HOME/external/sim-hisepq
+
+# FIXME: use the sha of the file sim_hisepq itself.
+# SHA256 of `$TAG-<os>-<arch>.tar.gz`, one variable per published platform. Add
+# a line here when the companion repo starts shipping another platform.
+SHA256_linux_x86_64=f59e5e67e48cc2b9a21fb5996533676e7ca41a959966da22101cb11ddd3c315d
+
+usage() {
+  cat <<EOF
+Usage: ${0##*/} [--prefix PREFIX] [--force]
+
+Download the prebuilt HiSEP-Q simulator (\`sim_hisepq\`) from our companion
+repo, verify it against the pinned SHA256, and install it as PREFIX/bin/sim_hisepq.
+
+  repo:    https://github.com/$ASSET_REPO
+  release: $TAG
+
+Only platforms the pinned release ships are supported; on any other host this
+fails instead of installing something untested.
+
+Re-running is a no-op once the pinned release is installed. Bumping the pinned
+release (or passing --force) makes the next run reinstall.
+
+CMake finds the simulator automatically at the default prefix or anywhere on
+PATH. From elsewhere, configure with
+\`-DQCC_SIM_HISEPQ_EXECUTABLE=PREFIX/bin/sim_hisepq\`.
+
+Options:
+  --prefix PREFIX   Directory to install into. The executable ends up in PREFIX/bin.
+                    Defaults to
+                    $PREFIX_DEFAULT.
+  --force           Reinstall even if the pinned release is already installed.
+  -h, --help        Show this message.
+EOF
+}
+
+PREFIX=$PREFIX_DEFAULT
+FORCE=false
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+  -h | --help)
+    usage
+    exit 0
+    ;;
+  --prefix)
+    [[ $# -ge 2 ]] || { echo "${0##*/}: --prefix requires an argument" >&2; exit 1; }
+    PREFIX=$2
+    shift 2
+    ;;
+  --prefix=*)
+    PREFIX=${1#--prefix=}
+    shift
+    ;;
+  --force)
+    FORCE=true
+    shift
+    ;;
+  *)
+    echo "${0##*/}: unknown argument: $1" >&2
+    usage >&2
+    exit 1
+    ;;
+  esac
+done
+
+# Normalize the host platform to the naming scheme used by the release assets.
+case "$(uname -s)" in
+Linux) OS=linux ;;
+*) OS=unsupported ;;
+esac
+
+case "$(uname -m)" in
+x86_64 | amd64) ARCH=x86_64 ;;
+*) ARCH=unsupported ;;
+esac
+
+# FIXME: verify this.
+CHECKSUM_VAR="SHA256_${OS}_${ARCH}"
+if [[ -z "${!CHECKSUM_VAR:-}" ]]; then
+  # Derive the supported list from the checksums we actually pin.
+  SUPPORTED=$(compgen -A variable SHA256_ | sed 's/^SHA256_//; s/_/-/' | tr '\n' ' ')
+  echo "${0##*/}: no prebuilt sim_hisepq for $(uname -s)-$(uname -m)." >&2
+  echo "Release $TAG ships: ${SUPPORTED% }" >&2
+  exit 1
+fi
+
+STAMP="$PREFIX/.sim-hisepq.tag"
+EXE="$PREFIX/bin/sim_hisepq"
+
+if [[ "$FORCE" == false && -x "$EXE" && "$(cat "$STAMP" 2>/dev/null)" == "$TAG" ]]; then
+  echo "$TAG already installed at $EXE, skipping."
+  exit 0
+fi
+
+ASSET="$TAG-$OS-$ARCH.tar.gz"
+URL="https://github.com/$ASSET_REPO/releases/download/$TAG/$ASSET"
+
+TMP=$(mktemp -d)
+trap 'rm -rf "$TMP"' EXIT
+
+echo "Downloading $URL"
+curl --fail --location --silent --show-error --proto '=https' --tlsv1.2 \
+  -o "$TMP/$ASSET" "$URL"
+
+ACTUAL=$(sha256sum "$TMP/$ASSET" | cut -d' ' -f1)
+if [[ "$ACTUAL" != "${!CHECKSUM_VAR}" ]]; then
+  echo "${0##*/}: SHA256 mismatch for $ASSET, refusing to install." >&2
+  echo "  expected: ${!CHECKSUM_VAR}" >&2
+  echo "  actual:   $ACTUAL" >&2
+  exit 1
+fi
+
+# The tarball is flat: a single `sim_hisepq` executable.
+tar -xzf "$TMP/$ASSET" -C "$TMP"
+install -D -m 0755 "$TMP/sim_hisepq" "$EXE"
+echo "$TAG" >"$STAMP"
+
+echo "Installed $TAG to $EXE"

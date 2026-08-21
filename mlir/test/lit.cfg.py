@@ -1,3 +1,4 @@
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -68,6 +69,14 @@ if not found:
 
 if config.enable_hisepq:
     llvm_config.add_tool_substitutions(["hisepq-elf2mem"], [str(candidate_dir)])
+
+    # Optional prebuilt HiSEP-Q testbench `sim_hisepq`: Provision it with
+    # `utils/provision-sim-hisepq`, or point CMake at your own build via
+    # `-DQCC_SIM_HISEPQ_EXECUTABLE=...`.
+    sim_hisepq = config.sim_hisepq_executable
+    if os.path.isfile(sim_hisepq) and os.access(sim_hisepq, os.X_OK):
+        config.available_features.add("sim-hisepq")
+        config.substitutions.append((r"\bsim_hisepq\b", sim_hisepq))
 
 # Tests opt in via `REQUIRES: lld`.
 if shutil.which("ld.lld", path=config.environment["PATH"]) is not None:
