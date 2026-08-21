@@ -5,8 +5,7 @@ set -euo pipefail
 TAG=sim-hisepq-20260619-g817e42e-r1
 ASSET_REPO=FullStaQD/prebuilt-artifacts
 
-# FIXME: reconsider this
-PREFIX_DEFAULT=$HOME/external/sim-hisepq
+PREFIX_DEFAULT=$HOME/.local
 
 # SHA256 of the `sim_hisepq` executable itself, one variable per published
 # platform. Add a line here when the asset repo starts shipping another
@@ -36,8 +35,7 @@ PATH. From elsewhere, configure with
 
 Options:
   --prefix PREFIX   Directory to install into. The executable ends up in PREFIX/bin.
-                    Defaults to
-                    $PREFIX_DEFAULT.
+                    Defaults to $PREFIX_DEFAULT.
   --force           Reinstall even if the pinned release is already installed.
   -h, --help        Show this message.
 EOF
@@ -93,10 +91,11 @@ if [[ -z "${!CHECKSUM_VAR:-}" ]]; then
   exit 1
 fi
 
-STAMP="$PREFIX/.sim-hisepq.tag"
 EXE="$PREFIX/bin/sim_hisepq"
 
-if [[ "$FORCE" == false && -x "$EXE" && "$(cat "$STAMP" 2>/dev/null)" == "$TAG" ]]; then
+# Skip install if if not forced and checksum already fits.
+if [[ "$FORCE" == false && -x "$EXE" &&
+  "$(sha256sum "$EXE" | cut -d' ' -f1)" == "${!CHECKSUM_VAR}" ]]; then
   echo "$TAG already installed at $EXE, skipping."
   exit 0
 fi
@@ -123,6 +122,5 @@ if [[ "$ACTUAL" != "${!CHECKSUM_VAR}" ]]; then
 fi
 
 install -D -m 0755 "$TMP/sim_hisepq" "$EXE"
-echo "$TAG" >"$STAMP"
 
 echo "Installed $TAG to $EXE"
