@@ -93,6 +93,7 @@ def PairOp : HiSEPQOp<"pair", [AllTypesMatch<["ctrls", "tgts"]>]> {
         ```
     }];
 
+  // FIXME: rename ctrls and tgts. Misleading for things like iSWAP.
   let arguments = (ins HiSEPQ_PairGateAttr:$gate,
                        HiSEPQ_QubitVector:$ctrls,
                        HiSEPQ_QubitVector:$tgts,

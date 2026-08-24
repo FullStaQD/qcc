@@ -77,6 +77,8 @@ LogicalResult PairOp::verify() { return verifyMaskLaneCount(*this, getCtrls(), g
 
 LogicalResult MzOp::verify() { return verifyMaskLaneCount(*this, getQubits(), getMask()); }
 
+// FIXME: verifier for pair: same num ctrls and tgts.
+
 //===----------------------------------------------------------------------===//
 // External models
 //===----------------------------------------------------------------------===//
