@@ -13,6 +13,7 @@
 #include "qcc/Conversion/ToHiSEPQ/ToHiSEPQ.h"
 #include "qcc/Conversion/ToQIR/ToQIR.h"
 #include "qcc/Dialect/Aux_/IR/Aux_.h"
+#include "qcc/Dialect/HiSEPQ/IR/HiSEPQ.h"
 #include "qcc/Dialect/Jasp/IR/Jasp.h"
 
 #include "mlir/Conversion/ArithToLLVM/ArithToLLVM.h"
@@ -41,6 +42,7 @@
 #include "mlir/Dialect/SCF/Transforms/BufferizableOpInterfaceImpl.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Tensor/Transforms/BufferizableOpInterfaceImpl.h"
+#include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/Tools/mlir-opt/MlirOptMain.h"
@@ -64,9 +66,11 @@ int main(int argc, char** argv) {
     mlir::memref::MemRefDialect,
     mlir::LLVM::LLVMDialect,
     mlir::DLTIDialect,
+    mlir::vector::VectorDialect,
     jasp::JaspDialect,
     mlir::qc::QCDialect,
-    qcc::aux::AuxDialect
+    qcc::aux::AuxDialect,
+    qcc::hisepq::HiSEPQDialect
       // clang-format on
       >();
 
@@ -108,6 +112,7 @@ int main(int argc, char** argv) {
   mlir::bufferization::func_ext::registerBufferizableOpInterfaceExternalModels(registry);
   mlir::memref::registerAllocationOpInterfaceExternalModels(registry);
   mlir::func::registerInlinerExtension(registry);
+  qcc::hisepq::registerQubitVectorElementTypeInterfaceExternalModel(registry);
 
   return mlir::asMainReturnCode(mlir::MlirOptMain(argc, argv, "qcc optimizer", registry));
 }

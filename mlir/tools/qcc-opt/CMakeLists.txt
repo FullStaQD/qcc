@@ -18,8 +18,10 @@ target_link_libraries(
           # object files which then cause unknown symbols errors during linking if we do not add the openmp dialect
           # library.
           MLIROpenMPDialect
+          MLIRVectorDialect
           QCCJaspDialect
           QCCAuxDialect
+          QCCHiSEPQDialect
           # Passes
           MLIRMemRefTransforms
           MLIRArithTransforms

@@ -9,6 +9,7 @@ target_link_libraries(
           # Dialect libraries used by our project
           QCCJaspDialect
           QCCAuxDialect
+          QCCHiSEPQDialect
           MLIRQCDialect)
 
 llvm_update_compile_flags(qcc-lsp-server)

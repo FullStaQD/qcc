@@ -1,0 +1,13 @@
+add_mlir_dialect_library(
+  QCCHiSEPQDialect
+  HiSEPQDialect.cpp
+  DEPENDS
+  QCCHiSEPQDialectIncGen
+  QCCHiSEPQAttrsIncGen
+  QCCHiSEPQOpsIncGen
+  LINK_LIBS
+  PRIVATE
+  MLIRIR
+  MLIRSupport
+  MLIRSideEffectInterfaces
+  MLIRQCDialect)
