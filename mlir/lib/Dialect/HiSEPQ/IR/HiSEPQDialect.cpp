@@ -48,38 +48,6 @@ void HiSEPQDialect::initialize() {
 }
 
 //===----------------------------------------------------------------------===//
-// Verifiers
-//===----------------------------------------------------------------------===//
-
-/// Checks that an optional mask has one lane per qubit lane.
-///
-/// This cannot be expressed with `AllShapesMatch`: that trait dereferences the operand
-/// unconditionally, so it would crash on the (legal) absent mask rather than accept it.
-static LogicalResult verifyMaskLaneCount(Operation* op, Value qubits, Value mask) {
-  if (!mask) {
-    return success();
-  }
-
-  auto numQubitLanes = cast<VectorType>(qubits.getType()).getNumElements();
-  auto numMaskLanes = cast<VectorType>(mask.getType()).getNumElements();
-
-  if (numQubitLanes != numMaskLanes) {
-    return op->emitOpError("expects the mask to have one lane per qubit, but got ")
-           << numMaskLanes << " mask lane(s) for " << numQubitLanes << " qubit lane(s)";
-  }
-
-  return success();
-}
-
-LogicalResult SingleOp::verify() { return verifyMaskLaneCount(*this, getQubits(), getMask()); }
-
-LogicalResult PairOp::verify() { return verifyMaskLaneCount(*this, getCtrls(), getMask()); }
-
-LogicalResult MzOp::verify() { return verifyMaskLaneCount(*this, getQubits(), getMask()); }
-
-// FIXME: verifier for pair: same num ctrls and tgts.
-
-//===----------------------------------------------------------------------===//
 // External models
 //===----------------------------------------------------------------------===//
 
