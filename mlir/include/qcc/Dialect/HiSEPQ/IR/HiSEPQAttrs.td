@@ -36,7 +36,7 @@ def HiSEPQ_PairGate : I32Enum<"PairGate", "two-qubit gate kind", [
     I32EnumCase<"CX", 0, "cx">,
     I32EnumCase<"CY", 1, "cy">,
     I32EnumCase<"CZ", 2, "cz">,
-    I32EnumCase<"SWAP", 3, "swap">,
+    I32EnumCase<"iSWAP", 3, "iswap">,
 ]> {
   let cppNamespace = "::qcc::hisepq";
 }

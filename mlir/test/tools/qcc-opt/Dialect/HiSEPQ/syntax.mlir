@@ -19,8 +19,8 @@ func.func @single_gates(%qs: vector<2x!qc.qubit>) {
 func.func @pair_gates(%as: vector<2x!qc.qubit>, %bs: vector<2x!qc.qubit>) {
     // CHECK: hisepq.pair cx
     hisepq.pair cx %as, %bs : vector<2x!qc.qubit>
-    // CHECK: hisepq.pair swap
-    hisepq.pair swap %as, %bs : vector<2x!qc.qubit>
+    // CHECK: hisepq.pair iswap
+    hisepq.pair iswap %as, %bs : vector<2x!qc.qubit>
     // ... there are more but lets stop here.
 
     func.return
