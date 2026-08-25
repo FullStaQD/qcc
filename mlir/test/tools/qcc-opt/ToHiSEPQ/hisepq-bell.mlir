@@ -1,3 +1,5 @@
+// REQUIRES: hisepq
+
 // RUN: qcc-opt %s -convert-hisepq-to-intrinsics -convert-vector-to-llvm \
 // RUN:   -convert-arith-to-llvm -convert-func-to-llvm -o %t.mlir
 // RUN:   FileCheck %s < %t.mlir
