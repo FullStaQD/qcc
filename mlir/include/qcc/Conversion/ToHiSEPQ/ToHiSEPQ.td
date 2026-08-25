@@ -113,9 +113,16 @@ def ConvertHiSEPQToIntrinsics : Pass<"convert-hisepq-to-intrinsics", "mlir::Modu
       `hisepq.pair` reads control-before-target while the encoding puts the target
       in `vs1` and the control in `vs2`, so the two operands are swapped here.
 
+      The dialect has value semantics, so an operation's qubit vector is usually
+      the result of the operation before it. The lowering traces back past those
+      to find the indices, and forwards each operation's qubit results to its
+      qubit operands, which collapses the chain back onto the vector it started
+      from.
+
       Assumptions:
-      - Every qubit vector is a `vector.from_elements` whose elements are all
-        `qc.static` ops, so that the qubit indices are known at compile time.
+      - Every qubit vector traces back to a `vector.from_elements` whose elements
+        are all `qco.static` ops, so that the qubit indices are known at compile
+        time.
         TODO: Lift this once the dialect grows dynamic qubits. Then the qubit
         vector becomes a runtime value and the constant folding here turns into a
         type conversion.
@@ -127,8 +134,8 @@ def ConvertHiSEPQToIntrinsics : Pass<"convert-hisepq-to-intrinsics", "mlir::Modu
       Gates without an intrinsic are rejected (error).
 
       `llvm.riscv.qv.mz` returns void and the QISA specifies no way to read a
-      measurement back, so the result of `hisepq.mz` is replaced with `poison`,
-      i.e. the measurement result is lost.
+      measurement back, so the classical result of `hisepq.mz` is replaced with
+      `poison`, i.e. the measurement result is lost.
       TODO: Support this once HiSEP-Q specifies the corresponding QISA operation.
   }];
 

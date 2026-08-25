@@ -23,6 +23,7 @@
 #include "mlir/Dialect/MemRef/Transforms/AllocationOpInterfaceImpl.h"
 #include "mlir/Dialect/MemRef/Transforms/Passes.h"
 #include "mlir/Dialect/QC/IR/QCDialect.h"
+#include "mlir/Dialect/QCO/IR/QCODialect.h"
 #include "mlir/Dialect/SCF/Transforms/BufferizableOpInterfaceImpl.h"
 #include "mlir/Dialect/Tensor/Transforms/BufferizableOpInterfaceImpl.h"
 #include "mlir/IR/Diagnostics.h"
@@ -115,7 +116,8 @@ int main(int argc, char** argv) {
   mlir::registerAllDialects(registry);
 
   // Our dialects:
-  registry.insert<jasp::JaspDialect, mlir::qc::QCDialect, qcc::aux::AuxDialect, qcc::hisepq::HiSEPQDialect>();
+  registry.insert<jasp::JaspDialect, mlir::qc::QCDialect, mlir::qco::QCODialect, qcc::aux::AuxDialect,
+                  qcc::hisepq::HiSEPQDialect>();
   qcc::hisepq::registerQubitVectorElementTypeInterfaceExternalModel(registry);
 
   // Register the specific interface implementations for the pipeline

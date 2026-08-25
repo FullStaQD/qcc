@@ -23,22 +23,17 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 
 // FIXME: update all docs in the end.
 
-// Every operation here reads and writes quantum state, which keeps it from being folded away and
-// keeps the operations ordered with respect to each other.
-//
-// FIXME: This is stricter than the hardware. Gates on disjoint qubit sets commute, so once those
-// sets are known statically we can attach per-qubit resources instead and let independent
-// instructions reorder.
+// FIXME: should we really have MemoryEffects? What about pure?
 class HiSEPQOp<string mnemonic, list<Trait> traits = []>
     : Op<HiSEPQDialect, mnemonic,
          !listconcat(traits, [MemoryEffects<[MemRead, MemWrite]>])>;
 
-def SingleOp : HiSEPQOp<"single"> {
+def SingleOp : HiSEPQOp<"single", [AllTypesMatch<["qubits_in", "qubits_out"]>]> {
   let summary = "Apply one single-qubit gate across a vector of qubits.";
   let description = [{
-        Applies `gate` to every element of `qubits`, in place. This is one `QV.SINGLE` instruction: the
-        gate kind occupies the instruction's `GateID` field and the qubit indices live in the vector
-        register named by `vs1`.
+        Applies `gate` to every element of `qubits_in` and returns the qubits it acted on. This is
+        one `QV.SINGLE` instruction: the gate kind occupies the instruction's `GateID` field and the
+        qubit indices live in the vector register named by `vs1`.
 
         FIXME: should be "canonicalized"
         The elements of one operation must be distinct qubits. Because they are distinct and carry
@@ -47,25 +42,25 @@ def SingleOp : HiSEPQOp<"single"> {
 
         Example:
         ```mlir
-        hisepq.single h %qs : vector<4x!qc.qubit>
+        %qs_out = hisepq.single h %qs : vector<4x!qco.qubit>
         ```
     }];
 
   let arguments = (ins HiSEPQ_SingleGateAttr:$gate,
-                       HiSEPQ_QubitVector:$qubits);
-  let results = (outs);
+                       HiSEPQ_QubitVector:$qubits_in);
+  let results = (outs HiSEPQ_QubitVector:$qubits_out);
 
   let assemblyFormat = [{
-        `` $gate $qubits attr-dict `:` type($qubits)
+        `` $gate $qubits_in attr-dict `:` type($qubits_in)
     }];
 }
 
-def PairOp : HiSEPQOp<"pair", [AllTypesMatch<["ctrls", "tgts"]>]> {
+def PairOp : HiSEPQOp<"pair", [AllTypesMatch<["ctrls_in", "tgts_in", "ctrls_out", "tgts_out"]>]> {
   let summary = "Apply one two-qubit gate across two vectors of qubits.";
   let description = [{
-        Applies `gate` to every element, in place. Element `i` of `ctrls` and element `i` of `tgts` are the
-        control and the target of the same gate, so the two vectors necessarily have the same
-        length.
+        Applies `gate` to every element and returns the qubits it acted on, one vector per operand.
+        Element `i` of `ctrls_in` and element `i` of `tgts_in` are the control and the target of the
+        same gate, so the two vectors necessarily have the same length.
 
         This is one `QV.PAIR` instruction. Beware that the encoding orders the registers the other
         way round -- `vs1` holds the targets and `vs2` the sources/controls -- so a lowering has to
@@ -76,26 +71,32 @@ def PairOp : HiSEPQOp<"pair", [AllTypesMatch<["ctrls", "tgts"]>]> {
 
         Example:
         ```mlir
-        hisepq.pair cx %ctrls, %tgts : vector<4x!qc.qubit>
+        %cs_out, %ts_out = hisepq.pair cx %ctrls, %tgts : vector<4x!qco.qubit>
         ```
     }];
 
   // FIXME: rename ctrls and tgts. Misleading for things like iSWAP.
   let arguments = (ins HiSEPQ_PairGateAttr:$gate,
-                       HiSEPQ_QubitVector:$ctrls,
-                       HiSEPQ_QubitVector:$tgts);
-  let results = (outs);
+                       HiSEPQ_QubitVector:$ctrls_in,
+                       HiSEPQ_QubitVector:$tgts_in);
+  let results = (outs HiSEPQ_QubitVector:$ctrls_out,
+                      HiSEPQ_QubitVector:$tgts_out);
 
   let assemblyFormat = [{
-        `` $gate $ctrls `,` $tgts attr-dict `:` type($ctrls)
+        `` $gate $ctrls_in `,` $tgts_in attr-dict `:` type($ctrls_in)
     }];
 }
 
-def MzOp : HiSEPQOp<"mz", [AllShapesMatch<["qubits", "result"]>]> {
+def MzOp : HiSEPQOp<"mz", [AllTypesMatch<["qubits_in", "qubits_out"]>,
+                           AllShapesMatch<["qubits_in", "bits"]>]> {
   let summary = "Measure a vector of qubits in the computational basis.";
   let description = [{
-        Measures every element of `qubits` in the computational (Z) basis, collapsing their state,
-        and yields one classical bit per element.
+        Measures every element of `qubits_in` in the computational (Z) basis, collapsing their state,
+        and yields the measured qubits plus one classical bit per element.
+
+        The qubits come back so that the SSA chain continues past the measurement. They carry the
+        collapsed post-measurement state, matching the bit each one produced; this is not a reset,
+        so reusing them as fresh ancillas needs an explicit one.
 
         The ISA encodes measurement as a SINGLE-class instruction (`QV_MZ_FUNCT7`). We do not follow
         it there: measurement is not unitary, and folding it into `hisepq.single` would make every
@@ -104,15 +105,16 @@ def MzOp : HiSEPQOp<"mz", [AllShapesMatch<["qubits", "result"]>]> {
 
         Example:
         ```mlir
-        %r = hisepq.mz %qs : vector<4x!qc.qubit> -> vector<4xi1>
+        %qs_out, %r = hisepq.mz %qs : vector<4x!qco.qubit> -> vector<4xi1>
         ```
     }];
 
-  let arguments = (ins HiSEPQ_QubitVector:$qubits);
-  let results = (outs HiSEPQ_BitVector:$result);
+  let arguments = (ins HiSEPQ_QubitVector:$qubits_in);
+  let results = (outs HiSEPQ_QubitVector:$qubits_out,
+                      HiSEPQ_BitVector:$bits);
 
   let assemblyFormat = [{
-        $qubits attr-dict `:` type($qubits) `->` type($result)
+        $qubits_in attr-dict `:` type($qubits_in) `->` type($bits)
     }];
 }
 

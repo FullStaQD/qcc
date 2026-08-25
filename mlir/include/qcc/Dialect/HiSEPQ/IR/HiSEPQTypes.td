@@ -12,14 +12,15 @@
 
 include "qcc/Dialect/HiSEPQ/IR/HiSEPQDialect.td"
 
-include "mlir/Dialect/QC/IR/QCTypes.td"
+include "mlir/Dialect/QCO/IR/QCOTypes.td"
 include "mlir/IR/CommonTypeConstraints.td"
 
 //===----------------------------------------------------------------------===//
 // HiSEP-Q type constraints
 //===----------------------------------------------------------------------===//
 
-def HiSEPQ_AnyQubit : AnyTypeOf<[QubitType], "qubit reference">;
+// `QubitType` is `!qco.qubit`, the value-semantics qubit.
+def HiSEPQ_AnyQubit : AnyTypeOf<[QubitType], "qubit value">;
 
 // `vector<NxQubitT>` - non-scalable vector type, length N statically known.
 def HiSEPQ_QubitVector : FixedVectorOfRankAndType<[1], [HiSEPQ_AnyQubit]>;

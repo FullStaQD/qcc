@@ -10,7 +10,7 @@
 #pragma once
 
 // FIXME: check for IWYU
-#include "mlir/Dialect/QC/IR/QCDialect.h" // IWYU pragma: keep
+#include "mlir/Dialect/QCO/IR/QCODialect.h" // IWYU pragma: keep
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/DialectImplementation.h"
@@ -20,6 +20,7 @@
 
 namespace mlir {
 class DialectRegistry;
+class Value;
 } // namespace mlir
 
 //===----------------------------------------------------------------------===//
@@ -46,10 +47,13 @@ class DialectRegistry;
 
 namespace qcc::hisepq {
 
-//  FIXME: Consider patching qc.qubit upstream.
-/// Attaches `VectorElementTypeInterface` to `mlir::qc::QubitType`, which is what makes
-/// `vector<Nx!qc.qubit>` a legal type. Call this on any registry that will see `hisepq` IR;
+//  FIXME: Consider patching qco.qubit upstream.
+/// Attaches `VectorElementTypeInterface` to `mlir::qco::QubitType`, which is what makes
+/// `vector<Nx!qco.qubit>` a legal type. Call this on any registry that will see `hisepq` IR;
 /// without it such a vector fails to parse.
 void registerQubitVectorElementTypeInterfaceExternalModel(mlir::DialectRegistry& registry);
+
+/// Traces the origin of `qubits` through ancestor ops to the first non-hisepq-dialect generated value and returns it.
+mlir::Value getQubitVectorOrigin(mlir::Value qubits);
 
 } // namespace qcc::hisepq

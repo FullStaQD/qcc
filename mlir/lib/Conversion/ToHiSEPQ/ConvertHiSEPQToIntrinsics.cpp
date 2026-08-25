@@ -11,8 +11,8 @@
 #include "qcc/Dialect/HiSEPQ/IR/HiSEPQ.h"
 
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
-#include "mlir/Dialect/QC/IR/QCDialect.h" // FIXME: check clangd unused include warning
-#include "mlir/Dialect/QC/IR/QCOps.h"
+#include "mlir/Dialect/QCO/IR/QCODialect.h" // FIXME: check clangd unused include warning
+#include "mlir/Dialect/QCO/IR/QCOOps.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinAttributes.h"
@@ -39,18 +39,28 @@ using namespace qcc::hisepq;
 
 namespace {
 
-/// Reads the qubit indices out of a vector by tracing to `qc.static`.
+/// A qubit vector operand reduced to what the intrinsic needs from it.
+struct ResolvedQubits {
+  /// One static qubit index per vector element.
+  SmallVector<int64_t> indices;
+  /// The scalable `<vscale x N x i8>` type the indices have to be handed over in.
+  VectorType qvType;
+};
+
+/// Reads the qubit indices out of a vector by tracing to `qco.static`.
 ///
-/// Only a `vector.from_elements` of `qc.static` ops is understood.
+/// The operand of one operation is usually the result of the preceding one, so the trace starts by
+/// skipping past the operations that only thread the vector through. What it has to arrive at is a
+/// `vector.from_elements` of `qco.static` ops; nothing else is understood.
 std::optional<SmallVector<int64_t>> getQubitIndices(Value qubitVector) {
-  auto fromElementsOp = qubitVector.getDefiningOp<vector::FromElementsOp>();
+  auto fromElementsOp = getQubitVectorOrigin(qubitVector).getDefiningOp<vector::FromElementsOp>();
   if (!fromElementsOp) {
     return std::nullopt;
   }
 
   SmallVector<int64_t> indices;
   for (Value element : fromElementsOp.getElements()) {
-    auto staticOp = element.getDefiningOp<qc::StaticOp>();
+    auto staticOp = element.getDefiningOp<qco::StaticOp>();
     if (!staticOp) {
       return std::nullopt;
     }
@@ -65,7 +75,10 @@ std::optional<SmallVector<int64_t>> getQubitIndices(Value qubitVector) {
 /// The indices become one dense `vector<Nxi8>` constant, which is then inserted into a poison
 /// scalable vector of `qvType`. The poison base is deliberate: the intrinsic is emitted with
 /// `vl = N`, so the elements above the last index are never read.
-Value buildQubitVector(OpBuilder& builder, Location loc, ArrayRef<int64_t> qubitIndices, VectorType qvType) {
+Value buildQubitVector(OpBuilder& builder, Location loc, const ResolvedQubits& qubits) {
+  ArrayRef<int64_t> qubitIndices = qubits.indices;
+  VectorType qvType = qubits.qvType;
+
   auto i8Type = builder.getIntegerType(8);
   auto fixedType = VectorType::get({static_cast<int64_t>(qubitIndices.size())}, i8Type);
 
@@ -94,12 +107,15 @@ struct Diagnostics {
   }
 };
 
-/// Lowers the qubit operands of `op` for consumption by the corresponding intrinsic.
-std::optional<Value> lowerQubitVector(Operation* op, TypedValue<VectorType> qubits, const Hardware& hardware,
-                                      OpBuilder& builder, Diagnostics& diags) {
+/// Checks a qubit operand of `op` and works out what the intrinsic needs for it.
+///
+/// Emits nothing, so that an operation with two qubit operands can have both of them validated
+/// before any of them is materialized.
+std::optional<ResolvedQubits> resolveQubitVector(Operation* op, TypedValue<VectorType> qubits, const Hardware& hardware,
+                                                 Diagnostics& diags) {
   auto indices = getQubitIndices(qubits);
   if (!indices) {
-    (void)diags.report(op, "expects every qubit vector to be a 'vector.from_elements' of 'qc.static' operations");
+    (void)diags.report(op, "expects every qubit vector to be a 'vector.from_elements' of 'qco.static' operations");
     return std::nullopt;
   }
 
@@ -119,7 +135,7 @@ std::optional<Value> lowerQubitVector(Operation* op, TypedValue<VectorType> qubi
     return std::nullopt;
   }
 
-  return buildQubitVector(builder, op->getLoc(), *indices, *qvType);
+  return ResolvedQubits{.indices = std::move(*indices), .qvType = *qvType};
 }
 
 /// Returns the intrinsic implementing `gate`, or an empty ref if there is none.
@@ -184,17 +200,19 @@ struct SingleOpLowering : public OpRewritePattern<SingleOp> {
       return diags->report(op, "gate '" + stringifySingleGate(op.getGate()) + "' has no HiSEP-Q intrinsic");
     }
 
-    auto qubits = lowerQubitVector(op, op.getQubits(), hardware, rewriter, *diags);
+    auto qubits = resolveQubitVector(op, op.getQubitsIn(), hardware, *diags);
     if (!qubits) {
       return failure();
     }
 
-    auto numQubits = cast<VectorType>(op.getQubits().getType()).getNumElements();
-    SmallVector<Value> args{*qubits};
-    llvm::append_range(args, buildScalarOperands(rewriter, op.getLoc(), numQubits, /*withTag=*/true));
+    SmallVector<Value> args{buildQubitVector(rewriter, op.getLoc(), *qubits)};
+    llvm::append_range(args, buildScalarOperands(rewriter, op.getLoc(), static_cast<unsigned>(qubits->indices.size()),
+                                                 /*withTag=*/true));
 
     LLVM::CallIntrinsicOp::create(rewriter, op.getLoc(), rewriter.getStringAttr(intrinsic), args);
-    rewriter.eraseOp(op);
+
+    // The instruction acts in place, so what comes out is what went in.
+    rewriter.replaceOp(op, ValueRange{op.getQubitsIn()});
     return success();
   }
 
@@ -213,23 +231,25 @@ struct PairOpLowering : public OpRewritePattern<PairOp> {
       return diags->report(op, "gate '" + stringifyPairGate(op.getGate()) + "' has no HiSEP-Q intrinsic");
     }
 
-    auto ctrls = lowerQubitVector(op, op.getCtrls(), hardware, rewriter, *diags);
+    auto ctrls = resolveQubitVector(op, op.getCtrlsIn(), hardware, *diags);
     if (!ctrls) {
       return failure();
     }
-    // FIXME: IR might already be mutated here! Failure in next if would be wrong then.
-    auto tgts = lowerQubitVector(op, op.getTgts(), hardware, rewriter, *diags);
+    auto tgts = resolveQubitVector(op, op.getTgtsIn(), hardware, *diags);
     if (!tgts) {
       return failure();
     }
 
-    auto numCtrls = cast<VectorType>(op.getCtrls().getType()).getNumElements();
     // FIXME: Why swapping tgts and ctrls?
-    SmallVector<Value> args{*tgts, *ctrls};
-    llvm::append_range(args, buildScalarOperands(rewriter, op.getLoc(), numCtrls, /*withTag=*/false));
+    SmallVector<Value> args{buildQubitVector(rewriter, op.getLoc(), *tgts),
+                            buildQubitVector(rewriter, op.getLoc(), *ctrls)};
+    llvm::append_range(args, buildScalarOperands(rewriter, op.getLoc(), static_cast<unsigned>(ctrls->indices.size()),
+                                                 /*withTag=*/false));
 
     LLVM::CallIntrinsicOp::create(rewriter, op.getLoc(), rewriter.getStringAttr(intrinsic), args);
-    rewriter.eraseOp(op);
+
+    // The instruction acts in place, so what comes out is what went in.
+    rewriter.replaceOp(op, ValueRange{op.getCtrlsIn(), op.getTgtsIn()});
     return success();
   }
 
@@ -247,17 +267,19 @@ struct MzOpLowering : public OpRewritePattern<MzOp> {
       : OpRewritePattern(ctx), diags(diags), hardware(hardware) {}
 
   LogicalResult matchAndRewrite(MzOp op, PatternRewriter& rewriter) const override {
-    auto qubits = lowerQubitVector(op, op.getQubits(), hardware, rewriter, *diags);
+    auto qubits = resolveQubitVector(op, op.getQubitsIn(), hardware, *diags);
     if (!qubits) {
       return failure();
     }
 
-    auto numQubits = cast<VectorType>(op.getQubits().getType()).getNumElements();
-    SmallVector<Value> args{*qubits};
-    llvm::append_range(args, buildScalarOperands(rewriter, op.getLoc(), numQubits, /*withTag=*/true));
+    SmallVector<Value> args{buildQubitVector(rewriter, op.getLoc(), *qubits)};
+    llvm::append_range(args, buildScalarOperands(rewriter, op.getLoc(), static_cast<unsigned>(qubits->indices.size()),
+                                                 /*withTag=*/true));
 
     LLVM::CallIntrinsicOp::create(rewriter, op.getLoc(), rewriter.getStringAttr("llvm.riscv.qv.mz"), args);
-    rewriter.replaceOpWithNewOp<LLVM::PoisonOp>(op, op.getResult().getType()); // Workaround
+
+    Value bits = LLVM::PoisonOp::create(rewriter, op.getLoc(), op.getBits().getType()); // Workaround
+    rewriter.replaceOp(op, ValueRange{op.getQubitsIn(), bits});
     return success();
   }
 

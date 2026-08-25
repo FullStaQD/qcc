@@ -39,4 +39,5 @@ target_link_libraries(
           # Extensions/Interfaces
           MLIRFuncInlinerExtension
           MLIRTransformUtils
-          MLIRQCDialect)
+          MLIRQCDialect
+          MLIRQCODialect)

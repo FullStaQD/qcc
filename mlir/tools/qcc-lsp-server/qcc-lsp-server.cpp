@@ -12,6 +12,7 @@
 #include "qcc/Dialect/Jasp/IR/Jasp.h"
 
 #include "mlir/Dialect/QC/IR/QCDialect.h"
+#include "mlir/Dialect/QCO/IR/QCODialect.h"
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/InitAllDialects.h"
 #include "mlir/Tools/mlir-lsp-server/MlirLspServerMain.h"
@@ -23,7 +24,8 @@ int main(int argc, char** argv) {
   mlir::registerAllDialects(registry);
 
   // Register our custom project dialects.
-  registry.insert<jasp::JaspDialect, mlir::qc::QCDialect, qcc::aux::AuxDialect, qcc::hisepq::HiSEPQDialect>();
+  registry.insert<jasp::JaspDialect, mlir::qc::QCDialect, mlir::qco::QCODialect, qcc::aux::AuxDialect,
+                  qcc::hisepq::HiSEPQDialect>();
   qcc::hisepq::registerQubitVectorElementTypeInterfaceExternalModel(registry);
 
   return mlir::succeeded(mlir::MlirLspServerMain(argc, argv, registry)) ? 0 : 1;

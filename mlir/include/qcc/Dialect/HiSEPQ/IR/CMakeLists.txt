@@ -1,4 +1,4 @@
-# `HiSEPQTypes.td` includes mqt-core's `QCTypes.td`, which is not on TableGen's default search path.
+# `HiSEPQTypes.td` includes mqt-core's `QCOTypes.td`, which is not on TableGen's default search path.
 list(APPEND LLVM_TABLEGEN_FLAGS -I ${mqt-core_SOURCE_DIR}/mlir/include)
 
 set(LLVM_TARGET_DEFINITIONS HiSEPQDialect.td)

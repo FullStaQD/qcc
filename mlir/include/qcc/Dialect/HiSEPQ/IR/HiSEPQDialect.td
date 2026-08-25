@@ -32,13 +32,19 @@ def HiSEPQDialect : Dialect {
         assignment of qubits to vector elements is still a compiler decision rather than an
         encoding detail.
 
-        Like `qc`, the dialect has **memory semantics**: operations mutate the qubits they name in
-        place. Only `hisepq.mz` produces a value, and that value is classical.
+        Like `qco`, the dialect has **value semantics**: an operation consumes the qubit vectors it
+        names and returns them, so the qubits a program touches are threaded through the IR in SSA
+        form. That chain is what orders the operations, and it is what a vectorizer reads to decide
+        which gates may be packed into one instruction.
+
+        The operations additionally carry a coarse read/write effect on the default resource, which
+        orders every `hisepq` operation against every other one. That is a conservative backstop,
+        kept until qubit ownership is actually enforced; see `HiSEPQOps.td`.
 
         Example:
         ```mlir
         // One instruction, a Hadamard on all four qubits in %qs.
-        hisepq.single h %qs : vector<4x!qc.qubit>
+        %qs_out = hisepq.single h %qs : vector<4x!qco.qubit>
         ```
     }];
 
@@ -48,8 +54,8 @@ def HiSEPQDialect : Dialect {
     // `hisepq.target` carries the machine description.
     let hasOperationAttrVerify = 1;
 
-    // `!qc.qubit` appears in our operations' assembly.
-    let dependentDialects = ["::mlir::qc::QCDialect"];
+    // `!qco.qubit` appears in our operations' assembly.
+    let dependentDialects = ["::mlir::qco::QCODialect"];
 
     let useDefaultTypePrinterParser = 0;      // set to 1 once we define types of our own.
     let useDefaultAttributePrinterParser = 1; // needed by the gate-kind attributes.

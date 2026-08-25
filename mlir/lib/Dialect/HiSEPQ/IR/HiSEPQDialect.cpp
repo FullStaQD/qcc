@@ -11,7 +11,7 @@
 #include "qcc/Dialect/HiSEPQ/IR/HiSEPQ.h"
 
 #include "mlir/Dialect/DLTI/DLTI.h"
-#include "mlir/Dialect/QC/IR/QCDialect.h"
+#include "mlir/Dialect/QCO/IR/QCODialect.h"
 #include "mlir/IR/BuiltinTypeInterfaces.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/DialectImplementation.h" // IWYU pragma: keep
@@ -104,27 +104,51 @@ void HiSEPQDialect::initialize() {
 namespace {
 
 // FIXME: learn more about the constraints on the element type. Notably the size
-// constraint. That we have !qc.qubit having size of 8 bits is something we have
-// to determine at compile time. This is not an intrinsic property of !qc.qubit.
+// constraint. That we have !qco.qubit having size of 8 bits is something we have
+// to determine at compile time. This is not an intrinsic property of !qco.qubit.
 
-/// Opts `!qc.qubit` into being a vector element type.
+/// Opts `!qco.qubit` into being a vector element type.
 ///
 /// `VectorElementTypeInterface` has no methods; it is purely a marker that a type may appear as a
 /// `VectorType` element. We attach it from here rather than on the type itself because
-/// `mlir::qc::QubitType` belongs to mqt-core, which we consume as a pinned dependency.
+/// `mlir::qco::QubitType` belongs to mqt-core, which we consume as a pinned dependency.
 ///
 /// Upstream currently discourages attaching this interface to downstream types, on the grounds that
 /// the properties required of a vector element (notably a compile-time size) are not yet pinned
-/// down. A qubit reference does have such a size here -- the hardware carries qubit indices as i8
-/// elements -- and we only ever build these vectors ourselves. Drop this model if mqt-core marks the
-/// type itself, the way it already did for `MemRefElementTypeInterface`.
-struct QubitVectorElement : public VectorElementTypeInterface::ExternalModel<QubitVectorElement, qc::QubitType> {};
+/// down. A qubit does have such a size here -- the hardware carries qubit indices as i8 elements --
+/// and we only ever build these vectors ourselves. Drop this model if mqt-core marks the type
+/// itself, the way it already did for `!qc.qubit` and `MemRefElementTypeInterface`.
+struct QubitVectorElement : public VectorElementTypeInterface::ExternalModel<QubitVectorElement, qco::QubitType> {};
 
 } // namespace
 
 void qcc::hisepq::registerQubitVectorElementTypeInterfaceExternalModel(DialectRegistry& registry) {
-  // Keyed on the QC dialect so the attachment happens when that dialect is loaded, which is before
-  // any `vector<Nx!qc.qubit>` can be parsed.
-  registry.addExtension(
-      +[](MLIRContext* ctx, qc::QCDialect* /*dialect*/) { qc::QubitType::attachInterface<QubitVectorElement>(*ctx); });
+  // Keyed on the QCO dialect so the attachment happens when that dialect is loaded, which is before
+  // any `vector<Nx!qco.qubit>` can be parsed.
+  registry.addExtension(+[](MLIRContext* ctx, qco::QCODialect* /*dialect*/) {
+    qco::QubitType::attachInterface<QubitVectorElement>(*ctx);
+  });
+}
+
+//===----------------------------------------------------------------------===//
+// Qubit vector origin
+//===----------------------------------------------------------------------===//
+
+Value qcc::hisepq::getQubitVectorOrigin(Value qubits) {
+  while (auto result = dyn_cast<OpResult>(qubits)) {
+    auto next =
+        TypeSwitch<Operation*, Value>(result.getOwner())
+            .Case<SingleOp>([](SingleOp op) { return op.getQubitsIn(); })
+            .Case<PairOp>([&](PairOp op) { return result.getResultNumber() == 0 ? op.getCtrlsIn() : op.getTgtsIn(); })
+            // Only the qubit result threads through; the bits are new.
+            .Case<MzOp>([&](MzOp op) { return result.getResultNumber() == 0 ? op.getQubitsIn() : Value(); })
+            .Default([](Operation*) { return Value(); });
+    if (!next) {
+      break;
+    }
+    qubits = next;
+  }
+
+  // FIXME: assert that this is not a hisepq operation?
+  return qubits;
 }

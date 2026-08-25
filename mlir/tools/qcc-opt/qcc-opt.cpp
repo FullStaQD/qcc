@@ -38,6 +38,7 @@
 #include "mlir/Dialect/MemRef/Transforms/AllocationOpInterfaceImpl.h"
 #include "mlir/Dialect/MemRef/Transforms/Passes.h"
 #include "mlir/Dialect/QC/IR/QCDialect.h"
+#include "mlir/Dialect/QCO/IR/QCODialect.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SCF/Transforms/BufferizableOpInterfaceImpl.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
@@ -69,6 +70,7 @@ int main(int argc, char** argv) {
     mlir::vector::VectorDialect,
     jasp::JaspDialect,
     mlir::qc::QCDialect,
+    mlir::qco::QCODialect,
     qcc::aux::AuxDialect,
     qcc::hisepq::HiSEPQDialect
       // clang-format on

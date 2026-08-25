@@ -12,7 +12,7 @@ add_mlir_conversion_library(
   QCCHiSEPQOpsIncGen
   LINK_LIBS
   # Dialects
-  MLIRQCDialect
+  MLIRQCODialect
   MLIRFuncDialect
   MLIRLLVMDialect
   MLIRVectorDialect

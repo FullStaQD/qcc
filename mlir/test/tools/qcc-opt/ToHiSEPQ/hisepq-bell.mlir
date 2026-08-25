@@ -18,31 +18,31 @@
 // CHECK-LABEL: llvm.func @bell_parallel
 module attributes {hisepq.target = #dlti.map<"min_vlen" = 128 : ui32>} {
 func.func @bell_parallel() -> i1 {
-    %c0 = qc.static 0 : !qc.qubit
-    %c1 = qc.static 1 : !qc.qubit
-    %c2 = qc.static 2 : !qc.qubit
-    %c3 = qc.static 3 : !qc.qubit
-    %c4 = qc.static 4 : !qc.qubit
-    %c5 = qc.static 5 : !qc.qubit
-    %c6 = qc.static 6 : !qc.qubit
-    %c7 = qc.static 7 : !qc.qubit
-    %ctrls = vector.from_elements %c0, %c1, %c2, %c3, %c4, %c5, %c6, %c7 : vector<8x!qc.qubit>
+    %c0 = qco.static 0 : !qco.qubit
+    %c1 = qco.static 1 : !qco.qubit
+    %c2 = qco.static 2 : !qco.qubit
+    %c3 = qco.static 3 : !qco.qubit
+    %c4 = qco.static 4 : !qco.qubit
+    %c5 = qco.static 5 : !qco.qubit
+    %c6 = qco.static 6 : !qco.qubit
+    %c7 = qco.static 7 : !qco.qubit
+    %ctrls = vector.from_elements %c0, %c1, %c2, %c3, %c4, %c5, %c6, %c7 : vector<8x!qco.qubit>
 
-    %t0 = qc.static 8 : !qc.qubit
-    %t1 = qc.static 9 : !qc.qubit
-    %t2 = qc.static 10 : !qc.qubit
-    %t3 = qc.static 11 : !qc.qubit
-    %t4 = qc.static 12 : !qc.qubit
-    %t5 = qc.static 13 : !qc.qubit
-    %t6 = qc.static 14 : !qc.qubit
-    %t7 = qc.static 15 : !qc.qubit
-    %tgts = vector.from_elements %t0, %t1, %t2, %t3, %t4, %t5, %t6, %t7 : vector<8x!qc.qubit>
+    %t0 = qco.static 8 : !qco.qubit
+    %t1 = qco.static 9 : !qco.qubit
+    %t2 = qco.static 10 : !qco.qubit
+    %t3 = qco.static 11 : !qco.qubit
+    %t4 = qco.static 12 : !qco.qubit
+    %t5 = qco.static 13 : !qco.qubit
+    %t6 = qco.static 14 : !qco.qubit
+    %t7 = qco.static 15 : !qco.qubit
+    %tgts = vector.from_elements %t0, %t1, %t2, %t3, %t4, %t5, %t6, %t7 : vector<8x!qco.qubit>
 
-    hisepq.single h %ctrls : vector<8x!qc.qubit>
-    hisepq.pair cx %ctrls, %tgts : vector<8x!qc.qubit>
+    %h = hisepq.single h %ctrls : vector<8x!qco.qubit>
+    %cx_ctrls, %cx_tgts = hisepq.pair cx %h, %tgts : vector<8x!qco.qubit>
 
-    %m_ctrls = hisepq.mz %ctrls : vector<8x!qc.qubit> -> vector<8xi1>
-    %m_tgts = hisepq.mz %tgts : vector<8x!qc.qubit> -> vector<8xi1>
+    %ctrls_out, %m_ctrls = hisepq.mz %cx_ctrls : vector<8x!qco.qubit> -> vector<8xi1>
+    %tgts_out, %m_tgts = hisepq.mz %cx_tgts : vector<8x!qco.qubit> -> vector<8xi1>
 
     // FIXME: Currently measurement results cannot be fetched by HiSEP-Q so this cannot be lowered faithfully:
     %eq = arith.cmpi eq, %m_ctrls, %m_tgts : vector<8xi1>
@@ -54,7 +54,7 @@ func.func @bell_parallel() -> i1 {
 
 // Nothing of the source dialects survives.
 // CHECK-NOT:     hisepq.
-// CHECK-NOT:     qc.static
+// CHECK-NOT:     qco.static
 // CHECK-NOT:     vector.from_elements
 // CHECK-NOT:     arith.cmpi
 

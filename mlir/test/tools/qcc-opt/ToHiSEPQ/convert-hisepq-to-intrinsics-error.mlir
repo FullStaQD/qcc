@@ -1,22 +1,36 @@
 // RUN: qcc-opt %s -convert-hisepq-to-intrinsics --split-input-file --verify-diagnostics
 
 func.func @unsupported_single_gate() {
-  %q0 = qc.static 0 : !qc.qubit
-  %qs = vector.from_elements %q0 : vector<1x!qc.qubit>
+  %q0 = qco.static 0 : !qco.qubit
+  %qs = vector.from_elements %q0 : vector<1x!qco.qubit>
   // expected-error @+1 {{'hisepq.single' op gate 'y' has no HiSEP-Q intrinsic}}
-  hisepq.single y %qs : vector<1x!qc.qubit>
+  %y = hisepq.single y %qs : vector<1x!qco.qubit>
   func.return
 }
 
 // -----
 
 func.func @unsupported_pair_gate() {
-  %q0 = qc.static 0 : !qc.qubit
-  %q1 = qc.static 1 : !qc.qubit
-  %ctrls = vector.from_elements %q0 : vector<1x!qc.qubit>
-  %tgts = vector.from_elements %q1 : vector<1x!qc.qubit>
+  %q0 = qco.static 0 : !qco.qubit
+  %q1 = qco.static 1 : !qco.qubit
+  %ctrls = vector.from_elements %q0 : vector<1x!qco.qubit>
+  %tgts = vector.from_elements %q1 : vector<1x!qco.qubit>
   // expected-error @+1 {{'hisepq.pair' op gate 'iswap' has no HiSEP-Q intrinsic}}
-  hisepq.pair iswap %ctrls, %tgts : vector<1x!qc.qubit>
+  %ctrls_out, %tgts_out = hisepq.pair iswap %ctrls, %tgts : vector<1x!qco.qubit>
+  func.return
+}
+
+// -----
+
+// Both operands of a pair are checked before either is materialized, so a bad target is reported
+// once and nothing is left behind for the controls.
+
+func.func @pair_target_is_not_static(%t: !qco.qubit) {
+  %q0 = qco.static 0 : !qco.qubit
+  %ctrls = vector.from_elements %q0 : vector<1x!qco.qubit>
+  %tgts = vector.from_elements %t : vector<1x!qco.qubit>
+  // expected-error @+1 {{'hisepq.pair' op expects every qubit vector to be a 'vector.from_elements' of 'qco.static' operations}}
+  %ctrls_out, %tgts_out = hisepq.pair cx %ctrls, %tgts : vector<1x!qco.qubit>
   func.return
 }
 
@@ -24,20 +38,20 @@ func.func @unsupported_pair_gate() {
 
 // TODO: So far no support for dynamic qubits. This and the next test case might work in the future.
 
-func.func @qubit_vector_is_not_from_elements(%qs: vector<1x!qc.qubit>) {
-  // expected-error @+1 {{'hisepq.single' op expects every qubit vector to be a 'vector.from_elements' of 'qc.static' operations}}
-  hisepq.single h %qs : vector<1x!qc.qubit>
+func.func @qubit_vector_is_not_from_elements(%qs: vector<1x!qco.qubit>) {
+  // expected-error @+1 {{'hisepq.single' op expects every qubit vector to be a 'vector.from_elements' of 'qco.static' operations}}
+  %h = hisepq.single h %qs : vector<1x!qco.qubit>
   func.return
 }
 
 // -----
 
-// A `vector.from_elements` is not enough on its own; every element has to be a `qc.static`.
+// A `vector.from_elements` is not enough on its own; every element has to be a `qco.static`.
 
-func.func @qubit_vector_is_not_static(%q: !qc.qubit) {
-  %qs = vector.from_elements %q : vector<1x!qc.qubit>
-  // expected-error @+1 {{'hisepq.mz' op expects every qubit vector to be a 'vector.from_elements' of 'qc.static' operations}}
-  %result = hisepq.mz %qs : vector<1x!qc.qubit> -> vector<1xi1>
+func.func @qubit_vector_is_not_static(%q: !qco.qubit) {
+  %qs = vector.from_elements %q : vector<1x!qco.qubit>
+  // expected-error @+1 {{'hisepq.mz' op expects every qubit vector to be a 'vector.from_elements' of 'qco.static' operations}}
+  %qs_out, %result = hisepq.mz %qs : vector<1x!qco.qubit> -> vector<1xi1>
   func.return
 }
 
@@ -46,10 +60,10 @@ func.func @qubit_vector_is_not_static(%q: !qc.qubit) {
 // Qubit indices travel as i8, so each one has to fit in one.
 
 func.func @qubit_index_out_of_range() {
-  %q0 = qc.static 256 : !qc.qubit
-  %qs = vector.from_elements %q0 : vector<1x!qc.qubit>
+  %q0 = qco.static 256 : !qco.qubit
+  %qs = vector.from_elements %q0 : vector<1x!qco.qubit>
   // expected-error @+1 {{'hisepq.single' op qubit index 256 does not fit in i8}}
-  hisepq.single h %qs : vector<1x!qc.qubit>
+  %h = hisepq.single h %qs : vector<1x!qco.qubit>
   func.return
 }
 
@@ -57,79 +71,79 @@ func.func @qubit_index_out_of_range() {
 
 module attributes {hisepq.target = #dlti.map<"min_vlen" = 64 : ui32>} {
 func.func @too_many_qubits() {
-  %q0 = qc.static 0 : !qc.qubit
-  %q1 = qc.static 1 : !qc.qubit
-  %q2 = qc.static 2 : !qc.qubit
-  %q3 = qc.static 3 : !qc.qubit
-  %q4 = qc.static 4 : !qc.qubit
-  %q5 = qc.static 5 : !qc.qubit
-  %q6 = qc.static 6 : !qc.qubit
-  %q7 = qc.static 7 : !qc.qubit
-  %q8 = qc.static 8 : !qc.qubit
-  %q9 = qc.static 9 : !qc.qubit
-  %q10 = qc.static 10 : !qc.qubit
-  %q11 = qc.static 11 : !qc.qubit
-  %q12 = qc.static 12 : !qc.qubit
-  %q13 = qc.static 13 : !qc.qubit
-  %q14 = qc.static 14 : !qc.qubit
-  %q15 = qc.static 15 : !qc.qubit
-  %q16 = qc.static 16 : !qc.qubit
-  %q17 = qc.static 17 : !qc.qubit
-  %q18 = qc.static 18 : !qc.qubit
-  %q19 = qc.static 19 : !qc.qubit
-  %q20 = qc.static 20 : !qc.qubit
-  %q21 = qc.static 21 : !qc.qubit
-  %q22 = qc.static 22 : !qc.qubit
-  %q23 = qc.static 23 : !qc.qubit
-  %q24 = qc.static 24 : !qc.qubit
-  %q25 = qc.static 25 : !qc.qubit
-  %q26 = qc.static 26 : !qc.qubit
-  %q27 = qc.static 27 : !qc.qubit
-  %q28 = qc.static 28 : !qc.qubit
-  %q29 = qc.static 29 : !qc.qubit
-  %q30 = qc.static 30 : !qc.qubit
-  %q31 = qc.static 31 : !qc.qubit
-  %q32 = qc.static 32 : !qc.qubit
-  %q33 = qc.static 33 : !qc.qubit
-  %q34 = qc.static 34 : !qc.qubit
-  %q35 = qc.static 35 : !qc.qubit
-  %q36 = qc.static 36 : !qc.qubit
-  %q37 = qc.static 37 : !qc.qubit
-  %q38 = qc.static 38 : !qc.qubit
-  %q39 = qc.static 39 : !qc.qubit
-  %q40 = qc.static 40 : !qc.qubit
-  %q41 = qc.static 41 : !qc.qubit
-  %q42 = qc.static 42 : !qc.qubit
-  %q43 = qc.static 43 : !qc.qubit
-  %q44 = qc.static 44 : !qc.qubit
-  %q45 = qc.static 45 : !qc.qubit
-  %q46 = qc.static 46 : !qc.qubit
-  %q47 = qc.static 47 : !qc.qubit
-  %q48 = qc.static 48 : !qc.qubit
-  %q49 = qc.static 49 : !qc.qubit
-  %q50 = qc.static 50 : !qc.qubit
-  %q51 = qc.static 51 : !qc.qubit
-  %q52 = qc.static 52 : !qc.qubit
-  %q53 = qc.static 53 : !qc.qubit
-  %q54 = qc.static 54 : !qc.qubit
-  %q55 = qc.static 55 : !qc.qubit
-  %q56 = qc.static 56 : !qc.qubit
-  %q57 = qc.static 57 : !qc.qubit
-  %q58 = qc.static 58 : !qc.qubit
-  %q59 = qc.static 59 : !qc.qubit
-  %q60 = qc.static 60 : !qc.qubit
-  %q61 = qc.static 61 : !qc.qubit
-  %q62 = qc.static 62 : !qc.qubit
-  %q63 = qc.static 63 : !qc.qubit
-  %q64 = qc.static 64 : !qc.qubit
+  %q0 = qco.static 0 : !qco.qubit
+  %q1 = qco.static 1 : !qco.qubit
+  %q2 = qco.static 2 : !qco.qubit
+  %q3 = qco.static 3 : !qco.qubit
+  %q4 = qco.static 4 : !qco.qubit
+  %q5 = qco.static 5 : !qco.qubit
+  %q6 = qco.static 6 : !qco.qubit
+  %q7 = qco.static 7 : !qco.qubit
+  %q8 = qco.static 8 : !qco.qubit
+  %q9 = qco.static 9 : !qco.qubit
+  %q10 = qco.static 10 : !qco.qubit
+  %q11 = qco.static 11 : !qco.qubit
+  %q12 = qco.static 12 : !qco.qubit
+  %q13 = qco.static 13 : !qco.qubit
+  %q14 = qco.static 14 : !qco.qubit
+  %q15 = qco.static 15 : !qco.qubit
+  %q16 = qco.static 16 : !qco.qubit
+  %q17 = qco.static 17 : !qco.qubit
+  %q18 = qco.static 18 : !qco.qubit
+  %q19 = qco.static 19 : !qco.qubit
+  %q20 = qco.static 20 : !qco.qubit
+  %q21 = qco.static 21 : !qco.qubit
+  %q22 = qco.static 22 : !qco.qubit
+  %q23 = qco.static 23 : !qco.qubit
+  %q24 = qco.static 24 : !qco.qubit
+  %q25 = qco.static 25 : !qco.qubit
+  %q26 = qco.static 26 : !qco.qubit
+  %q27 = qco.static 27 : !qco.qubit
+  %q28 = qco.static 28 : !qco.qubit
+  %q29 = qco.static 29 : !qco.qubit
+  %q30 = qco.static 30 : !qco.qubit
+  %q31 = qco.static 31 : !qco.qubit
+  %q32 = qco.static 32 : !qco.qubit
+  %q33 = qco.static 33 : !qco.qubit
+  %q34 = qco.static 34 : !qco.qubit
+  %q35 = qco.static 35 : !qco.qubit
+  %q36 = qco.static 36 : !qco.qubit
+  %q37 = qco.static 37 : !qco.qubit
+  %q38 = qco.static 38 : !qco.qubit
+  %q39 = qco.static 39 : !qco.qubit
+  %q40 = qco.static 40 : !qco.qubit
+  %q41 = qco.static 41 : !qco.qubit
+  %q42 = qco.static 42 : !qco.qubit
+  %q43 = qco.static 43 : !qco.qubit
+  %q44 = qco.static 44 : !qco.qubit
+  %q45 = qco.static 45 : !qco.qubit
+  %q46 = qco.static 46 : !qco.qubit
+  %q47 = qco.static 47 : !qco.qubit
+  %q48 = qco.static 48 : !qco.qubit
+  %q49 = qco.static 49 : !qco.qubit
+  %q50 = qco.static 50 : !qco.qubit
+  %q51 = qco.static 51 : !qco.qubit
+  %q52 = qco.static 52 : !qco.qubit
+  %q53 = qco.static 53 : !qco.qubit
+  %q54 = qco.static 54 : !qco.qubit
+  %q55 = qco.static 55 : !qco.qubit
+  %q56 = qco.static 56 : !qco.qubit
+  %q57 = qco.static 57 : !qco.qubit
+  %q58 = qco.static 58 : !qco.qubit
+  %q59 = qco.static 59 : !qco.qubit
+  %q60 = qco.static 60 : !qco.qubit
+  %q61 = qco.static 61 : !qco.qubit
+  %q62 = qco.static 62 : !qco.qubit
+  %q63 = qco.static 63 : !qco.qubit
+  %q64 = qco.static 64 : !qco.qubit
   %qs = vector.from_elements
       %q0, %q1, %q2, %q3, %q4, %q5, %q6, %q7, %q8, %q9, %q10, %q11, %q12, %q13, %q14, %q15, %q16,
       %q17, %q18, %q19, %q20, %q21, %q22, %q23, %q24, %q25, %q26, %q27, %q28, %q29, %q30, %q31, %q32,
       %q33, %q34, %q35, %q36, %q37, %q38, %q39, %q40, %q41, %q42, %q43, %q44, %q45, %q46, %q47, %q48,
       %q49, %q50, %q51, %q52, %q53, %q54, %q55, %q56, %q57, %q58, %q59, %q60, %q61, %q62, %q63, %q64
-      : vector<65x!qc.qubit>
+      : vector<65x!qco.qubit>
   // expected-error @+1 {{'hisepq.single' op has 65 qubits, but at a minimum VLEN of 64 the QV instructions address at most 64}}
-  hisepq.single h %qs : vector<65x!qc.qubit>
+  %h = hisepq.single h %qs : vector<65x!qco.qubit>
   func.return
 }
 }
