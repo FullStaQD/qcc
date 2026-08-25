@@ -7,12 +7,17 @@ add_mlir_conversion_library(
   QCCToHiSEPQIncGen
   QCCAuxDialectIncGen
   QCCAuxOpsIncGen
+  QCCHiSEPQDialectIncGen
+  QCCHiSEPQAttrsIncGen
+  QCCHiSEPQOpsIncGen
   LINK_LIBS
   # Dialects
   MLIRQCDialect
   MLIRFuncDialect
   MLIRLLVMDialect
+  MLIRVectorDialect
   QCCAuxDialect
+  QCCHiSEPQDialect
   # Conversion infra
   MLIRLLVMCommonConversion
   MLIRTransforms

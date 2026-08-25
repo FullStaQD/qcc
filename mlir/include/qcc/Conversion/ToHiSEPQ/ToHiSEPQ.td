@@ -75,3 +75,44 @@ def EmitHiSEPQStart : Pass<"emit-hisepq-start", "mlir::ModuleOp"> {
     "mlir::LLVM::LLVMDialect"
   ];
 }
+
+def ConvertHiSEPQToIntrinsics : Pass<"convert-hisepq-to-intrinsics", "mlir::ModuleOp"> {
+  let summary = "Replaces HiSEP-Q dialect ops with HiSEP-Q intrinsics.";
+
+  let description = [{
+      Replaces every `hisepq` operation with the `llvm.call_intrinsic` op targeting
+      the RISC-V QV extension that encodes it (`llvm.riscv.qv.h`, `llvm.riscv.qv.x`,
+      `llvm.riscv.qv.cx`, `llvm.riscv.qv.mz`).
+
+      // FIXME: reconsider this paragraph.
+      The qubit indices are materialized as a dense `vector<Nxi8>` constant and
+      inserted into a poison scalable vector, because the backend selects the QV
+      instructions only for the scalable types `<vscale x {8,16,32,64} x i8>`
+      (`SupportedQVVTypes`). The width follows from the lane count: the smallest
+      one that holds `N` lanes, i.e. LMUL 1, 2, 4 or 8.
+
+      // FIXME: investigate.
+      `hisepq.pair` reads control-before-target while the encoding puts the target
+      in `vs1` and the control in `vs2`, so the two operands are swapped here.
+
+      Assumptions:
+      - Every qubit vector is a `vector.from_elements` whose elements are all
+        `qc.static` ops, so that the lane indices are known at compile time.
+        TODO: Lift this once the dialect grows dynamic qubits. Then the lane
+        vector becomes a runtime value and the constant folding here turns into a
+        type conversion.
+      - Qubit indices fit in an unsigned i8 and a vector has at most 64 lanes.
+      // FIXME: why 64 lanes?
+
+      Gates without an intrinsic are rejected (error).
+
+      `llvm.riscv.qv.mz` returns void and the QISA specifies no way to read a
+      measurement back, so the result of `hisepq.mz` is replaced with `poison`,
+      i.e. the measurement result is lost.
+      TODO: Support this once HiSEP-Q specifies the corresponding QISA operation.
+  }];
+
+  let dependentDialects = [
+    "mlir::LLVM::LLVMDialect"
+  ];
+}

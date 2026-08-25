@@ -31,6 +31,7 @@ target_link_libraries(
           MLIRBufferizationTransforms
           QCCJaspToQC
           MLIRFuncToLLVM
+          MLIRVectorToLLVMPass
           QCCToHiSEPQ
           QCCToQIR
           QCCAuxOutputRecording

@@ -79,6 +79,7 @@ int main(int argc, char** argv) {
   mlir::registerCSEPass();
   mlir::registerArithToLLVMConversionPass();
   mlir::registerConvertControlFlowToLLVMPass();
+  mlir::registerConvertVectorToLLVMPass();
   mlir::registerConvertLinalgToLoopsPass();
   mlir::bufferization::registerEmptyTensorToAllocTensorPass();
   mlir::bufferization::registerOneShotBufferizePass();
@@ -103,6 +104,7 @@ int main(int argc, char** argv) {
   mlir::registerConvertFuncToLLVMPass();
   qcc::registerConvertQIRToHiSEPQIntrinsics();
   qcc::registerEmitHiSEPQStart();
+  qcc::registerConvertHiSEPQToIntrinsics();
 
   // Extension registration
   mlir::arith::registerBufferizableOpInterfaceExternalModels(registry);
