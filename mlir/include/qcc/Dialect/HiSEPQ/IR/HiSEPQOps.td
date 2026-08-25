@@ -26,9 +26,9 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 // Every operation here reads and writes quantum state, which keeps it from being folded away and
 // keeps the operations ordered with respect to each other.
 //
-// FIXME: This is stricter than the hardware. Gates on disjoint lanes commute, so once lane sets are
-// known statically we can attach per-qubit resources instead and let independent instructions
-// reorder.
+// FIXME: This is stricter than the hardware. Gates on disjoint qubit sets commute, so once those
+// sets are known statically we can attach per-qubit resources instead and let independent
+// instructions reorder.
 class HiSEPQOp<string mnemonic, list<Trait> traits = []>
     : Op<HiSEPQDialect, mnemonic,
          !listconcat(traits, [MemoryEffects<[MemRead, MemWrite]>])>;
@@ -36,14 +36,14 @@ class HiSEPQOp<string mnemonic, list<Trait> traits = []>
 def SingleOp : HiSEPQOp<"single"> {
   let summary = "Apply one single-qubit gate across a vector of qubits.";
   let description = [{
-        Applies `gate` to every lane of `qubits`, in place. This is one `QV.SINGLE` instruction: the
+        Applies `gate` to every element of `qubits`, in place. This is one `QV.SINGLE` instruction: the
         gate kind occupies the instruction's `GateID` field and the qubit indices live in the vector
         register named by `vs1`.
 
         FIXME: should be "canonicalized"
-        The lanes of one operation must be distinct qubits. Because they are distinct and carry the
-        same gate, they commute, which is what makes lane order a free choice; the canonical form
-        sorts lanes ascending by qubit index.
+        The elements of one operation must be distinct qubits. Because they are distinct and carry
+        the same gate, they commute, which is what makes element order a free choice; the canonical
+        form sorts elements ascending by qubit index.
 
         Example:
         ```mlir
@@ -63,7 +63,7 @@ def SingleOp : HiSEPQOp<"single"> {
 def PairOp : HiSEPQOp<"pair", [AllTypesMatch<["ctrls", "tgts"]>]> {
   let summary = "Apply one two-qubit gate across two vectors of qubits.";
   let description = [{
-        Applies `gate` to every lane, in place. Lane `i` of `ctrls` and lane `i` of `tgts` are the
+        Applies `gate` to every element, in place. Element `i` of `ctrls` and element `i` of `tgts` are the
         control and the target of the same gate, so the two vectors necessarily have the same
         length.
 
@@ -71,8 +71,8 @@ def PairOp : HiSEPQOp<"pair", [AllTypesMatch<["ctrls", "tgts"]>]> {
         way round -- `vs1` holds the targets and `vs2` the sources/controls -- so a lowering has to
         swap. We keep control-before-target here because that is how the gates read.
 
-        All 2N qubits named by one operation must be distinct. The canonical form sorts lanes
-        ascending by control index, carrying each lane's target along with it.
+        All 2N qubits named by one operation must be distinct. The canonical form sorts elements
+        ascending by control index, carrying each element's target along with it.
 
         Example:
         ```mlir
@@ -94,8 +94,8 @@ def PairOp : HiSEPQOp<"pair", [AllTypesMatch<["ctrls", "tgts"]>]> {
 def MzOp : HiSEPQOp<"mz", [AllShapesMatch<["qubits", "result"]>]> {
   let summary = "Measure a vector of qubits in the computational basis.";
   let description = [{
-        Measures every lane of `qubits` in the computational (Z) basis, collapsing their state, and
-        yields one classical bit per lane.
+        Measures every element of `qubits` in the computational (Z) basis, collapsing their state,
+        and yields one classical bit per element.
 
         The ISA encodes measurement as a SINGLE-class instruction (`QV_MZ_FUNCT7`). We do not follow
         it there: measurement is not unitary, and folding it into `hisepq.single` would make every

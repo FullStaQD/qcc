@@ -7,6 +7,7 @@
 //
 // ===----------------------------------------------------------------------===//
 
+#include "qcc/Dialect/HiSEPQ/HiSEPQHardware.h"
 #include "qcc/Dialect/HiSEPQ/IR/HiSEPQ.h"
 
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
@@ -38,33 +39,6 @@ using namespace qcc::hisepq;
 
 namespace {
 
-// FIXME: max qubit count (~ LMUL_MAX) and qubits per register (~ VLEN) should be datalayout parameter.
-
-/// The qubit (element) count of a QV vector register at LMUL 1.
-constexpr unsigned qvQubitsPerRegister = 8; // FIXME: should be 16 at VLEN=128 and SEW=8?
-
-/// The largest qubit (element) count the QV instructions can address, i.e. LMUL 8.
-constexpr unsigned qvMaxQubits = 64; // LMUL_MAX * qubits_per_register
-
-/// Returns the scalable vector type that carries `numQubits` qubit indices.
-///
-/// The backend selects the QV instructions only for `nxv8i8`, `nxv16i8`, `nxv32i8` and `nxv64i8` (LMUL 1, 2, 4 and 8).
-/// We pick the narrowest one that fits.
-///
-/// Returns nullopt when there are more qubits than even LMUL 8 can hold.
-std::optional<VectorType> getQubitVectorType(MLIRContext* ctx, unsigned numQubits) {
-  if (numQubits > qvMaxQubits) {
-    return std::nullopt;
-  }
-
-  unsigned minElements = qvQubitsPerRegister;
-  while (minElements < numQubits) {
-    minElements *= 2;
-  }
-
-  return VectorType::get({minElements}, IntegerType::get(ctx, 8), /*scalableDims=*/{true});
-}
-
 /// Reads the qubit indices out of a vector by tracing to `qc.static`.
 ///
 /// Only a `vector.from_elements` of `qc.static` ops is understood.
@@ -90,7 +64,7 @@ std::optional<SmallVector<int64_t>> getQubitIndices(Value qubitVector) {
 ///
 /// The indices become one dense `vector<Nxi8>` constant, which is then inserted into a poison
 /// scalable vector of `qvType`. The poison base is deliberate: the intrinsic is emitted with
-/// `vl = N`, so the lanes above the last index are never read.
+/// `vl = N`, so the elements above the last index are never read.
 Value buildQubitVector(OpBuilder& builder, Location loc, ArrayRef<int64_t> qubitIndices, VectorType qvType) {
   auto i8Type = builder.getIntegerType(8);
   auto fixedType = VectorType::get({static_cast<int64_t>(qubitIndices.size())}, i8Type);
@@ -121,8 +95,8 @@ struct Diagnostics {
 };
 
 /// Lowers the qubit operands of `op` for consumption by the corresponding intrinsic.
-std::optional<Value> lowerQubitVector(Operation* op, TypedValue<VectorType> qubits, OpBuilder& builder,
-                                      Diagnostics& diags) {
+std::optional<Value> lowerQubitVector(Operation* op, TypedValue<VectorType> qubits, const Hardware& hardware,
+                                      OpBuilder& builder, Diagnostics& diags) {
   auto indices = getQubitIndices(qubits);
   if (!indices) {
     (void)diags.report(op, "expects every qubit vector to be a 'vector.from_elements' of 'qc.static' operations");
@@ -136,10 +110,12 @@ std::optional<Value> lowerQubitVector(Operation* op, TypedValue<VectorType> qubi
     }
   }
 
-  auto qvType = getQubitVectorType(op->getContext(), indices->size());
+  auto numQubits = indices->size();
+  auto qvType = hardware.qubitVectorType(op->getContext(), static_cast<unsigned>(numQubits));
   if (!qvType) {
-    (void)diags.report(op, "has " + Twine(indices->size()) + " qubits, but the QV instructions address at most " +
-                               Twine(qvMaxQubits));
+    (void)diags.report(op, "has " + Twine(indices->size()) + " qubits, but at a minimum VLEN of " +
+                               Twine(hardware.minVLen) + " the QV instructions address at most " +
+                               Twine(hardware.maxQubits()));
     return std::nullopt;
   }
 
@@ -199,7 +175,8 @@ SmallVector<Value> buildScalarOperands(OpBuilder& builder, Location loc, unsigne
 
 /// Rewrites `hisepq.single` into `llvm.call_intrinsic "llvm.riscv.qv.{h,x,...}"`.
 struct SingleOpLowering : public OpRewritePattern<SingleOp> {
-  SingleOpLowering(MLIRContext* ctx, Diagnostics* diags) : OpRewritePattern(ctx), diags(diags) {}
+  SingleOpLowering(MLIRContext* ctx, Diagnostics* diags, Hardware hardware)
+      : OpRewritePattern(ctx), diags(diags), hardware(hardware) {}
 
   LogicalResult matchAndRewrite(SingleOp op, PatternRewriter& rewriter) const override {
     StringRef intrinsic = getSingleGateIntrinsic(op.getGate());
@@ -207,7 +184,7 @@ struct SingleOpLowering : public OpRewritePattern<SingleOp> {
       return diags->report(op, "gate '" + stringifySingleGate(op.getGate()) + "' has no HiSEP-Q intrinsic");
     }
 
-    auto qubits = lowerQubitVector(op, op.getQubits(), rewriter, *diags);
+    auto qubits = lowerQubitVector(op, op.getQubits(), hardware, rewriter, *diags);
     if (!qubits) {
       return failure();
     }
@@ -222,11 +199,13 @@ struct SingleOpLowering : public OpRewritePattern<SingleOp> {
   }
 
   Diagnostics* diags;
+  Hardware hardware;
 };
 
 /// Rewrites `hisepq.pair` into `llvm.call_intrinsic "llvm.riscv.qv.cx"`.
 struct PairOpLowering : public OpRewritePattern<PairOp> {
-  PairOpLowering(MLIRContext* ctx, Diagnostics* diags) : OpRewritePattern(ctx), diags(diags) {}
+  PairOpLowering(MLIRContext* ctx, Diagnostics* diags, Hardware hardware)
+      : OpRewritePattern(ctx), diags(diags), hardware(hardware) {}
 
   LogicalResult matchAndRewrite(PairOp op, PatternRewriter& rewriter) const override {
     StringRef intrinsic = getPairGateIntrinsic(op.getGate());
@@ -234,12 +213,12 @@ struct PairOpLowering : public OpRewritePattern<PairOp> {
       return diags->report(op, "gate '" + stringifyPairGate(op.getGate()) + "' has no HiSEP-Q intrinsic");
     }
 
-    auto ctrls = lowerQubitVector(op, op.getCtrls(), rewriter, *diags);
+    auto ctrls = lowerQubitVector(op, op.getCtrls(), hardware, rewriter, *diags);
     if (!ctrls) {
       return failure();
     }
     // FIXME: IR might already be mutated here! Failure in next if would be wrong then.
-    auto tgts = lowerQubitVector(op, op.getTgts(), rewriter, *diags);
+    auto tgts = lowerQubitVector(op, op.getTgts(), hardware, rewriter, *diags);
     if (!tgts) {
       return failure();
     }
@@ -255,6 +234,7 @@ struct PairOpLowering : public OpRewritePattern<PairOp> {
   }
 
   Diagnostics* diags;
+  Hardware hardware;
 };
 
 /// Rewrites `hisepq.mz` into `llvm.call_intrinsic "llvm.riscv.qv.mz"` plus a poison result.
@@ -263,17 +243,18 @@ struct PairOpLowering : public OpRewritePattern<PairOp> {
 /// here. Replace the poison with a real read once `IntrinsicsRISCVXQV.td` gains an intrinsic for
 /// it. Until then a program that branches on a measurement silently gets garbage.
 struct MzOpLowering : public OpRewritePattern<MzOp> {
-  MzOpLowering(MLIRContext* ctx, Diagnostics* diags) : OpRewritePattern(ctx), diags(diags) {}
+  MzOpLowering(MLIRContext* ctx, Diagnostics* diags, Hardware hardware)
+      : OpRewritePattern(ctx), diags(diags), hardware(hardware) {}
 
   LogicalResult matchAndRewrite(MzOp op, PatternRewriter& rewriter) const override {
-    auto qubits = lowerQubitVector(op, op.getQubits(), rewriter, *diags);
+    auto qubits = lowerQubitVector(op, op.getQubits(), hardware, rewriter, *diags);
     if (!qubits) {
       return failure();
     }
 
-    auto numLanes = cast<VectorType>(op.getQubits().getType()).getNumElements();
+    auto numQubits = cast<VectorType>(op.getQubits().getType()).getNumElements();
     SmallVector<Value> args{*qubits};
-    llvm::append_range(args, buildScalarOperands(rewriter, op.getLoc(), numLanes, /*withTag=*/true));
+    llvm::append_range(args, buildScalarOperands(rewriter, op.getLoc(), numQubits, /*withTag=*/true));
 
     LLVM::CallIntrinsicOp::create(rewriter, op.getLoc(), rewriter.getStringAttr("llvm.riscv.qv.mz"), args);
     rewriter.replaceOpWithNewOp<LLVM::PoisonOp>(op, op.getResult().getType()); // Workaround
@@ -281,6 +262,7 @@ struct MzOpLowering : public OpRewritePattern<MzOp> {
   }
 
   Diagnostics* diags;
+  Hardware hardware;
 };
 
 } // namespace
@@ -300,9 +282,11 @@ protected:
     ModuleOp moduleOp = getOperation();
     auto* ctx = moduleOp.getContext();
 
+    const Hardware hardware = Hardware::fromModule(moduleOp);
+
     Diagnostics diags;
     RewritePatternSet patterns(ctx);
-    patterns.add<SingleOpLowering, PairOpLowering, MzOpLowering>(ctx, &diags);
+    patterns.add<SingleOpLowering, PairOpLowering, MzOpLowering>(ctx, &diags, hardware);
 
     if (failed(applyPatternsGreedily(moduleOp, std::move(patterns))) || diags.hadError) {
       signalPassFailure();

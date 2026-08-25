@@ -20,7 +20,7 @@ def ConvertQIRToHiSEPQIntrinsics : Pass<"convert-qir-to-hisepq-intrinsics", "mli
 
       Each qubit pointer argument (produced by `llvm.inttoptr` of a constant
       integer index) is re-encoded as a `vector<[8]xi8>` scalable-vector value
-      carrying that index in lane 0, matching the `anyvector` operand that the
+      carrying that index in element 0, matching the `anyvector` operand that the
       QVSingle / QVPair intrinsics expect.
 
       The QIR runtime calls below have no HiSEP-Q QISA counterpart yet, so they
@@ -79,17 +79,35 @@ def EmitHiSEPQStart : Pass<"emit-hisepq-start", "mlir::ModuleOp"> {
 def ConvertHiSEPQToIntrinsics : Pass<"convert-hisepq-to-intrinsics", "mlir::ModuleOp"> {
   let summary = "Replaces HiSEP-Q dialect ops with HiSEP-Q intrinsics.";
 
+  // FIXME: trim this in the end.
   let description = [{
       Replaces every `hisepq` operation with the `llvm.call_intrinsic` op targeting
       the RISC-V QV extension that encodes it (`llvm.riscv.qv.h`, `llvm.riscv.qv.x`,
       `llvm.riscv.qv.cx`, `llvm.riscv.qv.mz`).
 
-      // FIXME: reconsider this paragraph.
       The qubit indices are materialized as a dense `vector<Nxi8>` constant and
       inserted into a poison scalable vector, because the backend selects the QV
-      instructions only for the scalable types `<vscale x {8,16,32,64} x i8>`
-      (`SupportedQVVTypes`). The width follows from the lane count: the smallest
-      one that holds `N` lanes, i.e. LMUL 1, 2, 4 or 8.
+      instructions only for the scalable types `<vscale x {2,4,8,16,32,64} x i8>`
+      (`SupportedQVVTypes`), i.e. LMUL 1/4, 1/2, 1, 2, 4 and 8. Note that
+      `<vscale x 1 x i8>` (LMUL 1/8) is not among them.
+
+      Which of the six is narrow enough depends on the hardware, so the pass reads
+      the machine's guaranteed minimum VLEN from the module and picks the narrowest
+      type whose runtime element count -- `knownMinElements * VLEN / 64`, since
+      RISC-V scalable types are normalized against a 64-bit block -- reaches the
+      qubit count. At VLEN 128 that puts the LMUL 1 to LMUL 2 step at 17 qubits;
+      at VLEN 64 it sits at 9.
+
+      ```mlir
+      module attributes {hisepq.target = #dlti.map<"min_vlen" = 128 : ui32>}
+      ```
+
+      Absent that attribute the pass assumes 128, which is the floor the QV extension
+      itself mandates (`FeatureVendorXQV` -> `FeatureStdExtV` ->
+      `FeatureStdExtZvl128b`), so the assumption can never over-promise capacity.
+      A minimum rather than an exact VLEN because that is all the RISC-V feature
+      system expresses, and because nothing here could use the extra precision: the
+      emitted types are scalable, so only the lower bound bounds anything.
 
       // FIXME: investigate.
       `hisepq.pair` reads control-before-target while the encoding puts the target
@@ -97,12 +115,14 @@ def ConvertHiSEPQToIntrinsics : Pass<"convert-hisepq-to-intrinsics", "mlir::Modu
 
       Assumptions:
       - Every qubit vector is a `vector.from_elements` whose elements are all
-        `qc.static` ops, so that the lane indices are known at compile time.
-        TODO: Lift this once the dialect grows dynamic qubits. Then the lane
+        `qc.static` ops, so that the qubit indices are known at compile time.
+        TODO: Lift this once the dialect grows dynamic qubits. Then the qubit
         vector becomes a runtime value and the constant folding here turns into a
         type conversion.
-      - Qubit indices fit in an unsigned i8 and a vector has at most 64 lanes.
-      // FIXME: why 64 lanes?
+      - Qubit indices fit in an unsigned i8, and there are no more qubits than
+        LMUL 8 holds at the minimum VLEN (64 qubits at VLEN 64, 128 at VLEN 128).
+        The two are checked separately, so each diagnostic names the limit that was
+        actually hit.
 
       Gates without an intrinsic are rejected (error).
 

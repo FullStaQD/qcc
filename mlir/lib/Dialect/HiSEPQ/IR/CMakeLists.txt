@@ -10,4 +10,6 @@ add_mlir_dialect_library(
   MLIRIR
   MLIRSupport
   MLIRSideEffectInterfaces
+  MLIRDataLayoutInterfaces
+  MLIRDLTIDialect
   MLIRQCDialect)

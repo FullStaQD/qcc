@@ -18,6 +18,7 @@ add_mlir_conversion_library(
   MLIRVectorDialect
   QCCAuxDialect
   QCCHiSEPQDialect
+  QCCHiSEPQHardware
   # Conversion infra
   MLIRLLVMCommonConversion
   MLIRTransforms

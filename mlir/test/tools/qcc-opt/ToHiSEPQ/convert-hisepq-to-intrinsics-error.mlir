@@ -32,7 +32,7 @@ func.func @qubit_vector_is_not_from_elements(%qs: vector<1x!qc.qubit>) {
 
 // -----
 
-// A `vector.from_elements` is not enough on its own; every lane has to be a `qc.static`.
+// A `vector.from_elements` is not enough on its own; every element has to be a `qc.static`.
 
 func.func @qubit_vector_is_not_static(%q: !qc.qubit) {
   %qs = vector.from_elements %q : vector<1x!qc.qubit>
@@ -43,7 +43,7 @@ func.func @qubit_vector_is_not_static(%q: !qc.qubit) {
 
 // -----
 
-// Lane values travel as i8, so the qubit index has to fit in one.
+// Qubit indices travel as i8, so each one has to fit in one.
 
 func.func @qubit_index_out_of_range() {
   %q0 = qc.static 256 : !qc.qubit
@@ -55,9 +55,8 @@ func.func @qubit_index_out_of_range() {
 
 // -----
 
-// LMUL 8 is the widest QV vector, i.e. 64 lanes.
-
-func.func @too_many_lanes() {
+module attributes {hisepq.target = #dlti.map<"min_vlen" = 64 : ui32>} {
+func.func @too_many_qubits() {
   %q0 = qc.static 0 : !qc.qubit
   %q1 = qc.static 1 : !qc.qubit
   %q2 = qc.static 2 : !qc.qubit
@@ -129,7 +128,28 @@ func.func @too_many_lanes() {
       %q33, %q34, %q35, %q36, %q37, %q38, %q39, %q40, %q41, %q42, %q43, %q44, %q45, %q46, %q47, %q48,
       %q49, %q50, %q51, %q52, %q53, %q54, %q55, %q56, %q57, %q58, %q59, %q60, %q61, %q62, %q63, %q64
       : vector<65x!qc.qubit>
-  // expected-error @+1 {{'hisepq.single' op has 65 qubits, but the QV instructions address at most 64}}
+  // expected-error @+1 {{'hisepq.single' op has 65 qubits, but at a minimum VLEN of 64 the QV instructions address at most 64}}
   hisepq.single h %qs : vector<65x!qc.qubit>
   func.return
+}
+}
+
+// -----
+
+// `hisepq.target` is validated by the `hisepq` dialect.
+
+// expected-error @+1 {{'min_vlen' expects a power of two of at least 64, got 100 : ui32}}
+module attributes {hisepq.target = #dlti.map<"min_vlen" = 100 : ui32>} {
+  func.func @bad_min_vlen() {
+    func.return
+  }
+}
+
+// -----
+
+// expected-error @+1 {{'hisepq.target' has an unknown entry, expected 'min_vlen'}}
+module attributes {hisepq.target = #dlti.map<"min_vlenn" = 128 : ui32>} {
+  func.func @unknown_target_entry() {
+    func.return
+  }
 }

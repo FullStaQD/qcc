@@ -7,8 +7,10 @@
 //
 // ===----------------------------------------------------------------------===//
 
+#include "qcc/Dialect/HiSEPQ/HiSEPQHardware.h"
 #include "qcc/Dialect/HiSEPQ/IR/HiSEPQ.h"
 
+#include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Dialect/QC/IR/QCDialect.h"
 #include "mlir/IR/BuiltinTypeInterfaces.h"
 #include "mlir/IR/BuiltinTypes.h"
@@ -17,9 +19,14 @@
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/Value.h"
+#include "mlir/Interfaces/DataLayoutInterfaces.h"
 #include "mlir/Support/LogicalResult.h"
 
+#include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/TypeSwitch.h" // IWYU pragma: keep
+#include "llvm/Support/MathExtras.h"
+
+#include <cstdint>
 
 using namespace mlir;
 using namespace qcc::hisepq;
@@ -32,6 +39,49 @@ using namespace qcc::hisepq;
 
 #define GET_OP_CLASSES
 #include "qcc/Dialect/HiSEPQ/IR/HiSEPQOps.cpp.inc"
+
+//===----------------------------------------------------------------------===//
+// Target description
+//===----------------------------------------------------------------------===//
+
+/// Validates the `hisepq.target` module attribute.
+///
+/// MLIR routes a discardable attribute to the dialect its name prefix identifies, which is what
+/// lets a typo -- in the key or in the value -- surface as a diagnostic on the module rather than
+/// as a surprise inside a lowering. It is also why the attribute carries the `hisepq` prefix.
+LogicalResult HiSEPQDialect::verifyOperationAttribute(Operation* op, NamedAttribute attribute) {
+  const StringRef name = attribute.getName().getValue();
+  if (name != targetAttrName) {
+    return op->emitError() << "unknown '" << getDialectNamespace() << "' attribute '" << name << "'";
+  }
+
+  auto target = dyn_cast<MapAttr>(attribute.getValue());
+  if (!target) {
+    return op->emitError() << "'" << name << "' expects a '#dlti.map'";
+  }
+
+  for (DataLayoutEntryInterface entry : target.getEntries()) {
+    auto key = dyn_cast<StringAttr>(entry.getKey());
+    if (!key || key.getValue() != minVLenKey) {
+      return op->emitError() << "'" << name << "' has an unknown entry, expected '" << minVLenKey << "'";
+    }
+
+    auto value = dyn_cast<IntegerAttr>(entry.getValue());
+    if (!value) {
+      return op->emitError() << "'" << minVLenKey << "' expects an integer attribute";
+    }
+
+    // Anything below `rvvBitsPerBlock` would make `vscale` a fraction, and anything that is not a
+    // power of two is not a VLEN at all.
+    const uint64_t minVLen = value.getValue().getLimitedValue();
+    if (minVLen < rvvBitsPerBlock || !llvm::isPowerOf2_64(minVLen)) {
+      return op->emitError() << "'" << minVLenKey << "' expects a power of two of at least " << rvvBitsPerBlock
+                             << ", got " << value;
+    }
+  }
+
+  return success();
+}
 
 void HiSEPQDialect::initialize() {
   addTypes<>();
@@ -66,7 +116,7 @@ namespace {
 /// Upstream currently discourages attaching this interface to downstream types, on the grounds that
 /// the properties required of a vector element (notably a compile-time size) are not yet pinned
 /// down. A qubit reference does have such a size here -- the hardware carries qubit indices as i8
-/// lanes -- and we only ever build these vectors ourselves. Drop this model if mqt-core marks the
+/// elements -- and we only ever build these vectors ourselves. Drop this model if mqt-core marks the
 /// type itself, the way it already did for `MemRefElementTypeInterface`.
 struct QubitVectorElement : public VectorElementTypeInterface::ExternalModel<QubitVectorElement, qc::QubitType> {};
 

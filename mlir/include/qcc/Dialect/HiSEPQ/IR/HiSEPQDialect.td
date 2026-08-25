@@ -22,13 +22,15 @@ def HiSEPQDialect : Dialect {
     let summary = "Vector-shaped quantum instructions for the HiSEP-Q ISA.";
     let description = [{
         The HiSEP-Q ISA is a vendor extension of the RISC-V vector extension (RVV): a single
-        `QV.SINGLE` or `QV.PAIR` instruction applies one gate across every active lane of a vector
-        register. The `hisepq` dialect is the IR level at which that shape becomes expressible.
+        `QV.SINGLE` or `QV.PAIR` instruction applies one gate across every active element of a
+        vector register. The `hisepq` dialect is the IR level at which that shape becomes
+        expressible.
 
         Where the `qc` dialect names one qubit per operation, a `hisepq` operation carries a whole
-        lane vector, so it maps one-to-one onto a machine instruction. That makes it the place where
-        a vectorizer packs independent gates together, and the last level at which lane assignment is
-        still a compiler decision rather than an encoding detail.
+        qubit vector, so it maps one-to-one onto a machine instruction. That makes it the place
+        where a vectorizer packs independent gates together, and the last level at which the
+        assignment of qubits to vector elements is still a compiler decision rather than an
+        encoding detail.
 
         Like `qc`, the dialect has **memory semantics**: operations mutate the qubits they name in
         place. Only `hisepq.mz` produces a value, and that value is classical.
@@ -42,6 +44,9 @@ def HiSEPQDialect : Dialect {
 
     let name = "hisepq";
     let cppNamespace = "::qcc::hisepq";
+
+    // `hisepq.target` carries the machine description.
+    let hasOperationAttrVerify = 1;
 
     // `!qc.qubit` appears in our operations' assembly.
     let dependentDialects = ["::mlir::qc::QCDialect"];

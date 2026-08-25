@@ -24,7 +24,7 @@ def HiSEPQ_AnyQubit : AnyTypeOf<[QubitType], "qubit reference">;
 // `vector<NxQubitT>` - non-scalable vector type, length N statically known.
 def HiSEPQ_QubitVector : FixedVectorOfRankAndType<[1], [HiSEPQ_AnyQubit]>;
 
-// `vector<Nxi1>` - non-scalable vector of classical bits, one per qubit lane.
+// `vector<Nxi1>` - non-scalable vector of classical bits, one per qubit.
 def HiSEPQ_BitVector : FixedVectorOfRankAndType<[1], [I1]>;
 
 #endif // INCLUDE_QCC_DIALECT_HISEPQ_IR_HISEPQTYPES_TD_
