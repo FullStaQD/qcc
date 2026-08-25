@@ -85,14 +85,19 @@ static std::optional<int64_t> getQubitIndexFromPtr(Value ptrValue) {
 }
 
 /// Encodes a qubit index as a `vector<[8]xi8>` scalable vector for QV intrinsics.
-/// The index is inserted into lane 0 of a poison vector. The `nxv8i8` element
+/// The index is inserted into element 0 of a poison vector. The `nxv8i8`
 /// type matches the HiSEP-Q RISC-V backend's QV instruction-selection patterns.
 ///
 /// The poison base is deliberate. We emit every QV intrinsic with `vl = 1`, so
-/// only lane 0 is ever read and the lanes above it are genuinely don't-care.
+/// only element 0 is ever read and the elements above it are genuinely don't-care.
 ///
 /// `index` must fit in an unsigned i8 (callers are expected to have validated
 /// this already and to report a compiler error otherwise).
+///
+/// TODO: `nxv8i8` is LMUL 1, which is more register than one qubit needs -- LMUL 1/4
+/// (`nxv2i8`) is the narrowest `SupportedQVVTypes` offers and holds a qubit at any VLEN.
+/// Route this through `hisepq::Hardware::qubitVectorType` the way
+/// `ConvertHiSEPQToIntrinsics` does, so both passes pick the same type for the same machine.
 static Value qubitIndexToVec(OpBuilder& builder, Location loc, int64_t index) {
   assert(index >= 0 && std::cmp_less_equal(index, std::numeric_limits<uint8_t>::max()) &&
          "qubit index does not fit in i8");
@@ -103,8 +108,8 @@ static Value qubitIndexToVec(OpBuilder& builder, Location loc, int64_t index) {
 
   Value indexConst = LLVM::ConstantOp::create(builder, loc, i8Type, builder.getIntegerAttr(i8Type, index));
   Value poisonVec = LLVM::PoisonOp::create(builder, loc, vecType);
-  Value lane = LLVM::ConstantOp::create(builder, loc, i32Type, builder.getI32IntegerAttr(0));
-  Value insertElmOp = LLVM::InsertElementOp::create(builder, loc, poisonVec, indexConst, lane);
+  Value elementPos = LLVM::ConstantOp::create(builder, loc, i32Type, builder.getI32IntegerAttr(0));
+  Value insertElmOp = LLVM::InsertElementOp::create(builder, loc, poisonVec, indexConst, elementPos);
   return insertElmOp;
 }
 
