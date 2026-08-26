@@ -336,18 +336,13 @@ protected:
       vectorizeBlock(*block, limitVF);
     }
 
-    // FIXME: check this.
-    // Packing leaves a vector taken apart element by element and immediately put back together
-    // again. The `vector` canonicalization patterns collapse that, which for a group that reads a
-    // predecessor result back in order restores the direct operand -- one operation threading
-    // into the next, with no glue in between.
-    // RewritePatternSet patterns(ctx);
-    // vector::ExtractOp::getCanonicalizationPatterns(patterns, ctx); // FIXME: tests not sensitive to this one.
-    // vector::FromElementsOp::getCanonicalizationPatterns(patterns, ctx);
-    // vector::ShapeCastOp::getCanonicalizationPatterns(patterns, ctx); // FIXME: tests not sensitive to this one.
-    // if (failed(applyPatternsGreedily(moduleOp, std::move(patterns)))) {
-    //   signalPassFailure();
-    // }
+    // Packing takes a qubit vector apart element by element and immediately puts it back together
+    // again. This leads to verbose IR which we canonicalize (and simplify) here.
+    RewritePatternSet patterns(ctx);
+    vector::FromElementsOp::getCanonicalizationPatterns(patterns, ctx);
+    if (failed(applyPatternsGreedily(moduleOp, std::move(patterns)))) {
+      signalPassFailure();
+    }
   }
 };
 
