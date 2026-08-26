@@ -12,6 +12,8 @@
 
 #include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Dialect/QCO/IR/QCODialect.h"
+#include "mlir/Dialect/QCO/IR/QCOOps.h"
+#include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/BuiltinTypeInterfaces.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/DialectImplementation.h" // IWYU pragma: keep
@@ -26,7 +28,9 @@
 #include "llvm/ADT/TypeSwitch.h" // IWYU pragma: keep
 #include "llvm/Support/MathExtras.h"
 
+#include <cstddef>
 #include <cstdint>
+#include <utility>
 
 using namespace mlir;
 using namespace qcc::hisepq;
@@ -134,7 +138,7 @@ void qcc::hisepq::registerQubitVectorElementTypeInterfaceExternalModel(DialectRe
 // Qubit vector origin
 //===----------------------------------------------------------------------===//
 
-Value qcc::hisepq::getQubitVectorOrigin(Value qubits) {
+Value qcc::hisepq::getNonHiSEPQAncestor(Value qubits) {
   while (auto result = dyn_cast<OpResult>(qubits)) {
     auto next =
         TypeSwitch<Operation*, Value>(result.getOwner())
@@ -151,4 +155,56 @@ Value qcc::hisepq::getQubitVectorOrigin(Value qubits) {
 
   // FIXME: assert that this is not a hisepq operation?
   return qubits;
+}
+
+qco::StaticOp qcc::hisepq::getStaticOpAncestor(TypedValue<VectorType> qubits, int64_t index) {
+  // Every iteration steps strictly towards a definition, so the walk terminates.
+  while (true) {
+    Operation* definingOp = getNonHiSEPQAncestor(qubits).getDefiningOp();
+    if (definingOp == nullptr) {
+      return {}; // A block argument. Nothing to look inside.
+    }
+
+    Value element;
+    if (auto fromElementsOp = dyn_cast<vector::FromElementsOp>(definingOp)) {
+      ValueRange elements = fromElementsOp.getElements();
+      if (index < 0 || std::cmp_greater_equal(index, elements.size())) {
+        return {};
+      }
+      element = elements[static_cast<size_t>(index)];
+    } else if (auto broadcastOp = dyn_cast<vector::BroadcastOp>(definingOp)) {
+      // A qubit vector holds distinct qubits, but the case of "trivial" broadcast to a vector with a single element
+      // applies still.
+      if (broadcastOp.getResultVectorType().getNumElements() != 1 || index != 0) {
+        return {};
+      }
+      element = broadcastOp.getSource();
+    } else if (auto shapeCastOp = dyn_cast<vector::ShapeCastOp>(definingOp)) { // FIXME: do we need it?
+      // Rank-1 to rank-1 keeps the linear index; any other reshape would have to remap it.
+      if (shapeCastOp.getSourceVectorType().getRank() != 1 || shapeCastOp.getResultVectorType().getRank() != 1) {
+        return {};
+      }
+      qubits = shapeCastOp.getSource();
+      continue;
+    } else {
+      return {};
+    }
+
+    auto staticOp = element.getDefiningOp<qco::StaticOp>();
+    if (staticOp) {
+      return staticOp;
+    }
+
+    // The element may itself be read out of another qubit vector, in which case we iteratively trace further.
+    auto extractOp = element.getDefiningOp<vector::ExtractOp>();
+    if (!extractOp) {
+      return {};
+    }
+
+    if (extractOp.hasDynamicPosition() || extractOp.getStaticPosition().size() != 1) {
+      return {};
+    }
+    qubits = extractOp.getSource();
+    index = extractOp.getStaticPosition().front();
+  }
 }

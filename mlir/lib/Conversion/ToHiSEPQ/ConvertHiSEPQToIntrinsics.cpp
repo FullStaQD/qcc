@@ -47,20 +47,11 @@ struct ResolvedQubits {
   VectorType qvType;
 };
 
-/// Reads the qubit indices out of a vector by tracing to `qco.static`.
-///
-/// The operand of one operation is usually the result of the preceding one, so the trace starts by
-/// skipping past the operations that only thread the vector through. What it has to arrive at is a
-/// `vector.from_elements` of `qco.static` ops; nothing else is understood.
-std::optional<SmallVector<int64_t>> getQubitIndices(Value qubitVector) {
-  auto fromElementsOp = getQubitVectorOrigin(qubitVector).getDefiningOp<vector::FromElementsOp>();
-  if (!fromElementsOp) {
-    return std::nullopt;
-  }
-
+/// Reads the qubit indices out of a vector by tracing every element to a `qco.static`.
+std::optional<SmallVector<int64_t>> getQubitIndices(TypedValue<VectorType> qubitVector) {
   SmallVector<int64_t> indices;
-  for (Value element : fromElementsOp.getElements()) {
-    auto staticOp = element.getDefiningOp<qco::StaticOp>();
+  for (int64_t index = 0; index < qubitVector.getType().getNumElements(); ++index) {
+    qco::StaticOp staticOp = getStaticOpAncestor(qubitVector, index);
     if (!staticOp) {
       return std::nullopt;
     }
@@ -115,7 +106,7 @@ std::optional<ResolvedQubits> resolveQubitVector(Operation* op, TypedValue<Vecto
                                                  Diagnostics& diags) {
   auto indices = getQubitIndices(qubits);
   if (!indices) {
-    (void)diags.report(op, "expects every qubit vector to be a 'vector.from_elements' of 'qco.static' operations");
+    (void)diags.report(op, "expects every qubit vector element to trace back to a 'qco.static' operation");
     return std::nullopt;
   }
 

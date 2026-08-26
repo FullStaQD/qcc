@@ -14,6 +14,7 @@
 #include "qcc/Conversion/ToQIR/ToQIR.h"
 #include "qcc/Dialect/Aux_/IR/Aux_.h"
 #include "qcc/Dialect/HiSEPQ/IR/HiSEPQ.h"
+#include "qcc/Dialect/HiSEPQ/Transforms/Passes.h"
 #include "qcc/Dialect/Jasp/IR/Jasp.h"
 
 #include "mlir/Conversion/ArithToLLVM/ArithToLLVM.h"
@@ -106,7 +107,9 @@ int main(int argc, char** argv) {
   mlir::registerConvertFuncToLLVMPass();
   qcc::registerConvertQIRToHiSEPQIntrinsics();
   qcc::registerEmitHiSEPQStart();
+  qcc::registerConvertQCOToHiSEPQ();
   qcc::registerConvertHiSEPQToIntrinsics();
+  qcc::registerVectorizeHiSEPQ();
 
   // Extension registration
   mlir::arith::registerBufferizableOpInterfaceExternalModels(registry);

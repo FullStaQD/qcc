@@ -32,6 +32,7 @@ target_link_libraries(
           QCCJaspToQC
           MLIRFuncToLLVM
           MLIRVectorToLLVMPass
+          QCCHiSEPQTransforms
           QCCToHiSEPQ
           QCCToQIR
           QCCAuxOutputRecording

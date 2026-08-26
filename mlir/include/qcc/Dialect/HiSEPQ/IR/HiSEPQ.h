@@ -11,12 +11,16 @@
 
 // FIXME: check for IWYU
 #include "mlir/Dialect/QCO/IR/QCODialect.h" // IWYU pragma: keep
+#include "mlir/Dialect/QCO/IR/QCOOps.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Visitors.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
+
+#include <cstdint>
+#include <mlir/IR/Value.h>
 
 namespace mlir {
 class DialectRegistry;
@@ -53,7 +57,10 @@ namespace qcc::hisepq {
 /// without it such a vector fails to parse.
 void registerQubitVectorElementTypeInterfaceExternalModel(mlir::DialectRegistry& registry);
 
-/// Traces the origin of `qubits` through ancestor ops to the first non-hisepq-dialect generated value and returns it.
-mlir::Value getQubitVectorOrigin(mlir::Value qubits);
+/// Traces the origin of `qubits` through parent ops to the first non-hisepq-dialect generated value and returns it.
+mlir::Value getNonHiSEPQAncestor(mlir::Value qubits);
+
+/// Trace back the qubit at `index` in the vector `qubits` to a StaticOp and return it if possible.
+mlir::qco::StaticOp getStaticOpAncestor(mlir::TypedValue<mlir::VectorType> qubits, int64_t index);
 
 } // namespace qcc::hisepq

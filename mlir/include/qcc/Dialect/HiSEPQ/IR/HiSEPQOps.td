@@ -46,7 +46,7 @@ def SingleOp : HiSEPQOp<"single", [AllTypesMatch<["qubits_in", "qubits_out"]>]> 
         ```
     }];
 
-  let arguments = (ins HiSEPQ_SingleGateAttr:$gate,
+  let arguments = (ins HiSEPQ_SingleGateAttr:$gate, // FIXME: should probably be $gate_kind
                        HiSEPQ_QubitVector:$qubits_in);
   let results = (outs HiSEPQ_QubitVector:$qubits_out);
 
@@ -76,7 +76,7 @@ def PairOp : HiSEPQOp<"pair", [AllTypesMatch<["ctrls_in", "tgts_in", "ctrls_out"
     }];
 
   // FIXME: rename ctrls and tgts. Misleading for things like iSWAP.
-  let arguments = (ins HiSEPQ_PairGateAttr:$gate,
+  let arguments = (ins HiSEPQ_PairGateAttr:$gate, // FIXME: should probably be $gate_kind
                        HiSEPQ_QubitVector:$ctrls_in,
                        HiSEPQ_QubitVector:$tgts_in);
   let results = (outs HiSEPQ_QubitVector:$ctrls_out,

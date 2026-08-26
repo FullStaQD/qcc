@@ -12,4 +12,5 @@ add_mlir_dialect_library(
   MLIRSideEffectInterfaces
   MLIRDataLayoutInterfaces
   MLIRDLTIDialect
-  MLIRQCODialect)
+  MLIRQCODialect
+  MLIRVectorDialect)

@@ -1,0 +1,16 @@
+add_mlir_dialect_library(
+  QCCHiSEPQTransforms
+  VectorizeHiSEPQ.cpp
+  DEPENDS
+  QCCHiSEPQTransformsIncGen
+  LINK_LIBS
+  PRIVATE
+  MLIRIR
+  MLIRPass
+  MLIRSupport
+  MLIRSideEffectInterfaces
+  MLIRTransforms
+  MLIRVectorDialect
+  MLIRQCODialect
+  QCCHiSEPQDialect
+  QCCHiSEPQHardware)

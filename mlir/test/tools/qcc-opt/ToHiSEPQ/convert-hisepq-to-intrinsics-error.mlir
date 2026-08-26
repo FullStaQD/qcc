@@ -29,7 +29,7 @@ func.func @pair_target_is_not_static(%t: !qco.qubit) {
   %q0 = qco.static 0 : !qco.qubit
   %ctrls = vector.from_elements %q0 : vector<1x!qco.qubit>
   %tgts = vector.from_elements %t : vector<1x!qco.qubit>
-  // expected-error @+1 {{'hisepq.pair' op expects every qubit vector to be a 'vector.from_elements' of 'qco.static' operations}}
+  // expected-error @+1 {{'hisepq.pair' op expects every qubit vector element to trace back to a 'qco.static' operation}}
   %ctrls_out, %tgts_out = hisepq.pair cx %ctrls, %tgts : vector<1x!qco.qubit>
   func.return
 }
@@ -39,7 +39,7 @@ func.func @pair_target_is_not_static(%t: !qco.qubit) {
 // TODO: So far no support for dynamic qubits. This and the next test case might work in the future.
 
 func.func @qubit_vector_is_not_from_elements(%qs: vector<1x!qco.qubit>) {
-  // expected-error @+1 {{'hisepq.single' op expects every qubit vector to be a 'vector.from_elements' of 'qco.static' operations}}
+  // expected-error @+1 {{'hisepq.single' op expects every qubit vector element to trace back to a 'qco.static' operation}}
   %h = hisepq.single h %qs : vector<1x!qco.qubit>
   func.return
 }
@@ -50,7 +50,7 @@ func.func @qubit_vector_is_not_from_elements(%qs: vector<1x!qco.qubit>) {
 
 func.func @qubit_vector_is_not_static(%q: !qco.qubit) {
   %qs = vector.from_elements %q : vector<1x!qco.qubit>
-  // expected-error @+1 {{'hisepq.mz' op expects every qubit vector to be a 'vector.from_elements' of 'qco.static' operations}}
+  // expected-error @+1 {{'hisepq.mz' op expects every qubit vector element to trace back to a 'qco.static' operation}}
   %qs_out, %result = hisepq.mz %qs : vector<1x!qco.qubit> -> vector<1xi1>
   func.return
 }

@@ -76,6 +76,40 @@ def EmitHiSEPQStart : Pass<"emit-hisepq-start", "mlir::ModuleOp"> {
   ];
 }
 
+def ConvertQCOToHiSEPQ : Pass<"convert-qco-to-hisepq", "mlir::ModuleOp"> {
+  let summary = "Replaces scalar QCO ops with HiSEP-Q ops.";
+
+  let description = [{
+      The rewritten gates use single-width vectors. Packing independent gates into wider operations
+      is `hisepq-vectorize`'s job.
+
+      Every gate gets wrapped between `vector.from_elements` and `vector.extract` ops. For example
+
+      ```mlir
+      %q1 = qco.h %q0 : !qco.qubit -> !qco.qubit
+      ```
+
+      becomes
+
+      ```mlir
+      %qs = vector.from_elements %q0 : vector<1x!qco.qubit>
+      %hs = hisepq.single h %qs : vector<1x!qco.qubit>
+      %q1 = vector.extract %hs[0] : !qco.qubit from vector<1x!qco.qubit>
+      ```
+
+      Similar for pairs and measurements.
+
+      `qco.static` is kept as the source of qubits. Gates that cannot be legalized make the pass
+      fail.
+   }];
+
+  let dependentDialects = [
+    "mlir::qco::QCODialect",
+    "mlir::vector::VectorDialect",
+    "qcc::hisepq::HiSEPQDialect"
+  ];
+}
+
 def ConvertHiSEPQToIntrinsics : Pass<"convert-hisepq-to-intrinsics", "mlir::ModuleOp"> {
   let summary = "Replaces HiSEP-Q dialect ops with HiSEP-Q intrinsics.";
 
