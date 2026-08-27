@@ -1,12 +1,10 @@
 file(GLOB CONVERSION_SOURCES *.cpp)
 
 add_mlir_conversion_library(
-  QCCToHiSEPQ
+  QCCQCOToQVec
   ${CONVERSION_SOURCES}
   DEPENDS
-  QCCToHiSEPQIncGen
-  QCCAuxDialectIncGen
-  QCCAuxOpsIncGen
+  QCCQCOToQVecIncGen
   QCCQVecDialectIncGen
   QCCQVecAttrsIncGen
   QCCQVecOpsIncGen
@@ -14,15 +12,10 @@ add_mlir_conversion_library(
   # Dialects
   MLIRQCODialect
   MLIRFuncDialect
-  MLIRLLVMDialect
   MLIRVectorDialect
-  QCCAuxDialect
   QCCQVecDialect
-  QCCQVecTarget
   # Conversion infra
-  MLIRLLVMCommonConversion
   MLIRTransforms
-  MLIRFuncToLLVM
   # Core MLIR
   MLIRIR
   MLIRPass)

@@ -1,6 +1,6 @@
 // REQUIRES: hisepq
 
-// RUN: qcc-opt %s -convert-qco-to-hisepq -hisepq-vectorize -convert-hisepq-to-intrinsics \
+// RUN: qcc-opt %s -convert-qco-to-qvec -qvec-vectorize -convert-qvec-to-intrinsics \
 // RUN:   -convert-vector-to-llvm -convert-arith-to-llvm -convert-func-to-llvm -o %t.mlir
 // RUN:   FileCheck %s < %t.mlir
 // RUN: mlir-translate -mlir-to-llvmir %t.mlir | llc -mtriple=riscv32 -mattr=+experimental-xqv - -o - \
@@ -13,7 +13,7 @@
 // `convert-qir-to-hisepq-intrinsics.mlir`) would emit thirty-two.
 
 // CHECK-LABEL: llvm.func @bell_parallel
-module attributes {hisepq.target = #dlti.map<"min_vlen" = 128 : ui32>} {
+module attributes {qvec.target = #dlti.map<"min_vlen" = 128 : ui32>} {
 func.func @bell_parallel() {
     %q0 = qco.static 0 : !qco.qubit
     %q1 = qco.static 1 : !qco.qubit
@@ -99,7 +99,7 @@ func.func @bell_parallel() {
 }
 
 // Nothing of the source dialects survives.
-// CHECK-NOT:     hisepq.
+// CHECK-NOT:     qvec.
 // CHECK-NOT:     qco.
 // CHECK-NOT:     vector.from_elements
 

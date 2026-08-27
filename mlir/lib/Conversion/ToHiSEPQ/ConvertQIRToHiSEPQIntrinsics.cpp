@@ -96,8 +96,8 @@ static std::optional<int64_t> getQubitIndexFromPtr(Value ptrValue) {
 ///
 /// TODO: `nxv8i8` is LMUL 1, which is more register than one qubit needs -- LMUL 1/4
 /// (`nxv2i8`) is the narrowest `SupportedQVVTypes` offers and holds a qubit at any VLEN.
-/// Route this through `hisepq::Hardware::qubitVectorType` the way
-/// `ConvertHiSEPQToIntrinsics` does, so both passes pick the same type for the same machine.
+/// Route this through `qvec::Hardware::qubitVectorType` the way
+/// `ConvertQVecToIntrinsics` does, so both passes pick the same type for the same machine.
 static Value qubitIndexToVec(OpBuilder& builder, Location loc, int64_t index) {
   assert(index >= 0 && std::cmp_less_equal(index, std::numeric_limits<uint8_t>::max()) &&
          "qubit index does not fit in i8");

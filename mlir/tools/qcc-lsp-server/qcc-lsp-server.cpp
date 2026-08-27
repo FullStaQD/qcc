@@ -8,8 +8,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "qcc/Dialect/Aux_/IR/Aux_.h"
-#include "qcc/Dialect/HiSEPQ/IR/HiSEPQ.h"
 #include "qcc/Dialect/Jasp/IR/Jasp.h"
+#include "qcc/Dialect/QVec/IR/QVec.h"
 
 #include "mlir/Dialect/QC/IR/QCDialect.h"
 #include "mlir/Dialect/QCO/IR/QCODialect.h"
@@ -25,8 +25,8 @@ int main(int argc, char** argv) {
 
   // Register our custom project dialects.
   registry.insert<jasp::JaspDialect, mlir::qc::QCDialect, mlir::qco::QCODialect, qcc::aux::AuxDialect,
-                  qcc::hisepq::HiSEPQDialect>();
-  qcc::hisepq::registerQubitVectorElementTypeInterfaceExternalModel(registry);
+                  qcc::qvec::QVecDialect>();
+  qcc::qvec::registerQubitVectorElementTypeInterfaceExternalModel(registry);
 
   return mlir::succeeded(mlir::MlirLspServerMain(argc, argv, registry)) ? 0 : 1;
 }

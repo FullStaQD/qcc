@@ -76,46 +76,12 @@ def EmitHiSEPQStart : Pass<"emit-hisepq-start", "mlir::ModuleOp"> {
   ];
 }
 
-def ConvertQCOToHiSEPQ : Pass<"convert-qco-to-hisepq", "mlir::ModuleOp"> {
-  let summary = "Replaces scalar QCO ops with HiSEP-Q ops.";
-
-  let description = [{
-      The rewritten gates use single-width vectors. Packing independent gates into wider operations
-      is `hisepq-vectorize`'s job.
-
-      Every gate gets wrapped between `vector.from_elements` and `vector.extract` ops. For example
-
-      ```mlir
-      %q1 = qco.h %q0 : !qco.qubit -> !qco.qubit
-      ```
-
-      becomes
-
-      ```mlir
-      %qs = vector.from_elements %q0 : vector<1x!qco.qubit>
-      %hs = hisepq.single h %qs : vector<1x!qco.qubit>
-      %q1 = vector.extract %hs[0] : !qco.qubit from vector<1x!qco.qubit>
-      ```
-
-      Similar for pairs and measurements.
-
-      `qco.static` is kept as the source of qubits. Gates that cannot be legalized make the pass
-      fail.
-   }];
-
-  let dependentDialects = [
-    "mlir::qco::QCODialect",
-    "mlir::vector::VectorDialect",
-    "qcc::hisepq::HiSEPQDialect"
-  ];
-}
-
-def ConvertHiSEPQToIntrinsics : Pass<"convert-hisepq-to-intrinsics", "mlir::ModuleOp"> {
-  let summary = "Replaces HiSEP-Q dialect ops with HiSEP-Q intrinsics.";
+def ConvertQVecToIntrinsics : Pass<"convert-qvec-to-intrinsics", "mlir::ModuleOp"> {
+  let summary = "Replaces `qvec` ops with HiSEP-Q intrinsics.";
 
   // FIXME: trim this in the end.
   let description = [{
-      Replaces every `hisepq` operation with the `llvm.call_intrinsic` op targeting
+      Replaces every `qvec` operation with the `llvm.call_intrinsic` op targeting
       the RISC-V QV extension that encodes it (`llvm.riscv.qv.h`, `llvm.riscv.qv.x`,
       `llvm.riscv.qv.cx`, `llvm.riscv.qv.mz`).
 
@@ -133,7 +99,7 @@ def ConvertHiSEPQToIntrinsics : Pass<"convert-hisepq-to-intrinsics", "mlir::Modu
       at VLEN 64 it sits at 9.
 
       ```mlir
-      module attributes {hisepq.target = #dlti.map<"min_vlen" = 128 : ui32>}
+      module attributes {qvec.target = #dlti.map<"min_vlen" = 128 : ui32>}
       ```
 
       Absent that attribute the pass assumes 128, which is the floor the QV extension
@@ -144,7 +110,7 @@ def ConvertHiSEPQToIntrinsics : Pass<"convert-hisepq-to-intrinsics", "mlir::Modu
       emitted types are scalable, so only the lower bound bounds anything.
 
       // FIXME: investigate.
-      `hisepq.pair` reads control-before-target while the encoding puts the target
+      `qvec.pair` reads control-before-target while the encoding puts the target
       in `vs1` and the control in `vs2`, so the two operands are swapped here.
 
       The dialect has value semantics, so an operation's qubit vector is usually
@@ -168,7 +134,7 @@ def ConvertHiSEPQToIntrinsics : Pass<"convert-hisepq-to-intrinsics", "mlir::Modu
       Gates without an intrinsic are rejected (error).
 
       `llvm.riscv.qv.mz` returns void and the QISA specifies no way to read a
-      measurement back, so the classical result of `hisepq.mz` is replaced with
+      measurement back, so the classical result of `qvec.mz` is replaced with
       `poison`, i.e. the measurement result is lost.
       TODO: Support this once HiSEP-Q specifies the corresponding QISA operation.
   }];

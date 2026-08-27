@@ -9,8 +9,8 @@
 
 #include "qcc/Compiler/Compiler.h"
 #include "qcc/Dialect/Aux_/IR/Aux_.h"
-#include "qcc/Dialect/HiSEPQ/IR/HiSEPQ.h"
 #include "qcc/Dialect/Jasp/IR/Jasp.h"
+#include "qcc/Dialect/QVec/IR/QVec.h"
 #include "qcc/Target/TargetRegistry.h"
 
 #include "mlir/Bytecode/BytecodeWriter.h"
@@ -117,8 +117,8 @@ int main(int argc, char** argv) {
 
   // Our dialects:
   registry.insert<jasp::JaspDialect, mlir::qc::QCDialect, mlir::qco::QCODialect, qcc::aux::AuxDialect,
-                  qcc::hisepq::HiSEPQDialect>();
-  qcc::hisepq::registerQubitVectorElementTypeInterfaceExternalModel(registry);
+                  qcc::qvec::QVecDialect>();
+  qcc::qvec::registerQubitVectorElementTypeInterfaceExternalModel(registry);
 
   // Register the specific interface implementations for the pipeline
   // Note: OneShotBufferize requires these for the "Standard" dialects

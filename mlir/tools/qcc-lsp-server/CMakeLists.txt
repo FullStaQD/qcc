@@ -9,7 +9,7 @@ target_link_libraries(
           # Dialect libraries used by our project
           QCCJaspDialect
           QCCAuxDialect
-          QCCHiSEPQDialect
+          QCCQVecDialect
           MLIRQCDialect
           MLIRQCODialect)
 

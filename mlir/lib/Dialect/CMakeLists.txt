@@ -1,3 +1,3 @@
 add_subdirectory(Aux_) # NOTE: Aux not allowed on windows
 add_subdirectory(Jasp)
-add_subdirectory(HiSEPQ)
+add_subdirectory(QVec)

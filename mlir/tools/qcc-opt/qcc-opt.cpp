@@ -10,12 +10,13 @@
 #include "qcc/Conversion/AffineRaise/AffineRaise.h"
 #include "qcc/Conversion/Aux_/AuxOutputRecording.h"
 #include "qcc/Conversion/JaspToQC/JaspToQC.h"
+#include "qcc/Conversion/QCOToQVec/QCOToQVec.h"
 #include "qcc/Conversion/ToHiSEPQ/ToHiSEPQ.h"
 #include "qcc/Conversion/ToQIR/ToQIR.h"
 #include "qcc/Dialect/Aux_/IR/Aux_.h"
-#include "qcc/Dialect/HiSEPQ/IR/HiSEPQ.h"
-#include "qcc/Dialect/HiSEPQ/Transforms/Passes.h"
 #include "qcc/Dialect/Jasp/IR/Jasp.h"
+#include "qcc/Dialect/QVec/IR/QVec.h"
+#include "qcc/Dialect/QVec/Transforms/Passes.h"
 
 #include "mlir/Conversion/ArithToLLVM/ArithToLLVM.h"
 #include "mlir/Conversion/FuncToLLVM/ConvertFuncToLLVM.h"
@@ -73,7 +74,7 @@ int main(int argc, char** argv) {
     mlir::qc::QCDialect,
     mlir::qco::QCODialect,
     qcc::aux::AuxDialect,
-    qcc::hisepq::HiSEPQDialect
+    qcc::qvec::QVecDialect
       // clang-format on
       >();
 
@@ -107,9 +108,9 @@ int main(int argc, char** argv) {
   mlir::registerConvertFuncToLLVMPass();
   qcc::registerConvertQIRToHiSEPQIntrinsics();
   qcc::registerEmitHiSEPQStart();
-  qcc::registerConvertQCOToHiSEPQ();
-  qcc::registerConvertHiSEPQToIntrinsics();
-  qcc::registerVectorizeHiSEPQ();
+  qcc::registerConvertQCOToQVec();
+  qcc::registerConvertQVecToIntrinsics();
+  qcc::registerVectorizeQVec();
 
   // Extension registration
   mlir::arith::registerBufferizableOpInterfaceExternalModels(registry);
@@ -119,7 +120,7 @@ int main(int argc, char** argv) {
   mlir::bufferization::func_ext::registerBufferizableOpInterfaceExternalModels(registry);
   mlir::memref::registerAllocationOpInterfaceExternalModels(registry);
   mlir::func::registerInlinerExtension(registry);
-  qcc::hisepq::registerQubitVectorElementTypeInterfaceExternalModel(registry);
+  qcc::qvec::registerQubitVectorElementTypeInterfaceExternalModel(registry);
 
   return mlir::asMainReturnCode(mlir::MlirOptMain(argc, argv, "qcc optimizer", registry));
 }
