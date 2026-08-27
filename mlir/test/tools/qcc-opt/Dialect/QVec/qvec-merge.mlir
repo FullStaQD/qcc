@@ -1,5 +1,5 @@
-// RUN: qcc-opt %s -qvec-vectorize --split-input-file | FileCheck %s
-// RUN: qcc-opt %s -qvec-vectorize=max-vf=2 --split-input-file | FileCheck %s --check-prefix=CHECK-VF2
+// RUN: qcc-opt %s -qvec-merge --split-input-file | FileCheck %s
+// RUN: qcc-opt %s -qvec-merge=max-vf=2 --split-input-file | FileCheck %s --check-prefix=CHECK-VF2
 
 // FIXME: the max-vf=2 option only tested once, might move into dedicated file.
 

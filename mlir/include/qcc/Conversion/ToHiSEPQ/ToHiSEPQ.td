@@ -76,7 +76,7 @@ def EmitHiSEPQStart : Pass<"emit-hisepq-start", "mlir::ModuleOp"> {
   ];
 }
 
-def ConvertQVecToIntrinsics : Pass<"convert-qvec-to-intrinsics", "mlir::ModuleOp"> {
+def ConvertQVecToHiSEPQIntrinsics : Pass<"convert-qvec-to-hisepq-intrinsics", "mlir::ModuleOp"> {
   let summary = "Replaces `qvec` ops with HiSEP-Q intrinsics.";
 
   // FIXME: trim this in the end.

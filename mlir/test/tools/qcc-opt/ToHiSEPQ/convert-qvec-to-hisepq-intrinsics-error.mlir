@@ -1,4 +1,4 @@
-// RUN: qcc-opt %s -convert-qvec-to-intrinsics --split-input-file --verify-diagnostics
+// RUN: qcc-opt %s -convert-qvec-to-hisepq-intrinsics --split-input-file --verify-diagnostics
 
 func.func @unsupported_single_gate() {
   %q0 = qco.static 0 : !qco.qubit

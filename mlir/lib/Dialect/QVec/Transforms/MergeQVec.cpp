@@ -58,15 +58,15 @@ static QubitOperands getQubitOperands(Operation* op) {
 } // FIXME: Might want to replace this with an OpInterface
 
 /// SingleOp, PairOp, or MzOp.
-static bool isVectorizableOp(Operation* op) { return isa_and_present<SingleOp, PairOp, MzOp>(op); }
+static bool isMergeableOp(Operation* op) { return isa_and_present<SingleOp, PairOp, MzOp>(op); }
 
 /// The number of qubits one operand vector of `op` carries, i.e. the op's current VF.
 static int64_t getVectorLength(Operation* op) {
   return cast<VectorType>(getQubitOperands(op).front().getType()).getNumElements();
 } // FIXME: Via OpInterface?
 
-/// Identical bucket key for two ops expresses the fact that they can be merged
-/// in vectorization. Format (op category, gate id if applicable), e.g. (single,
+/// Identical bucket key for two ops expresses the fact that they can be merged.
+/// Format (op category, gate id if applicable), e.g. (single,
 /// int(h)).
 using BucketKey = std::pair<OperationName, uint32_t>;
 
@@ -92,7 +92,7 @@ static void collectProducers(Value qubits, SmallPtrSetImpl<Operation*>& producer
   if (definingOp == nullptr) {
     return;
   }
-  if (isVectorizableOp(definingOp)) {
+  if (isMergeableOp(definingOp)) {
     producers.insert(definingOp);
     return;
   }
@@ -244,12 +244,12 @@ static void mergeGroup(const Group& group) {
 }
 
 /// Packs one block's `qvec` operations, up to `limitVF` qubits per operation.
-static void vectorizeBlock(Block& block, int64_t limitVF) {
+static void mergeOpsInBlock(Block& block, int64_t limitVF) {
   // Layering. layer(op) = 1 + max(layer(op_pred) for all predecessors op_pred of op).
   DenseMap<Operation*, unsigned> layers;
   llvm::MapVector<std::pair<unsigned, BucketKey>, SmallVector<Operation*>> buckets;
   for (Operation& op : block) {
-    if (!isVectorizableOp(&op)) {
+    if (!isMergeableOp(&op)) {
       continue;
     }
 
@@ -313,13 +313,13 @@ static void vectorizeBlock(Block& block, int64_t limitVF) {
 
 namespace qcc {
 
-#define GEN_PASS_DEF_VECTORIZEQVEC
+#define GEN_PASS_DEF_MERGEQVEC
 #include "qcc/Dialect/QVec/Transforms/Passes.h.inc"
 
 namespace {
 
-struct VectorizeQVec final : impl::VectorizeQVecBase<VectorizeQVec> {
-  using VectorizeQVecBase::VectorizeQVecBase;
+struct MergeQVec final : impl::MergeQVecBase<MergeQVec> {
+  using MergeQVecBase::MergeQVecBase;
 
 protected:
   void runOnOperation() override {
@@ -333,7 +333,7 @@ protected:
     SmallVector<Block*> blocks;
     moduleOp->walk([&](Block* block) { blocks.push_back(block); });
     for (Block* block : blocks) {
-      vectorizeBlock(*block, limitVF);
+      mergeOpsInBlock(*block, limitVF);
     }
 
     // Packing takes a qubit vector apart element by element and immediately puts it back together

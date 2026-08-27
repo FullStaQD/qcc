@@ -286,13 +286,13 @@ struct MzOpLowering : public OpRewritePattern<MzOp> {
 
 namespace qcc {
 
-#define GEN_PASS_DEF_CONVERTQVECTOINTRINSICS
+#define GEN_PASS_DEF_CONVERTQVECTOHISEPQINTRINSICS
 #include "qcc/Conversion/ToHiSEPQ/ToHiSEPQ.h.inc"
 
 namespace {
 
-struct ConvertQVecToIntrinsics final : impl::ConvertQVecToIntrinsicsBase<ConvertQVecToIntrinsics> {
-  using ConvertQVecToIntrinsicsBase::ConvertQVecToIntrinsicsBase;
+struct ConvertQVecToHiSEPQIntrinsics final : impl::ConvertQVecToHiSEPQIntrinsicsBase<ConvertQVecToHiSEPQIntrinsics> {
+  using ConvertQVecToHiSEPQIntrinsicsBase::ConvertQVecToHiSEPQIntrinsicsBase;
 
 protected:
   void runOnOperation() override {

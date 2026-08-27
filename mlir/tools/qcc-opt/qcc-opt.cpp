@@ -109,8 +109,8 @@ int main(int argc, char** argv) {
   qcc::registerConvertQIRToHiSEPQIntrinsics();
   qcc::registerEmitHiSEPQStart();
   qcc::registerConvertQCOToQVec();
-  qcc::registerConvertQVecToIntrinsics();
-  qcc::registerVectorizeQVec();
+  qcc::registerConvertQVecToHiSEPQIntrinsics();
+  qcc::registerMergeQVec();
 
   // Extension registration
   mlir::arith::registerBufferizableOpInterfaceExternalModels(registry);

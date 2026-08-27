@@ -1,6 +1,6 @@
 add_mlir_dialect_library(
   QCCQVecTransforms
-  VectorizeQVec.cpp
+  MergeQVec.cpp
   DEPENDS
   QCCQVecTransformsIncGen
   LINK_LIBS

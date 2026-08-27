@@ -65,7 +65,7 @@ def PairOp : QVecOp<"pair", [AllTypesMatch<["ctrls_in", "tgts_in", "ctrls_out", 
 
         Control-before-target is this dialect's order, chosen because that is how the gates read.
         A target whose encoding disagrees has to swap in its lowering: HiSEP-Q's `QV.PAIR` puts the
-        targets in `vs1` and the controls in `vs2`, so `ConvertQVecToIntrinsics` swaps them.
+        targets in `vs1` and the controls in `vs2`, so `ConvertQVecToHiSEPQIntrinsics` swaps them.
 
         All 2N qubits named by one operation must be distinct. The canonical form sorts elements
         ascending by control index, carrying each element's target along with it.

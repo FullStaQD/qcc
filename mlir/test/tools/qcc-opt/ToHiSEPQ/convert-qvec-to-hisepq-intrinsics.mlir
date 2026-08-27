@@ -1,4 +1,4 @@
-// RUN: qcc-opt %s -convert-qvec-to-intrinsics --split-input-file | FileCheck %s
+// RUN: qcc-opt %s -convert-qvec-to-hisepq-intrinsics --split-input-file | FileCheck %s
 
 // FIXME: Is there a shortcut to declare many statics qubits more easily? (likely not)
 

@@ -14,7 +14,7 @@ def ConvertQCOToQVec : Pass<"convert-qco-to-qvec", "mlir::ModuleOp"> {
 
   let description = [{
       The rewritten gates use single-width vectors. Packing independent gates into wider operations
-      is `qvec-vectorize`'s job.
+      is `qvec-merge`'s job.
 
       Every gate gets wrapped between `vector.from_elements` and `vector.extract` ops. For example
 
