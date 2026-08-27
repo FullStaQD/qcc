@@ -110,7 +110,7 @@ int main(int argc, char** argv) {
   qcc::registerEmitHiSEPQStart();
   qcc::registerConvertQCOToQVec();
   qcc::registerConvertQVecToHiSEPQIntrinsics();
-  qcc::registerMergeQVec();
+  qcc::registerQVecMerge();
 
   // Extension registration
   mlir::arith::registerBufferizableOpInterfaceExternalModels(registry);

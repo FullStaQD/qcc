@@ -14,7 +14,7 @@ include "mlir/Pass/PassBase.td"
 
 // FIXME: update summary and description at the end.
 
-def MergeQVec : Pass<"qvec-merge", "mlir::ModuleOp"> {
+def QVecMerge : Pass<"qvec-merge", "mlir::ModuleOp"> {
   let summary = "Packs independent `qvec` operations into wider ones.";
 
   let description = [{

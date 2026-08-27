@@ -313,13 +313,13 @@ static void mergeOpsInBlock(Block& block, int64_t limitVF) {
 
 namespace qcc {
 
-#define GEN_PASS_DEF_MERGEQVEC
+#define GEN_PASS_DEF_QVECMERGE
 #include "qcc/Dialect/QVec/Transforms/Passes.h.inc"
 
 namespace {
 
-struct MergeQVec final : impl::MergeQVecBase<MergeQVec> {
-  using MergeQVecBase::MergeQVecBase;
+struct QVecMerge final : impl::QVecMergeBase<QVecMerge> {
+  using QVecMergeBase::QVecMergeBase;
 
 protected:
   void runOnOperation() override {
