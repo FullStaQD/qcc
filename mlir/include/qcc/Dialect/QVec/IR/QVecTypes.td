@@ -19,6 +19,9 @@ include "mlir/IR/CommonTypeConstraints.td"
 // QVec type constraints
 //===----------------------------------------------------------------------===//
 
+// Note that `!qco.qubit` inside `qco` is intended to represent a *linear* type. Currently we do not commit to linearity
+// in `qvec`. We have to see if this leads to problems.
+
 // `QubitType` is `!qco.qubit`, the value-semantics qubit.
 def QVec_AnyQubit : AnyTypeOf<[QubitType], "qubit value">;
 
