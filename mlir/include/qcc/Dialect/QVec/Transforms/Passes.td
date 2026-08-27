@@ -30,7 +30,7 @@ def QVecMerge : Pass<"qvec-merge", "mlir::ModuleOp"> {
       `qvec.pair cx`, one `qvec.mz`, and so on -- and each bucket is packed greedily in
       program order.
 
-      Cost model (RVV-shaped; see `QVecTarget.h`): the vectorization factor VF, i.e. the number of
+      Cost model (RVV-shaped; see `QVecMachine.h`): the vectorization factor VF, i.e. the number of
       elements in one operation, is made as large as legality allows. Larger VF means fewer
       instructions, and the QV encoding charges nothing for the width beyond the `vl` it already
       carries. What this deliberately
@@ -40,7 +40,7 @@ def QVecMerge : Pass<"qvec-merge", "mlir::ModuleOp"> {
 
       Legality: qubit indices travel as `i8`, so `VF <= VLEN/8 * EMUL` with `EMUL` the smallest
       power of two in `{1,2,4,8}` that fits -- which is exactly the widest register group the QV
-      instructions address, `qvec::Hardware::maxQubits()`. The machine is described by the
+      instructions address, `qvec::Machine::maxQubits()`. The machine is described by the
       module's `qvec.target` attribute, and `max-vf` caps it further (never above it), which
       is what lets a test exercise the split without hundreds of gates.
 

@@ -8,7 +8,7 @@
 // ===----------------------------------------------------------------------===//
 
 #include "qcc/Dialect/QVec/IR/QVec.h"
-#include "qcc/Dialect/QVec/QVecTarget.h"
+#include "qcc/Dialect/QVec/QVecMachine.h"
 
 #include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Dialect/QCO/IR/QCODialect.h"

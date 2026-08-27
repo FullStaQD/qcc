@@ -7,9 +7,9 @@
 //
 // ===----------------------------------------------------------------------===//
 //
-// The machine description behind the `qvec.target` module attribute: the hardware
-// parameters a lowering has to know, and the queries that derive vector types from
-// them.
+// The machine description behind the `qvec.target` module attribute: the parameters
+// a lowering has to know about the machine it is compiling for, and the queries that
+// derive vector types from them.
 //
 // This is the one place where the otherwise target-neutral `qvec` dialect commits to
 // a concrete vector architecture. The parameters are RVV's -- `VLEN`, and the `LMUL`
@@ -60,28 +60,28 @@ inline constexpr unsigned rvvBitsPerBlock = 64;
 /// first: the `N` of the `nxv{N}i8` types the backend selects QV instructions for. Corresponds to LMUL = N / 8.
 inline constexpr std::array<unsigned, 6> supportedKnownMinElements = {2, 4, 8, 16, 32, 64};
 
-/// The hardware parameters the lowerings depend on. RVV's, for now; see the file comment.
+/// The machine parameters the lowerings depend on. RVV's, for now; see the file comment.
 ///
 /// Read from the module rather than hardcoded, so that one pass serves every machine in the
 /// family. Every field defaults to the weakest machine the QV extension permits, which keeps a
 /// module that says nothing about its target compiling correctly -- just not optimally on a wider
 /// one.
-struct Hardware {
+struct Machine {
   /// Guaranteed lower bound on VLEN, in bits.
   unsigned minVLen = 128;
 
   /// Reads the parameters from `moduleOp`'s `qvec.target`, defaulting whatever is absent.
-  static Hardware fromModule(mlir::ModuleOp moduleOp);
+  static Machine fromModule(mlir::ModuleOp moduleOp);
 
   /// The runtime element count of a register group whose type is `<vscale x n x i8>`, i.e. `vscale * n`.
-  [[nodiscard]] unsigned elementsFor(unsigned n) const {
+  [[nodiscard]] unsigned vectorLengthFor(unsigned n) const {
     auto vscale = (minVLen / rvvBitsPerBlock);
     return vscale * n;
   }
 
   /// The largest qubit count the QV instructions can address, i.e. what the widest supported
   /// register group (for LMUL = LMUL_MAX) holds.
-  [[nodiscard]] unsigned maxQubits() const { return elementsFor(supportedKnownMinElements.back()); }
+  [[nodiscard]] unsigned maxQubits() const { return vectorLengthFor(supportedKnownMinElements.back()); }
 
   /// The narrowest scalable vector type that carries `numQubits` qubit indices. Or nullopt if capacity is exceeded.
   [[nodiscard]] std::optional<mlir::VectorType> qubitVectorType(mlir::MLIRContext* ctx, unsigned numQubits) const;

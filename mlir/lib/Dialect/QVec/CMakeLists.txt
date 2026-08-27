@@ -2,8 +2,8 @@ add_subdirectory(IR)
 add_subdirectory(Transforms)
 
 add_mlir_library(
-  QCCQVecTarget
-  QVecTarget.cpp
+  QCCQVecMachine
+  QVecMachine.cpp
   LINK_LIBS
   PRIVATE
   MLIRIR

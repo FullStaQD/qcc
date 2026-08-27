@@ -7,7 +7,7 @@
 //
 // ===----------------------------------------------------------------------===//
 
-#include "qcc/Dialect/QVec/QVecTarget.h"
+#include "qcc/Dialect/QVec/QVecMachine.h"
 
 #include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/IR/BuiltinAttributes.h"
@@ -22,28 +22,28 @@ using namespace mlir;
 
 namespace qcc::qvec {
 
-Hardware Hardware::fromModule(ModuleOp moduleOp) {
-  Hardware hardware;
+Machine Machine::fromModule(ModuleOp moduleOp) {
+  Machine machine;
 
   auto targetAttr = moduleOp->getAttrOfType<MapAttr>(targetAttrName);
   if (!targetAttr) {
-    return hardware;
+    return machine;
   }
 
   FailureOr<Attribute> minVLen = targetAttr.query(StringAttr::get(moduleOp.getContext(), minVLenKey));
   if (failed(minVLen)) {
-    return hardware;
+    return machine;
   }
 
   // Well-formedness is `QVecDialect::verifyOperationAttribute`'s job, and the module has verified
   // by the time any pass runs.
-  hardware.minVLen = static_cast<unsigned>(cast<IntegerAttr>(*minVLen).getValue().getZExtValue());
-  return hardware;
+  machine.minVLen = static_cast<unsigned>(cast<IntegerAttr>(*minVLen).getValue().getZExtValue());
+  return machine;
 }
 
-std::optional<VectorType> Hardware::qubitVectorType(MLIRContext* ctx, unsigned numQubits) const {
+std::optional<VectorType> Machine::qubitVectorType(MLIRContext* ctx, unsigned numQubits) const {
   for (unsigned knownMinElements : supportedKnownMinElements) {
-    if (elementsFor(knownMinElements) >= numQubits) {
+    if (vectorLengthFor(knownMinElements) >= numQubits) {
       return VectorType::get({knownMinElements}, IntegerType::get(ctx, 8), /*scalableDims=*/{true});
     }
   }

@@ -8,7 +8,7 @@
 // ===----------------------------------------------------------------------===//
 
 #include "qcc/Dialect/QVec/IR/QVec.h"
-#include "qcc/Dialect/QVec/QVecTarget.h"
+#include "qcc/Dialect/QVec/QVecMachine.h"
 #include "qcc/Dialect/QVec/Transforms/Passes.h" // IWYU pragma: keep
 
 #include "mlir/Dialect/QCO/IR/QCOOps.h"
@@ -327,8 +327,8 @@ protected:
     auto* ctx = moduleOp.getContext();
 
     // The max-vf option can only narrow VF (vectorization factor).
-    const Hardware hardware = Hardware::fromModule(moduleOp);
-    const unsigned limitVF = maxVF == 0 ? hardware.maxQubits() : std::min<unsigned>(maxVF, hardware.maxQubits());
+    const Machine machine = Machine::fromModule(moduleOp);
+    const unsigned limitVF = maxVF == 0 ? machine.maxQubits() : std::min<unsigned>(maxVF, machine.maxQubits());
 
     SmallVector<Block*> blocks;
     moduleOp->walk([&](Block* block) { blocks.push_back(block); });

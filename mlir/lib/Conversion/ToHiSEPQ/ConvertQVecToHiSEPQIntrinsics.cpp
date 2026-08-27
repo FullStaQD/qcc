@@ -8,7 +8,7 @@
 // ===----------------------------------------------------------------------===//
 
 #include "qcc/Dialect/QVec/IR/QVec.h"
-#include "qcc/Dialect/QVec/QVecTarget.h"
+#include "qcc/Dialect/QVec/QVecMachine.h"
 
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/QCO/IR/QCODialect.h" // FIXME: check clangd unused include warning
@@ -105,7 +105,7 @@ static Value buildQubitVector(OpBuilder& builder, Location loc, const ResolvedQu
 /// Emits nothing, so that an operation with two qubit operands can have both of them validated
 /// before any of them is materialized.
 static std::optional<ResolvedQubits> resolveQubitVector(Operation* op, TypedValue<VectorType> qubits,
-                                                        const Hardware& hardware, Diagnostics& diags) {
+                                                        const Machine& machine, Diagnostics& diags) {
   auto indices = getQubitIndices(qubits);
   if (!indices) {
     (void)diags.report(op, "expects every qubit vector element to trace back to a 'qco.static' operation");
@@ -120,11 +120,11 @@ static std::optional<ResolvedQubits> resolveQubitVector(Operation* op, TypedValu
   }
 
   auto numQubits = indices->size();
-  auto qvType = hardware.qubitVectorType(op->getContext(), static_cast<unsigned>(numQubits));
+  auto qvType = machine.qubitVectorType(op->getContext(), static_cast<unsigned>(numQubits));
   if (!qvType) {
     (void)diags.report(op, "has " + Twine(indices->size()) + " qubits, but at a minimum VLEN of " +
-                               Twine(hardware.minVLen) + " the QV instructions address at most " +
-                               Twine(hardware.maxQubits()));
+                               Twine(machine.minVLen) + " the QV instructions address at most " +
+                               Twine(machine.maxQubits()));
     return std::nullopt;
   }
 
@@ -186,8 +186,8 @@ namespace {
 
 /// Rewrites `qvec.single` into `llvm.call_intrinsic "llvm.riscv.qv.{h,x,...}"`.
 struct SingleOpLowering : public OpRewritePattern<SingleOp> {
-  SingleOpLowering(MLIRContext* ctx, Diagnostics* diags, Hardware hardware)
-      : OpRewritePattern(ctx), diags(diags), hardware(hardware) {}
+  SingleOpLowering(MLIRContext* ctx, Diagnostics* diags, Machine machine)
+      : OpRewritePattern(ctx), diags(diags), machine(machine) {}
 
   LogicalResult matchAndRewrite(SingleOp op, PatternRewriter& rewriter) const override {
     StringRef intrinsic = getSingleGateIntrinsic(op.getGate());
@@ -195,7 +195,7 @@ struct SingleOpLowering : public OpRewritePattern<SingleOp> {
       return diags->report(op, "gate '" + stringifySingleGate(op.getGate()) + "' has no HiSEP-Q intrinsic");
     }
 
-    auto qubits = resolveQubitVector(op, op.getQubitsIn(), hardware, *diags);
+    auto qubits = resolveQubitVector(op, op.getQubitsIn(), machine, *diags);
     if (!qubits) {
       return failure();
     }
@@ -212,13 +212,13 @@ struct SingleOpLowering : public OpRewritePattern<SingleOp> {
   }
 
   Diagnostics* diags;
-  Hardware hardware;
+  Machine machine;
 };
 
 /// Rewrites `qvec.pair` into `llvm.call_intrinsic "llvm.riscv.qv.cx"`.
 struct PairOpLowering : public OpRewritePattern<PairOp> {
-  PairOpLowering(MLIRContext* ctx, Diagnostics* diags, Hardware hardware)
-      : OpRewritePattern(ctx), diags(diags), hardware(hardware) {}
+  PairOpLowering(MLIRContext* ctx, Diagnostics* diags, Machine machine)
+      : OpRewritePattern(ctx), diags(diags), machine(machine) {}
 
   LogicalResult matchAndRewrite(PairOp op, PatternRewriter& rewriter) const override {
     StringRef intrinsic = getPairGateIntrinsic(op.getGate());
@@ -226,11 +226,11 @@ struct PairOpLowering : public OpRewritePattern<PairOp> {
       return diags->report(op, "gate '" + stringifyPairGate(op.getGate()) + "' has no HiSEP-Q intrinsic");
     }
 
-    auto ctrls = resolveQubitVector(op, op.getCtrlsIn(), hardware, *diags);
+    auto ctrls = resolveQubitVector(op, op.getCtrlsIn(), machine, *diags);
     if (!ctrls) {
       return failure();
     }
-    auto tgts = resolveQubitVector(op, op.getTgtsIn(), hardware, *diags);
+    auto tgts = resolveQubitVector(op, op.getTgtsIn(), machine, *diags);
     if (!tgts) {
       return failure();
     }
@@ -249,7 +249,7 @@ struct PairOpLowering : public OpRewritePattern<PairOp> {
   }
 
   Diagnostics* diags;
-  Hardware hardware;
+  Machine machine;
 };
 
 /// Rewrites `qvec.mz` into `llvm.call_intrinsic "llvm.riscv.qv.mz"` plus a poison result.
@@ -258,11 +258,11 @@ struct PairOpLowering : public OpRewritePattern<PairOp> {
 /// here. Replace the poison with a real read once `IntrinsicsRISCVXQV.td` gains an intrinsic for
 /// it. Until then a program that branches on a measurement silently gets garbage.
 struct MzOpLowering : public OpRewritePattern<MzOp> {
-  MzOpLowering(MLIRContext* ctx, Diagnostics* diags, Hardware hardware)
-      : OpRewritePattern(ctx), diags(diags), hardware(hardware) {}
+  MzOpLowering(MLIRContext* ctx, Diagnostics* diags, Machine machine)
+      : OpRewritePattern(ctx), diags(diags), machine(machine) {}
 
   LogicalResult matchAndRewrite(MzOp op, PatternRewriter& rewriter) const override {
-    auto qubits = resolveQubitVector(op, op.getQubitsIn(), hardware, *diags);
+    auto qubits = resolveQubitVector(op, op.getQubitsIn(), machine, *diags);
     if (!qubits) {
       return failure();
     }
@@ -279,7 +279,7 @@ struct MzOpLowering : public OpRewritePattern<MzOp> {
   }
 
   Diagnostics* diags;
-  Hardware hardware;
+  Machine machine;
 };
 
 } // namespace
@@ -299,11 +299,11 @@ protected:
     ModuleOp moduleOp = getOperation();
     auto* ctx = moduleOp.getContext();
 
-    const Hardware hardware = Hardware::fromModule(moduleOp);
+    const Machine machine = Machine::fromModule(moduleOp);
 
     Diagnostics diags;
     RewritePatternSet patterns(ctx);
-    patterns.add<SingleOpLowering, PairOpLowering, MzOpLowering>(ctx, &diags, hardware);
+    patterns.add<SingleOpLowering, PairOpLowering, MzOpLowering>(ctx, &diags, machine);
 
     if (failed(applyPatternsGreedily(moduleOp, std::move(patterns))) || diags.hadError) {
       signalPassFailure();

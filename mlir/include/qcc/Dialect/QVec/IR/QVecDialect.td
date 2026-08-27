@@ -43,7 +43,7 @@ def QVecDialect : Dialect {
         have to hit first:
 
         - The machine description behind `qvec.target` is parameterised by RVV's `VLEN`, and the
-          legal vector lengths are derived through RVV's `LMUL` register groups. See `QVecTarget.h`.
+          legal vector lengths are derived through RVV's `LMUL` register groups. See `QVecMachine.h`.
         - Qubit indices are assumed to travel as `i8` elements, which is what fixes how many qubits
           one operation can name.
 
