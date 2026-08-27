@@ -39,8 +39,6 @@
 using namespace mlir;
 using namespace qcc::hisepq;
 
-namespace {
-
 //===----------------------------------------------------------------------===//
 // A uniform view of the three HiSEP-Q operations
 //===----------------------------------------------------------------------===//
@@ -51,7 +49,7 @@ using QubitOperands = SmallVector<TypedValue<VectorType>, 2>;
 ///
 /// `hisepq.pair` has two of them, everything else one. Element `i` of each vector belongs to the
 /// same gate, which is what makes packing a matter of concatenating the vectors slot by slot.
-QubitOperands getQubitOperands(Operation* op) {
+static QubitOperands getQubitOperands(Operation* op) {
   return TypeSwitch<Operation*, QubitOperands>(op)
       .Case([](SingleOp singleOp) { return QubitOperands{singleOp.getQubitsIn()}; })
       .Case([](PairOp pairOp) { return QubitOperands{pairOp.getCtrlsIn(), pairOp.getTgtsIn()}; })
@@ -60,10 +58,10 @@ QubitOperands getQubitOperands(Operation* op) {
 } // FIXME: Might want to replace this with an OpInterface
 
 /// SingleOp, PairOp, or MzOp.
-bool isVectorizableOp(Operation* op) { return isa_and_present<SingleOp, PairOp, MzOp>(op); }
+static bool isVectorizableOp(Operation* op) { return isa_and_present<SingleOp, PairOp, MzOp>(op); }
 
 /// The number of qubits one operand vector of `op` carries, i.e. the op's current VF.
-int64_t getVectorLength(Operation* op) {
+static int64_t getVectorLength(Operation* op) {
   return cast<VectorType>(getQubitOperands(op).front().getType()).getNumElements();
 } // FIXME: Via OpInterface?
 
@@ -73,7 +71,7 @@ int64_t getVectorLength(Operation* op) {
 using BucketKey = std::pair<OperationName, uint32_t>;
 
 // FIXME: better via OpInterface?
-BucketKey getBucketKey(Operation* op) {
+static BucketKey getBucketKey(Operation* op) {
   const uint32_t gate = TypeSwitch<Operation*, uint32_t>(op)
                             .Case([](SingleOp singleOp) { return static_cast<uint32_t>(singleOp.getGate()); })
                             .Case([](PairOp pairOp) { return static_cast<uint32_t>(pairOp.getGate()); })
@@ -89,7 +87,7 @@ BucketKey getBucketKey(Operation* op) {
 ///
 /// Walks back through everything that only moves qubits around, so it sees the producer even
 /// when the vector was taken apart and put back together in between.
-void collectProducers(Value qubits, SmallPtrSetImpl<Operation*>& producers) {
+static void collectProducers(Value qubits, SmallPtrSetImpl<Operation*>& producers) {
   Operation* definingOp = qubits.getDefiningOp();
   if (definingOp == nullptr) {
     return;
@@ -116,7 +114,7 @@ void collectProducers(Value qubits, SmallPtrSetImpl<Operation*>& producers) {
 /// Only pure operations are hoisted, and only within `before`'s block; anything else either
 /// already dominates `before` or makes this fail. Hoisting a pure operation is always safe on its
 /// own, so a failure part-way through leaves correct -- if pointlessly rearranged -- IR behind.
-bool makeAvailableBefore(Value value, Operation* before) {
+static bool makeAvailableBefore(Value value, Operation* before) {
   Operation* definingOp = value.getDefiningOp();
   if (definingOp == nullptr || definingOp->getBlock() != before->getBlock()) {
     return true; // A block argument, or defined in an enclosing region. Either way it dominates.
@@ -140,6 +138,8 @@ bool makeAvailableBefore(Value value, Operation* before) {
 //===----------------------------------------------------------------------===//
 // Packing
 //===----------------------------------------------------------------------===//
+
+namespace {
 
 /// The operations supposed to be merged into one, plus what the admission test needs.
 struct Group {
@@ -166,11 +166,13 @@ struct Group {
   }
 };
 
+} // namespace
+
 /// The qubits `op` names, or nullopt if any of them cannot be identified.
 ///
 /// Identity of the returned values is qubit identity, so this is what the overlap test compares.
 /// An unidentifiable element makes the test impossible rather than false, hence the failure.
-std::optional<SmallVector<Value>> getNamedQubits(Operation* op) {
+static std::optional<SmallVector<Value>> getNamedQubits(Operation* op) {
   SmallVector<Value> qubits;
   for (auto operand : getQubitOperands(op)) {
     for (int64_t index = 0; index < cast<VectorType>(operand.getType()).getNumElements(); ++index) {
@@ -187,7 +189,7 @@ std::optional<SmallVector<Value>> getNamedQubits(Operation* op) {
 /// Extracts elements `[offset, offset + width)` out of `merged` as a vector of its own.
 ///
 /// Use case: To enable the users of group members (which are now merged) to act on the right slice.
-Value buildMemberSlice(OpBuilder& builder, Location loc, Value merged, int64_t offset, int64_t width) {
+static Value buildMemberSlice(OpBuilder& builder, Location loc, Value merged, int64_t offset, int64_t width) {
   SmallVector<Value> elements;
   for (int64_t index = offset; index < offset + width; ++index) {
     elements.push_back(vector::ExtractOp::create(builder, loc, merged, index));
@@ -200,7 +202,7 @@ Value buildMemberSlice(OpBuilder& builder, Location loc, Value merged, int64_t o
 
 /// Replaces `group`'s members with one operation over all their qubits. The merged operation goes where the first
 /// member was.
-void mergeGroup(const Group& group) {
+static void mergeGroup(const Group& group) {
   Operation* firstOp = group.members.front();
   OpBuilder builder(firstOp); // important: sets insertion point right before firstOp.
   Location loc = firstOp->getLoc();
@@ -242,7 +244,7 @@ void mergeGroup(const Group& group) {
 }
 
 /// Packs one block's `hisepq` operations, up to `limitVF` qubits per operation.
-void vectorizeBlock(Block& block, int64_t limitVF) {
+static void vectorizeBlock(Block& block, int64_t limitVF) {
   // Layering. layer(op) = 1 + max(layer(op_pred) for all predecessors op_pred of op).
   DenseMap<Operation*, unsigned> layers;
   llvm::MapVector<std::pair<unsigned, BucketKey>, SmallVector<Operation*>> buckets;
@@ -308,8 +310,6 @@ void vectorizeBlock(Block& block, int64_t limitVF) {
     close(group);
   }
 }
-
-} // namespace
 
 namespace qcc {
 

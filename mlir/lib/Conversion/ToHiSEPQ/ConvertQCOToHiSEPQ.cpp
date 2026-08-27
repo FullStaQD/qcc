@@ -31,18 +31,18 @@
 using namespace mlir;
 using namespace qcc::hisepq;
 
-namespace {
-
 /// Packs `elements` into a qubit vector and returns corresponding `vector.from_elements` op.
-vector::FromElementsOp buildQubitVector(OpBuilder& builder, Location loc, ValueRange elements) {
+static vector::FromElementsOp buildQubitVector(OpBuilder& builder, Location loc, ValueRange elements) {
   auto vectorType = VectorType::get({static_cast<int64_t>(elements.size())}, elements.front().getType());
   return vector::FromElementsOp::create(builder, loc, vectorType, elements);
 }
 
+namespace {
+
 /// Rewrites a single-qubit `qco` gate into a one-element `hisepq.single`.
 template <typename SourceOp, SingleGate gate> struct SingleGateLowering final : public OpConversionPattern<SourceOp> {
   using OpConversionPattern<SourceOp>::OpConversionPattern;
-  using OpAdaptor = typename SourceOp::Adaptor;
+  using OpAdaptor = SourceOp::Adaptor;
 
   LogicalResult matchAndRewrite(SourceOp op, OpAdaptor adaptor, ConversionPatternRewriter& rewriter) const override {
     Location loc = op.getLoc();
@@ -71,10 +71,12 @@ struct ISwapLowering final : public OpConversionPattern<qco::iSWAPOp> {
   }
 };
 
+} // namespace
+
 /// Returns the pair gate a `qco.ctrl` body denotes, or nullopt if it denotes none.
 ///
 /// Only the shape `ctrl(%c) targets(%t) { qco.SINGLE_QUBIT_GATE }` maps.
-std::optional<PairGate> getControlledPairGate(qco::CtrlOp op) {
+static std::optional<PairGate> getControlledPairGate(qco::CtrlOp op) {
   if (op.getNumControls() != 1 || op.getNumTargets() != 1) {
     return std::nullopt;
   }
@@ -91,6 +93,8 @@ std::optional<PairGate> getControlledPairGate(qco::CtrlOp op) {
       .Case([](qco::ZOp) { return PairGate::CZ; })
       .Default([](Operation*) { return std::nullopt; });
 }
+
+namespace {
 
 /// Rewrites a singly-controlled single-target gate into a one-element `hisepq.pair`.
 struct CtrlLowering final : public OpConversionPattern<qco::CtrlOp> {
@@ -130,9 +134,9 @@ struct MeasureLowering final : public OpConversionPattern<qco::MeasureOp> {
   }
 };
 
-bool isInsideCtrlBody(Operation* op) { return isa_and_present<qco::CtrlOp>(op->getParentOp()); }
-
 } // namespace
+
+static bool isInsideCtrlBody(Operation* op) { return isa_and_present<qco::CtrlOp>(op->getParentOp()); }
 
 namespace qcc {
 

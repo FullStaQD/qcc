@@ -47,8 +47,22 @@ struct ResolvedQubits {
   VectorType qvType;
 };
 
+/// Shared state of the lowering patterns: the diagnostics they emit.
+struct Diagnostics {
+  bool hadError = false;
+
+  /// Emits `message` on `op` and marks the pass as failed.
+  LogicalResult report(Operation* op, const Twine& message) {
+    op->emitOpError(message);
+    hadError = true;
+    return failure();
+  }
+};
+
+} // namespace
+
 /// Reads the qubit indices out of a vector by tracing every element to a `qco.static`.
-std::optional<SmallVector<int64_t>> getQubitIndices(TypedValue<VectorType> qubitVector) {
+static std::optional<SmallVector<int64_t>> getQubitIndices(TypedValue<VectorType> qubitVector) {
   SmallVector<int64_t> indices;
   for (int64_t index = 0; index < qubitVector.getType().getNumElements(); ++index) {
     qco::StaticOp staticOp = getStaticOpAncestor(qubitVector, index);
@@ -66,7 +80,7 @@ std::optional<SmallVector<int64_t>> getQubitIndices(TypedValue<VectorType> qubit
 /// The indices become one dense `vector<Nxi8>` constant, which is then inserted into a poison
 /// scalable vector of `qvType`. The poison base is deliberate: the intrinsic is emitted with
 /// `vl = N`, so the elements above the last index are never read.
-Value buildQubitVector(OpBuilder& builder, Location loc, const ResolvedQubits& qubits) {
+static Value buildQubitVector(OpBuilder& builder, Location loc, const ResolvedQubits& qubits) {
   ArrayRef<int64_t> qubitIndices = qubits.indices;
   VectorType qvType = qubits.qvType;
 
@@ -86,24 +100,12 @@ Value buildQubitVector(OpBuilder& builder, Location loc, const ResolvedQubits& q
   return LLVM::vector_insert::create(builder, loc, poisonVec, qubitVec, /*pos=*/0);
 }
 
-/// Shared state of the lowering patterns: the diagnostics they emit.
-struct Diagnostics {
-  bool hadError = false;
-
-  /// Emits `message` on `op` and marks the pass as failed.
-  LogicalResult report(Operation* op, const Twine& message) {
-    op->emitOpError(message);
-    hadError = true;
-    return failure();
-  }
-};
-
 /// Checks a qubit operand of `op` and works out what the intrinsic needs for it.
 ///
 /// Emits nothing, so that an operation with two qubit operands can have both of them validated
 /// before any of them is materialized.
-std::optional<ResolvedQubits> resolveQubitVector(Operation* op, TypedValue<VectorType> qubits, const Hardware& hardware,
-                                                 Diagnostics& diags) {
+static std::optional<ResolvedQubits> resolveQubitVector(Operation* op, TypedValue<VectorType> qubits,
+                                                        const Hardware& hardware, Diagnostics& diags) {
   auto indices = getQubitIndices(qubits);
   if (!indices) {
     (void)diags.report(op, "expects every qubit vector element to trace back to a 'qco.static' operation");
@@ -130,7 +132,7 @@ std::optional<ResolvedQubits> resolveQubitVector(Operation* op, TypedValue<Vecto
 }
 
 /// Returns the intrinsic implementing `gate`, or an empty ref if there is none.
-StringRef getSingleGateIntrinsic(SingleGate gate) {
+static StringRef getSingleGateIntrinsic(SingleGate gate) {
   switch (gate) {
   case SingleGate::H:
     return "llvm.riscv.qv.h";
@@ -149,7 +151,7 @@ StringRef getSingleGateIntrinsic(SingleGate gate) {
 }
 
 /// Returns the intrinsic implementing `gate`, or an empty ref if there is none.
-StringRef getPairGateIntrinsic(PairGate gate) {
+static StringRef getPairGateIntrinsic(PairGate gate) {
   switch (gate) {
   case PairGate::CX:
     return "llvm.riscv.qv.cx";
@@ -165,7 +167,7 @@ StringRef getPairGateIntrinsic(PairGate gate) {
 /// `intrinsic(..., [tag,] wait_time, num_qubits)`.
 ///
 /// The software tag (`rs2`) and wait time (`block_imm`) set to 0 until the dialect models them.
-SmallVector<Value> buildScalarOperands(OpBuilder& builder, Location loc, unsigned numQubits, bool withTag) {
+static SmallVector<Value> buildScalarOperands(OpBuilder& builder, Location loc, unsigned numQubits, bool withTag) {
   auto i32Type = builder.getI32Type();
   auto constant = [&](int32_t value) -> Value {
     return LLVM::ConstantOp::create(builder, loc, i32Type, builder.getI32IntegerAttr(value));
@@ -179,6 +181,8 @@ SmallVector<Value> buildScalarOperands(OpBuilder& builder, Location loc, unsigne
   operands.push_back(constant(static_cast<int32_t>(numQubits))); // number of qubits to access
   return operands;
 }
+
+namespace {
 
 /// Rewrites `hisepq.single` into `llvm.call_intrinsic "llvm.riscv.qv.{h,x,...}"`.
 struct SingleOpLowering : public OpRewritePattern<SingleOp> {
