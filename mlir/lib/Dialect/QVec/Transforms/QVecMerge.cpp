@@ -73,8 +73,8 @@ using BucketKey = std::pair<OperationName, uint32_t>;
 // FIXME: better via OpInterface?
 static BucketKey getBucketKey(Operation* op) {
   const uint32_t gate = TypeSwitch<Operation*, uint32_t>(op)
-                            .Case([](SingleOp singleOp) { return static_cast<uint32_t>(singleOp.getGate()); })
-                            .Case([](PairOp pairOp) { return static_cast<uint32_t>(pairOp.getGate()); })
+                            .Case([](SingleOp singleOp) { return static_cast<uint32_t>(singleOp.getGateKind()); })
+                            .Case([](PairOp pairOp) { return static_cast<uint32_t>(pairOp.getGateKind()); })
                             .Default([](Operation*) { return 0U; }); // FIXME: implicitly assumes Default == MZ.
   return {op->getName(), gate};
 }
@@ -215,10 +215,10 @@ static void mergeGroup(const Group& group) {
   Operation* merged =
       TypeSwitch<Operation*, Operation*>(firstOp)
           .Case([&](SingleOp singleOp) {
-            return SingleOp::create(builder, loc, operands[0].getType(), singleOp.getGate(), operands[0]);
+            return SingleOp::create(builder, loc, operands[0].getType(), singleOp.getGateKind(), operands[0]);
           })
           .Case([&](PairOp pairOp) {
-            return PairOp::create(builder, loc, operands[0].getType(), operands[1].getType(), pairOp.getGate(),
+            return PairOp::create(builder, loc, operands[0].getType(), operands[1].getType(), pairOp.getGateKind(),
                                   operands[0], operands[1]);
           })
           .Case([&](MzOp) {

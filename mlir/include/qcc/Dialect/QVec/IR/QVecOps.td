@@ -47,12 +47,12 @@ def SingleOp : QVecOp<"single", [AllTypesMatch<["qubits_in", "qubits_out"]>]> {
         ```
     }];
 
-  let arguments = (ins QVec_SingleGateAttr:$gate, // FIXME: should probably be $gate_kind
+  let arguments = (ins QVec_SingleGateAttr:$gate_kind,
                        QVec_QubitVector:$qubits_in);
   let results = (outs QVec_QubitVector:$qubits_out);
 
   let assemblyFormat = [{
-        `` $gate $qubits_in attr-dict `:` type($qubits_in)
+        `` $gate_kind $qubits_in attr-dict `:` type($qubits_in)
     }];
 }
 
@@ -77,14 +77,14 @@ def PairOp : QVecOp<"pair", [AllTypesMatch<["ctrls_in", "tgts_in", "ctrls_out", 
     }];
 
   // FIXME: rename ctrls and tgts. Misleading for things like iSWAP.
-  let arguments = (ins QVec_PairGateAttr:$gate, // FIXME: should probably be $gate_kind
+  let arguments = (ins QVec_PairGateAttr:$gate_kind,
                        QVec_QubitVector:$ctrls_in,
                        QVec_QubitVector:$tgts_in);
   let results = (outs QVec_QubitVector:$ctrls_out,
                       QVec_QubitVector:$tgts_out);
 
   let assemblyFormat = [{
-        `` $gate $ctrls_in `,` $tgts_in attr-dict `:` type($ctrls_in)
+        `` $gate_kind $ctrls_in `,` $tgts_in attr-dict `:` type($ctrls_in)
     }];
 }
 

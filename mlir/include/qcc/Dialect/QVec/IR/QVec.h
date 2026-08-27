@@ -9,15 +9,9 @@
 
 #pragma once
 
-// FIXME: check for IWYU
 #include "mlir/Dialect/QCO/IR/QCODialect.h" // IWYU pragma: keep
 #include "mlir/Dialect/QCO/IR/QCOOps.h"
-#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/BuiltinTypes.h"
-#include "mlir/IR/DialectImplementation.h"
-#include "mlir/IR/PatternMatch.h"
-#include "mlir/IR/Visitors.h"
-#include "mlir/Interfaces/SideEffectInterfaces.h"
 
 #include <cstdint>
 #include <mlir/IR/Value.h>

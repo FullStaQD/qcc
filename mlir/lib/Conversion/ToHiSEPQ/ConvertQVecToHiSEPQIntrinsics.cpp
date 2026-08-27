@@ -190,9 +190,9 @@ struct SingleOpLowering : public OpRewritePattern<SingleOp> {
       : OpRewritePattern(ctx), diags(diags), machine(machine) {}
 
   LogicalResult matchAndRewrite(SingleOp op, PatternRewriter& rewriter) const override {
-    StringRef intrinsic = getSingleGateIntrinsic(op.getGate());
+    StringRef intrinsic = getSingleGateIntrinsic(op.getGateKind());
     if (intrinsic.empty()) {
-      return diags->report(op, "gate '" + stringifySingleGate(op.getGate()) + "' has no HiSEP-Q intrinsic");
+      return diags->report(op, "gate '" + stringifySingleGate(op.getGateKind()) + "' has no HiSEP-Q intrinsic");
     }
 
     auto qubits = resolveQubitVector(op, op.getQubitsIn(), machine, *diags);
@@ -221,9 +221,9 @@ struct PairOpLowering : public OpRewritePattern<PairOp> {
       : OpRewritePattern(ctx), diags(diags), machine(machine) {}
 
   LogicalResult matchAndRewrite(PairOp op, PatternRewriter& rewriter) const override {
-    StringRef intrinsic = getPairGateIntrinsic(op.getGate());
+    StringRef intrinsic = getPairGateIntrinsic(op.getGateKind());
     if (intrinsic.empty()) {
-      return diags->report(op, "gate '" + stringifyPairGate(op.getGate()) + "' has no HiSEP-Q intrinsic");
+      return diags->report(op, "gate '" + stringifyPairGate(op.getGateKind()) + "' has no HiSEP-Q intrinsic");
     }
 
     auto ctrls = resolveQubitVector(op, op.getCtrlsIn(), machine, *diags);
