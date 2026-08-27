@@ -17,13 +17,6 @@
 // RVV's rules for turning them into types. We picked RVV because it is the vector
 // architecture we know and because HiSEP-Q, our first target, is an RVV extension.
 //
-// It is fine that this informs the dialect: the dialect asks it only for `maxQubits()`
-// and for the type carrying N qubits, and neither question is RVV-specific. Only the
-// answers are. A second vector target would mean generalising this file -- most likely
-// into a target-capability interface -- and would leave the operations untouched. We
-// have deliberately not done that yet: with one target, there is nothing to tell us
-// what the abstraction should be.
-//
 // ===----------------------------------------------------------------------===//
 
 #pragma once
