@@ -52,7 +52,7 @@ using QubitOperands = SmallVector<TypedValue<VectorType>, 2>;
 static QubitOperands getQubitOperands(Operation* op) {
   return TypeSwitch<Operation*, QubitOperands>(op)
       .Case([](SingleOp singleOp) { return QubitOperands{singleOp.getQubitsIn()}; })
-      .Case([](PairOp pairOp) { return QubitOperands{pairOp.getCtrlsIn(), pairOp.getTgtsIn()}; })
+      .Case([](PairOp pairOp) { return QubitOperands{pairOp.getLhsIn(), pairOp.getRhsIn()}; })
       .Case([](MzOp mzOp) { return QubitOperands{mzOp.getQubitsIn()}; })
       .Default([](Operation*) { return QubitOperands{}; });
 } // FIXME: Might want to replace this with an OpInterface

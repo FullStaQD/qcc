@@ -226,11 +226,11 @@ struct PairOpLowering : public OpRewritePattern<PairOp> {
       return diags->report(op, "gate '" + stringifyPairGate(op.getGateKind()) + "' has no HiSEP-Q intrinsic");
     }
 
-    auto ctrls = resolveQubitVector(op, op.getCtrlsIn(), machine, *diags);
+    auto ctrls = resolveQubitVector(op, op.getLhsIn(), machine, *diags);
     if (!ctrls) {
       return failure();
     }
-    auto tgts = resolveQubitVector(op, op.getTgtsIn(), machine, *diags);
+    auto tgts = resolveQubitVector(op, op.getRhsIn(), machine, *diags);
     if (!tgts) {
       return failure();
     }
@@ -244,7 +244,7 @@ struct PairOpLowering : public OpRewritePattern<PairOp> {
     LLVM::CallIntrinsicOp::create(rewriter, op.getLoc(), rewriter.getStringAttr(intrinsic), args);
 
     // The instruction acts in place, so what comes out is what went in.
-    rewriter.replaceOp(op, ValueRange{op.getCtrlsIn(), op.getTgtsIn()});
+    rewriter.replaceOp(op, ValueRange{op.getLhsIn(), op.getRhsIn()});
     return success();
   }
 

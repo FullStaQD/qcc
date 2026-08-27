@@ -65,8 +65,8 @@ struct ISwapLowering final : public OpConversionPattern<qco::iSWAPOp> {
     Value v1 = buildQubitVector(rewriter, loc, adaptor.getQubit1In());
     auto pairOp = PairOp::create(rewriter, loc, v0.getType(), v1.getType(), PairGate::iSWAP, v0, v1);
 
-    rewriter.replaceOp(op, ValueRange{vector::ExtractOp::create(rewriter, loc, pairOp.getCtrlsOut(), 0),
-                                      vector::ExtractOp::create(rewriter, loc, pairOp.getTgtsOut(), 0)});
+    rewriter.replaceOp(op, ValueRange{vector::ExtractOp::create(rewriter, loc, pairOp.getLhsOut(), 0),
+                                      vector::ExtractOp::create(rewriter, loc, pairOp.getRhsOut(), 0)});
     return success();
   }
 };
@@ -111,8 +111,8 @@ struct CtrlLowering final : public OpConversionPattern<qco::CtrlOp> {
     Value tgts = buildQubitVector(rewriter, loc, adaptor.getTargetsIn().front());
     auto pairOp = PairOp::create(rewriter, loc, ctrls.getType(), tgts.getType(), *gate, ctrls, tgts);
 
-    rewriter.replaceOp(op, ValueRange{vector::ExtractOp::create(rewriter, loc, pairOp.getCtrlsOut(), 0),
-                                      vector::ExtractOp::create(rewriter, loc, pairOp.getTgtsOut(), 0)});
+    rewriter.replaceOp(op, ValueRange{vector::ExtractOp::create(rewriter, loc, pairOp.getLhsOut(), 0),
+                                      vector::ExtractOp::create(rewriter, loc, pairOp.getRhsOut(), 0)});
     return success();
   }
 };

@@ -143,7 +143,7 @@ Value qcc::qvec::getNonQVecAncestor(Value qubits) {
     auto next =
         TypeSwitch<Operation*, Value>(result.getOwner())
             .Case<SingleOp>([](SingleOp op) { return op.getQubitsIn(); })
-            .Case<PairOp>([&](PairOp op) { return result.getResultNumber() == 0 ? op.getCtrlsIn() : op.getTgtsIn(); })
+            .Case<PairOp>([&](PairOp op) { return result.getResultNumber() == 0 ? op.getLhsIn() : op.getRhsIn(); })
             // Only the qubit result threads through; the bits are new.
             .Case<MzOp>([&](MzOp op) { return result.getResultNumber() == 0 ? op.getQubitsIn() : Value(); })
             .Default([](Operation*) { return Value(); });

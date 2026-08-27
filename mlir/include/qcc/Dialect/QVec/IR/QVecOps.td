@@ -56,19 +56,20 @@ def SingleOp : QVecOp<"single", [AllTypesMatch<["qubits_in", "qubits_out"]>]> {
     }];
 }
 
-def PairOp : QVecOp<"pair", [AllTypesMatch<["ctrls_in", "tgts_in", "ctrls_out", "tgts_out"]>]> {
+def PairOp : QVecOp<"pair", [AllTypesMatch<["lhs_in", "rhs_in", "lhs_out", "rhs_out"]>]> {
   let summary = "Apply one two-qubit gate across two vectors of qubits.";
   let description = [{
         Applies `gate` to every element and returns the qubits it acted on, one vector per operand.
-        Element `i` of `ctrls_in` and element `i` of `tgts_in` are the control and the target of the
-        same gate, so the two vectors necessarily have the same length.
+        Element `i` of `lhs_in` and element `i` of `rhs_in` are the two qubits of the same gate, so
+        the two vectors necessarily have the same length.
 
-        Control-before-target is this dialect's order, chosen because that is how the gates read.
+        Lhs-before-rhs is this dialect's order, chosen because that is how the gates read: `cx`'s
+        lhs is its control and rhs its target, while `iswap`'s two operands play symmetric roles.
         A target whose encoding disagrees has to swap in its lowering: HiSEP-Q's `QV.PAIR` puts the
-        targets in `vs1` and the controls in `vs2`, so `ConvertQVecToHiSEPQIntrinsics` swaps them.
+        rhs in `vs1` and the lhs in `vs2`, so `ConvertQVecToHiSEPQIntrinsics` swaps them.
 
         All 2N qubits named by one operation must be distinct. The canonical form sorts elements
-        ascending by control index, carrying each element's target along with it.
+        ascending by lhs index, carrying each element's rhs along with it.
 
         Example:
         ```mlir
@@ -76,15 +77,14 @@ def PairOp : QVecOp<"pair", [AllTypesMatch<["ctrls_in", "tgts_in", "ctrls_out", 
         ```
     }];
 
-  // FIXME: rename ctrls and tgts. Misleading for things like iSWAP.
   let arguments = (ins QVec_PairGateAttr:$gate_kind,
-                       QVec_QubitVector:$ctrls_in,
-                       QVec_QubitVector:$tgts_in);
-  let results = (outs QVec_QubitVector:$ctrls_out,
-                      QVec_QubitVector:$tgts_out);
+                       QVec_QubitVector:$lhs_in,
+                       QVec_QubitVector:$rhs_in);
+  let results = (outs QVec_QubitVector:$lhs_out,
+                      QVec_QubitVector:$rhs_out);
 
   let assemblyFormat = [{
-        `` $gate_kind $ctrls_in `,` $tgts_in attr-dict `:` type($ctrls_in)
+        `` $gate_kind $lhs_in `,` $rhs_in attr-dict `:` type($lhs_in)
     }];
 }
 
