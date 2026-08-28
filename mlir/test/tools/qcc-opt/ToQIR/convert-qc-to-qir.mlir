@@ -29,7 +29,10 @@ func.func @test() -> i64 attributes { qcc.entry_point } {
     // CHECK:           %[[QC5:.*]] = llvm.mlir.constant(5 : i64) : i64
     // CHECK:           %[[QP5:.*]] = llvm.inttoptr %[[QC5]] : i64 to !llvm.ptr
     // CHECK:           llvm.call @__quantum__qis__x__body(%[[QP5]]) : (!llvm.ptr) -> ()
-    qc.ctrl(%q5) { qc.x %q7 : !qc.qubit } : !qc.qubit
+    qc.ctrl(%q5) targets(%t7 = %q7) {
+      qc.x %t7 : !qc.qubit
+      qc.yield
+    } : {!qc.qubit}, {!qc.qubit}
     // CHECK-DAG:       %[[QC3:.*]] = llvm.mlir.constant(5 : i64) : i64
     // CHECK-DAG:       %[[QP3:.*]] = llvm.inttoptr %[[QC3]] : i64 to !llvm.ptr
     // CHECK-DAG:       %[[QC7:.*]] = llvm.mlir.constant(7 : i64) : i64
