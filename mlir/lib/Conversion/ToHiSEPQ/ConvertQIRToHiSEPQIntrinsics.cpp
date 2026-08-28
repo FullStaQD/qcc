@@ -12,8 +12,9 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/PatternMatch.h"
+#include "mlir/IR/SymbolTable.h"
 #include "mlir/IR/Value.h"
-#include "mlir/Pass/Pass.h"
+#include "mlir/Pass/Pass.h" // IWYU pragma: keep
 #include "mlir/Support/LogicalResult.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
@@ -59,12 +60,8 @@ static std::optional<QISOpInfo> getQISOpInfo(StringRef qisName) {
   return it == table.end() ? std::nullopt : std::optional(it->second);
 }
 
-/// Returns true when `name` is a QIR runtime / QIS symbol that this pass
-/// handles (and therefore must not appear in the output).
-static bool isHandledQIRSymbol(StringRef name) {
-  return name == qcc::qirRtInit || name == qcc::qirRtReadResult || name == qcc::qirRtBoolRecordOutput ||
-         name == qcc::qirRtIntRecordOutput || getQISOpInfo(name).has_value();
-}
+/// Returns true when `name` is a QIR runtime / QIS symbol.
+static bool isQIRSymbol(StringRef name) { return name.starts_with("__quantum__"); }
 
 /// Tries to extract the qubit index encoded in a ptr obtained via:
 ///   `llvm.inttoptr (llvm.mlir.constant N : i64) : !llvm.ptr`
@@ -90,6 +87,9 @@ static std::optional<int64_t> getQubitIndexFromPtr(Value ptrValue) {
 /// Encodes a qubit index as a `vector<[8]xi8>` scalable vector for QV intrinsics.
 /// The index is inserted into lane 0 of a poison vector. The `nxv8i8` element
 /// type matches the HiSEP-Q RISC-V backend's QV instruction-selection patterns.
+///
+/// The poison base is deliberate. We emit every QV intrinsic with `vl = 1`, so
+/// only lane 0 is ever read and the lanes above it are genuinely don't-care.
 ///
 /// `index` must fit in an unsigned i8 (callers are expected to have validated
 /// this already and to report a compiler error otherwise).
@@ -225,8 +225,8 @@ struct RtInitLowering : public OpRewritePattern<LLVM::CallOp> {
   }
 };
 
-/// Erases `llvm.call @__quantum__rt__bool_record_output` and
-/// `llvm.call @__quantum__rt__int_record_output`.
+/// Erases the QIR output-recording runtime calls
+/// (`__quantum__rt__{bool,int,array,tuple}_record_output`).
 ///
 /// TODO: No intrinsic equivalent for output recording exists yet.
 struct RecordOutputLowering : public OpRewritePattern<LLVM::CallOp> {
@@ -238,7 +238,8 @@ struct RecordOutputLowering : public OpRewritePattern<LLVM::CallOp> {
       return failure();
     }
 
-    if (*callee != qcc::qirRtBoolRecordOutput && *callee != qcc::qirRtIntRecordOutput) {
+    if (*callee != qcc::qirRtBoolRecordOutput && *callee != qcc::qirRtIntRecordOutput &&
+        *callee != qcc::qirRtArrayRecordOutput && *callee != qcc::qirRtTupleRecordOutput) {
       return failure();
     }
 
@@ -251,13 +252,13 @@ struct RecordOutputLowering : public OpRewritePattern<LLVM::CallOp> {
 
 namespace qcc {
 
-#define GEN_PASS_DEF_CONVERTQIRTOINTRINSICS
-#include "qcc/Conversion/ToIntrinsics/ToIntrinsics.h.inc"
+#define GEN_PASS_DEF_CONVERTQIRTOHISEPQINTRINSICS
+#include "qcc/Conversion/ToHiSEPQ/ToHiSEPQ.h.inc"
 
 namespace {
 
-struct ConvertQIRToIntrinsics final : impl::ConvertQIRToIntrinsicsBase<ConvertQIRToIntrinsics> {
-  using ConvertQIRToIntrinsicsBase::ConvertQIRToIntrinsicsBase;
+struct ConvertQIRToHiSEPQIntrinsics final : impl::ConvertQIRToHiSEPQIntrinsicsBase<ConvertQIRToHiSEPQIntrinsics> {
+  using ConvertQIRToHiSEPQIntrinsicsBase::ConvertQIRToHiSEPQIntrinsicsBase;
 
 protected:
   void runOnOperation() override {
@@ -273,20 +274,33 @@ protected:
       return signalPassFailure();
     }
 
-    removeQIRDeclarations();
+    removeUnusedQIRSymbols();
   }
 
 private:
-  /// Removes leftover QIR function declarations whose call sites were erased.
-  void removeQIRDeclarations() {
-    SmallVector<LLVM::LLVMFuncOp> toErase;
-    getOperation()->walk([&](LLVM::LLVMFuncOp funcOp) {
-      if (isHandledQIRSymbol(funcOp.getName())) {
+  /// Removes QIR function declarations and globals that have no remaining uses.
+  ///
+  /// Besides the `__quantum__*` declarations this also drops the dummy output
+  /// label.
+  void removeUnusedQIRSymbols() {
+    ModuleOp moduleOp = getOperation();
+    SmallVector<Operation*> toErase;
+
+    moduleOp.walk([&](LLVM::LLVMFuncOp funcOp) {
+      if (isQIRSymbol(funcOp.getName()) && SymbolTable::symbolKnownUseEmpty(funcOp, moduleOp)) {
         toErase.push_back(funcOp);
       }
     });
-    for (auto funcOp : toErase) {
-      funcOp.erase();
+
+    moduleOp.walk([&](LLVM::GlobalOp globalOp) {
+      if (globalOp.getSymName() == qcc::qirDummyLabelGlobalSymbolName &&
+          SymbolTable::symbolKnownUseEmpty(globalOp, moduleOp)) {
+        toErase.push_back(globalOp);
+      }
+    });
+
+    for (auto* op : toErase) {
+      op->erase();
     }
   }
 };

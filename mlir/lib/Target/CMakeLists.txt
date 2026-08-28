@@ -2,7 +2,7 @@ add_subdirectory(QIR)
 
 set(QCC_TARGET_LINK_LIBS MLIRPass QCCTargetQIR)
 
-if(QCC_ENABLE_HISEP_Q)
+if(QCC_ENABLE_HISEPQ)
   add_subdirectory(HiSEPQ)
   list(APPEND QCC_TARGET_LINK_LIBS QCCTargetHiSEPQ)
 endif()

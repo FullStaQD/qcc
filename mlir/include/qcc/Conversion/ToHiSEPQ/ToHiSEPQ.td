@@ -9,14 +9,14 @@
 
 include "mlir/Pass/PassBase.td"
 
-def ConvertQIRToIntrinsics : Pass<"convert-qir-to-intrinsics", "mlir::ModuleOp"> {
-  let summary = "Replaces QIR QIS call ops with RISC-V quantum vector intrinsics.";
+def ConvertQIRToHiSEPQIntrinsics : Pass<"convert-qir-to-hisepq-intrinsics", "mlir::ModuleOp"> {
+  let summary = "Replaces QIR QIS call ops with HiSEP-Q intrinsics.";
 
   let description = [{
       Takes a module that has already been lowered to QIR (i.e., the body
       contains `llvm.call` ops targeting `__quantum__qis__*__body` functions)
       and replaces those calls with `llvm.call_intrinsic` ops targeting the
-      RISC-V QV extension (e.g. `llvm.riscv.qv.h`, `llvm.riscv.qv.cx`).
+      RISC-V QV extension, aka HiSEP-Q (e.g. `llvm.riscv.qv.h`, `llvm.riscv.qv.cx`).
 
       Each qubit pointer argument (produced by `llvm.inttoptr` of a constant
       integer index) is re-encoded as a `vector<[8]xi8>` scalable-vector value
@@ -43,6 +43,33 @@ def ConvertQIRToIntrinsics : Pass<"convert-qir-to-intrinsics", "mlir::ModuleOp">
       - Qubit pointers were produced by `llvm.inttoptr(llvm.mlir.constant(N : i64))`,
         i.e. the static qubit management scheme used by `convert-qc-to-qir`.
    }];
+
+  let dependentDialects = [
+    "mlir::LLVM::LLVMDialect"
+  ];
+}
+
+def EmitHiSEPQStart : Pass<"emit-hisepq-start", "mlir::ModuleOp"> {
+  let summary = "Emits the HiSEP-Q `_start` entry point.";
+
+  let description = [{
+      Appends a `_start` function that supersedes the module's entry point as
+      the entry point of the hardware. It sets the stack pointer to
+      `__stack_top`, jumps to the original entry point and loops forever when
+      that returns.
+
+      TODO: Check with HiSEP-Q Team if looping forever is the only thing we can
+      do at the end.
+
+      Both symbol names are contractual with the HiSEP-Q linker script
+      (`hisepq.ld`), which declares `ENTRY(_start)`, pulls `.text._start` to
+      the boot address and provides `__stack_top`.
+
+      Assumes that *exactly* one function is tagged entry point.
+
+      TODO: Drop this pass once HiSEP-Q ships a crt0. Then qcc can emit a plain
+      `main` and leave the startup code to the runtime.
+  }];
 
   let dependentDialects = [
     "mlir::LLVM::LLVMDialect"

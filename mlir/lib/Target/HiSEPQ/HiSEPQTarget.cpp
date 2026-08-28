@@ -9,15 +9,16 @@
 //
 // HiSEP-Q backend implementation. This is the ONLY place in the project allowed
 // to depend on the HiSEP-Q LLVM fork (its headers and libraries); it is compiled
-// only when QCC_ENABLE_HISEP_Q is enabled.
+// only when QCC_ENABLE_HISEPQ is enabled.
 //
 // ===----------------------------------------------------------------------===//
 
 #include "qcc/Target/HiSEPQ/HiSEPQTarget.h"
 
-#include "qcc/Conversion/ToIntrinsics/ToIntrinsics.h"
+#include "qcc/Conversion/ToHiSEPQ/ToHiSEPQ.h"
 #include "qcc/Target/QIR/QIRTarget.h"
 
+#include "llvm/IR/Function.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
 #include "llvm/MC/TargetRegistry.h"
@@ -35,10 +36,9 @@
 namespace qcc {
 
 void addLoweringPassesHiSEPQ(mlir::PassManager& pm) {
-  // HiSEP-Q shares the full QIR lowering, then replaces the QIS call ops with
-  // RISC-V QV intrinsics so the module can be emitted as native QISA.
   addLoweringPassesQIR(pm);
-  pm.addPass(qcc::createConvertQIRToIntrinsics());
+  pm.addPass(qcc::createConvertQIRToHiSEPQIntrinsics());
+  pm.addPass(qcc::createEmitHiSEPQStart());
 }
 
 bool emitNativeHiSEPQ(llvm::Module& module, llvm::raw_pwrite_stream& os, const NativeCodegenOptions& options) {
@@ -48,6 +48,7 @@ bool emitNativeHiSEPQ(llvm::Module& module, llvm::raw_pwrite_stream& os, const N
   LLVMInitializeRISCVTarget();
   LLVMInitializeRISCVTargetMC();
   LLVMInitializeRISCVAsmPrinter();
+  LLVMInitializeRISCVAsmParser();
 
   const std::string attrsStr = "+experimental-xqv";
   llvm::Triple triple(llvm::Triple::normalize("riscv32-unknown-unknown"));
@@ -59,9 +60,18 @@ bool emitNativeHiSEPQ(llvm::Module& module, llvm::raw_pwrite_stream& os, const N
     return true;
   }
 
-  const llvm::TargetOptions targetOptions;
+  llvm::TargetOptions targetOptions;
+  // hisepq.ld puts `.text._start` at the boot address, which needs each function in its own
+  // `.text.<name>` section, hence setting functionSections to true:
+  targetOptions.FunctionSections = true;
   std::unique_ptr<llvm::TargetMachine> targetMachine(
       theTarget->createTargetMachine(triple, /*cpu=*/"", attrsStr, targetOptions, std::nullopt));
+
+  // Nothing unwinds on HiSEP-Q. Without `nounwind` LLVM emits things like
+  // `.cfi_startproc` (which is garbage for us).
+  for (llvm::Function& func : module) {
+    func.setDoesNotThrow(); // adds nounwind attribute
+  }
 
   module.setDataLayout(targetMachine->createDataLayout());
   module.setTargetTriple(triple);

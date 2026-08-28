@@ -13,7 +13,14 @@
 
 namespace qcc {
 
-/// A unit attribute to mark a `func.func` as the starting point of a quantum program.
+/// A unit attribute to mark a `func.func` as *a* starting point of a quantum program.
 static constexpr llvm::StringLiteral entryPointAttrName = "qcc.entry_point";
+
+/// The LLVM dialect attribute whose entries are carried through to the
+/// function's LLVM IR attribute list verbatim.
+static constexpr llvm::StringLiteral passthroughAttrName = "passthrough";
+
+/// The `passthrough` entry by which QIR marks a function as *a* entry point.
+static constexpr llvm::StringLiteral qirEntryPointPassthrough = "entry_point";
 
 } // namespace qcc
