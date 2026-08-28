@@ -8,8 +8,10 @@ func.func @main() attributes { qcc.entry_point } {
 
     qc.h %0 : !qc.qubit
 
-    qc.ctrl(%0) { qc.x %1 : !qc.qubit } : !qc.qubit
-    qc.ctrl(%1) { qc.x %2 : !qc.qubit } : !qc.qubit
+    qc.ctrl(%0) targets(%t0 = %1) { qc.x %t0 : !qc.qubit
+                                   qc.yield } : {!qc.qubit}, {!qc.qubit}
+    qc.ctrl(%1) targets(%t1 = %2) { qc.x %t1 : !qc.qubit
+                                   qc.yield } : {!qc.qubit}, {!qc.qubit}
 
     %m0 = qc.measure %0 : !qc.qubit -> i1
     %m1 = qc.measure %1 : !qc.qubit -> i1

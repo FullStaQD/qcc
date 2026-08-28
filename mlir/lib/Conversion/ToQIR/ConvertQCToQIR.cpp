@@ -64,7 +64,10 @@ static StringRef mapUnitaryToQIS(qc::UnitaryOpInterface unitaryOp) {
 
   if (unitaryOp.getNumControls() == 1) {
     auto ctrlOp = cast<qc::CtrlOp>(unitaryOp);
-    auto bodyOp = ctrlOp.getBodyUnitary();
+    if (ctrlOp.getNumBodyUnitaries() != 1) {
+      return "";
+    }
+    auto bodyOp = ctrlOp.getBodyUnitary(0);
 
     return llvm::TypeSwitch<Operation*, StringRef>(bodyOp)
         .Case<qc::XOp>([](auto) { return qcc::qirQisCX; })
@@ -253,6 +256,10 @@ struct UnitaryLowering : public ConversionPattern {
     auto moduleOp = op->getParentOfType<ModuleOp>();
 
     auto qisName = mapUnitaryToQIS(unitaryOp);
+    if (qisName.empty()) {
+      return failure(); // diagnostic handled by legalizer
+    }
+
     auto fnDecl = moduleOp.lookupSymbol<LLVM::LLVMFuncOp>(qisName);
     if (!fnDecl) {
       return emitMissingQIRDeclError(unitaryOp, qisName);

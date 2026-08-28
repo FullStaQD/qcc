@@ -91,7 +91,7 @@ func.func @test_multiple_returns() -> (i64, i1) attributes { qcc.entry_point } {
 
 // expected-error @+1 {{Return types other than integers}}
 func.func @test_unsupported_returns() -> (!qc.qubit, i1) attributes { qcc.entry_point } {
-  %0 = qc.alloc("q", 1, 0) : !qc.qubit
+  %0 = qc.alloc : !qc.qubit
   %1 = arith.constant 1 : i1
 
   return %0, %1 : !qc.qubit, i1
