@@ -8,7 +8,7 @@ func.func @two_controls() {
   // expected-error @+1 {{failed to legalize operation 'qco.ctrl' that was explicitly marked illegal}}
   %c:2, %t = qco.ctrl(%q0, %q1) targets(%a = %q2) {
     %a1 = qco.x %a : !qco.qubit -> !qco.qubit
-    qco.yield %a1
+    qco.yield %a1 : !qco.qubit
   } : ({!qco.qubit, !qco.qubit}, {!qco.qubit}) -> ({!qco.qubit, !qco.qubit}, {!qco.qubit})
   func.return
 }
@@ -23,7 +23,7 @@ func.func @unsupported_ctrl_body() {
   // expected-error @+1 {{failed to legalize operation 'qco.ctrl' that was explicitly marked illegal}}
   %c, %t:2 = qco.ctrl(%q0) targets(%a0 = %q1, %a1 = %q2) {
     %b0, %b1 = qco.swap %a0, %a1 : !qco.qubit, !qco.qubit -> !qco.qubit, !qco.qubit
-    qco.yield %b0, %b1
+    qco.yield %b0, %b1 : !qco.qubit, !qco.qubit
   } : ({!qco.qubit}, {!qco.qubit, !qco.qubit}) -> ({!qco.qubit}, {!qco.qubit, !qco.qubit})
   func.return
 }

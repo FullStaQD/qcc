@@ -47,17 +47,17 @@ func.func @controlled_gates() {
 
     %cx_c, %cx_t = qco.ctrl(%c) targets(%a0 = %t) {
       %a1 = qco.x %a0 : !qco.qubit -> !qco.qubit
-      qco.yield %a1
+      qco.yield %a1 : !qco.qubit
     } : ({!qco.qubit}, {!qco.qubit}) -> ({!qco.qubit}, {!qco.qubit})
 
     %cy_c, %cy_t = qco.ctrl(%cx_c) targets(%a0 = %cx_t) {
       %a1 = qco.y %a0 : !qco.qubit -> !qco.qubit
-      qco.yield %a1
+      qco.yield %a1 : !qco.qubit
     } : ({!qco.qubit}, {!qco.qubit}) -> ({!qco.qubit}, {!qco.qubit})
 
     %cz_c, %cz_t = qco.ctrl(%cy_c) targets(%a0 = %cy_t) {
       %a1 = qco.z %a0 : !qco.qubit -> !qco.qubit
-      qco.yield %a1
+      qco.yield %a1 : !qco.qubit
     } : ({!qco.qubit}, {!qco.qubit}) -> ({!qco.qubit}, {!qco.qubit})
 
     func.return

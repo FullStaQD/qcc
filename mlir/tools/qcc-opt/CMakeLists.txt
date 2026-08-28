@@ -42,4 +42,5 @@ target_link_libraries(
           MLIRFuncInlinerExtension
           MLIRTransformUtils
           MLIRQCDialect
-          MLIRQCODialect)
+          MLIRQCODialect
+          MLIRQTensorDialect)

@@ -11,7 +11,8 @@ target_link_libraries(
           QCCAuxDialect
           QCCQVecDialect
           MLIRQCDialect
-          MLIRQCODialect)
+          MLIRQCODialect
+          MLIRQTensorDialect)
 
 llvm_update_compile_flags(qcc-lsp-server)
 mlir_check_all_link_libraries(qcc-lsp-server)

@@ -12,5 +12,6 @@ add_mlir_dialect_library(
   MLIRTransforms
   MLIRVectorDialect
   MLIRQCODialect
+  MLIRQTensorDialect
   QCCQVecDialect
   QCCQVecMachine)

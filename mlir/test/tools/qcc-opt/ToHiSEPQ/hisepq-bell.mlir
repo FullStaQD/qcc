@@ -43,35 +43,35 @@ func.func @bell_parallel() {
 
     %c0, %t0 = qco.ctrl(%h0) targets(%a0 = %q8) {
       %x0 = qco.x %a0 : !qco.qubit -> !qco.qubit
-      qco.yield %x0
+      qco.yield %x0 : !qco.qubit
     } : ({!qco.qubit}, {!qco.qubit}) -> ({!qco.qubit}, {!qco.qubit})
     %c1, %t1 = qco.ctrl(%h1) targets(%a1 = %q9) {
       %x1 = qco.x %a1 : !qco.qubit -> !qco.qubit
-      qco.yield %x1
+      qco.yield %x1 : !qco.qubit
     } : ({!qco.qubit}, {!qco.qubit}) -> ({!qco.qubit}, {!qco.qubit})
     %c2, %t2 = qco.ctrl(%h2) targets(%a2 = %q10) {
       %x2 = qco.x %a2 : !qco.qubit -> !qco.qubit
-      qco.yield %x2
+      qco.yield %x2 : !qco.qubit
     } : ({!qco.qubit}, {!qco.qubit}) -> ({!qco.qubit}, {!qco.qubit})
     %c3, %t3 = qco.ctrl(%h3) targets(%a3 = %q11) {
       %x3 = qco.x %a3 : !qco.qubit -> !qco.qubit
-      qco.yield %x3
+      qco.yield %x3 : !qco.qubit
     } : ({!qco.qubit}, {!qco.qubit}) -> ({!qco.qubit}, {!qco.qubit})
     %c4, %t4 = qco.ctrl(%h4) targets(%a4 = %q12) {
       %x4 = qco.x %a4 : !qco.qubit -> !qco.qubit
-      qco.yield %x4
+      qco.yield %x4 : !qco.qubit
     } : ({!qco.qubit}, {!qco.qubit}) -> ({!qco.qubit}, {!qco.qubit})
     %c5, %t5 = qco.ctrl(%h5) targets(%a5 = %q13) {
       %x5 = qco.x %a5 : !qco.qubit -> !qco.qubit
-      qco.yield %x5
+      qco.yield %x5 : !qco.qubit
     } : ({!qco.qubit}, {!qco.qubit}) -> ({!qco.qubit}, {!qco.qubit})
     %c6, %t6 = qco.ctrl(%h6) targets(%a6 = %q14) {
       %x6 = qco.x %a6 : !qco.qubit -> !qco.qubit
-      qco.yield %x6
+      qco.yield %x6 : !qco.qubit
     } : ({!qco.qubit}, {!qco.qubit}) -> ({!qco.qubit}, {!qco.qubit})
     %c7, %t7 = qco.ctrl(%h7) targets(%a7 = %q15) {
       %x7 = qco.x %a7 : !qco.qubit -> !qco.qubit
-      qco.yield %x7
+      qco.yield %x7 : !qco.qubit
     } : ({!qco.qubit}, {!qco.qubit}) -> ({!qco.qubit}, {!qco.qubit})
 
     %mc0, %rc0 = qco.measure %c0 : !qco.qubit
