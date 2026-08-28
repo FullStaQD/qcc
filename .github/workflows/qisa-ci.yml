@@ -84,11 +84,15 @@ jobs:
           restore-keys: |
             ccache-qisa-${{ runner.os }}-${{ runner.arch }}-${{ env.LLVM_CACHE_VERSION }}-
 
-      - name: Install LLVM build dependencies
-        if: steps.llvm-cache.outputs.cache-hit != 'true'
+      # Some tests require `lld` for linking.
+      - name: Install lld
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ccache clang lld
+          sudo apt-get install -y --no-install-recommends lld
+
+      - name: Install LLVM build dependencies
+        if: steps.llvm-cache.outputs.cache-hit != 'true'
+        run: sudo apt-get install -y --no-install-recommends ccache clang
 
       # Drop large preinstalled toolchains first to maximize available free disk
       # space on our runner.
@@ -152,6 +156,11 @@ jobs:
         with:
           path: ${{ env.LLVM_INSTALL_DIR }}
           key: ${{ steps.llvm-cache.outputs.cache-primary-key }}
+
+      # Prebuilt HiSEP-Q RTL testbench for the simulator integration test.
+      - name: Provision HiSEP-Q simulator
+        run: |
+          ./utils/provision-sim-hisepq --prefix $HOME/.local
 
       - name: Configure qcc
         run: cmake --preset release -DQCC_ENABLE_HISEPQ=ON -DLLVM_ENABLE_ASSERTIONS=ON

@@ -5,6 +5,14 @@ else()
   set(QCC_ENABLE_HISEPQ_PY False)
 endif()
 
+if(QCC_ENABLE_HISEPQ)
+  find_program(
+    QCC_SIM_HISEPQ_EXECUTABLE
+    NAMES sim_hisepq
+    HINTS "$ENV{HOME}/.local/bin"
+    DOC "Path to the prebuilt HiSEP-Q Verilator testbench (sim_hisepq)")
+endif()
+
 configure_lit_site_cfg(${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in ${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py
                        MAIN_CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/lit.cfg.py)
 
