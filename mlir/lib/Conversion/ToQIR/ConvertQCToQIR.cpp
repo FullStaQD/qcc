@@ -256,6 +256,10 @@ struct UnitaryLowering : public ConversionPattern {
     auto moduleOp = op->getParentOfType<ModuleOp>();
 
     auto qisName = mapUnitaryToQIS(unitaryOp);
+    if (qisName.empty()) {
+      return failure(); // diagnostic handled by legalizer
+    }
+
     auto fnDecl = moduleOp.lookupSymbol<LLVM::LLVMFuncOp>(qisName);
     if (!fnDecl) {
       return emitMissingQIRDeclError(unitaryOp, qisName);
