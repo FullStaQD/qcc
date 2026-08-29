@@ -66,7 +66,7 @@ struct Machine {
   /// Reads the parameters from `moduleOp`'s `qvec.target`, defaulting whatever is absent.
   static Machine fromModule(mlir::ModuleOp moduleOp);
 
-  /// The runtime element count of a register group whose type is `<vscale x n x i8>`, i.e. `vscale * n`.
+  /// The runtime element count of a register group whose type is `<[n]xi8>`, i.e. `vscale * n`.
   [[nodiscard]] unsigned vectorLengthFor(unsigned n) const {
     auto vscale = (minVLen / rvvBitsPerBlock);
     return vscale * n;

@@ -17,6 +17,7 @@ include "mlir/IR/AttrTypeBase.td"
 // QVec dialect
 //===----------------------------------------------------------------------===//
 
+// FIXME: refactor docstring again.
 def QVecDialect : Dialect {
     let summary = "Vector-shaped quantum instructions.";
     let description = [{
@@ -27,8 +28,14 @@ def QVecDialect : Dialect {
         The dialect has **value semantics** to allow for powerful optimization passes.
 
         As a minor deviation from ISA agnosticism we follow RISC-V Vector Extension (RVV) terminology when we encode the
-        minimum VLEN into `qvec.target` and derive the legal vector lengths from LMUL register groups. We picked RVV
-        because it is the vector architecture we know and because our first target, HiSEP-Q, is an RVV extension.
+        minimum VLEN into `qvec.target`
+
+        ```mlir
+        module attributes {qvec.target = #dlti.map<"min_vlen" = 128 : ui32>}
+        ```
+
+        and derive the legal vector lengths from LMUL register groups. We picked RVV because it is the vector
+        architecture we know and because our first target, HiSEP-Q, is an RVV extension.
 
         Example:
         ```mlir

@@ -79,45 +79,29 @@ def EmitHiSEPQStart : Pass<"emit-hisepq-start", "mlir::ModuleOp"> {
 def ConvertQVecToHiSEPQIntrinsics : Pass<"convert-qvec-to-hisepq-intrinsics", "mlir::ModuleOp"> {
   let summary = "Replaces `qvec` ops with HiSEP-Q intrinsics.";
 
-  // FIXME: trim this in the end.
+  // FIXME: refactor docstring
   let description = [{
-      Replaces every `qvec` operation with the `llvm.call_intrinsic` op targeting
-      the RISC-V QV extension that encodes it (`llvm.riscv.qv.h`, `llvm.riscv.qv.x`,
-      `llvm.riscv.qv.cx`, `llvm.riscv.qv.mz`).
+      Replaces every `qvec` operation with the `llvm.call_intrinsic` op targeting the RISC-V QV extension that encodes
+      it (`llvm.riscv.qv.h`, `llvm.riscv.qv.cx`, `llvm.riscv.qv.mz`, etc).
 
-      The qubit indices are materialized as a dense `vector<Nxi8>` constant and
-      inserted into a poison scalable vector, because the backend selects the QV
-      instructions only for the scalable types `<vscale x {2,4,8,16,32,64} x i8>`
-      (`SupportedQVVTypes`), i.e. LMUL 1/4, 1/2, 1, 2, 4 and 8. Note that
-      `<vscale x 1 x i8>` (LMUL 1/8) is not among them.
+      The qubit operands are materialized at the start of scalable vectors `vector<[N]xi8>` (N guaranteed to be a power
+      of two) whose unoccupied elements are poison valued. Recall that the number of elements in a scalable vector
+      `vector<[N]xi8>` is `vscale * N` where `vscale = VLEN / 64`. The set of allowed `N` is determined by the target
+      machine (typically a small set like `{2, 4, 8, 16, 32, 64}`).
 
-      Which of the six is narrow enough depends on the hardware, so the pass reads
-      the machine's guaranteed minimum VLEN from the module and picks the narrowest
-      type whose runtime element count -- `knownMinElements * VLEN / 64`, since
-      RISC-V scalable types are normalized against a 64-bit block -- reaches the
-      qubit count. At VLEN 128 that puts the LMUL 1 to LMUL 2 step at 17 qubits;
-      at VLEN 64 it sits at 9.
+      The pass is informed about a lower bound `min_vlen` for VLEN by a DLTI attribute at the module level (default is
+      128 if absent)
 
       ```mlir
       module attributes {qvec.target = #dlti.map<"min_vlen" = 128 : ui32>}
       ```
 
-      Absent that attribute the pass assumes 128, which is the floor the QV extension
-      itself mandates (`FeatureVendorXQV` -> `FeatureStdExtV` ->
-      `FeatureStdExtZvl128b`), so the assumption can never over-promise capacity.
-      A minimum rather than an exact VLEN because that is all the RISC-V feature
-      system expresses, and because nothing here could use the extra precision: the
-      emitted types are scalable, so only the lower bound bounds anything.
+      which is used to select the minimal `N` to fit all qubits or error if vector register capacity is exceeded (even
+      at highest LMUL).
 
       // FIXME: investigate.
       `qvec.pair` reads control-before-target while the encoding puts the target
       in `vs1` and the control in `vs2`, so the two operands are swapped here.
-
-      The dialect has value semantics, so an operation's qubit vector is usually
-      the result of the operation before it. The lowering traces back past those
-      to find the indices, and forwards each operation's qubit results to its
-      qubit operands, which collapses the chain back onto the vector it started
-      from.
 
       Assumptions:
       - Every qubit vector traces back to a `vector.from_elements` whose elements
@@ -128,14 +112,12 @@ def ConvertQVecToHiSEPQIntrinsics : Pass<"convert-qvec-to-hisepq-intrinsics", "m
         type conversion.
       - Qubit indices fit in an unsigned i8, and there are no more qubits than
         LMUL 8 holds at the minimum VLEN (64 qubits at VLEN 64, 128 at VLEN 128).
-        The two are checked separately, so each diagnostic names the limit that was
-        actually hit.
+        TODO: Allow other index types like i16.
 
       Gates without an intrinsic are rejected (error).
 
-      `llvm.riscv.qv.mz` returns void and the QISA specifies no way to read a
-      measurement back, so the classical result of `qvec.mz` is replaced with
-      `poison`, i.e. the measurement result is lost.
+      `llvm.riscv.qv.mz` returns void and the QISA specifies no way to read a measurement back, so the classical result
+      of `qvec.mz` is replaced with `poison`, i.e. the measurement result is lost.
       TODO: Support this once HiSEP-Q specifies the corresponding QISA operation.
   }];
 
