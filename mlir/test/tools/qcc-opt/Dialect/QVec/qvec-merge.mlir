@@ -1,5 +1,6 @@
 // RUN: qcc-opt %s -qvec-merge --split-input-file | FileCheck %s
 // RUN: qcc-opt %s -qvec-merge=max-vf=2 --split-input-file | FileCheck %s --check-prefix=CHECK-VF2
+// RUN: qcc-opt %s -qvec-merge=max-vf=64 --split-input-file | FileCheck %s --check-prefix=CHECK-VF64
 
 // FIXME: the max-vf=2 option only tested once, might move into dedicated file.
 
@@ -204,7 +205,7 @@ func.func @qubits_maybe_not_disjoint(%qs: vector<2x!qco.qubit>, %rs: vector<2x!q
 // -----
 
 // CHECK-LABEL: func.func @hardware_limit
-module attributes {qvec.target = #dlti.map<"min_vlen" = 64 : ui32>} {
+module {
   func.func @hardware_limit() {
     %q0 = qco.static 0 : !qco.qubit  %q1 = qco.static 1 : !qco.qubit  %q2 = qco.static 2 : !qco.qubit
     %q3 = qco.static 3 : !qco.qubit  %q4 = qco.static 4 : !qco.qubit  %q5 = qco.static 5 : !qco.qubit
@@ -248,6 +249,8 @@ module attributes {qvec.target = #dlti.map<"min_vlen" = 64 : ui32>} {
   }
 }
 
-// 65 qubits on VLEN=64 need (at least) two instructions:
-// CHECK:         qvec.single h %{{.*}} : vector<64x!qco.qubit>
-// CHECK:         qvec.single h %{{.*}} : vector<1x!qco.qubit>
+// A cap of 64 splits the 65 qubits over two operations, while an uncapped run merges them into
+// one -- the widest group `max-vf` allows is all the pass knows about a machine.
+// CHECK:         qvec.single h %{{.*}} : vector<65x!qco.qubit>
+// CHECK-VF64:    qvec.single h %{{.*}} : vector<64x!qco.qubit>
+// CHECK-VF64:    qvec.single h %{{.*}} : vector<1x!qco.qubit>

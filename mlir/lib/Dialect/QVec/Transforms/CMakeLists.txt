@@ -13,5 +13,4 @@ add_mlir_dialect_library(
   MLIRVectorDialect
   MLIRQCODialect
   MLIRQTensorDialect
-  QCCQVecDialect
-  QCCQVecMachine)
+  QCCQVecDialect)

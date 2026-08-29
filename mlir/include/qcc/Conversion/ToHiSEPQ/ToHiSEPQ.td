@@ -79,40 +79,34 @@ def EmitHiSEPQStart : Pass<"emit-hisepq-start", "mlir::ModuleOp"> {
 def ConvertQVecToHiSEPQIntrinsics : Pass<"convert-qvec-to-hisepq-intrinsics", "mlir::ModuleOp"> {
   let summary = "Replaces `qvec` ops with HiSEP-Q intrinsics.";
 
-  // FIXME: refactor docstring
   let description = [{
       Replaces every `qvec` operation with the `llvm.call_intrinsic` op targeting the RISC-V QV extension that encodes
       it (`llvm.riscv.qv.h`, `llvm.riscv.qv.cx`, `llvm.riscv.qv.mz`, etc).
 
-      The qubit operands are materialized at the start of scalable vectors `vector<[N]xi8>` (N guaranteed to be a power
-      of two) whose unoccupied elements are poison valued. Recall that the number of elements in a scalable vector
-      `vector<[N]xi8>` is `vscale * N` where `vscale = VLEN / 64`. The set of allowed `N` is determined by the target
-      machine (typically a small set like `{2, 4, 8, 16, 32, 64}`).
+      The qubit operands are materialized at the start of scalable vectors `vector<[N]xi{QEW}>` (N guaranteed to be a
+      power of two) whose unoccupied elements are poison valued. Recall that the number of elements in a scalable
+      vector `vector<[N]xi{QEW}>` is `vscale * N` where `vscale = VLEN / 64`. The set of allowed `N` follows from the
+      LMUL register groups the QV instructions address, `{mf4, mf2, m1, m2, m4, m8}`.
 
-      The pass is informed about a lower bound `min_vlen` for VLEN by a DLTI attribute at the module level (default is
-      128 if absent)
+      The machine is described by two pass options:
 
-      ```mlir
-      module attributes {qvec.target = #dlti.map<"min_vlen" = 128 : ui32>}
-      ```
+      - `min-vlen`, the guaranteed lower bound on VLEN, and
+      - `qubit-element-width`, or QEW, how many bits one qubit index occupies (used as SEW for qubit instructions).
 
-      which is used to select the minimal `N` to fit all qubits or error if vector register capacity is exceeded (even
-      at highest LMUL).
+      Together they select the narrowest `N` that fits all qubits, or error if the vector register capacity is
+      exceeded even at the highest LMUL.
 
       // FIXME: investigate.
-      `qvec.pair` reads control-before-target while the encoding puts the target
-      in `vs1` and the control in `vs2`, so the two operands are swapped here.
+      `qvec.pair` reads control-before-target while the encoding puts the target in `vs1` and the control in `vs2`, so
+      the two operands are swapped here.
 
       Assumptions:
-      - Every qubit vector traces back to a `vector.from_elements` whose elements
-        are all `qco.static` ops, so that the qubit indices are known at compile
-        time.
-        TODO: Lift this once the dialect grows dynamic qubits. Then the qubit
-        vector becomes a runtime value and the constant folding here turns into a
-        type conversion.
-      - Qubit indices fit in an unsigned i8, and there are no more qubits than
-        LMUL 8 holds at the minimum VLEN (64 qubits at VLEN 64, 128 at VLEN 128).
-        TODO: Allow other index types like i16.
+      - Every qubit vector traces back to a `vector.from_elements` whose elements are all `qco.static` ops, so that the
+        qubit indices are known at compile time.
+        TODO: Lift this once the dialect grows dynamic qubits. Then the qubit vector becomes a runtime value and the
+        constant folding here turns into a type conversion.
+      - Qubit indices are encoded in an unsigned `i{QEW}`, and there are no more qubits than LMUL 8 holds at the minimum
+        VLEN.
 
       Gates without an intrinsic are rejected (error).
 
@@ -120,6 +114,13 @@ def ConvertQVecToHiSEPQIntrinsics : Pass<"convert-qvec-to-hisepq-intrinsics", "m
       of `qvec.mz` is replaced with `poison`, i.e. the measurement result is lost.
       TODO: Support this once HiSEP-Q specifies the corresponding QISA operation.
   }];
+
+  let options = [
+    Option<"minVLen", "min-vlen", "unsigned", /*default=*/"128", // FIXME: default = 64?
+           "Guaranteed lower bound on VLEN in bits; a power of two, at least 64.">,
+    Option<"qubitElementWidth", "qubit-element-width", "unsigned", /*default=*/"8",
+           "Number of bits one qubit index occupies (QEW); either 8 or 16.">
+  ];
 
   let dependentDialects = [
     "mlir::LLVM::LLVMDialect"

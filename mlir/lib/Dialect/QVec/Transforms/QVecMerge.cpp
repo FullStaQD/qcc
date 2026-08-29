@@ -8,7 +8,6 @@
 // ===----------------------------------------------------------------------===//
 
 #include "qcc/Dialect/QVec/IR/QVec.h"
-#include "qcc/Dialect/QVec/QVecMachine.h"
 #include "qcc/Dialect/QVec/Transforms/Passes.h" // IWYU pragma: keep
 
 #include "mlir/Dialect/QCO/IR/QCOOps.h"
@@ -34,6 +33,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <limits>
 #include <utility>
 
 using namespace mlir;
@@ -326,9 +326,8 @@ protected:
     ModuleOp moduleOp = getOperation();
     auto* ctx = moduleOp.getContext();
 
-    // The max-vf option can only narrow VF (vectorization factor).
-    const Machine machine = Machine::fromModule(moduleOp);
-    const unsigned limitVF = maxVF == 0 ? machine.maxQubits() : std::min<unsigned>(maxVF, machine.maxQubits());
+    // A max-vf of 0 leaves VF (vectorization factor) unbounded; see the pass description.
+    const int64_t limitVF = maxVF == 0 ? std::numeric_limits<int64_t>::max() : maxVF;
 
     SmallVector<Block*> blocks;
     moduleOp->walk([&](Block* block) { blocks.push_back(block); });

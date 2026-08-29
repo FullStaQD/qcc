@@ -30,19 +30,16 @@ def QVecMerge : Pass<"qvec-merge", "mlir::ModuleOp"> {
       `qvec.pair cx`, one `qvec.mz`, and so on -- and each bucket is packed greedily in
       program order.
 
-      Cost model (RVV-shaped; see `QVecMachine.h`): the vectorization factor VF, i.e. the number of
-      elements in one operation, is made as large as legality allows. Larger VF means fewer
-      instructions, and the QV encoding charges nothing for the width beyond the `vl` it already
-      carries. What this deliberately
-      ignores is the `vsetvli` reconfiguration a change of VF (or SEW) costs between two
+      Cost model: the vectorization factor VF, i.e. the number of elements in one operation, is
+      made as large as `max-vf` allows, because fewer, wider operations mean fewer instructions.
+      What this deliberately ignores is that a target may charge for a change of VF between two
       instructions, which a uniform-VF policy would trade instruction count for.
       TODO: Weigh reconfiguration against instruction count once there are numbers to weigh with.
 
-      Legality: qubit indices travel as `i8`, so `VF <= VLEN/8 * EMUL` with `EMUL` the smallest
-      power of two in `{1,2,4,8}` that fits -- which is exactly the widest register group the QV
-      instructions address, `qvec::Machine::maxQubits()`. The machine is described by the
-      module's `qvec.target` attribute, and `max-vf` caps it further (never above it), which
-      is what lets a test exercise the split without hundreds of gates.
+      How many qubits one instruction can name is a property of the target, which this pass knows
+      nothing about: `max-vf` is the only bound, and deriving it is the caller's job. The default
+      of 0 leaves VF unbounded, so a lowering further down the pipeline is what rejects an
+      operation too wide for the machine it targets.
 
       Merging moves operations, which their `MemRead`/`MemWrite` effects nominally forbid. Those
       effects are a conservative backstop for passes that do not know what a qubit is; here the
@@ -67,7 +64,7 @@ def QVecMerge : Pass<"qvec-merge", "mlir::ModuleOp"> {
 
   let options = [
     Option<"maxVF", "max-vf", "unsigned", /*default=*/"0",
-           "Cap on the number of elements per operation; 0 derives it from 'qvec.target'.">
+           "Cap on the number of elements per operation; 0 leaves it unbounded.">
   ];
 
   let dependentDialects = [

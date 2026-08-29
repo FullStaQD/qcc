@@ -7,11 +7,11 @@
 //
 // ===----------------------------------------------------------------------===//
 
+#include "qcc/Conversion/ToHiSEPQ/HiSEPQMachine.h"
+#include "qcc/Conversion/ToHiSEPQ/ToHiSEPQ.h" // IWYU pragma: keep
 #include "qcc/Dialect/QVec/IR/QVec.h"
-#include "qcc/Dialect/QVec/QVecMachine.h"
 
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
-#include "mlir/Dialect/QCO/IR/QCODialect.h" // FIXME: check clangd unused include warning
 #include "mlir/Dialect/QCO/IR/QCOOps.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/Builders.h"
@@ -25,17 +25,17 @@
 #include "mlir/Support/LogicalResult.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
-#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/MathExtras.h"
 
 #include <cstdint>
-#include <limits>
 #include <optional>
 #include <utility>
 
 using namespace mlir;
 using namespace qcc::qvec;
+using qcc::hisepq::HiSEPQMachine;
 
 namespace {
 
@@ -43,7 +43,7 @@ namespace {
 struct ResolvedQubits {
   /// One static qubit index per vector element.
   SmallVector<int64_t> indices;
-  /// The scalable `<vscale x N x i8>` type the indices have to be handed over in.
+  /// The scalable `vector<[N] x i{QEW}>` type the indices have to be handed over in.
   VectorType qvType;
 };
 
@@ -77,21 +77,24 @@ static std::optional<SmallVector<int64_t>> getQubitIndices(TypedValue<VectorType
 
 /// Materializes qubit indices for use as operand of a qv intrinsic.
 ///
-/// The indices become one dense `vector<Nxi8>` constant, which is then inserted into a poison
+/// The indices become one dense `vector<Nxi{QEW}>` constant, which is then inserted into a poison
 /// scalable vector of `qvType`. The poison base is deliberate: the intrinsic is emitted with
 /// `vl = N`, so the elements above the last index are never read.
+///
+/// QEW is read off `qvType`, which the machine picked the indices to fit.
 static Value buildQubitVector(OpBuilder& builder, Location loc, const ResolvedQubits& qubits) {
   ArrayRef<int64_t> qubitIndices = qubits.indices;
   VectorType qvType = qubits.qvType;
 
-  auto i8Type = builder.getIntegerType(8);
-  auto fixedType = VectorType::get({static_cast<int64_t>(qubitIndices.size())}, i8Type);
+  Type elementType = qvType.getElementType();
+  const unsigned qew = elementType.getIntOrFloatBitWidth();
+  auto fixedType = VectorType::get({static_cast<int64_t>(qubitIndices.size())}, elementType);
 
   SmallVector<APInt> indexValues;
   indexValues.reserve(qubitIndices.size());
   for (int64_t index : qubitIndices) {
-    assert(0 <= index && index < 256 && "does not fit into 8 bits");
-    indexValues.emplace_back(/*numBits=*/8, static_cast<uint64_t>(index));
+    assert(0 <= index && std::cmp_less(index, uint64_t{1} << qew) && "does not fit into QEW bits");
+    indexValues.emplace_back(qew, static_cast<uint64_t>(index));
   }
 
   Value qubitVec = LLVM::ConstantOp::create(builder, loc, fixedType, DenseElementsAttr::get(fixedType, indexValues));
@@ -105,16 +108,17 @@ static Value buildQubitVector(OpBuilder& builder, Location loc, const ResolvedQu
 /// Emits nothing, so that an operation with two qubit operands can have both of them validated
 /// before any of them is materialized.
 static std::optional<ResolvedQubits> resolveQubitVector(Operation* op, TypedValue<VectorType> qubits,
-                                                        const Machine& machine, Diagnostics& diags) {
+                                                        const HiSEPQMachine& machine, Diagnostics& diags) {
   auto indices = getQubitIndices(qubits);
   if (!indices) {
     (void)diags.report(op, "expects every qubit vector element to trace back to a 'qco.static' operation");
     return std::nullopt;
   }
 
+  const unsigned qew = machine.getQubitElementWidth();
   for (int64_t index : *indices) {
-    if (std::cmp_greater(index, std::numeric_limits<uint8_t>::max())) {
-      (void)diags.report(op, "qubit index " + Twine(index) + " does not fit in i8");
+    if (std::cmp_greater(index, machine.maxQubitIndex())) {
+      (void)diags.report(op, "qubit index " + Twine(index) + " does not fit in i" + Twine(qew));
       return std::nullopt;
     }
   }
@@ -123,8 +127,8 @@ static std::optional<ResolvedQubits> resolveQubitVector(Operation* op, TypedValu
   auto qvType = machine.qubitVectorType(op->getContext(), static_cast<unsigned>(numQubits));
   if (!qvType) {
     (void)diags.report(op, "has " + Twine(indices->size()) + " qubits, but at a minimum VLEN of " +
-                               Twine(machine.minVLen) + " the QV instructions address at most " +
-                               Twine(machine.maxQubits()));
+                               Twine(machine.getMinVLen()) + " and a qubit element width of " + Twine(qew) +
+                               " the QV instructions address at most " + Twine(machine.maxQubits()));
     return std::nullopt;
   }
 
@@ -186,7 +190,7 @@ namespace {
 
 /// Rewrites `qvec.single` into `llvm.call_intrinsic "llvm.riscv.qv.{h,x,...}"`.
 struct SingleOpLowering : public OpRewritePattern<SingleOp> {
-  SingleOpLowering(MLIRContext* ctx, Diagnostics* diags, Machine machine)
+  SingleOpLowering(MLIRContext* ctx, Diagnostics* diags, HiSEPQMachine machine)
       : OpRewritePattern(ctx), diags(diags), machine(machine) {}
 
   LogicalResult matchAndRewrite(SingleOp op, PatternRewriter& rewriter) const override {
@@ -212,12 +216,12 @@ struct SingleOpLowering : public OpRewritePattern<SingleOp> {
   }
 
   Diagnostics* diags;
-  Machine machine;
+  HiSEPQMachine machine;
 };
 
 /// Rewrites `qvec.pair` into `llvm.call_intrinsic "llvm.riscv.qv.cx"`.
 struct PairOpLowering : public OpRewritePattern<PairOp> {
-  PairOpLowering(MLIRContext* ctx, Diagnostics* diags, Machine machine)
+  PairOpLowering(MLIRContext* ctx, Diagnostics* diags, HiSEPQMachine machine)
       : OpRewritePattern(ctx), diags(diags), machine(machine) {}
 
   LogicalResult matchAndRewrite(PairOp op, PatternRewriter& rewriter) const override {
@@ -249,7 +253,7 @@ struct PairOpLowering : public OpRewritePattern<PairOp> {
   }
 
   Diagnostics* diags;
-  Machine machine;
+  HiSEPQMachine machine;
 };
 
 /// Rewrites `qvec.mz` into `llvm.call_intrinsic "llvm.riscv.qv.mz"` plus a poison result.
@@ -258,7 +262,7 @@ struct PairOpLowering : public OpRewritePattern<PairOp> {
 /// here. Replace the poison with a real read once `IntrinsicsRISCVXQV.td` gains an intrinsic for
 /// it. Until then a program that branches on a measurement silently gets garbage.
 struct MzOpLowering : public OpRewritePattern<MzOp> {
-  MzOpLowering(MLIRContext* ctx, Diagnostics* diags, Machine machine)
+  MzOpLowering(MLIRContext* ctx, Diagnostics* diags, HiSEPQMachine machine)
       : OpRewritePattern(ctx), diags(diags), machine(machine) {}
 
   LogicalResult matchAndRewrite(MzOp op, PatternRewriter& rewriter) const override {
@@ -279,7 +283,7 @@ struct MzOpLowering : public OpRewritePattern<MzOp> {
   }
 
   Diagnostics* diags;
-  Machine machine;
+  HiSEPQMachine machine;
 };
 
 } // namespace
@@ -299,7 +303,20 @@ protected:
     ModuleOp moduleOp = getOperation();
     auto* ctx = moduleOp.getContext();
 
-    const Machine machine = Machine::fromModule(moduleOp);
+    // A VLEN below `64` would make `vscale` a fraction, and anything that is not a power of two is not a VLEN at all.
+    if (minVLen < 64 || !llvm::isPowerOf2_32(minVLen)) {
+      emitError(moduleOp.getLoc()) << "'min-vlen' expects a power of two of at least 64, got " << Twine(minVLen);
+      return signalPassFailure();
+    }
+
+    // 8 and 16 are the only save values for QEW for our currently hardcoded set of possible LMUL values (see
+    // HiSEPQMachine).
+    if (qubitElementWidth != 8 && qubitElementWidth != 16) {
+      emitError(moduleOp.getLoc()) << "'qubit-element-width' expects 8 or 16, got " << Twine(qubitElementWidth);
+      return signalPassFailure();
+    }
+
+    const HiSEPQMachine machine(minVLen, qubitElementWidth);
 
     Diagnostics diags;
     RewritePatternSet patterns(ctx);

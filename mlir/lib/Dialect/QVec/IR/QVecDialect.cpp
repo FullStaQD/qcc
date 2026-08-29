@@ -8,9 +8,7 @@
 // ===----------------------------------------------------------------------===//
 
 #include "qcc/Dialect/QVec/IR/QVec.h"
-#include "qcc/Dialect/QVec/QVecMachine.h"
 
-#include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Dialect/QCO/IR/QCODialect.h"
 #include "mlir/Dialect/QCO/IR/QCOOps.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
@@ -21,15 +19,11 @@
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/Value.h"
-#include "mlir/Interfaces/DataLayoutInterfaces.h"
 #include "mlir/Support/LogicalResult.h"
 
-#include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/TypeSwitch.h" // IWYU pragma: keep
-#include "llvm/Support/MathExtras.h"
 
 #include <cstddef>
-#include <cstdint>
 #include <utility>
 
 using namespace mlir;
@@ -43,49 +37,6 @@ using namespace qcc::qvec;
 
 #define GET_OP_CLASSES
 #include "qcc/Dialect/QVec/IR/QVecOps.cpp.inc"
-
-//===----------------------------------------------------------------------===//
-// Target description
-//===----------------------------------------------------------------------===//
-
-/// Validates the `qvec.target` module attribute.
-///
-/// MLIR routes a discardable attribute to the dialect its name prefix identifies, which is what
-/// lets a typo -- in the key or in the value -- surface as a diagnostic on the module rather than
-/// as a surprise inside a lowering. It is also why the attribute carries the `qvec` prefix.
-LogicalResult QVecDialect::verifyOperationAttribute(Operation* op, NamedAttribute attribute) {
-  const StringRef name = attribute.getName().getValue();
-  if (name != targetAttrName) {
-    return op->emitError() << "unknown '" << getDialectNamespace() << "' attribute '" << name << "'";
-  }
-
-  auto target = dyn_cast<MapAttr>(attribute.getValue());
-  if (!target) {
-    return op->emitError() << "'" << name << "' expects a '#dlti.map'";
-  }
-
-  for (DataLayoutEntryInterface entry : target.getEntries()) {
-    auto key = dyn_cast<StringAttr>(entry.getKey());
-    if (!key || key.getValue() != minVLenKey) {
-      return op->emitError() << "'" << name << "' has an unknown entry, expected '" << minVLenKey << "'";
-    }
-
-    auto value = dyn_cast<IntegerAttr>(entry.getValue());
-    if (!value) {
-      return op->emitError() << "'" << minVLenKey << "' expects an integer attribute";
-    }
-
-    // Anything below `rvvBitsPerBlock` would make `vscale` a fraction, and anything that is not a
-    // power of two is not a VLEN at all.
-    const uint64_t minVLen = value.getValue().getLimitedValue();
-    if (minVLen < rvvBitsPerBlock || !llvm::isPowerOf2_64(minVLen)) {
-      return op->emitError() << "'" << minVLenKey << "' expects a power of two of at least " << rvvBitsPerBlock
-                             << ", got " << value;
-    }
-  }
-
-  return success();
-}
 
 void QVecDialect::initialize() {
   addTypes<>();

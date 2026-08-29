@@ -1,4 +1,16 @@
-// RUN: qcc-opt %s -convert-qvec-to-hisepq-intrinsics --split-input-file --verify-diagnostics
+// RUN: qcc-opt %s -convert-qvec-to-hisepq-intrinsics=min-vlen=64 --split-input-file --verify-diagnostics
+
+// Validate pass options.
+// RUN: echo 'module {}' | not qcc-opt -convert-qvec-to-hisepq-intrinsics=min-vlen=100 2>&1 \
+// RUN:   | FileCheck %s --check-prefix=CHECK-BAD-VLEN
+// RUN: echo 'module {}' | not qcc-opt -convert-qvec-to-hisepq-intrinsics=min-vlen=32 2>&1 \
+// RUN:   | FileCheck %s --check-prefix=CHECK-SMALL-VLEN
+// RUN: echo 'module {}' | not qcc-opt -convert-qvec-to-hisepq-intrinsics=qubit-element-width=32 2>&1 \
+// RUN:   | FileCheck %s --check-prefix=CHECK-QEW
+
+// CHECK-BAD-VLEN:   'min-vlen' expects a power of two of at least 64, got 100
+// CHECK-SMALL-VLEN: 'min-vlen' expects a power of two of at least 64, got 32
+// CHECK-QEW:    'qubit-element-width' expects 8 or 16, got 32
 
 func.func @unsupported_single_gate() {
   %q0 = qco.static 0 : !qco.qubit
@@ -69,7 +81,6 @@ func.func @qubit_index_out_of_range() {
 
 // -----
 
-module attributes {qvec.target = #dlti.map<"min_vlen" = 64 : ui32>} {
 func.func @too_many_qubits() {
   %q0 = qco.static 0 : !qco.qubit
   %q1 = qco.static 1 : !qco.qubit
@@ -142,28 +153,7 @@ func.func @too_many_qubits() {
       %q33, %q34, %q35, %q36, %q37, %q38, %q39, %q40, %q41, %q42, %q43, %q44, %q45, %q46, %q47, %q48,
       %q49, %q50, %q51, %q52, %q53, %q54, %q55, %q56, %q57, %q58, %q59, %q60, %q61, %q62, %q63, %q64
       : vector<65x!qco.qubit>
-  // expected-error @+1 {{'qvec.single' op has 65 qubits, but at a minimum VLEN of 64 the QV instructions address at most 64}}
+  // expected-error @+1 {{'qvec.single' op has 65 qubits, but at a minimum VLEN of 64 and a qubit element width of 8 the QV instructions address at most 64}}
   %h = qvec.single h %qs : vector<65x!qco.qubit>
   func.return
-}
-}
-
-// -----
-
-// `qvec.target` is validated by the `qvec` dialect.
-
-// expected-error @+1 {{'min_vlen' expects a power of two of at least 64, got 100 : ui32}}
-module attributes {qvec.target = #dlti.map<"min_vlen" = 100 : ui32>} {
-  func.func @bad_min_vlen() {
-    func.return
-  }
-}
-
-// -----
-
-// expected-error @+1 {{'qvec.target' has an unknown entry, expected 'min_vlen'}}
-module attributes {qvec.target = #dlti.map<"min_vlenn" = 128 : ui32>} {
-  func.func @unknown_target_entry() {
-    func.return
-  }
 }
