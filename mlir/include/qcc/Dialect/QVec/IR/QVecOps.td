@@ -12,6 +12,7 @@
 
 include "qcc/Dialect/QVec/IR/QVecAttrs.td"
 include "qcc/Dialect/QVec/IR/QVecDialect.td"
+include "qcc/Dialect/QVec/IR/QVecInterfaces.td"
 include "qcc/Dialect/QVec/IR/QVecTypes.td"
 
 include "mlir/IR/OpBase.td"
@@ -27,7 +28,7 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 // intended semantics.
 class QVecOp<string mnemonic, list<Trait> traits = []>
     : Op<QVecDialect, mnemonic,
-         !listconcat(traits, [MemoryEffects<[MemRead, MemWrite]>])>;
+         !listconcat(traits, [MemoryEffects<[MemRead, MemWrite]>, QVec_QubitSlotOpInterface])>;
 
 def SingleOp : QVecOp<"single", [AllTypesMatch<["qubits_in", "qubits_out"]>]> {
   let summary = "single-qubit gate across a vector of qubits";
@@ -47,6 +48,21 @@ def SingleOp : QVecOp<"single", [AllTypesMatch<["qubits_in", "qubits_out"]>]> {
 
   let assemblyFormat = [{
         `` $gate_kind $qubits_in attr-dict `:` type($qubits_in)
+    }];
+
+  let extraClassDeclaration = [{
+        /// The gate acts on one qubit, hence one slot.
+        unsigned getNumQubitSlots() { return 1; }
+
+        ::mlir::TypedValue<::mlir::VectorType> getQubitOperand(unsigned slot) {
+          assert(slot == 0 && "no such qubit slot");
+          return getQubitsIn();
+        }
+
+        ::mlir::TypedValue<::mlir::VectorType> getQubitResult(unsigned slot) {
+          assert(slot == 0 && "no such qubit slot");
+          return getQubitsOut();
+        }
     }];
 }
 
@@ -71,6 +87,21 @@ def PairOp : QVecOp<"pair", [AllTypesMatch<["lhs_in", "rhs_in", "lhs_out", "rhs_
   let assemblyFormat = [{
         `` $gate_kind $lhs_in `,` $rhs_in attr-dict `:` type($lhs_in)
     }];
+
+  let extraClassDeclaration = [{
+        /// The gate acts on two qubits: slot 0 is the left operand, slot 1 the right one.
+        unsigned getNumQubitSlots() { return 2; }
+
+        ::mlir::TypedValue<::mlir::VectorType> getQubitOperand(unsigned slot) {
+          assert(slot < 2 && "no such qubit slot");
+          return slot == 0 ? getLhsIn() : getRhsIn();
+        }
+
+        ::mlir::TypedValue<::mlir::VectorType> getQubitResult(unsigned slot) {
+          assert(slot < 2 && "no such qubit slot");
+          return slot == 0 ? getLhsOut() : getRhsOut();
+        }
+    }];
 }
 
 def MzOp : QVecOp<"mz", [AllTypesMatch<["qubits_in", "qubits_out"]>,
@@ -92,6 +123,21 @@ def MzOp : QVecOp<"mz", [AllTypesMatch<["qubits_in", "qubits_out"]>,
 
   let assemblyFormat = [{
         $qubits_in attr-dict `:` type($qubits_in) `->` type($bits)
+    }];
+
+  let extraClassDeclaration = [{
+        /// One slot for the measured qubits. `bits` is classical and hence outside the slots.
+        unsigned getNumQubitSlots() { return 1; }
+
+        ::mlir::TypedValue<::mlir::VectorType> getQubitOperand(unsigned slot) {
+          assert(slot == 0 && "no such qubit slot");
+          return getQubitsIn();
+        }
+
+        ::mlir::TypedValue<::mlir::VectorType> getQubitResult(unsigned slot) {
+          assert(slot == 0 && "no such qubit slot");
+          return getQubitsOut();
+        }
     }];
 }
 

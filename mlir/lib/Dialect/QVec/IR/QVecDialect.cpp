@@ -19,6 +19,7 @@
 #include "llvm/ADT/TypeSwitch.h" // IWYU pragma: keep
 
 #include <cstddef>
+#include <cstdint>
 #include <utility>
 
 using namespace mlir;
@@ -26,6 +27,7 @@ using namespace qcc::qvec;
 
 #include "qcc/Dialect/QVec/IR/QVecDialect.cpp.inc"
 #include "qcc/Dialect/QVec/IR/QVecEnums.cpp.inc"
+#include "qcc/Dialect/QVec/IR/QVecInterfaces.cpp.inc"
 
 #define GET_ATTRDEF_CLASSES
 #include "qcc/Dialect/QVec/IR/QVecAttrs.cpp.inc"
@@ -52,21 +54,21 @@ void QVecDialect::initialize() {
 //===----------------------------------------------------------------------===//
 
 Value qcc::qvec::getNonQVecAncestor(Value qubits) {
+  // Every step moves strictly towards a definition, so the walk terminates.
   while (auto result = dyn_cast<OpResult>(qubits)) {
-    auto next =
-        TypeSwitch<Operation*, Value>(result.getOwner())
-            .Case<SingleOp>([](SingleOp op) { return op.getQubitsIn(); })
-            .Case<PairOp>([&](PairOp op) { return result.getResultNumber() == 0 ? op.getLhsIn() : op.getRhsIn(); })
-            // Only the qubit result threads through; the bits are new.
-            .Case<MzOp>([&](MzOp op) { return result.getResultNumber() == 0 ? op.getQubitsIn() : Value(); })
-            .Default([](Operation*) { return Value(); });
+    auto slotOp = dyn_cast<QubitSlotOpInterface>(result.getOwner());
+    if (!slotOp) {
+      break;
+    }
+
+    Value next = slotOp.getTiedQubitOperand(result);
     if (!next) {
       break;
     }
+
     qubits = next;
   }
 
-  // FIXME: assert that this is not a qvec operation?
   return qubits;
 }
 

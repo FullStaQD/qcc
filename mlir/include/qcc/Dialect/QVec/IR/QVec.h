@@ -13,6 +13,7 @@
 #include "mlir/Dialect/QCO/IR/QCOOps.h"
 #include "mlir/IR/BuiltinTypes.h"
 
+#include <cassert>
 #include <cstdint>
 #include <mlir/IR/Value.h>
 
@@ -36,6 +37,12 @@ class Value;
 #include "qcc/Dialect/QVec/IR/QVecAttrs.h.inc"
 
 //===----------------------------------------------------------------------===//
+// QVec Interfaces
+//===----------------------------------------------------------------------===//
+
+#include "qcc/Dialect/QVec/IR/QVecInterfaces.h.inc"
+
+//===----------------------------------------------------------------------===//
 // QVec Operations
 //===----------------------------------------------------------------------===//
 
@@ -44,7 +51,7 @@ class Value;
 
 namespace qcc::qvec {
 
-/// Traces the origin of `qubits` through parent ops to the first non-qvec-dialect generated value and returns it.
+/// Traces `qubits` backwards along `QubitSlotOpInterface` and returns the first value that is not tied to an operand.
 mlir::Value getNonQVecAncestor(mlir::Value qubits);
 
 /// Trace back the qubit at `index` in the vector `qubits` to a StaticOp and return it if possible.
