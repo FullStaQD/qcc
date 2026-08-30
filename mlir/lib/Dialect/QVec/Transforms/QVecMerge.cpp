@@ -243,7 +243,12 @@ static void mergeGroup(const Group& group) {
   }
 }
 
-/// Packs one block's `qvec` operations, up to `limitVF` qubits per operation.
+/// Merges one block's `qvec` operations, up to `limitVF` qubits per operation.
+///
+/// Algorithm: Every operation is assigned a layer, `layer(op) = 1 + max(layer(predecessors))`, where the predecessors
+/// are the operations that produced the qubits it consumes. Operations in the same layer act on different qubits by
+/// construction, hence commute. Within a layer they are bucketed by gate kind and each bucket is merged greedily in
+/// program order.
 static void mergeOpsInBlock(Block& block, int64_t limitVF) {
   // Layering. layer(op) = 1 + max(layer(op_pred) for all predecessors op_pred of op).
   DenseMap<Operation*, unsigned> layers;
@@ -335,8 +340,8 @@ protected:
       mergeOpsInBlock(*block, limitVF);
     }
 
-    // Packing takes a qubit vector apart element by element and immediately puts it back together
-    // again. This leads to verbose IR which we canonicalize (and simplify) here.
+    // Merging takes a qubit vector apart element by element and immediately puts it back together again. This leads to
+    // verbose IR which we canonicalize (and simplify) here.
     RewritePatternSet patterns(ctx);
     vector::FromElementsOp::getCanonicalizationPatterns(patterns, ctx);
     if (failed(applyPatternsGreedily(moduleOp, std::move(patterns)))) {

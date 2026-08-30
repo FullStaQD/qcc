@@ -15,7 +15,6 @@
 #include "mlir/IR/DialectImplementation.h" // IWYU pragma: keep
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/Value.h"
-#include "mlir/Support/LogicalResult.h"
 
 #include "llvm/ADT/TypeSwitch.h" // IWYU pragma: keep
 
