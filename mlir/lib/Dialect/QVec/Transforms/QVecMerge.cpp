@@ -40,30 +40,16 @@ using namespace mlir;
 using namespace qcc::qvec;
 
 //===----------------------------------------------------------------------===//
-// A uniform view of the three qvec operations
+// A uniform view of the qvec operations
 //===----------------------------------------------------------------------===//
 
-using QubitOperands = SmallVector<TypedValue<VectorType>, 2>;
-
-/// The qubit vectors `op` consumes, in operand order, or empty if `op` is not a quantum vector op.
-///
-/// `qvec.pair` has two of them, everything else one. Element `i` of each vector belongs to the
-/// same gate, which is what makes packing a matter of concatenating the vectors slot by slot.
-static QubitOperands getQubitOperands(Operation* op) {
-  return TypeSwitch<Operation*, QubitOperands>(op)
-      .Case([](SingleOp singleOp) { return QubitOperands{singleOp.getQubitsIn()}; })
-      .Case([](PairOp pairOp) { return QubitOperands{pairOp.getLhsIn(), pairOp.getRhsIn()}; })
-      .Case([](MzOp mzOp) { return QubitOperands{mzOp.getQubitsIn()}; })
-      .Default([](Operation*) { return QubitOperands{}; });
-} // FIXME: Might want to replace this with an OpInterface
-
-/// SingleOp, PairOp, or MzOp.
-static bool isMergeableOp(Operation* op) { return isa_and_present<SingleOp, PairOp, MzOp>(op); }
+/// An operation is mergeable if it exposes its qubits via the slot interface, which every `qvec` operation does.
+static bool isMergeableOp(Operation* op) { return isa_and_present<QubitSlotOpInterface>(op); }
 
 /// The number of qubits one operand vector of `op` carries, i.e. the op's current VF.
 static int64_t getVectorLength(Operation* op) {
-  return cast<VectorType>(getQubitOperands(op).front().getType()).getNumElements();
-} // FIXME: Via OpInterface?
+  return cast<QubitSlotOpInterface>(op).getQubitOperand(0).getType().getNumElements();
+}
 
 /// Identical bucket key for two ops expresses the fact that they can be merged.
 /// Format (op category, gate id if applicable), e.g. (single,
@@ -155,8 +141,8 @@ struct Group {
     assert(slot == 0 || slot == 1 && "slot can only be 0 or 1");
     SmallVector<Value> elements;
     for (Operation* member : this->members) {
-      Value operand = getQubitOperands(member)[slot];
-      for (int64_t index = 0; index < cast<VectorType>(operand.getType()).getNumElements(); ++index) {
+      TypedValue<VectorType> operand = cast<QubitSlotOpInterface>(member).getQubitOperand(slot);
+      for (int64_t index = 0; index < operand.getType().getNumElements(); ++index) {
         elements.push_back(vector::ExtractOp::create(builder, loc, operand, index));
       }
     }
@@ -174,8 +160,8 @@ struct Group {
 /// An unidentifiable element makes the test impossible rather than false, hence the failure.
 static std::optional<SmallVector<Value>> getNamedQubits(Operation* op) {
   SmallVector<Value> qubits;
-  for (auto operand : getQubitOperands(op)) {
-    for (int64_t index = 0; index < cast<VectorType>(operand.getType()).getNumElements(); ++index) {
+  for (auto operand : cast<QubitSlotOpInterface>(op).getQubitOperands()) {
+    for (int64_t index = 0; index < operand.getType().getNumElements(); ++index) {
       qco::StaticOp staticOp = getStaticOpAncestor(operand, index);
       if (!staticOp) {
         return std::nullopt;
@@ -208,7 +194,7 @@ static void mergeGroup(const Group& group) {
   Location loc = firstOp->getLoc();
 
   SmallVector<Value, 2> operands;
-  for (unsigned slot = 0; slot < getQubitOperands(firstOp).size(); ++slot) {
+  for (unsigned slot = 0, numSlots = cast<QubitSlotOpInterface>(firstOp).getNumQubitSlots(); slot < numSlots; ++slot) {
     operands.push_back(group.buildMergedOperand(builder, loc, slot));
   }
 
@@ -254,12 +240,13 @@ static void mergeOpsInBlock(Block& block, int64_t limitVF) {
   DenseMap<Operation*, unsigned> layers;
   llvm::MapVector<std::pair<unsigned, BucketKey>, SmallVector<Operation*>> buckets;
   for (Operation& op : block) {
-    if (!isMergeableOp(&op)) {
+    auto slotOp = dyn_cast<QubitSlotOpInterface>(&op);
+    if (!slotOp) {
       continue;
     }
 
     SmallPtrSet<Operation*, 4> producers;
-    for (auto operand : getQubitOperands(&op)) {
+    for (auto operand : slotOp.getQubitOperands()) {
       collectProducers(operand, producers);
     }
 
@@ -295,7 +282,7 @@ static void mergeOpsInBlock(Block& block, int64_t limitVF) {
       // FIXME: this none_of check, shouldn't it always be true?
       const bool fits = !group.members.empty() && group.width + width <= limitVF && qubits &&
                         llvm::none_of(*qubits, [&](Value qubit) { return group.qubits.contains(qubit); }) &&
-                        llvm::all_of(getQubitOperands(candidate), [&](Value operand) {
+                        llvm::all_of(cast<QubitSlotOpInterface>(candidate).getQubitOperands(), [&](Value operand) {
                           return makeAvailableBefore(operand, group.members.front());
                         });
 

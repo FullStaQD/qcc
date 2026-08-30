@@ -18,19 +18,11 @@ include "mlir/IR/OpBase.td"
 
 def QVec_QubitSlotOpInterface : OpInterface<"QubitSlotOpInterface"> {
   let description = [{
-        FIXME: improve docs
+        A qubit slot is one lane of qubits through an operation: a qubit vector operand together with the result that
+        carries the same qubits back out. A `qvec.single` has one slot, `0`; a `qvec.pair` has two, `0` and `1`.
 
-        An operation with *qubit slots* consumes and produces its qubits in numbered lanes. Slot `n` names one qubit
-        vector operand together with the result that carries the same qubits back out, so a `qvec.pair` has two slots
-        (first and second qubit vector) while a `qvec.single` has one.
-
-        Slots are how a pass talks about the qubits of an operation without knowing which operation it is: they give a
-        uniform name to what the operation calls `qubits_in` or `lhs_in`, and they make the qubit dataflow explicit.
-        Tracing slot `n`'s result back to slot `n`'s operand is what lets a pass recover where a qubit vector came
-        from; batching several operations into one is a matter of concatenating their vectors slot by slot.
-
-        Results outside the slots exist -- the classical bits of a measurement are one -- and are simply not part of
-        the qubit dataflow.
+        The result in slot `i` is *tied* to the operand in slot `i`: both denote the same qubits, before and after the
+        operation. Non-qubit results, such as measurement outcomes, do not correspond to (qubit) slots.
     }];
   let cppNamespace = "::qcc::qvec";
 
@@ -54,10 +46,9 @@ def QVec_QubitSlotOpInterface : OpInterface<"QubitSlotOpInterface"> {
     >,
     InterfaceMethod<
       /*desc=*/[{
-        Returns the slot `result` is the qubit result of, or `nullopt` if it is not one.
+        Returns the qubit slot corresponding to `result`, or `nullopt` if there is none.
 
-        `result` must belong to this operation. A result outside the slots -- the bits of a measurement, say -- is a
-        normal answer, not a failure.
+        Asserts that this operation is the owner of `result`.
       }],
       /*retTy=*/"::std::optional<unsigned>",
       /*methodName=*/"getQubitSlot",
@@ -77,6 +68,8 @@ def QVec_QubitSlotOpInterface : OpInterface<"QubitSlotOpInterface"> {
       /*desc=*/[{
         Returns the operand `result` receives its qubits from, or a null `Value` if there is none.
 
+        Asserts that this operation is the owner of `result`.
+
         A null return is a normal answer, not a failure: it says that `result` does not continue an existing qubit
         chain, either because it is not a qubit result at all or because this operation is where the qubits originate.
       }],
@@ -90,6 +83,17 @@ def QVec_QubitSlotOpInterface : OpInterface<"QubitSlotOpInterface"> {
       }]
     >
   ];
+
+  let extraClassDeclaration = [{
+        /// The qubit vector operands of this operation, slot by slot.
+        ::llvm::SmallVector<::mlir::TypedValue<::mlir::VectorType>, 2> getQubitOperands() {
+          ::llvm::SmallVector<::mlir::TypedValue<::mlir::VectorType>, 2> operands;
+          for (unsigned slot = 0, numSlots = getNumQubitSlots(); slot < numSlots; ++slot) {
+            operands.push_back(getQubitOperand(slot));
+          }
+          return operands;
+        }
+    }];
 }
 
 #endif // INCLUDE_QCC_DIALECT_QVEC_IR_QVECINTERFACES_TD_
