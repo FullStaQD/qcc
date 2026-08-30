@@ -51,18 +51,24 @@ static int64_t getVectorLength(Operation* op) {
   return cast<QubitSlotOpInterface>(op).getQubitOperand(0).getType().getNumElements();
 }
 
-/// Identical bucket key for two ops expresses the fact that they can be merged.
-/// Format (op category, gate id if applicable), e.g. (single,
-/// int(h)).
+/// Identical bucket key for two ops expresses the fact that they can in principle be merged if no other op blocks and
+/// qubit slots are disjoint. BucketKey = (operation name, secondary bucket key).
 using BucketKey = std::pair<OperationName, uint32_t>;
 
-// FIXME: better via OpInterface?
-static BucketKey getBucketKey(Operation* op) {
-  const uint32_t gate = TypeSwitch<Operation*, uint32_t>(op)
-                            .Case([](SingleOp singleOp) { return static_cast<uint32_t>(singleOp.getGateKind()); })
-                            .Case([](PairOp pairOp) { return static_cast<uint32_t>(pairOp.getGateKind()); })
-                            .Default([](Operation*) { return 0U; }); // FIXME: implicitly assumes Default == MZ.
-  return {op->getName(), gate};
+/// Get the second component of the `BucketKey`.
+///
+/// Returning nullopt at runtime is considered a bug, hence the assert in the impl. We still emit a null-opt to avoid
+/// correctness mistakes during production run. Returning a nullopt just means a possibly missed merge opportunity.
+static std::optional<uint32_t> getSecondaryBucketKey(Operation* op) {
+  const std::optional<uint32_t> secondaryKey =
+      TypeSwitch<Operation*, std::optional<uint32_t>>(op)
+          .Case([](SingleOp singleOp) { return static_cast<uint32_t>(singleOp.getGateKind()); })
+          .Case([](PairOp pairOp) { return static_cast<uint32_t>(pairOp.getGateKind()); })
+          .Case([](MzOp) { return 0U; }) // A measurement has no gate kind its instances could differ in.
+          .Default([](Operation*) { return std::nullopt; });
+
+  assert(secondaryKey && "unhandled qvec operation, it stays unmerged");
+  return secondaryKey;
 }
 
 //===----------------------------------------------------------------------===//
@@ -258,8 +264,14 @@ static void mergeOpsInBlock(Block& block, int64_t limitVF) {
       }
     }
 
+    // An operation we cannot bucket still takes part in the layering, so that its consumers end up in a later layer.
     layers[&op] = layer;
-    buckets[{layer, getBucketKey(&op)}].push_back(&op);
+
+    const std::optional<uint32_t> secondaryKey = getSecondaryBucketKey(&op);
+    if (!secondaryKey) {
+      continue;
+    }
+    buckets[{layer, BucketKey{op.getName(), *secondaryKey}}].push_back(&op);
   }
 
   // Sort keys by layer index (ascending).
