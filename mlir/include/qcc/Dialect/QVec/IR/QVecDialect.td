@@ -17,7 +17,6 @@ include "mlir/IR/AttrTypeBase.td"
 // QVec dialect
 //===----------------------------------------------------------------------===//
 
-// FIXME: refactor docstring again.
 def QVecDialect : Dialect {
     let summary = "Vector-shaped quantum instructions.";
     let description = [{
@@ -25,7 +24,7 @@ def QVecDialect : Dialect {
         independent gates costs one instruction. `qvec` is our abstraction to express such operations in an ISA-agnostic
         way. This parallels the upstream `vector` dialect, and in fact we use the builtin `vector` type.
 
-        The dialect has **value semantics** to allow for powerful optimization passes.
+        The dialect has **value semantics** to ease optimization passes.
 
         Example:
         ```mlir

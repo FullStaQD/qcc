@@ -19,7 +19,10 @@ include "mlir/IR/CommonTypeConstraints.td"
 // QVec type constraints
 //===----------------------------------------------------------------------===//
 
-// FIXME: remark on linearity *here*.
+// TODO: re-evaluate the choice of qubit here. In MQT Core the !qco.qubit is meant to be a linear type. In this dialect
+// this is likely not the right constraint. It is e.g. totally fine for us to let qubits go out of scope (in particular
+// unmeasured).
+
 // `QubitType` is `!qco.qubit`, the *linear* value-semantics qubit.
 def QVec_AnyQubit : AnyTypeOf<[QubitType], "qubit value">;
 
