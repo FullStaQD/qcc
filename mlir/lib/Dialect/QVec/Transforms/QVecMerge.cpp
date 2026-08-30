@@ -96,9 +96,8 @@ static void collectProducers(Value qubits, SmallPtrSetImpl<Operation*>& producer
           collectProducers(element, producers);
         }
       })
-      .Case<vector::ExtractOp, vector::BroadcastOp, vector::ShapeCastOp>(
-          [&](auto op) { collectProducers(op.getSource(), producers); }) // FIXME: really need ShapeCastOp here?
-      .Default([](Operation*) {});                                       // FIXME: be explicit here.
+      .Case<vector::ExtractOp, vector::BroadcastOp>([&](auto op) { collectProducers(op.getSource(), producers); })
+      .Default([](Operation*) {}); // FIXME: be explicit here.
 }
 
 /// Makes `value` available at `before`, hoisting whatever defines it if it is not already.

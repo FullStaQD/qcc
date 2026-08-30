@@ -94,13 +94,6 @@ qco::StaticOp qcc::qvec::getStaticOpAncestor(TypedValue<VectorType> qubits, int6
         return {};
       }
       element = broadcastOp.getSource();
-    } else if (auto shapeCastOp = dyn_cast<vector::ShapeCastOp>(definingOp)) { // FIXME: do we need it?
-      // Rank-1 to rank-1 keeps the linear index; any other reshape would have to remap it.
-      if (shapeCastOp.getSourceVectorType().getRank() != 1 || shapeCastOp.getResultVectorType().getRank() != 1) {
-        return {};
-      }
-      qubits = shapeCastOp.getSource();
-      continue;
     } else {
       return {};
     }
