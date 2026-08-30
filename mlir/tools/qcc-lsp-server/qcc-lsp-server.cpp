@@ -26,7 +26,6 @@ int main(int argc, char** argv) {
   // Register our custom project dialects.
   registry.insert<jasp::JaspDialect, mlir::qc::QCDialect, mlir::qco::QCODialect, qcc::aux::AuxDialect,
                   qcc::qvec::QVecDialect>();
-  qcc::qvec::registerQubitVectorElementTypeInterfaceExternalModel(registry);
 
   return mlir::succeeded(mlir::MlirLspServerMain(argc, argv, registry)) ? 0 : 1;
 }

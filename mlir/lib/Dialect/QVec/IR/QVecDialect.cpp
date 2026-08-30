@@ -9,14 +9,10 @@
 
 #include "qcc/Dialect/QVec/IR/QVec.h"
 
-#include "mlir/Dialect/QCO/IR/QCODialect.h"
 #include "mlir/Dialect/QCO/IR/QCOOps.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
-#include "mlir/IR/BuiltinTypeInterfaces.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/DialectImplementation.h" // IWYU pragma: keep
-#include "mlir/IR/DialectRegistry.h"
-#include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/Value.h"
 #include "mlir/Support/LogicalResult.h"
@@ -50,39 +46,6 @@ void QVecDialect::initialize() {
 #define GET_OP_LIST
 #include "qcc/Dialect/QVec/IR/QVecOps.cpp.inc"
       >();
-}
-
-//===----------------------------------------------------------------------===//
-// External models
-//===----------------------------------------------------------------------===//
-
-namespace {
-
-// FIXME: learn more about the constraints on the element type. Notably the size
-// constraint. That we have !qco.qubit having size of 8 bits is something we have
-// to determine at compile time. This is not an intrinsic property of !qco.qubit.
-
-/// Opts `!qco.qubit` into being a vector element type.
-///
-/// `VectorElementTypeInterface` has no methods; it is purely a marker that a type may appear as a
-/// `VectorType` element. We attach it from here rather than on the type itself because
-/// `mlir::qco::QubitType` belongs to mqt-core, which we consume as a pinned dependency.
-///
-/// Upstream currently discourages attaching this interface to downstream types, on the grounds that
-/// the properties required of a vector element (notably a compile-time size) are not yet pinned
-/// down. A qubit does have such a size here -- the hardware carries qubit indices as i8 elements --
-/// and we only ever build these vectors ourselves. Drop this model if mqt-core marks the type
-/// itself, the way it already did for `!qc.qubit` and `MemRefElementTypeInterface`.
-struct QubitVectorElement : public VectorElementTypeInterface::ExternalModel<QubitVectorElement, qco::QubitType> {};
-
-} // namespace
-
-void qcc::qvec::registerQubitVectorElementTypeInterfaceExternalModel(DialectRegistry& registry) {
-  // Keyed on the QCO dialect so the attachment happens when that dialect is loaded, which is before
-  // any `vector<Nx!qco.qubit>` can be parsed.
-  registry.addExtension(+[](MLIRContext* ctx, qco::QCODialect* /*dialect*/) {
-    qco::QubitType::attachInterface<QubitVectorElement>(*ctx);
-  });
 }
 
 //===----------------------------------------------------------------------===//

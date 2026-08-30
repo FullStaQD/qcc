@@ -17,7 +17,6 @@
 #include <mlir/IR/Value.h>
 
 namespace mlir {
-class DialectRegistry;
 class Value;
 } // namespace mlir
 
@@ -44,12 +43,6 @@ class Value;
 #include "qcc/Dialect/QVec/IR/QVecOps.h.inc"
 
 namespace qcc::qvec {
-
-//  FIXME: Consider patching qco.qubit upstream.
-/// Attaches `VectorElementTypeInterface` to `mlir::qco::QubitType`, which is what makes
-/// `vector<Nx!qco.qubit>` a legal type. Call this on any registry that will see `qvec` IR;
-/// without it such a vector fails to parse.
-void registerQubitVectorElementTypeInterfaceExternalModel(mlir::DialectRegistry& registry);
 
 /// Traces the origin of `qubits` through parent ops to the first non-qvec-dialect generated value and returns it.
 mlir::Value getNonQVecAncestor(mlir::Value qubits);

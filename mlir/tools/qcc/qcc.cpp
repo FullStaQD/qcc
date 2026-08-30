@@ -118,7 +118,6 @@ int main(int argc, char** argv) {
   // Our dialects:
   registry.insert<jasp::JaspDialect, mlir::qc::QCDialect, mlir::qco::QCODialect, qcc::aux::AuxDialect,
                   qcc::qvec::QVecDialect>();
-  qcc::qvec::registerQubitVectorElementTypeInterfaceExternalModel(registry);
 
   // Register the specific interface implementations for the pipeline
   // Note: OneShotBufferize requires these for the "Standard" dialects

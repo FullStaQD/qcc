@@ -120,7 +120,6 @@ int main(int argc, char** argv) {
   mlir::bufferization::func_ext::registerBufferizableOpInterfaceExternalModels(registry);
   mlir::memref::registerAllocationOpInterfaceExternalModels(registry);
   mlir::func::registerInlinerExtension(registry);
-  qcc::qvec::registerQubitVectorElementTypeInterfaceExternalModel(registry);
 
   return mlir::asMainReturnCode(mlir::MlirOptMain(argc, argv, "qcc optimizer", registry));
 }
