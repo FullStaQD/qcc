@@ -1,6 +1,6 @@
 // REQUIRES: hisepq
 
-// RUN: qcc-opt %s -convert-qco-to-qvec -qvec-merge -convert-qvec-to-hisepq-intrinsics \
+// RUN: qcc-opt %s -convert-qco-to-qvec -qvec-merge -convert-qvec-to-hisepq-intrinsics="min-vlen=128" \
 // RUN:   -convert-vector-to-llvm -convert-arith-to-llvm -convert-func-to-llvm -o %t.mlir
 // RUN:   FileCheck %s < %t.mlir
 // RUN: mlir-translate -mlir-to-llvmir %t.mlir | llc -mtriple=riscv32 -mattr=+experimental-xqv - -o - \

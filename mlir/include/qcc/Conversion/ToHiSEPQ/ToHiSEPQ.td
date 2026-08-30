@@ -116,7 +116,7 @@ def ConvertQVecToHiSEPQIntrinsics : Pass<"convert-qvec-to-hisepq-intrinsics", "m
   }];
 
   let options = [
-    Option<"minVLen", "min-vlen", "unsigned", /*default=*/"128", // FIXME: default = 64?
+    Option<"minVLen", "min-vlen", "unsigned", /*default=*/"64",
            "Guaranteed lower bound on VLEN in bits; a power of two, at least 64.">,
     Option<"qubitElementWidth", "qubit-element-width", "unsigned", /*default=*/"8",
            "Number of bits one qubit index occupies (QEW); either 8 or 16.">
