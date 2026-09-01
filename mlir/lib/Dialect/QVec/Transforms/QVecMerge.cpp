@@ -219,7 +219,8 @@ static void mergeGroup(const Group& group) {
 /// over all producers of `op`. An op without producers (e.g. the first `qvec` op in the block) is assigned layer `0`.
 /// IMPORTANT: We cannot always determine all producers (incomplete producers), for example because unknown ops "block"
 /// the way. Any pass pipeline this pass runs in is urged to avoid that scenario, as we optimize under the assumption of
-/// complete producers.
+/// complete producers. Note that an under-estimated layer propagates downstream: an op whose own producers are
+/// complete still gets a wrong layer if any op upstream of it has incomplete ones.
 ///
 /// If no `qvec` op has incomplete producers, it is easy to see that all `qvec` ops in the same layer operate on
 /// disjoint qubits. Hence two gates of the same type can, in principle, always be merged. In general we cannot rely on
