@@ -208,48 +208,49 @@ static void mergeGroup(const Group& group) {
   }
 }
 
-/// Merges one block's `qvec` operations, up to `limitVF` qubits per operation. This is the central method of the whole
-/// pass, so let us explain how it works. For clarity we skip some minor details (which are addressed via comments in
-/// the implementation).
+/// Merges one block's `qvec` operations, up to `limitVF` qubits per operation. This is the central method of the pass,
+/// so let us explain how it works. For clarity we skip minor details, which are addressed by comments in the
+/// implementation.
 ///
 /// *Producers:* The *producers* of a `qvec` op are all the `qvec` ops immediately involved in creating its qubit
 /// operands.
 ///
-/// *Layering:* Every `qvec` op `op` is assigned an integer layer, defined as `layer(op) = 1 + max{layer(producer)}`
-/// over all producers of `op`. An op without producers (e.g. the first `qvec` op in the block) is assigned layer `0`.
+/// *Layering:* Every `qvec` op is assigned an integer layer: `layer(op) = 1 + max{layer(producer)}` over all producers
+/// of `op`. An op without producers (e.g. the first `qvec` op in the block) gets layer `0`.
+///
 /// IMPORTANT: We cannot always determine all producers (incomplete producers), for example because unknown ops "block"
-/// the way. Any pass pipeline this pass runs in is urged to avoid that scenario, as we optimize under the assumption of
-/// complete producers. Note that an under-estimated layer propagates downstream: an op whose own producers are
-/// complete still gets a wrong layer if any op upstream of it has incomplete ones.
+/// the way. Any pipeline this pass runs in is urged to avoid that scenario, as we optimize under the assumption of
+/// complete producers. An underestimated layer propagates downstream: an op whose own producers are complete still gets
+/// a wrong layer if any op upstream of it has incomplete ones.
 ///
 /// If no `qvec` op has incomplete producers, it is easy to see that all `qvec` ops in the same layer operate on
-/// disjoint qubits. Hence two gates of the same type can, in principle, always be merged. In general we cannot rely on
+/// disjoint qubits. Hence two gates of the same type can in principle always be merged. In general we cannot rely on
 /// that, so we add extra checks for correctness.
 ///
-/// *Bucketing:* Next we build a multi-map from `(layer, bucket key)` to `qvec` ops, with one entry for every `qvec` op
-/// with complete producers. The details of the bucket key do not matter, only that ops with an equal bucket key can in
-/// principle be merged if their qubit operands are disjoint and nothing in the IR stands in the way (the simplest
-/// such case being that they are consecutive, no other op in between). The set of `qvec` ops sharing a
-/// `(layer, bucket key)` is called a bucket. Only operations in the same bucket are considered for merging.
+/// *Bucketing:* Next we build a multi-map from `(layer, bucket key)` to `qvec` ops, with one entry per `qvec` op with
+/// complete producers. The details of the bucket key do not matter, only that ops with an equal bucket key can in
+/// principle be merged if their qubit operands are disjoint and nothing in the IR stands in the way (simplest case:
+/// they are consecutive, no other op in between). Ops sharing a `(layer, bucket key)` form a bucket, and only ops
+/// within one bucket are considered for merging.
 ///
 /// *Sorting:* In the next step (grouping) we process the buckets in ascending order of layer. This makes sense because
-/// merging within a layer typically unblocks merge opportunities in a follow-up layer (the layers are in general
-/// interleaved with each other in the IR).
+/// merging within a layer typically unblocks merge opportunities in a follow-up layer (layers are in general
+/// interleaved in the IR).
 ///
 /// *Grouping:* Within each bucket we form groups of `qvec` operations (meant to be merged in the end). A group is a
-/// list of `qvec` operations ordered as in the IR. Before a new member candidate is added to a group, the following
-/// tests have to pass:
+/// list of `qvec` operations ordered as in the IR. Before a candidate is added to a group, the following tests have to
+/// pass:
 ///
 /// 1. The enlarged group still respects `limitVF` once merged.
 /// 2. All qubits of the candidate can be traced back to static ops.
 /// 3. All new qubits are disjoint from the ones the group already operates on (a safety net against incomplete
 ///    producers).
-/// 4. The qubit operands of the new member are already defined before the first member, or can be hoisted "easily"
+/// 4. The qubit operands of the candidate are already defined before the first member, or can be hoisted "easily"
 ///    (which is then done, and kept even if another operand fails this test). See `makeAvailableBefore` for details.
 ///
-/// *Merging:* The members of a group are merged as soon as one of the tests fails (the new op is then not added) or the
-/// bucket is exhausted. If the bucket is not exhausted, the failing candidate itself opens the next group - unless it
-/// can never be a member at all, i.e. it failed test 2, or test 1 already on its own.
+/// *Merging:* The members of a group are merged as soon as one of the tests fails (the candidate is then not added) or
+/// the bucket is exhausted. If the bucket is not exhausted, the failing candidate itself opens the next group - unless
+/// it can never be a member at all, i.e. it failed test 2, or fails test 1 on its own.
 static void mergeOpsInBlock(Block& block, int64_t limitVF) {
   // Layering. layer(op) = 1 + max(layer(op_pred) for all predecessors op_pred of op).
   DenseMap<Operation*, unsigned> layers;
