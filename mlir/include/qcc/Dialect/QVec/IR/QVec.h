@@ -70,7 +70,7 @@ namespace qcc::qvec {
 /// Trace back the qubit at `index` in the vector `qubits` to a StaticOp and return it if possible (null value if not).
 mlir::qco::StaticOp getStaticOpAncestor(mlir::TypedValue<mlir::VectorType> qubits, int64_t index);
 
-/// Adds the `qvec` operations that produced any element of `qubits` to `producers`.
+/// Adds the `qvec` (slot) operations that produced any element of `qubits` to `producers`.
 ///
 /// Walks back through everything that only moves qubits around, so it finds the producer even when the vector was
 /// taken apart and put back together in between.

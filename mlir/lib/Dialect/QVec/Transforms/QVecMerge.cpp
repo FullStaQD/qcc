@@ -143,7 +143,7 @@ static std::optional<SmallVector<qco::StaticOp>> getStaticQubits(QubitSlotOpInte
     for (int64_t index = 0; index < operand.getType().getNumElements(); ++index) {
       qco::StaticOp staticOp = getStaticOpAncestor(operand, index);
       if (!staticOp) {
-        return std::nullopt;
+        return std::nullopt; // FIXME: assert this does not happen?
       }
       qubits.push_back(staticOp);
     }
@@ -168,6 +168,10 @@ static Value buildMemberSlice(OpBuilder& builder, Location loc, Value merged, in
 /// Replaces `group`'s members with one operation over all their qubits. The merged operation goes where the first
 /// member was.
 static void mergeGroup(const Group& group) {
+  if (group.members.size() <= 1) {
+    return; // trivial case
+  }
+
   QubitSlotOpInterface firstOp = group.members.front();
   OpBuilder builder(firstOp); // important: sets insertion point right before firstOp.
   Location loc = firstOp->getLoc();
@@ -284,9 +288,6 @@ static void mergeOpsInBlock(Block& block, int64_t limitVF) {
       continue;
     }
 
-    // FIXME: feels unsafe to not error out if not all producers are known. The layering can be wrong even for ops with
-    // known producers.
-
     const std::optional<uint32_t> secondaryKey = getSecondaryBucketKey(slotOp);
     if (!secondaryKey) {
       continue;
@@ -299,9 +300,7 @@ static void mergeOpsInBlock(Block& block, int64_t limitVF) {
   llvm::stable_sort(keys, [](const auto& lhs, const auto& rhs) { return lhs.first < rhs.first; });
 
   auto close = [](Group& group) {
-    if (group.members.size() > 1) {
-      mergeGroup(group);
-    }
+    mergeGroup(group);
     group = Group{};
   };
 
@@ -311,21 +310,23 @@ static void mergeOpsInBlock(Block& block, int64_t limitVF) {
       const int64_t width = getVectorLength(candidate);
       std::optional staticQubits = getStaticQubits(candidate);
 
-      // FIXME: the empty check should be moved out.
-      // FIXME: this none_of check, shouldn't it always be true?
-      const bool fits = !group.members.empty() && group.width + width <= limitVF && staticQubits &&
-                        llvm::none_of(*staticQubits, [&](Value qubit) { return group.qubits.contains(qubit); }) &&
-                        llvm::all_of(candidate.getQubitOperands(), [&](Value operand) {
-                          return makeAvailableBefore(operand, group.members.front());
-                        });
-
-      if (!fits) {
+      // A candidate whose qubits cannot be identified, or that exceeds the limit all by itself, never becomes a
+      // member - not even the first one of a group.
+      if (!staticQubits || width > limitVF) {
         close(group);
-        // A candidate whose qubits cannot be identified, or that is already too wide, starts no
-        // group of its own either.
-        if (!staticQubits || width > limitVF) {
-          continue; // FIXME: shouldn't we error out here? Looks like a bug.
-        }
+        continue;
+      }
+
+      // The group tests (or empty).
+      const bool emptyOrFits =
+          group.members.empty() ||
+          (group.width + width <= limitVF &&
+           llvm::none_of(*staticQubits, [&](Value qubit) { return group.qubits.contains(qubit); }) &&
+           llvm::all_of(candidate.getQubitOperands(),
+                        [&](Value operand) { return makeAvailableBefore(operand, group.members.front()); }));
+
+      if (!emptyOrFits) {
+        close(group); // The candidate opens the next group.
       }
 
       group.members.push_back(candidate);
