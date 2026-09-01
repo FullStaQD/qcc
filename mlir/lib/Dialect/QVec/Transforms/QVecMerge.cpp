@@ -227,9 +227,9 @@ static void mergeGroup(const Group& group) {
 ///
 /// *Bucketing:* Next we build a multi-map from `(layer, bucket key)` to `qvec` ops, with one entry for every `qvec` op
 /// with complete producers. The details of the bucket key do not matter, only that ops with an equal bucket key can in
-/// principle be merged if they are consecutive in the IR (no other op in between) and their qubit operands are
-/// disjoint. The set of `qvec` ops sharing a `(layer, bucket key)` is called a bucket. Only operations in the same
-/// bucket are considered for merging.
+/// principle be merged if their qubit operands are disjoint and nothing in the IR stands in the way (the simplest
+/// such case being that they are consecutive, no other op in between). The set of `qvec` ops sharing a
+/// `(layer, bucket key)` is called a bucket. Only operations in the same bucket are considered for merging.
 ///
 /// *Sorting:* In the next step (grouping) we process the buckets in ascending order of layer. This makes sense because
 /// merging within a layer typically unblocks merge opportunities in a follow-up layer (the layers are in general
@@ -244,11 +244,11 @@ static void mergeGroup(const Group& group) {
 /// 3. All new qubits are disjoint from the ones the group already operates on (a safety net against incomplete
 ///    producers).
 /// 4. The qubit operands of the new member are already defined before the first member, or can be hoisted "easily"
-///    (which is then done). See `makeAvailableBefore` for details.
+///    (which is then done, and kept even if another operand fails this test). See `makeAvailableBefore` for details.
 ///
 /// *Merging:* The members of a group are merged as soon as one of the tests fails (the new op is then not added) or the
-/// bucket is exhausted. If the bucket is not exhausted, a new group is opened with the next op. In general the failing
-/// candidate is the next op starting a group, but it is dropped from grouping if it failed test 2 or 1 on its own.
+/// bucket is exhausted. If the bucket is not exhausted, the failing candidate itself opens the next group - unless it
+/// can never be a member at all, i.e. it failed test 2, or test 1 already on its own.
 static void mergeOpsInBlock(Block& block, int64_t limitVF) {
   // Layering. layer(op) = 1 + max(layer(op_pred) for all predecessors op_pred of op).
   DenseMap<Operation*, unsigned> layers;
