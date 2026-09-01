@@ -39,6 +39,20 @@ class Value;
 #include "qcc/Dialect/QVec/IR/QVecAttrs.h.inc"
 
 //===----------------------------------------------------------------------===//
+// QVec type predicates
+//===----------------------------------------------------------------------===//
+
+namespace qcc::qvec {
+
+/// Whether `type` is a vector of qubits, the type every qubit slot carries.
+inline bool isQubitVector(mlir::Type type) {
+  auto vectorType = mlir::dyn_cast<mlir::VectorType>(type);
+  return vectorType && mlir::isa<mlir::qco::QubitType>(vectorType.getElementType());
+}
+
+} // namespace qcc::qvec
+
+//===----------------------------------------------------------------------===//
 // QVec Interfaces
 //===----------------------------------------------------------------------===//
 

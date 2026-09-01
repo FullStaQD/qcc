@@ -18,22 +18,28 @@ include "mlir/IR/OpBase.td"
 
 def QVec_QubitSlotOpInterface : OpInterface<"QubitSlotOpInterface"> {
   let description = [{
-        A qubit slot is one lane of qubits through an operation: a qubit vector operand together with the result that
-        carries the same qubits back out. A `qvec.single` has one slot, `0`; a `qvec.pair` has two, `0` and `1`.
+        A qubit slot is one lane of qubits through an operation: a qubit vector result together with the operand that
+        carries the same qubits in (if the latter exists). A `qvec.single` has one slot, `0`; a `qvec.pair` has two, `0`
+        and `1`.
 
-        The result in slot `i` is *tied* to the operand in slot `i`: both denote the same qubits, before and after the
-        operation. Non-qubit results, such as measurement outcomes, do not correspond to (qubit) slots.
+        NOTE: Currently the design is asymmetric; a slot always corresponds to a result, but an operand might not exist.
+        This accommodates qubit sources. In principle the reverse would be possible too (slot with an operand but no
+        result) accommodating qubit sinks. We have decided against it so far. This is reflected in the signatures of the
+        involved methods.
     }];
   let cppNamespace = "::qcc::qvec";
 
   let methods = [
     InterfaceMethod<
-      /*desc=*/"Returns the number of qubit slots of this operation.",
+      /*desc=*/"Returns the number of qubit slots of this operation, one per qubit vector result.",
       /*retTy=*/"unsigned",
       /*methodName=*/"getNumQubitSlots"
     >,
     InterfaceMethod<
-      /*desc=*/"Returns the qubit vector operand in `slot`, which must be a slot of this operation.",
+      /*desc=*/[{
+        Returns the qubit vector operand in `slot`, which must be a slot of this operation, or a null value if the
+        qubits in that slot originate in this operation.
+      }],
       /*retTy=*/"::mlir::TypedValue<::mlir::VectorType>",
       /*methodName=*/"getQubitOperand",
       /*args=*/(ins "unsigned":$slot)
@@ -46,50 +52,54 @@ def QVec_QubitSlotOpInterface : OpInterface<"QubitSlotOpInterface"> {
     >,
     InterfaceMethod<
       /*desc=*/[{
-        Returns the qubit slot corresponding to `result`, or `nullopt` if there is none.
+        Returns the qubit slot `result` belongs to.
 
-        Asserts that this operation is the owner of `result`.
+        Asserts that `result` is a qubit vector result of this operation. Every qubit vector result is a slot, so ask
+        `isQubitVector` on the result type to find out whether this query applies.
       }],
-      /*retTy=*/"::std::optional<unsigned>",
+      /*retTy=*/"unsigned",
       /*methodName=*/"getQubitSlot",
       /*args=*/(ins "::mlir::OpResult":$result),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
         assert(result.getOwner() == $_op.getOperation() && "result belongs to a different operation");
+        assert(::qcc::qvec::isQubitVector(result.getType()) && "not a qubit vector result");
         for (unsigned slot = 0, numSlots = $_op.getNumQubitSlots(); slot < numSlots; ++slot) {
           if ($_op.getQubitResult(slot) == result) {
             return slot;
           }
         }
-        return ::std::nullopt;
+        llvm_unreachable("qubit vector result outside the qubit slots");
       }]
     >,
     InterfaceMethod<
       /*desc=*/[{
-        Returns the operand `result` receives its qubits from, or a null `Value` if there is none.
+        Returns the operand `result` receives its qubits from, or a null `Value` if the qubits originate in this
+        operation.
 
-        Asserts that this operation is the owner of `result`.
+        Asserts that `result` is a qubit vector result of this operation.
 
         A null return is a normal answer, not a failure: it says that `result` does not continue an existing qubit
-        chain, either because it is not a qubit result at all or because this operation is where the qubits originate.
+        chain, because this operation is where its qubits originate.
       }],
       /*retTy=*/"::mlir::Value",
       /*methodName=*/"getTiedQubitOperand",
       /*args=*/(ins "::mlir::OpResult":$result),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        ::std::optional<unsigned> slot = $_op.getQubitSlot(result);
-        return slot ? $_op.getQubitOperand(*slot) : ::mlir::Value();
+        return $_op.getQubitOperand($_op.getQubitSlot(result));
       }]
     >
   ];
 
   let extraClassDeclaration = [{
-        /// The qubit vector operands of this operation, slot by slot.
+        /// The qubit vector operands of this operation, slot by slot, skipping the slots whose qubits originate here.
         ::llvm::SmallVector<::mlir::TypedValue<::mlir::VectorType>, 2> getQubitOperands() {
           ::llvm::SmallVector<::mlir::TypedValue<::mlir::VectorType>, 2> operands;
           for (unsigned slot = 0, numSlots = getNumQubitSlots(); slot < numSlots; ++slot) {
-            operands.push_back(getQubitOperand(slot));
+            if (auto operand = getQubitOperand(slot)) {
+              operands.push_back(operand);
+            }
           }
           return operands;
         }

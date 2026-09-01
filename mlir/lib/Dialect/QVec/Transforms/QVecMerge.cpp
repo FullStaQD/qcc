@@ -42,9 +42,9 @@ using namespace qcc::qvec;
 // A uniform view of the qvec operations
 //===----------------------------------------------------------------------===//
 
-/// The number of qubits one operand vector of `op` carries, i.e. the op's current VF.
+/// The number of qubits one slot of `op` carries, i.e. the op's current VF.
 static int64_t getVectorLength(Operation* op) {
-  return cast<QubitSlotOpInterface>(op).getQubitOperand(0).getType().getNumElements();
+  return cast<QubitSlotOpInterface>(op).getQubitResult(0).getType().getNumElements();
 }
 
 /// Identical bucket key for two ops expresses the fact that they can in principle be merged if no other op blocks and

@@ -17,9 +17,9 @@
 #include "mlir/IR/Value.h"
 
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/TypeSwitch.h" // IWYU pragma: keep
 
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
