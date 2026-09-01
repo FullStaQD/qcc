@@ -73,7 +73,9 @@ static std::optional<uint32_t> getSecondaryBucketKey(QubitSlotOpInterface op) {
 /// IR might still be mutated if unsuccessful (but still correct).
 ///
 /// TODO: we only hoist pure operations. Not because it is the right model but because it seems to be so strict a
-/// condition that it is correct in any case - but likely needlessly restrictive.
+/// condition that it is correct in any case - but needlessly restrictive. An example which does not hoist although it
+/// would make sense is: a1 = h(a0); a2 = h(a1); b1 = x(b0); b2 = h(b1). Here we could merge all three hadamards, but
+/// the x (non-pure) would need to be hoisted before a1 - which would be correct but we don't do it.
 static bool makeAvailableBefore(Value value, Operation* before) {
   Operation* definingOp = value.getDefiningOp();
   if (definingOp == nullptr || definingOp->getBlock() != before->getBlock()) {
@@ -271,6 +273,7 @@ static void mergeOpsInBlock(Block& block, int64_t limitVF) {
       const int64_t width = getVectorLength(candidate);
       std::optional staticQubits = getStaticQubits(candidate);
 
+      // FIXME: the empty check should be moved out.
       // FIXME: this none_of check, shouldn't it always be true?
       const bool fits = !group.members.empty() && group.width + width <= limitVF && staticQubits &&
                         llvm::none_of(*staticQubits, [&](Value qubit) { return group.qubits.contains(qubit); }) &&
