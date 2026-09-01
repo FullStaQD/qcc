@@ -20,7 +20,6 @@
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Value.h"
-#include "mlir/IR/ValueRange.h"
 #include "mlir/IR/Visitors.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Pass/Pass.h" // IWYU pragma: keep
@@ -42,9 +41,6 @@ using namespace qcc::qvec;
 //===----------------------------------------------------------------------===//
 // A uniform view of the qvec operations
 //===----------------------------------------------------------------------===//
-
-/// An operation is mergeable if it exposes its qubits via the slot interface, which every `qvec` operation does.
-static bool isMergeableOp(Operation* op) { return isa_and_present<QubitSlotOpInterface>(op); }
 
 /// The number of qubits one operand vector of `op` carries, i.e. the op's current VF.
 static int64_t getVectorLength(Operation* op) {
@@ -74,31 +70,6 @@ static std::optional<uint32_t> getSecondaryBucketKey(Operation* op) {
 //===----------------------------------------------------------------------===//
 // Scheduling helpers
 //===----------------------------------------------------------------------===//
-
-/// The `qvec` operations that produced any element of `qubits`.
-///
-/// Walks back through everything that only moves qubits around, so it sees the producer even
-/// when the vector was taken apart and put back together in between.
-static void collectProducers(Value qubits, SmallPtrSetImpl<Operation*>& producers) {
-  Operation* definingOp = qubits.getDefiningOp();
-  if (definingOp == nullptr) {
-    return;
-  }
-  if (isMergeableOp(definingOp)) {
-    producers.insert(definingOp);
-    return;
-  }
-
-  // FIXME: refactor this.
-  TypeSwitch<Operation*>(definingOp)
-      .Case<vector::FromElementsOp>([&](vector::FromElementsOp fromElementsOp) {
-        for (auto element : fromElementsOp.getElements()) {
-          collectProducers(element, producers);
-        }
-      })
-      .Case<vector::ExtractOp, vector::BroadcastOp>([&](auto op) { collectProducers(op.getSource(), producers); })
-      .Default([](Operation*) {}); // FIXME: be explicit here.
-}
 
 /// Makes `value` available at `before`, hoisting whatever defines it if it is not already.
 ///
@@ -251,8 +222,9 @@ static void mergeOpsInBlock(Block& block, int64_t limitVF) {
     }
 
     SmallPtrSet<Operation*, 4> producers;
+    bool allProducersKnown = true;
     for (auto operand : slotOp.getQubitOperands()) {
-      collectProducers(operand, producers);
+      allProducersKnown &= collectQubitProducers(operand, producers);
     }
 
     unsigned layer = 0;
@@ -265,6 +237,15 @@ static void mergeOpsInBlock(Block& block, int64_t limitVF) {
 
     // An operation we cannot bucket still takes part in the layering, so that its consumers end up in a later layer.
     layers[&op] = layer;
+
+    // If a producer is missing the layer might have a higher value than what we assigned. We do not bucket the op in
+    // this case (meaning it does not participate in merging) to avoid mistakes.
+    if (!allProducersKnown) {
+      continue;
+    }
+
+    // FIXME: feels unsafe to not error out if not all producers are known. The layering can be wrong even for ops with
+    // known producers.
 
     const std::optional<uint32_t> secondaryKey = getSecondaryBucketKey(&op);
     if (!secondaryKey) {
