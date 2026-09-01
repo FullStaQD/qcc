@@ -209,7 +209,8 @@ static void mergeGroup(const Group& group) {
 }
 
 /// Merges one block's `qvec` operations, up to `limitVF` qubits per operation. This is the central method of the whole
-/// pass, so let us explain how it works.
+/// pass, so let us explain how it works. For clarity we skip some minor details (which are addressed via comments in
+/// the implementation).
 ///
 /// *Producers:* The *producers* of a `qvec` op are all the `qvec` ops immediately involved in creating its qubit
 /// operands.
@@ -235,18 +236,19 @@ static void mergeGroup(const Group& group) {
 /// interleaved with each other in the IR).
 ///
 /// *Grouping:* Within each bucket we form groups of `qvec` operations (meant to be merged in the end). A group is a
-/// list of `qvec` operations ordered as in the IR. Before a new member is added to a group, the following tests have to
-/// pass:
+/// list of `qvec` operations ordered as in the IR. Before a new member candidate is added to a group, the following
+/// tests have to pass:
 ///
-/// - The enlarged group still respects `limitVF` once merged.
-/// - All qubits of the new member can be traced back to static ops.
-/// - All new qubits are disjoint from the ones the group already operates on (a safety net against incomplete
-///   producers).
-/// - The qubit operands of the new member are already defined before the first member, or can be hoisted "easily"
-///   (which is then done). See `makeAvailableBefore` for details.
+/// 1. The enlarged group still respects `limitVF` once merged.
+/// 2. All qubits of the candidate can be traced back to static ops.
+/// 3. All new qubits are disjoint from the ones the group already operates on (a safety net against incomplete
+///    producers).
+/// 4. The qubit operands of the new member are already defined before the first member, or can be hoisted "easily"
+///    (which is then done). See `makeAvailableBefore` for details.
 ///
 /// *Merging:* The members of a group are merged as soon as one of the tests fails (the new op is then not added) or the
-/// bucket is exhausted. If the bucket is not exhausted, a new group is opened with the next op.
+/// bucket is exhausted. If the bucket is not exhausted, a new group is opened with the next op. In general the failing
+/// candidate is the next op starting a group, but it is dropped from grouping if it failed test 2 or 1 on its own.
 static void mergeOpsInBlock(Block& block, int64_t limitVF) {
   // Layering. layer(op) = 1 + max(layer(op_pred) for all predecessors op_pred of op).
   DenseMap<Operation*, unsigned> layers;
