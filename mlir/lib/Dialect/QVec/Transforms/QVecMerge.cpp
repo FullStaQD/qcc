@@ -43,9 +43,7 @@ using namespace qcc::qvec;
 //===----------------------------------------------------------------------===//
 
 /// The number of qubits one slot of `op` carries, i.e. the op's current VF.
-static int64_t getVectorLength(Operation* op) {
-  return cast<QubitSlotOpInterface>(op).getQubitResult(0).getType().getNumElements();
-}
+static int64_t getVectorLength(QubitSlotOpInterface op) { return op.getQubitResult(0).getType().getNumElements(); }
 
 /// Identical bucket key for two ops expresses the fact that they can in principle be merged if no other op blocks and
 /// qubit slots are disjoint. BucketKey = (operation name, secondary bucket key).
@@ -55,7 +53,7 @@ using BucketKey = std::pair<OperationName, uint32_t>;
 ///
 /// Returning nullopt at runtime is considered a bug, hence the assert in the impl. We still emit a null-opt to avoid
 /// correctness mistakes during production run. Returning a nullopt just means a possibly missed merge opportunity.
-static std::optional<uint32_t> getSecondaryBucketKey(Operation* op) {
+static std::optional<uint32_t> getSecondaryBucketKey(QubitSlotOpInterface op) {
   const std::optional<uint32_t> secondaryKey =
       TypeSwitch<Operation*, std::optional<uint32_t>>(op)
           .Case([](SingleOp singleOp) { return static_cast<uint32_t>(singleOp.getGateKind()); })
@@ -71,29 +69,32 @@ static std::optional<uint32_t> getSecondaryBucketKey(Operation* op) {
 // Scheduling helpers
 //===----------------------------------------------------------------------===//
 
-/// Makes `value` available at `before`, hoisting whatever defines it if it is not already.
+/// Makes `value` available at `before`, hoisting whatever defines it if it is not already. Returns true iff succeeded.
+/// IR might still be mutated if unsuccessful (but still correct).
 ///
-/// Only pure operations are hoisted, and only within `before`'s block; anything else either
-/// already dominates `before` or makes this fail. Hoisting a pure operation is always safe on its
-/// own, so a failure part-way through leaves correct -- if pointlessly rearranged -- IR behind.
+/// TODO: we only hoist pure operations. Not because it is the right model but because it seems to be so strict a
+/// condition that it is correct in any case - but likely needlessly restrictive.
 static bool makeAvailableBefore(Value value, Operation* before) {
   Operation* definingOp = value.getDefiningOp();
   if (definingOp == nullptr || definingOp->getBlock() != before->getBlock()) {
-    return true; // A block argument, or defined in an enclosing region. Either way it dominates.
+    return true; // A block argument, or defined in an enclosing region. Fine already.
   }
   if (definingOp->isBeforeInBlock(before)) {
-    return true;
+    return true; // Fine already.
   }
   if (!isPure(definingOp)) {
-    return false;
+    return false; // giving up.
   }
 
+  // Recurse into operands.
   for (Value operand : definingOp->getOperands()) {
     if (!makeAvailableBefore(operand, before)) {
       return false;
     }
   }
+
   definingOp->moveBefore(before);
+
   return true;
 }
 
@@ -105,7 +106,7 @@ namespace {
 
 /// The operations supposed to be merged into one, plus what the admission test needs.
 struct Group {
-  SmallVector<Operation*> members;
+  SmallVector<QubitSlotOpInterface> members;
   /// Total number of qubits per operand slot, i.e. the VF the merged operation would have.
   int64_t width = 0;
   /// The qubits the group acts on, i.e. the merged operations would have.
@@ -116,8 +117,8 @@ struct Group {
   Value buildMergedOperand(OpBuilder& builder, Location loc, unsigned slot) const {
     assert(slot == 0 || slot == 1 && "slot can only be 0 or 1");
     SmallVector<Value> elements;
-    for (Operation* member : this->members) {
-      TypedValue<VectorType> operand = cast<QubitSlotOpInterface>(member).getQubitOperand(slot);
+    for (QubitSlotOpInterface member : this->members) {
+      TypedValue<VectorType> operand = member.getQubitOperand(slot);
       for (int64_t index = 0; index < operand.getType().getNumElements(); ++index) {
         elements.push_back(vector::ExtractOp::create(builder, loc, operand, index));
       }
@@ -130,19 +131,18 @@ struct Group {
 
 } // namespace
 
-/// The qubits `op` names, or nullopt if any of them cannot be identified.
+/// Returns the list of static qubits this `qvec` op operates on. Or nullopt if any of them cannot be identified.
 ///
-/// Identity of the returned values is qubit identity, so this is what the overlap test compares.
-/// An unidentifiable element makes the test impossible rather than false, hence the failure.
-static std::optional<SmallVector<Value>> getNamedQubits(Operation* op) {
-  SmallVector<Value> qubits;
-  for (auto operand : cast<QubitSlotOpInterface>(op).getQubitOperands()) {
+/// The static ops are found by tracing each qubit element through the IR.
+static std::optional<SmallVector<qco::StaticOp>> getStaticQubits(QubitSlotOpInterface op) {
+  SmallVector<qco::StaticOp> qubits;
+  for (auto operand : op.getQubitOperands()) {
     for (int64_t index = 0; index < operand.getType().getNumElements(); ++index) {
       qco::StaticOp staticOp = getStaticOpAncestor(operand, index);
       if (!staticOp) {
         return std::nullopt;
       }
-      qubits.push_back(staticOp.getQubit());
+      qubits.push_back(staticOp);
     }
   }
   return qubits;
@@ -165,12 +165,12 @@ static Value buildMemberSlice(OpBuilder& builder, Location loc, Value merged, in
 /// Replaces `group`'s members with one operation over all their qubits. The merged operation goes where the first
 /// member was.
 static void mergeGroup(const Group& group) {
-  Operation* firstOp = group.members.front();
+  QubitSlotOpInterface firstOp = group.members.front();
   OpBuilder builder(firstOp); // important: sets insertion point right before firstOp.
   Location loc = firstOp->getLoc();
 
   SmallVector<Value, 2> operands;
-  for (unsigned slot = 0, numSlots = cast<QubitSlotOpInterface>(firstOp).getNumQubitSlots(); slot < numSlots; ++slot) {
+  for (unsigned slot = 0, numSlots = firstOp.getNumQubitSlots(); slot < numSlots; ++slot) {
     operands.push_back(group.buildMergedOperand(builder, loc, slot));
   }
 
@@ -190,7 +190,7 @@ static void mergeGroup(const Group& group) {
 
   // Replace uses of members by our newly created merged op.
   int64_t offset = 0;
-  for (Operation* member : group.members) {
+  for (QubitSlotOpInterface member : group.members) {
     const int64_t width = getVectorLength(member);
     SmallVector<Value> replacements;
     for (Value result : merged->getResults()) {
@@ -200,7 +200,7 @@ static void mergeGroup(const Group& group) {
     offset += width;
   }
 
-  for (Operation* member : group.members) {
+  for (QubitSlotOpInterface member : group.members) {
     member->erase();
   }
 }
@@ -214,7 +214,7 @@ static void mergeGroup(const Group& group) {
 static void mergeOpsInBlock(Block& block, int64_t limitVF) {
   // Layering. layer(op) = 1 + max(layer(op_pred) for all predecessors op_pred of op).
   DenseMap<Operation*, unsigned> layers;
-  llvm::MapVector<std::pair<unsigned, BucketKey>, SmallVector<Operation*>> buckets;
+  llvm::MapVector<std::pair<unsigned, BucketKey>, SmallVector<QubitSlotOpInterface>> buckets;
   for (Operation& op : block) {
     auto slotOp = dyn_cast<QubitSlotOpInterface>(&op);
     if (!slotOp) {
@@ -236,7 +236,7 @@ static void mergeOpsInBlock(Block& block, int64_t limitVF) {
     }
 
     // An operation we cannot bucket still takes part in the layering, so that its consumers end up in a later layer.
-    layers[&op] = layer;
+    layers[slotOp] = layer;
 
     // If a producer is missing the layer might have a higher value than what we assigned. We do not bucket the op in
     // this case (meaning it does not participate in merging) to avoid mistakes.
@@ -247,11 +247,11 @@ static void mergeOpsInBlock(Block& block, int64_t limitVF) {
     // FIXME: feels unsafe to not error out if not all producers are known. The layering can be wrong even for ops with
     // known producers.
 
-    const std::optional<uint32_t> secondaryKey = getSecondaryBucketKey(&op);
+    const std::optional<uint32_t> secondaryKey = getSecondaryBucketKey(slotOp);
     if (!secondaryKey) {
       continue;
     }
-    buckets[{layer, BucketKey{op.getName(), *secondaryKey}}].push_back(&op);
+    buckets[{layer, BucketKey{op.getName(), *secondaryKey}}].push_back(slotOp);
   }
 
   // Sort keys by layer index (ascending).
@@ -267,14 +267,14 @@ static void mergeOpsInBlock(Block& block, int64_t limitVF) {
 
   for (const auto& key : keys) {
     Group group;
-    for (Operation* candidate : buckets[key]) {
+    for (QubitSlotOpInterface candidate : buckets[key]) {
       const int64_t width = getVectorLength(candidate);
-      std::optional<SmallVector<Value>> qubits = getNamedQubits(candidate);
+      std::optional staticQubits = getStaticQubits(candidate);
 
       // FIXME: this none_of check, shouldn't it always be true?
-      const bool fits = !group.members.empty() && group.width + width <= limitVF && qubits &&
-                        llvm::none_of(*qubits, [&](Value qubit) { return group.qubits.contains(qubit); }) &&
-                        llvm::all_of(cast<QubitSlotOpInterface>(candidate).getQubitOperands(), [&](Value operand) {
+      const bool fits = !group.members.empty() && group.width + width <= limitVF && staticQubits &&
+                        llvm::none_of(*staticQubits, [&](Value qubit) { return group.qubits.contains(qubit); }) &&
+                        llvm::all_of(candidate.getQubitOperands(), [&](Value operand) {
                           return makeAvailableBefore(operand, group.members.front());
                         });
 
@@ -282,14 +282,14 @@ static void mergeOpsInBlock(Block& block, int64_t limitVF) {
         close(group);
         // A candidate whose qubits cannot be identified, or that is already too wide, starts no
         // group of its own either.
-        if (!qubits || width > limitVF) {
+        if (!staticQubits || width > limitVF) {
           continue; // FIXME: shouldn't we error out here? Looks like a bug.
         }
       }
 
       group.members.push_back(candidate);
       group.width += width;
-      group.qubits.insert_range(*qubits);
+      group.qubits.insert_range(*staticQubits);
     }
     close(group);
   }
