@@ -83,8 +83,8 @@ QubitStep stepTo(Value value, std::optional<int64_t> index = std::nullopt) {
   return {.kind = QubitStep::Kind::Stepped, .qubit = QubitRef{.value = value, .index = index}};
 }
 
-/// Whether `type` can hold qubits, one or a whole vector of them.
-bool isQubitLike(Type type) {
+/// Whether `type` carries qubits, one or a whole vector of them.
+bool carriesQubits(Type type) {
   auto shapedType = dyn_cast<ShapedType>(type);
   return isa<qco::QubitType>(shapedType ? shapedType.getElementType() : type);
 }
@@ -106,7 +106,7 @@ QubitStep stepBackElement(Value element) {
 
   // An operation without qubit inputs creates the qubits it returns, `qco.static` and `qco.alloc` being the ones we
   // care about. Anything else may well pass a qubit through, and we cannot tell from where.
-  if (llvm::none_of(definingOp->getOperandTypes(), isQubitLike)) {
+  if (llvm::none_of(definingOp->getOperandTypes(), carriesQubits)) {
     return {.kind = QubitStep::Kind::Origin, .qubit = {}};
   }
   return {.kind = QubitStep::Kind::Unknown, .qubit = {}};
