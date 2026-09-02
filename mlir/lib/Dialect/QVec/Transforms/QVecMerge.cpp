@@ -153,20 +153,6 @@ static std::optional<SmallVector<qco::StaticOp>> getStaticQubits(QubitSlotOpInte
   return qubits;
 }
 
-/// Extracts elements `[offset, offset + width)` out of `merged` as a vector of its own.
-///
-/// Use case: To enable the users of group members (which are now merged) to act on the right slice.
-static Value buildMemberSlice(OpBuilder& builder, Location loc, Value merged, int64_t offset, int64_t width) {
-  SmallVector<Value> elements;
-  for (int64_t index = offset; index < offset + width; ++index) {
-    elements.push_back(vector::ExtractOp::create(builder, loc, merged, index));
-  }
-
-  // FIXME: would it make sense to extract the whole slice directly (no multi extract + from_elements combo)?
-  auto vectorType = VectorType::get({width}, elements.front().getType());
-  return vector::FromElementsOp::create(builder, loc, vectorType, elements);
-}
-
 /// Replaces `group`'s members with one operation over all their qubits. The merged operation goes where the first
 /// member was.
 static void mergeGroup(const Group& group) {
@@ -203,7 +189,9 @@ static void mergeGroup(const Group& group) {
     const int64_t width = getVectorLength(member);
     SmallVector<Value> replacements;
     for (Value result : merged->getResults()) {
-      replacements.push_back(buildMemberSlice(builder, member->getLoc(), result, offset, width));
+      replacements.push_back(vector::ExtractStridedSliceOp::create(
+          builder, member->getLoc(), /*source=*/result, /*offsets=*/ArrayRef<int64_t>{offset},
+          /*sizes=*/ArrayRef<int64_t>{width}, /*strides=*/ArrayRef<int64_t>{1}));
     }
     member->replaceAllUsesWith(replacements);
     offset += width;

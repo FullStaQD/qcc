@@ -17,6 +17,7 @@
 #include "mlir/IR/Value.h"
 
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/TypeSwitch.h" // IWYU pragma: keep
 
 #include <cassert>
@@ -131,6 +132,16 @@ QubitStep stepBackVectorElement(Value qubits, int64_t index) {
       return {.kind = QubitStep::Kind::Unknown, .qubit = {}}; // FIXME: how is this possible?
     }
     return stepTo(elements[static_cast<size_t>(index)]);
+  }
+
+  if (auto sliceOp = dyn_cast<vector::ExtractStridedSliceOp>(definingOp)) {
+    if (sliceOp.getSourceVectorType().getRank() != 1 || sliceOp.getOffsets().size() != 1 ||
+        sliceOp.hasNonUnitStrides()) {
+      return {.kind = QubitStep::Kind::Unknown, .qubit = {}};
+    }
+    SmallVector<int64_t> offsets;
+    sliceOp.getOffsets(offsets);
+    return stepTo(sliceOp.getSource(), offsets.front() + index);
   }
 
   if (auto broadcastOp = dyn_cast<vector::BroadcastOp>(definingOp)) {

@@ -182,11 +182,11 @@ func.func @measurement_bits_extracted_for_user(%k: i1) -> i1 {
     func.return %andi : i1
 }
 
-// Measure with a single instruction, then extract for use in xori and andi.
+// Measure with a single instruction, then extract the bits where they are used.
 // CHECK:         %{{.*}}, %[[BITS:.*]] = qvec.mz %{{.*}} : vector<2x!qco.qubit> -> vector<2xi1>
 // CHECK-DAG:     %[[R0:.*]] = vector.extract %[[BITS]][0] : i1 from vector<2xi1>
 // CHECK-DAG:     %[[R1:.*]] = vector.extract %[[BITS]][1] : i1 from vector<2xi1>
-// CHECK:         %[[N:.*]] = arith.xori %[[R0]], %{{.*}} : i1
+// CHECK-DAG:     %[[N:.*]] = arith.xori %[[R0]], %{{.*}} : i1
 // CHECK:         arith.andi %[[N]], %[[R1]] : i1
 
 // -----
@@ -324,4 +324,31 @@ func.func @stale_layer_propagates() {
 // CHECK:         qco.x
 // CHECK:         %[[LHS:.*]], %[[RHS:.*]] = qvec.pair cx %{{.*}}, %{{.*}} : vector<1x!qco.qubit>
 // CHECK:         qvec.single h %[[RHS]] : vector<1x!qco.qubit>
+// CHECK-NOT:     qvec.
+
+// -----
+
+// CHECK-LABEL: func.func @merge_through_member_slice
+func.func @merge_through_member_slice() {
+    %q0 = qco.static 0 : !qco.qubit
+    %q1 = qco.static 1 : !qco.qubit
+    %q2 = qco.static 2 : !qco.qubit
+    %q3 = qco.static 3 : !qco.qubit
+    %a0 = vector.from_elements %q0, %q1 : vector<2x!qco.qubit>
+    %b0 = vector.from_elements %q2, %q3 : vector<2x!qco.qubit>
+
+    %a1 = qvec.single h %a0 : vector<2x!qco.qubit> // layer 0
+    %b1 = qvec.single h %b0 : vector<2x!qco.qubit> // layer 0
+
+    // Both members are wider than one qubit, so their slices out of the merged result stay in the IR while layer 1
+    // is grouped. The tracing has to look through them for these two to merge as well.
+    %a2 = qvec.single x %a1 : vector<2x!qco.qubit> // layer 1
+    %b2 = qvec.single x %b1 : vector<2x!qco.qubit> // layer 1
+
+    func.return
+}
+
+// CHECK:         %[[V0:.*]] = vector.from_elements %{{.*}} : vector<4x!qco.qubit>
+// CHECK:         %[[H:.*]] = qvec.single h %[[V0]] : vector<4x!qco.qubit>
+// CHECK:         qvec.single x %[[H]] : vector<4x!qco.qubit>
 // CHECK-NOT:     qvec.
