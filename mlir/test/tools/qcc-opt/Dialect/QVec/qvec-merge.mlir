@@ -328,8 +328,8 @@ func.func @stale_layer_propagates() {
 
 // -----
 
-// CHECK-LABEL: func.func @merge_through_member_slice
-func.func @merge_through_member_slice() {
+// CHECK-LABEL: func.func @wide_member_slice_is_one_op
+func.func @wide_member_slice_is_one_op() {
     %q0 = qco.static 0 : !qco.qubit
     %q1 = qco.static 1 : !qco.qubit
     %q2 = qco.static 2 : !qco.qubit
@@ -340,15 +340,16 @@ func.func @merge_through_member_slice() {
     %a1 = qvec.single h %a0 : vector<2x!qco.qubit> // layer 0
     %b1 = qvec.single h %b0 : vector<2x!qco.qubit> // layer 0
 
-    // Both members are wider than one qubit, so their slices out of the merged result stay in the IR while layer 1
-    // is grouped. The tracing has to look through them for these two to merge as well.
+    // Different gate kinds, so these two never merge and their operands stay in the IR to be looked at.
     %a2 = qvec.single x %a1 : vector<2x!qco.qubit> // layer 1
-    %b2 = qvec.single x %b1 : vector<2x!qco.qubit> // layer 1
+    %b2 = qvec.single y %b1 : vector<2x!qco.qubit> // layer 1
 
     func.return
 }
 
-// CHECK:         %[[V0:.*]] = vector.from_elements %{{.*}} : vector<4x!qco.qubit>
-// CHECK:         %[[H:.*]] = qvec.single h %[[V0]] : vector<4x!qco.qubit>
-// CHECK:         qvec.single x %[[H]] : vector<4x!qco.qubit>
-// CHECK-NOT:     qvec.
+// Handing a member its share of the merged result takes one operation, whatever the member's width.
+// CHECK:         %[[H:.*]] = qvec.single h %{{.*}} : vector<4x!qco.qubit>
+// CHECK:         %[[S0:.*]] = vector.extract_strided_slice %[[H]] {offsets = [0], sizes = [2], strides = [1]}
+// CHECK:         %[[S1:.*]] = vector.extract_strided_slice %[[H]] {offsets = [2], sizes = [2], strides = [1]}
+// CHECK:         qvec.single x %[[S0]] : vector<2x!qco.qubit>
+// CHECK:         qvec.single y %[[S1]] : vector<2x!qco.qubit>
