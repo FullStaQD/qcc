@@ -1,11 +1,6 @@
 // RUN: qcc-opt %s -qvec-merge --split-input-file | FileCheck %s
-// RUN: qcc-opt %s -qvec-merge=max-vf=2 --split-input-file | FileCheck %s --check-prefix=CHECK-VF2
-// RUN: qcc-opt %s -qvec-merge=max-vf=64 --split-input-file | FileCheck %s --check-prefix=CHECK-VF64
-
-// FIXME: the max-vf=2 option only tested once, might move into dedicated file.
 
 // CHECK-LABEL: func.func @one_layer
-// CHECK-VF2-LABEL: func.func @one_layer
 func.func @one_layer() {
     %q0 = qco.static 0 : !qco.qubit
     %q1 = qco.static 1 : !qco.qubit
@@ -27,9 +22,6 @@ func.func @one_layer() {
 // CHECK:         %[[V0:.*]] = vector.from_elements %[[Q0]], %[[Q1]], %[[Q2]] : vector<3x!qco.qubit>
 // CHECK:         qvec.single h %[[V0]] : vector<3x!qco.qubit>
 // CHECK-NOT:     qvec.
-
-// CHECK-VF2:     qvec.single h %{{.*}} : vector<2x!qco.qubit>
-// CHECK-VF2:     qvec.single h %{{.*}} : vector<1x!qco.qubit>
 
 // -----
 
@@ -249,11 +241,9 @@ module {
   }
 }
 
-// A cap of 64 splits the 65 qubits over two operations, while an uncapped run merges them into
-// one -- the widest group `max-vf` allows is all the pass knows about a machine.
+// Uncapped, a layer becomes one operation however wide it grows -- the widest group `max-vf` allows is all the pass
+// knows about a machine. See qvec-merge-max-vf.mlir for what a cap does here.
 // CHECK:         qvec.single h %{{.*}} : vector<65x!qco.qubit>
-// CHECK-VF64:    qvec.single h %{{.*}} : vector<64x!qco.qubit>
-// CHECK-VF64:    qvec.single h %{{.*}} : vector<1x!qco.qubit>
 
 // -----
 
