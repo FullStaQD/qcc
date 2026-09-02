@@ -14,6 +14,7 @@
 #include "qcc/Conversion/ToQIR/ToQIR.h"
 #include "qcc/Dialect/Aux_/IR/Aux_.h"
 #include "qcc/Dialect/Jasp/IR/Jasp.h"
+#include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEP.h"
 
 #include "mlir/Conversion/ArithToLLVM/ArithToLLVM.h"
 #include "mlir/Conversion/FuncToLLVM/ConvertFuncToLLVM.h"
@@ -25,6 +26,7 @@
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
 #include "mlir/Dialect/Bufferization/Transforms/FuncBufferizableOpInterfaceImpl.h"
 #include "mlir/Dialect/Bufferization/Transforms/Passes.h"
+#include "mlir/Dialect/Complex/IR/Complex.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlow.h"
 #include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Dialect/Func/Extensions/InlinerExtension.h"
@@ -58,6 +60,7 @@ int main(int argc, char** argv) {
     mlir::arith::ArithDialect,
     mlir::tensor::TensorDialect,
     mlir::bufferization::BufferizationDialect,
+    mlir::complex::ComplexDialect,
     mlir::linalg::LinalgDialect,
     mlir::cf::ControlFlowDialect,
     mlir::scf::SCFDialect,
@@ -66,7 +69,8 @@ int main(int argc, char** argv) {
     mlir::DLTIDialect,
     jasp::JaspDialect,
     mlir::qc::QCDialect,
-    qcc::aux::AuxDialect
+    qcc::aux::AuxDialect,
+    qcc::prelimhlep::PrelimHLEPDialect
       // clang-format on
       >();
 
