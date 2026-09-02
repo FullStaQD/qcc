@@ -113,7 +113,7 @@ struct Group {
   /// Total number of qubits per operand slot, i.e. the VF the merged operation would have.
   int64_t width = 0;
   /// The qubits the group acts on, i.e. the merged operations would have.
-  DenseSet<Value> qubits; // FIXME: TypedValue of Qubit?
+  DenseSet<qco::StaticOp> qubits;
 
   /// Build the first (slot=0) or second (slot=1, if available) qubit vector operand for the merged operation by
   /// collecting each member's qubits in the same slots.
@@ -143,7 +143,9 @@ static std::optional<SmallVector<qco::StaticOp>> getStaticQubits(QubitSlotOpInte
     for (int64_t index = 0; index < operand.getType().getNumElements(); ++index) {
       qco::StaticOp staticOp = getStaticOpAncestor(operand, index);
       if (!staticOp) {
-        return std::nullopt; // FIXME: assert this does not happen?
+        // Ideally we would like to never return nullopt, but this cannot be guaranteed if the pass is ran in an
+        // arbitrary context.
+        return std::nullopt;
       }
       qubits.push_back(staticOp);
     }
@@ -321,7 +323,7 @@ static void mergeOpsInBlock(Block& block, int64_t limitVF) {
       const bool emptyOrFits =
           group.members.empty() ||
           (group.width + width <= limitVF &&
-           llvm::none_of(*staticQubits, [&](Value qubit) { return group.qubits.contains(qubit); }) &&
+           llvm::none_of(*staticQubits, [&](qco::StaticOp qubit) { return group.qubits.contains(qubit); }) &&
            llvm::all_of(candidate.getQubitOperands(),
                         [&](Value operand) { return makeAvailableBefore(operand, group.members.front()); }));
 
