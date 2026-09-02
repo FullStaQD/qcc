@@ -136,8 +136,6 @@ struct MeasureLowering final : public OpConversionPattern<qco::MeasureOp> {
 
 } // namespace
 
-static bool isInsideCtrlBody(Operation* op) { return isa_and_present<qco::CtrlOp>(op->getParentOp()); }
-
 namespace qcc {
 
 #define GEN_PASS_DEF_CONVERTQCOTOQVEC
@@ -157,9 +155,6 @@ protected:
     target.addLegalDialect<QVecDialect, vector::VectorDialect>();
     target.addIllegalDialect<qco::QCODialect>();
     target.addLegalOp<qco::StaticOp>(); // still needed as qubit source
-
-    // FIXME: Why? Is this even correct?
-    target.addDynamicallyLegalOp<qco::XOp, qco::YOp, qco::ZOp, qco::YieldOp>(isInsideCtrlBody);
 
     RewritePatternSet patterns(ctx);
     patterns.add<SingleGateLowering<qco::IdOp, SingleGate::I>,    //
