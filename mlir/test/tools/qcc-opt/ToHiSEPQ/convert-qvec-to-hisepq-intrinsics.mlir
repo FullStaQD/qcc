@@ -40,8 +40,8 @@ func.func @single_gates() {
 
 // -----
 
-// The encoding is `qv.cx vs1(tgt), vs2(ctrl)`, i.e. the other way round from how `qvec.pair`
-// reads, so the lowering swaps the two operands.
+// The encoding is `qv.cx vs1(ctrl), vs2(tgt)`, the same order `qvec.pair` reads, so the two
+// operands pass through unswapped.
 
 // CHECK-LABEL: func.func @pair_gates
 func.func @pair_gates() {
@@ -62,8 +62,7 @@ func.func @pair_gates() {
 // CHECK-DAG:     %[[TGT_IDX:.*]] = llvm.mlir.constant(dense<[2, 3]> : vector<2xi8>) : vector<2xi8>
 // CHECK-DAG:     %[[CTRLS:.*]] = llvm.intr.vector.insert %[[CTRL_IDX]], %{{.*}}[0]
 // CHECK-DAG:     %[[TGTS:.*]] = llvm.intr.vector.insert %[[TGT_IDX]], %{{.*}}[0]
-// FIXME: really swapped? This must be fixed - otherwise hell on earth!
-// CHECK:         llvm.call_intrinsic "llvm.riscv.qv.cx"(%[[TGTS]], %[[CTRLS]], %{{.*}}, %{{.*}})
+// CHECK:         llvm.call_intrinsic "llvm.riscv.qv.cx"(%[[CTRLS]], %[[TGTS]], %{{.*}}, %{{.*}})
 
 
 // -----
@@ -116,7 +115,7 @@ func.func @threaded() -> vector<2xi1> {
 // CHECK:         llvm.call_intrinsic "llvm.riscv.qv.h"
 // CHECK-DAG:     %[[CX_TGTS:.*]] = llvm.intr.vector.insert %[[TGT_IDX]]
 // CHECK-DAG:     %[[CX_CTRLS:.*]] = llvm.intr.vector.insert %[[CTRL_IDX]]
-// CHECK:         llvm.call_intrinsic "llvm.riscv.qv.cx"(%[[CX_TGTS]], %[[CX_CTRLS]], %{{.*}}, %{{.*}})
+// CHECK:         llvm.call_intrinsic "llvm.riscv.qv.cx"(%[[CX_CTRLS]], %[[CX_TGTS]], %{{.*}}, %{{.*}})
 // CHECK:         llvm.intr.vector.insert %[[CTRL_IDX]]
 // CHECK:         llvm.call_intrinsic "llvm.riscv.qv.mz"
 // CHECK:         llvm.intr.vector.insert %[[CTRL_IDX]]

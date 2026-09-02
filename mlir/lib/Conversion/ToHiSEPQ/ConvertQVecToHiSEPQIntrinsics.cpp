@@ -230,19 +230,18 @@ struct PairOpLowering : public OpRewritePattern<PairOp> {
       return diags->report(op, "gate '" + stringifyPairGate(op.getGateKind()) + "' has no HiSEP-Q intrinsic");
     }
 
-    auto ctrls = resolveQubitVector(op, op.getLhsIn(), machine, *diags);
-    if (!ctrls) {
+    auto lhs = resolveQubitVector(op, op.getLhsIn(), machine, *diags);
+    if (!lhs) {
       return failure();
     }
-    auto tgts = resolveQubitVector(op, op.getRhsIn(), machine, *diags);
-    if (!tgts) {
+    auto rhs = resolveQubitVector(op, op.getRhsIn(), machine, *diags);
+    if (!rhs) {
       return failure();
     }
 
-    // FIXME: Why swapping tgts and ctrls?
-    SmallVector<Value> args{buildQubitVector(rewriter, op.getLoc(), *tgts),
-                            buildQubitVector(rewriter, op.getLoc(), *ctrls)};
-    llvm::append_range(args, buildScalarOperands(rewriter, op.getLoc(), static_cast<unsigned>(ctrls->indices.size()),
+    SmallVector<Value> args{buildQubitVector(rewriter, op.getLoc(), *lhs),
+                            buildQubitVector(rewriter, op.getLoc(), *rhs)};
+    llvm::append_range(args, buildScalarOperands(rewriter, op.getLoc(), static_cast<unsigned>(lhs->indices.size()),
                                                  /*withTag=*/false));
 
     LLVM::CallIntrinsicOp::create(rewriter, op.getLoc(), rewriter.getStringAttr(intrinsic), args);

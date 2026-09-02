@@ -115,10 +115,10 @@ func.func @bell_parallel() {
 // CHECK:         %[[H:.*]] = llvm.intr.vector.insert %[[CTRL_IDX]], %{{.*}}[0] : vector<8xi8> into vector<[4]xi8>
 // CHECK:         llvm.call_intrinsic "llvm.riscv.qv.h"(%[[H]], %[[ZERO]], %[[ZERO]], %[[VL8]])
 
-// One `qv.cx` over all eight pairs, targets first as the encoding wants.
+// One `qv.cx` over all eight pairs, controls first as the encoding wants.
 // CHECK-DAG:     %[[CX_CTRLS:.*]] = llvm.intr.vector.insert %[[CTRL_IDX]], %{{.*}}[0] : vector<8xi8> into vector<[4]xi8>
 // CHECK-DAG:     %[[CX_TGTS:.*]] = llvm.intr.vector.insert %[[TGT_IDX]], %{{.*}}[0] : vector<8xi8> into vector<[4]xi8>
-// CHECK:         llvm.call_intrinsic "llvm.riscv.qv.cx"(%[[CX_TGTS]], %[[CX_CTRLS]], %[[ZERO]], %[[VL8]])
+// CHECK:         llvm.call_intrinsic "llvm.riscv.qv.cx"(%[[CX_CTRLS]], %[[CX_TGTS]], %[[ZERO]], %[[VL8]])
 
 // All sixteen measurements are independent, so the packer puts them in one instruction. Sixteen
 // qubits no longer fit LMUL 1/2, so this one steps up to LMUL 1 -- `vector<[8]xi8>`.
@@ -143,7 +143,7 @@ func.func @bell_parallel() {
 // FIXME: there are still multiple vsetvli reconfigurations although they configure all the same - why?
 // CHECK-ASM:       qv.h [[CTRLS]], zero, 0
 // CHECK-ASM:       vadd.vi [[TGTS:v[0-9]+]], [[CTRLS]], 8
-// CHECK-ASM:       qv.cx [[TGTS]], [[CTRLS]], 0
+// CHECK-ASM:       qv.cx [[CTRLS]], [[TGTS]], 0
 
 // measurement on all 16 qubits simultaneously:
 // CHECK-ASM:       vsetivli {{.*}}, 16, e8, m1, ta, ma

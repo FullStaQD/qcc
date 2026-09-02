@@ -96,10 +96,6 @@ def ConvertQVecToHiSEPQIntrinsics : Pass<"convert-qvec-to-hisepq-intrinsics", "m
       Together they select the narrowest `N` that fits all qubits, or error if the vector register capacity is
       exceeded even at the highest LMUL.
 
-      // FIXME: investigate.
-      `qvec.pair` reads control-before-target while the encoding puts the target in `vs1` and the control in `vs2`, so
-      the two operands are swapped here.
-
       Assumptions:
       - Every qubit vector traces back to a `vector.from_elements` whose elements are all `qco.static` ops, so that the
         qubit indices are known at compile time.
