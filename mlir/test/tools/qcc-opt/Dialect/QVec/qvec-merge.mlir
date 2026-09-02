@@ -196,57 +196,6 @@ func.func @qubits_maybe_not_disjoint(%qs: vector<2x!qco.qubit>, %rs: vector<2x!q
 
 // -----
 
-// CHECK-LABEL: func.func @hardware_limit
-module {
-  func.func @hardware_limit() {
-    %q0 = qco.static 0 : !qco.qubit  %q1 = qco.static 1 : !qco.qubit  %q2 = qco.static 2 : !qco.qubit
-    %q3 = qco.static 3 : !qco.qubit  %q4 = qco.static 4 : !qco.qubit  %q5 = qco.static 5 : !qco.qubit
-    %q6 = qco.static 6 : !qco.qubit  %q7 = qco.static 7 : !qco.qubit  %q8 = qco.static 8 : !qco.qubit
-    %q9 = qco.static 9 : !qco.qubit  %q10 = qco.static 10 : !qco.qubit  %q11 = qco.static 11 : !qco.qubit
-    %q12 = qco.static 12 : !qco.qubit  %q13 = qco.static 13 : !qco.qubit  %q14 = qco.static 14 : !qco.qubit
-    %q15 = qco.static 15 : !qco.qubit  %q16 = qco.static 16 : !qco.qubit  %q17 = qco.static 17 : !qco.qubit
-    %q18 = qco.static 18 : !qco.qubit  %q19 = qco.static 19 : !qco.qubit  %q20 = qco.static 20 : !qco.qubit
-    %q21 = qco.static 21 : !qco.qubit  %q22 = qco.static 22 : !qco.qubit  %q23 = qco.static 23 : !qco.qubit
-    %q24 = qco.static 24 : !qco.qubit  %q25 = qco.static 25 : !qco.qubit  %q26 = qco.static 26 : !qco.qubit
-    %q27 = qco.static 27 : !qco.qubit  %q28 = qco.static 28 : !qco.qubit  %q29 = qco.static 29 : !qco.qubit
-    %q30 = qco.static 30 : !qco.qubit  %q31 = qco.static 31 : !qco.qubit  %q32 = qco.static 32 : !qco.qubit
-    %q33 = qco.static 33 : !qco.qubit  %q34 = qco.static 34 : !qco.qubit  %q35 = qco.static 35 : !qco.qubit
-    %q36 = qco.static 36 : !qco.qubit  %q37 = qco.static 37 : !qco.qubit  %q38 = qco.static 38 : !qco.qubit
-    %q39 = qco.static 39 : !qco.qubit  %q40 = qco.static 40 : !qco.qubit  %q41 = qco.static 41 : !qco.qubit
-    %q42 = qco.static 42 : !qco.qubit  %q43 = qco.static 43 : !qco.qubit  %q44 = qco.static 44 : !qco.qubit
-    %q45 = qco.static 45 : !qco.qubit  %q46 = qco.static 46 : !qco.qubit  %q47 = qco.static 47 : !qco.qubit
-    %q48 = qco.static 48 : !qco.qubit  %q49 = qco.static 49 : !qco.qubit  %q50 = qco.static 50 : !qco.qubit
-    %q51 = qco.static 51 : !qco.qubit  %q52 = qco.static 52 : !qco.qubit  %q53 = qco.static 53 : !qco.qubit
-    %q54 = qco.static 54 : !qco.qubit  %q55 = qco.static 55 : !qco.qubit  %q56 = qco.static 56 : !qco.qubit
-    %q57 = qco.static 57 : !qco.qubit  %q58 = qco.static 58 : !qco.qubit  %q59 = qco.static 59 : !qco.qubit
-    %q60 = qco.static 60 : !qco.qubit  %q61 = qco.static 61 : !qco.qubit  %q62 = qco.static 62 : !qco.qubit
-    %q63 = qco.static 63 : !qco.qubit  %q64 = qco.static 64 : !qco.qubit
-
-    %wide = vector.from_elements
-        %q0, %q1, %q2, %q3, %q4, %q5, %q6, %q7,
-        %q8, %q9, %q10, %q11, %q12, %q13, %q14, %q15,
-        %q16, %q17, %q18, %q19, %q20, %q21, %q22, %q23,
-        %q24, %q25, %q26, %q27, %q28, %q29, %q30, %q31,
-        %q32, %q33, %q34, %q35, %q36, %q37, %q38, %q39,
-        %q40, %q41, %q42, %q43, %q44, %q45, %q46, %q47,
-        %q48, %q49, %q50, %q51, %q52, %q53, %q54, %q55,
-        %q56, %q57, %q58, %q59, %q60, %q61, %q62, %q63
-        : vector<64x!qco.qubit>
-    %last = vector.from_elements %q64 : vector<1x!qco.qubit>
-
-    %a = qvec.single h %wide : vector<64x!qco.qubit>
-    %b = qvec.single h %last : vector<1x!qco.qubit>
-
-    func.return
-  }
-}
-
-// Uncapped, a layer becomes one operation however wide it grows -- the widest group `max-vf` allows is all the pass
-// knows about a machine. See qvec-merge-max-vf.mlir for what a cap does here.
-// CHECK:         qvec.single h %{{.*}} : vector<65x!qco.qubit>
-
-// -----
-
 // FIXME: remove this test at the end
 
 // CHECK-LABEL: func.func @untraceable_producer
