@@ -1,9 +1,5 @@
 // RUN: qcc-opt %s -convert-qvec-to-hisepq-intrinsics=min-vlen=128 --split-input-file | FileCheck %s
 
-// FIXME: Is there a shortcut to declare many statics qubits more easily? (likely not)
-
-// FIXME: why is the file split?
-
 // The two qubits have to occupy the two front entries of an otherwise poison
 // `vector<[N]xi8>`. Poison means "we don't care".
 
@@ -135,6 +131,6 @@ func.func @sparse_qubit_indices() {
     func.return
 }
 
-// FIXME: are we fine with 255 = -1?
+// NOTE: 255 == -1; just a printing quirk.
 // CHECK:         llvm.mlir.constant(dense<[7, 3, -1]> : vector<3xi8>) : vector<3xi8>
 // CHECK:         llvm.call_intrinsic "llvm.riscv.qv.h"
