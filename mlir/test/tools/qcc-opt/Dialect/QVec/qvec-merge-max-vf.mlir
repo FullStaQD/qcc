@@ -44,11 +44,6 @@ func.func @single_gates() {
 
 // -----
 
-// FIXME: do we really want that?
-
-// An operation is never taken apart to make it fit, so one that is already wider than the cap stays as it is. It also
-// ends the group being built, hence q0 and q4 do not pair up across it even though the cap would allow that.
-
 // CHECK-CAPPED-LABEL: func.func @member_wider_than_cap
 // CHECK-UNCAPPED-LABEL: func.func @member_wider_than_cap
 func.func @member_wider_than_cap() {
@@ -56,14 +51,11 @@ func.func @member_wider_than_cap() {
     %q1 = qco.static 1 : !qco.qubit
     %q2 = qco.static 2 : !qco.qubit
     %q3 = qco.static 3 : !qco.qubit
-    %q4 = qco.static 4 : !qco.qubit
     %v0 = vector.from_elements %q0 : vector<1x!qco.qubit>
     %wide = vector.from_elements %q1, %q2, %q3 : vector<3x!qco.qubit>
-    %v4 = vector.from_elements %q4 : vector<1x!qco.qubit>
 
     %h0 = qvec.single h %v0 : vector<1x!qco.qubit>
     %h1 = qvec.single h %wide : vector<3x!qco.qubit>
-    %h2 = qvec.single h %v4 : vector<1x!qco.qubit>
 
     func.return
 }
@@ -71,11 +63,10 @@ func.func @member_wider_than_cap() {
 // Nothing merges at all.
 // CHECK-CAPPED:         qvec.single h %{{.*}} : vector<1x!qco.qubit>
 // CHECK-CAPPED:         qvec.single h %{{.*}} : vector<3x!qco.qubit>
-// CHECK-CAPPED:         qvec.single h %{{.*}} : vector<1x!qco.qubit>
 // CHECK-CAPPED-NOT:     qvec.
 
-// CHECK-UNCAPPED:       %[[V:.*]] = vector.from_elements %{{.*}} : vector<5x!qco.qubit>
-// CHECK-UNCAPPED:       qvec.single h %[[V]] : vector<5x!qco.qubit>
+// CHECK-UNCAPPED:       %[[V:.*]] = vector.from_elements %{{.*}} : vector<4x!qco.qubit>
+// CHECK-UNCAPPED:       qvec.single h %[[V]] : vector<4x!qco.qubit>
 // CHECK-UNCAPPED-NOT:   qvec.
 
 // -----

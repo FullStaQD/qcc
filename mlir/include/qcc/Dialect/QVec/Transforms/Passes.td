@@ -45,7 +45,7 @@ def QVecMerge : Pass<"qvec-merge", "mlir::ModuleOp"> {
 
   let options = [
     Option<"maxVF", "max-vf", "unsigned", /*default=*/"0",
-           "Cap on the number of elements per operation; 0 leaves it unbounded.">
+           "Cap on the number of elements per operation; 0 leaves it unbounded; pre-existing wider operations left alone.">
   ];
 
   let dependentDialects = [
