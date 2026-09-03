@@ -139,6 +139,7 @@ func.func @bell_parallel() -> i1 {
 
 // And the same thing once more after instruction selection:
 
+// TODO: we have a few useless reconfigures in here. Will be fixed soon by a patch of our fork.
 // CHECK-ASM-LABEL: bell_parallel:
 
 // The control indices <0, 1, ..., 7>:
@@ -149,7 +150,6 @@ func.func @bell_parallel() -> i1 {
 // CHECK-ASM:       li [[VL8:a[0-9]+]], 8
 // CHECK-ASM:       vsetvli zero, [[VL8]], e8, mf2, ta, ma
 
-// FIXME: there are still multiple vsetvli reconfigurations although they configure all the same - why?
 // CHECK-ASM:       qv.h [[CTRLS]], zero, 0
 // CHECK-ASM:       vadd.vi [[TGTS:v[0-9]+]], [[CTRLS]], 8
 // CHECK-ASM:       qv.cx [[CTRLS]], [[TGTS]], 0
