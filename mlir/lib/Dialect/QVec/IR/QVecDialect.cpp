@@ -76,22 +76,24 @@ struct QubitStep { // FIXME: Suboptimal that QubitRef only defined sometimes.
     Unknown, ///< An operation this walk cannot look through, so the origin stays out of reach.
   };
 
-  Kind kind;
+  Kind kind = Kind::Unknown;
   QubitRef qubit; ///< Where to continue. Only set for `Stepped`.
 };
 
-QubitStep stepTo(Value value, std::optional<int64_t> index = std::nullopt) {
+} // namespace
+
+static QubitStep stepTo(Value value, std::optional<int64_t> index = std::nullopt) {
   return {.kind = QubitStep::Kind::Stepped, .qubit = QubitRef{.value = value, .index = index}};
 }
 
 /// Whether `type` carries qubits, one or a whole vector of them.
-bool carriesQubits(Type type) {
+static bool carriesQubits(Type type) {
   auto shapedType = dyn_cast<ShapedType>(type);
   return isa<qco::QubitType>(shapedType ? shapedType.getElementType() : type);
 }
 
 /// Traces the scalar qubit `element` one step back.
-QubitStep stepBackElement(Value element) {
+static QubitStep stepBackElement(Value element) {
   Operation* definingOp = element.getDefiningOp();
   if (definingOp == nullptr) {
     return {.kind = QubitStep::Kind::Origin, .qubit = {}}; // A block argument.
@@ -114,7 +116,7 @@ QubitStep stepBackElement(Value element) {
 }
 
 /// Traces element `index` of the qubit vector `qubits` one step back.
-QubitStep stepBackVectorElement(Value qubits, int64_t index) {
+static QubitStep stepBackVectorElement(Value qubits, int64_t index) {
   Operation* definingOp = qubits.getDefiningOp();
   if (definingOp == nullptr) {
     return {.kind = QubitStep::Kind::Origin, .qubit = {}}; // A block argument.
@@ -157,11 +159,9 @@ QubitStep stepBackVectorElement(Value qubits, int64_t index) {
 }
 
 /// Traces `qubit` one step back towards its definition, through the operations that only move qubits around.
-QubitStep stepBack(QubitRef qubit) {
+static QubitStep stepBack(QubitRef qubit) {
   return qubit.index ? stepBackVectorElement(qubit.value, *qubit.index) : stepBackElement(qubit.value);
 }
-
-} // namespace
 
 qco::StaticOp qcc::qvec::getStaticOpAncestor(TypedValue<VectorType> qubits, int64_t index) {
   // Every step moves strictly towards a definition, so the walk terminates.
