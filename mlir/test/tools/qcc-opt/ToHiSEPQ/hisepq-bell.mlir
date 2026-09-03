@@ -6,15 +6,13 @@
 // RUN: mlir-translate -mlir-to-llvmir %t.mlir | llc -mtriple=riscv32 -mattr=+experimental-xqv - -o - \
 // RUN:   | FileCheck %s --check-prefix=CHECK-ASM
 
-// FIXME: replace by a better integration test if possible.
+// TODO: replace by a better integration test once qcc runs hisepq through qvec.
 
 // A pseudo-integration test for the whole HiSEP-Q path: eight Bell pairs, written out one gate at a
-// time the way a frontend emits them, arriving as three QV instructions. The QIR path (see
-// `convert-qir-to-hisepq-intrinsics.mlir`) would emit thirty-two.
+// time the way a frontend emits them, arriving as three QV instructions. The QIR path would emit thirty-two.
 
 // CHECK-LABEL: llvm.func @bell_parallel
-module attributes {qvec.target = #dlti.map<"min_vlen" = 128 : ui32>} {
-func.func @bell_parallel() {
+func.func @bell_parallel() -> i1 {
     %q0 = qco.static 0 : !qco.qubit
     %q1 = qco.static 1 : !qco.qubit
     %q2 = qco.static 2 : !qco.qubit
@@ -23,6 +21,7 @@ func.func @bell_parallel() {
     %q5 = qco.static 5 : !qco.qubit
     %q6 = qco.static 6 : !qco.qubit
     %q7 = qco.static 7 : !qco.qubit
+
     %q8 = qco.static 8 : !qco.qubit
     %q9 = qco.static 9 : !qco.qubit
     %q10 = qco.static 10 : !qco.qubit
@@ -82,6 +81,7 @@ func.func @bell_parallel() {
     %mc5, %rc5 = qco.measure %c5 : !qco.qubit
     %mc6, %rc6 = qco.measure %c6 : !qco.qubit
     %mc7, %rc7 = qco.measure %c7 : !qco.qubit
+
     %mt0, %rt0 = qco.measure %t0 : !qco.qubit
     %mt1, %rt1 = qco.measure %t1 : !qco.qubit
     %mt2, %rt2 = qco.measure %t2 : !qco.qubit
@@ -91,11 +91,15 @@ func.func @bell_parallel() {
     %mt6, %rt6 = qco.measure %t6 : !qco.qubit
     %mt7, %rt7 = qco.measure %t7 : !qco.qubit
 
-    // FIXME: the test should go on with comparing the first group of 8 qubits with the second group of 8 qubits.
-    // They should be equal (assuming no errors).
+    // Both halves of a Bell pair collapse to the same value, so -- errors aside -- the eight control
+    // bits and the eight target bits have to agree. One comparison and one reduction say exactly that.
+    // Returning the verdict is what keeps the whole chain alive: dead, `-qvec-merge` folds it away.
+    %ctrl_bits = vector.from_elements %rc0, %rc1, %rc2, %rc3, %rc4, %rc5, %rc6, %rc7 : vector<8xi1>
+    %tgt_bits = vector.from_elements %rt0, %rt1, %rt2, %rt3, %rt4, %rt5, %rt6, %rt7 : vector<8xi1>
+    %agree = arith.cmpi eq, %ctrl_bits, %tgt_bits : vector<8xi1>
+    %ok = vector.reduction <and>, %agree : vector<8xi1> into i1
 
-    func.return
-}
+    func.return %ok : i1
 }
 
 // Nothing of the source dialects survives.
@@ -126,7 +130,12 @@ func.func @bell_parallel() {
 // CHECK:         llvm.call_intrinsic "llvm.riscv.qv.mz"(%[[MZ]], %[[ZERO]], %[[ZERO]], %[[VL16]])
 // CHECK-NOT:     llvm.call_intrinsic
 
-// CHECK:         llvm.return
+// The sixteen outcomes leave as one `vector<16xi1>`, split into the two groups the Bell pairs pair up,
+// and reduce to a single verdict. Only the shape is checked -- `qv.mz` still yields poison bits, see
+// the TODO on `MzOpLowering` in ConvertQVecToHiSEPQIntrinsics.cpp.
+// CHECK:         %[[AGREE:.*]] = llvm.icmp "eq" %{{.*}}, %{{.*}} : vector<8xi1>
+// CHECK:         %[[OK:.*]] = "llvm.intr.vector.reduce.and"(%[[AGREE]]) : (vector<8xi1>) -> i1
+// CHECK:         llvm.return %[[OK]] : i1
 
 // And the same thing once more after instruction selection:
 
