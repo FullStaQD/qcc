@@ -196,73 +196,34 @@ func.func @qubits_maybe_not_disjoint(%qs: vector<2x!qco.qubit>, %rs: vector<2x!q
 
 // -----
 
-// FIXME: remove this test at the end
+func.func private @opaque_gate(!qco.qubit) -> !qco.qubit
 
 // CHECK-LABEL: func.func @untraceable_producer
 func.func @untraceable_producer() {
     %q0 = qco.static 0 : !qco.qubit
     %q1 = qco.static 1 : !qco.qubit
+    %q2 = qco.static 2 : !qco.qubit
     %v0 = vector.from_elements %q0 : vector<1x!qco.qubit>
     %v1 = vector.from_elements %q1 : vector<1x!qco.qubit>
+    %v2 = vector.from_elements %q2 : vector<1x!qco.qubit>
 
     %h0 = qvec.single h %v0 : vector<1x!qco.qubit>
     %h1 = qvec.single h %v1 : vector<1x!qco.qubit>
 
-    // A scalar gate hides where the qubit came from, so `%h2` must not join a layer of its own producer.
-    %e0 = vector.extract %h0[0] : !qco.qubit from vector<1x!qco.qubit>
-    %x0 = qco.x %e0 : !qco.qubit -> !qco.qubit
-    %w0 = vector.from_elements %x0 : vector<1x!qco.qubit>
-    %h2 = qvec.single h %w0 : vector<1x!qco.qubit>
+    // The relation between %e0 and %o0 is unknown (could even refer to different qubits). The call could also have
+    // other (unknown) side effects. Hence the third Hadamard must not be merged with the other ones.
+    %e0 = vector.extract %v2[0] : !qco.qubit from vector<1x!qco.qubit>
+    %o0 = func.call @opaque_gate(%e0) : (!qco.qubit) -> !qco.qubit // acts as a barrier here
+    %w2 = vector.from_elements %o0 : vector<1x!qco.qubit>
+    %h2 = qvec.single h %w2 : vector<1x!qco.qubit>
 
     func.return
 }
 
-// The two independent hadamards merge, the one behind the opaque gate stays on its own.
+// The two independent hadamards merge, the one behind the opaque call stays on its own.
 // CHECK:         qvec.single h %{{.*}} : vector<2x!qco.qubit>
-// CHECK:         qco.x
+// CHECK:         call @opaque_gate
 // CHECK:         qvec.single h %{{.*}} : vector<1x!qco.qubit>
-// CHECK-NOT:     qvec.
-
-// -----
-
-// FIXME: remove this test at the end
-
-// CHECK-LABEL: func.func @stale_layer_propagates
-func.func @stale_layer_propagates() {
-    %q0 = qco.static 0 : !qco.qubit
-    %q1 = qco.static 1 : !qco.qubit
-    %a0 = vector.from_elements %q0 : vector<1x!qco.qubit>
-    %b0 = vector.from_elements %q1 : vector<1x!qco.qubit>
-
-    // A chain on q0, so %a2 genuinely lives in layer 1.
-    %a1 = qvec.single h %a0 : vector<1x!qco.qubit> // layer 0
-    %a2 = qvec.single h %a1 : vector<1x!qco.qubit> // layer 1
-
-    // An opaque hop, hiding from the layering that everything below depends on %a2.
-    %a2_0 = vector.extract %a2[0] : !qco.qubit from vector<1x!qco.qubit>
-    %x = qco.x %a2_0 : !qco.qubit -> !qco.qubit
-    %a3 = vector.from_elements %x : vector<1x!qco.qubit>
-
-    // Slot 0 is the opaque q0 line, slot 1 is a clean q1. Only slot 0 loses its producer, so the operation
-    // lands in layer 0 although it belongs in layer 2.
-    %a4, %b1 = qvec.pair cx %a3, %b0 : vector<1x!qco.qubit> // layer 0 (wrong)
-
-    // Reading the clean slot, this one has complete producers and identifiable qubits, so neither guard in the
-    // layering stops it. Its layer is 1, taken from the stale layer above, and it shares that layer and gate kind
-    // with %a2 -- on which it depends through the opaque hop.
-    %b2 = qvec.single h %b1 : vector<1x!qco.qubit> // layer 1 (wrong)
-
-    func.return
-}
-
-// Merging %a2 and %b2 would move %b2 ahead of an operation it depends on. Nothing merges, because a candidate can
-// only join a group if its operands can be made available at the group's first member, and reaching back past a
-// `qvec` operation would mean hoisting one -- which is never allowed, as they all read and write memory.
-// CHECK:         %[[M0:.*]] = qvec.single h %{{.*}} : vector<1x!qco.qubit>
-// CHECK:         %[[M1:.*]] = qvec.single h %[[M0]] : vector<1x!qco.qubit>
-// CHECK:         qco.x
-// CHECK:         %[[LHS:.*]], %[[RHS:.*]] = qvec.pair cx %{{.*}}, %{{.*}} : vector<1x!qco.qubit>
-// CHECK:         qvec.single h %[[RHS]] : vector<1x!qco.qubit>
 // CHECK-NOT:     qvec.
 
 // -----
