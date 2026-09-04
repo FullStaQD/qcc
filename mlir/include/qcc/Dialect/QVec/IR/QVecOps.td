@@ -47,7 +47,7 @@ def SingleOp : QVecOp<"single", [AllTypesMatch<["qubits_in", "qubits_out"]>]> {
   let results = (outs QVec_QubitVector:$qubits_out);
 
   let assemblyFormat = [{
-        `` $gate_kind $qubits_in attr-dict `:` type($qubits_in)
+        $gate_kind $qubits_in attr-dict `:` type($qubits_in)
     }];
 
   let extraClassDeclaration = [{
@@ -85,7 +85,7 @@ def PairOp : QVecOp<"pair", [AllTypesMatch<["lhs_in", "rhs_in", "lhs_out", "rhs_
                       QVec_QubitVector:$rhs_out);
 
   let assemblyFormat = [{
-        `` $gate_kind $lhs_in `,` $rhs_in attr-dict `:` type($lhs_in)
+        $gate_kind $lhs_in `,` $rhs_in attr-dict `:` type($lhs_in)
     }];
 
   let extraClassDeclaration = [{

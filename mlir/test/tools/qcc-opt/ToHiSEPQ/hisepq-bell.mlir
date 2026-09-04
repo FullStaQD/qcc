@@ -142,22 +142,21 @@ func.func @bell_parallel() -> i1 {
 // TODO: we have a few useless reconfigures in here. Will be fixed soon by a patch of our fork.
 // CHECK-ASM-LABEL: bell_parallel:
 
-// The control indices <0, 1, ..., 7>:
+// The control indices <0, 1, ..., 7>, plus the target indices <8, 9, ..., 15>:
 // CHECK-ASM:       vsetivli {{.*}}, 8, e8, mf2, ta, ma
 // CHECK-ASM:       vid.v [[CTRLS:v[0-9]+]]
-
-// `vl` = 8 at LMUL 1/2, matching the `vector<[4]xi8>` the pass picked for eight qubits.
-// CHECK-ASM:       li [[VL8:a[0-9]+]], 8
-// CHECK-ASM:       vsetvli zero, [[VL8]], e8, mf2, ta, ma
-
-// CHECK-ASM:       qv.h [[CTRLS]], zero, 0
 // CHECK-ASM:       vadd.vi [[TGTS:v[0-9]+]], [[CTRLS]], 8
+
+// measurement indices <0, 1, ..., 15>:
+// CHECK-ASM:       vsetivli {{.*}}, 16, e8, m1, ta, ma
+// CHECK-ASM:       vid.v [[ALL:v[0-9]+]]
+
+// Back to `vl` = 8 at LMUL 1/2 for the gates:
+// CHECK-ASM:       vsetivli zero, 8, e8, mf2, ta, ma
+// CHECK-ASM:       qv.h [[CTRLS]], zero, 0
 // CHECK-ASM:       qv.cx [[CTRLS]], [[TGTS]], 0
 
 // measurement on all 16 qubits simultaneously:
-// CHECK-ASM:       vsetivli {{.*}}, 16, e8, m1, ta, ma
-// CHECK-ASM:       vid.v [[ALL:v[0-9]+]]
-// CHECK-ASM:       li [[VL16:a[0-9]+]], 16
-// CHECK-ASM:       vsetvli zero, [[VL16]], e8, m1, ta, ma
+// CHECK-ASM:       vsetivli zero, 16, e8, m1, ta, ma
 // CHECK-ASM:       qv.mz [[ALL]], zero, 0
 // CHECK-ASM:       ret
