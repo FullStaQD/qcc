@@ -51,14 +51,6 @@ static void addLoweringQrisp(mlir::PassManager& pm) {
   // bufferization.
   pm.addPass(mlir::bufferization::createEmptyTensorToAllocTensorPass());
 
-  // Detensorization attempts to convert those rank-0-tensors to plain values
-  // which have not been eliminated in the JaspToQC pass.
-  // Aggressive mode ensures that some trivial `linalg.generic` ops are
-  // unwrapped.
-  mlir::LinalgDetensorizePassOptions detensorizeOptions;
-  detensorizeOptions.aggressiveMode = true;
-  pm.addNestedPass<mlir::func::FuncOp>(mlir::createLinalgDetensorizePass(detensorizeOptions));
-
   // Via Bufferization, we go from value semantics (tensor types) to
   // memory semantics (memref types). We want to make these changes in function signatures
   // as well, and allow for unknown (quantum) operations in the IR.

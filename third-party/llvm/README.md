@@ -24,7 +24,7 @@ cd <repo-root>
 Now build LLVM like so:
 
 ```shell
-cd /path/to/llvm-fork
+cd /path/to/llvm-patched
 
 # Configure. Note that HiSEP-Q is a subtarget of RISCV.
 cmake -G Ninja -S llvm -B build/dev \

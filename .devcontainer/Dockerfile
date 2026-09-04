@@ -20,4 +20,4 @@ RUN uv tool install cmake && \
 
 # Downloads and installs a prebuilt LLVM/MLIR toolchain for the current OS and architecture. Uses `zstd`.
 RUN curl -LsSf https://github.com/munich-quantum-software/setup-mlir/releases/latest/download/setup-mlir.sh \
-  | bash -s -- -v 22.1.7 -p /opt/llvm
+  | bash -s -- -v 23.1.0 -p /opt/llvm

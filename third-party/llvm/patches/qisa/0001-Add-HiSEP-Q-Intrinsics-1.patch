@@ -1,7 +1,7 @@
-From 24b72a73bda7fcdcd5553782c04bdb9858b3dcd8 Mon Sep 17 00:00:00 2001
+From 5e870f5650f7b9f32187ef03e0266856a4d159c8 Mon Sep 17 00:00:00 2001
 From: Enrique NB <enrique@naranjobejarano.com>
 Date: Tue, 2 Jun 2026 09:28:25 +0200
-Subject: [PATCH 1/2] Add HiSEP-Q Intrinsics (#1)
+Subject: [PATCH 1/4] Add HiSEP-Q Intrinsics (#1)
 
 Added HiSEP-Q (XQV) sub-feature to RISC-V
 
@@ -15,7 +15,7 @@ Co-authored-by: Reinhard Stahn <rainij36@proton.me>
  .../Driver/print-supported-extensions-riscv.c |  1 +
  llvm/include/llvm/IR/IntrinsicsRISCV.td       |  1 +
  llvm/include/llvm/IR/IntrinsicsRISCVXQV.td    | 36 +++++++
- llvm/lib/Target/RISCV/RISCVFeatures.td        |  1 +
+ llvm/lib/Target/RISCV/RISCVFeatures.td        |  2 +
  llvm/lib/Target/RISCV/RISCVFeaturesXQV.td     | 20 ++++
  llvm/lib/Target/RISCV/RISCVInstrFormatsXQV.td | 88 +++++++++++++++++
  llvm/lib/Target/RISCV/RISCVInstrInfo.td       |  1 +
@@ -23,8 +23,8 @@ Co-authored-by: Reinhard Stahn <rainij36@proton.me>
  llvm/test/CodeGen/RISCV/features-info.ll      |  1 +
  llvm/test/CodeGen/RISCV/rv32xqv-bell.ll       | 51 ++++++++++
  llvm/test/MC/RISCV/rv32xqv-valid.s            | 27 ++++++
- .../TargetParser/RISCVISAInfoTest.cpp         |  1 +
- 12 files changed, 324 insertions(+)
+ .../TargetParser/RISCVISAInfoTest.cpp         | 40 +++++---
+ 12 files changed, 350 insertions(+), 14 deletions(-)
  create mode 100644 llvm/include/llvm/IR/IntrinsicsRISCVXQV.td
  create mode 100644 llvm/lib/Target/RISCV/RISCVFeaturesXQV.td
  create mode 100644 llvm/lib/Target/RISCV/RISCVInstrFormatsXQV.td
@@ -33,22 +33,22 @@ Co-authored-by: Reinhard Stahn <rainij36@proton.me>
  create mode 100644 llvm/test/MC/RISCV/rv32xqv-valid.s
 
 diff --git a/clang/test/Driver/print-supported-extensions-riscv.c b/clang/test/Driver/print-supported-extensions-riscv.c
-index 33f3342c66d4..852a2d21ffa9 100644
+index a9af27636781..a3fd8456007d 100644
 --- a/clang/test/Driver/print-supported-extensions-riscv.c
 +++ b/clang/test/Driver/print-supported-extensions-riscv.c
-@@ -249,6 +249,7 @@
- // CHECK-NEXT:     zvqdotq              0.0       'Zvqdotq' (Vector quad widening 4D Dot Product)
+@@ -272,6 +272,7 @@
  // CHECK-NEXT:     smpmpmt              0.6       'Smpmpmt' (PMP-based Memory Types Extension)
  // CHECK-NEXT:     svukte               0.3       'Svukte' (Address-Independent Latency of User-Mode Faults to Supervisor Addresses)
+ // CHECK-NEXT:     xqccmt               0.1       'Xqccmt' (Qualcomm 16-bit Table Jump)
 +// CHECK-NEXT:     xqv                  0.1       'XQV' (QV Quantum Extension (HiSEP-Q 2.0))
- // CHECK-NEXT:     xrivosvisni          0.1       'XRivosVisni' (Rivos Vector Integer Small New)
- // CHECK-NEXT:     xrivosvizip          0.1       'XRivosVizip' (Rivos Vector Register Zips)
  // CHECK-NEXT:     xsfmclic             0.1       'XSfmclic' (SiFive CLIC Machine-mode CSRs)
+ // CHECK-NEXT:     xsfsclic             0.1       'XSfsclic' (SiFive CLIC Supervisor-mode CSRs)
+ // CHECK-EMPTY:
 diff --git a/llvm/include/llvm/IR/IntrinsicsRISCV.td b/llvm/include/llvm/IR/IntrinsicsRISCV.td
-index 9088e5e6a357..a6b9e2421eaa 100644
+index 28cde8111241..2eaf37a18d1e 100644
 --- a/llvm/include/llvm/IR/IntrinsicsRISCV.td
 +++ b/llvm/include/llvm/IR/IntrinsicsRISCV.td
-@@ -1985,3 +1985,4 @@ include "llvm/IR/IntrinsicsRISCVXsf.td"
+@@ -2130,3 +2130,4 @@ include "llvm/IR/IntrinsicsRISCVXsf.td"
  include "llvm/IR/IntrinsicsRISCVXCV.td"
  include "llvm/IR/IntrinsicsRISCVXAndes.td"
  include "llvm/IR/IntrinsicsRISCVXMIPS.td"
@@ -96,13 +96,14 @@ index 000000000000..c1641289f71a
 +    def int_riscv_qv_cx : QVPairIntrinsic;
 +}
 diff --git a/llvm/lib/Target/RISCV/RISCVFeatures.td b/llvm/lib/Target/RISCV/RISCVFeatures.td
-index 494371901e64..296d82fc433e 100644
+index 03d28b8448ba..8c9726fe1519 100644
 --- a/llvm/lib/Target/RISCV/RISCVFeatures.td
 +++ b/llvm/lib/Target/RISCV/RISCVFeatures.td
-@@ -1975,3 +1975,4 @@ def TuneSiFive7 : SubtargetFeature<"sifive7", "RISCVProcFamily", "SiFive7",
+@@ -2195,3 +2195,5 @@ def TuneSiFive7 : SubtargetFeature<"sifive7", "RISCVProcFamily", "SiFive7",
  def TuneVentanaVeyron : SubtargetFeature<"ventana-veyron", "RISCVProcFamily", "VentanaVeyron",
-                                          "Ventana Veyron-Series processors">;
- 
+                                          "Ventana Veyron-Series processors",
+                                          [], InlineIgnore>;
++
 +include "RISCVFeaturesXQV.td"
 diff --git a/llvm/lib/Target/RISCV/RISCVFeaturesXQV.td b/llvm/lib/Target/RISCV/RISCVFeaturesXQV.td
 new file mode 100644
@@ -225,13 +226,13 @@ index 000000000000..84728e1d3023
 +  let Uses = [VL, VTYPE];
 +}
 diff --git a/llvm/lib/Target/RISCV/RISCVInstrInfo.td b/llvm/lib/Target/RISCV/RISCVInstrInfo.td
-index ff582b8e741c..485b860944ef 100644
+index e10ee7389db0..bf0f07800881 100644
 --- a/llvm/lib/Target/RISCV/RISCVInstrInfo.td
 +++ b/llvm/lib/Target/RISCV/RISCVInstrInfo.td
-@@ -2364,6 +2364,7 @@ include "RISCVInstrInfoV.td"
- include "RISCVInstrInfoZvk.td"
- include "RISCVInstrInfoZvqdotq.td"
- include "RISCVInstrInfoZvfofp8min.td"
+@@ -2397,6 +2397,7 @@ include "RISCVInstrInfoZvfofp8min.td"
+ include "RISCVInstrInfoZvzip.td"
+ include "RISCVInstrInfoZvvm.td"
+ include "RISCVInstrInfoZvbdota.td"
 +include "RISCVInstrInfoXQV.td"
  
  // Packed SIMD
@@ -339,17 +340,17 @@ index 000000000000..9a75a381bd50
 +defm : RVPatQVPair<"int_riscv_qv_cx", "PseudoQV_CX">;
 +}
 diff --git a/llvm/test/CodeGen/RISCV/features-info.ll b/llvm/test/CodeGen/RISCV/features-info.ll
-index e327fe73d8a4..c06cb3cf63a0 100644
+index 142e6b269493..255bc2eaa9c0 100644
 --- a/llvm/test/CodeGen/RISCV/features-info.ll
 +++ b/llvm/test/CodeGen/RISCV/features-info.ll
-@@ -30,6 +30,7 @@
- ; CHECK-NEXT:   experimental-rvm23u32            - RISC-V experimental-rvm23u32 profile.
+@@ -27,6 +27,7 @@
  ; CHECK-NEXT:   experimental-smpmpmt             - 'Smpmpmt' (PMP-based Memory Types Extension).
  ; CHECK-NEXT:   experimental-svukte              - 'Svukte' (Address-Independent Latency of User-Mode Faults to Supervisor Addresses).
+ ; CHECK-NEXT:   experimental-xqccmt              - 'Xqccmt' (Qualcomm 16-bit Table Jump).
 +; CHECK-NEXT:   experimental-xqv                 - 'XQV' (QV Quantum Extension (HiSEP-Q 2.0)).
- ; CHECK-NEXT:   experimental-xrivosvisni         - 'XRivosVisni' (Rivos Vector Integer Small New).
- ; CHECK-NEXT:   experimental-xrivosvizip         - 'XRivosVizip' (Rivos Vector Register Zips).
  ; CHECK-NEXT:   experimental-xsfmclic            - 'XSfmclic' (SiFive CLIC Machine-mode CSRs).
+ ; CHECK-NEXT:   experimental-xsfsclic            - 'XSfsclic' (SiFive CLIC Supervisor-mode CSRs).
+ ; CHECK-NEXT:   experimental-y                   - 'Y' ('Base Y' (CHERI)).
 diff --git a/llvm/test/CodeGen/RISCV/rv32xqv-bell.ll b/llvm/test/CodeGen/RISCV/rv32xqv-bell.ll
 new file mode 100644
 index 000000000000..e898bf8fc0e7
@@ -441,17 +442,84 @@ index 000000000000..fc237ae6311e
 +# CHECK-ENCODING: [0x57,0x16,0x94,0x1a]
 +qv.cx v8, v9, 12
 diff --git a/llvm/unittests/TargetParser/RISCVISAInfoTest.cpp b/llvm/unittests/TargetParser/RISCVISAInfoTest.cpp
-index 4439df755d79..656e220c46d7 100644
+index cdc2fcea37fc..d2186c5165fc 100644
 --- a/llvm/unittests/TargetParser/RISCVISAInfoTest.cpp
 +++ b/llvm/unittests/TargetParser/RISCVISAInfoTest.cpp
-@@ -1401,6 +1401,7 @@ Experimental extensions
-     zvqdotq              0.0
+@@ -379,24 +379,35 @@ TEST(ParseArchString, AcceptsSupportedBaseISAsAndSetsXLenAndFLen) {
+   EXPECT_TRUE(ExtsRV64GCV.at("f") == (RISCVISAUtils::ExtensionVersion{2, 2}));
+   EXPECT_TRUE(ExtsRV64GCV.at("d") == (RISCVISAUtils::ExtensionVersion{2, 2}));
+   EXPECT_TRUE(ExtsRV64GCV.at("c") == (RISCVISAUtils::ExtensionVersion{2, 0}));
+-  EXPECT_TRUE(ExtsRV64GCV.at("zicsr") == (RISCVISAUtils::ExtensionVersion{2, 0}));
++  EXPECT_TRUE(ExtsRV64GCV.at("zicsr") ==
++              (RISCVISAUtils::ExtensionVersion{2, 0}));
+   EXPECT_TRUE(ExtsRV64GCV.at("zifencei") ==
+               (RISCVISAUtils::ExtensionVersion{2, 0}));
+-  EXPECT_TRUE(ExtsRV64GCV.at("zmmul") == (RISCVISAUtils::ExtensionVersion{1, 0}));
+-  EXPECT_TRUE(ExtsRV64GCV.at("zaamo") == (RISCVISAUtils::ExtensionVersion{1, 0}));
++  EXPECT_TRUE(ExtsRV64GCV.at("zmmul") ==
++              (RISCVISAUtils::ExtensionVersion{1, 0}));
++  EXPECT_TRUE(ExtsRV64GCV.at("zaamo") ==
++              (RISCVISAUtils::ExtensionVersion{1, 0}));
+   EXPECT_TRUE(ExtsRV64GCV.at("zalrsc") ==
+               (RISCVISAUtils::ExtensionVersion{1, 0}));
+   EXPECT_TRUE(ExtsRV64GCV.at("zca") == (RISCVISAUtils::ExtensionVersion{1, 0}));
+   EXPECT_TRUE(ExtsRV64GCV.at("zcd") == (RISCVISAUtils::ExtensionVersion{1, 0}));
+   EXPECT_TRUE(ExtsRV64GCV.at("v") == (RISCVISAUtils::ExtensionVersion{1, 0}));
+-  EXPECT_TRUE(ExtsRV64GCV.at("zve32x") == (RISCVISAUtils::ExtensionVersion{1, 0}));
+-  EXPECT_TRUE(ExtsRV64GCV.at("zve32f") == (RISCVISAUtils::ExtensionVersion{1, 0}));
+-  EXPECT_TRUE(ExtsRV64GCV.at("zve64x") == (RISCVISAUtils::ExtensionVersion{1, 0}));
+-  EXPECT_TRUE(ExtsRV64GCV.at("zve64f") == (RISCVISAUtils::ExtensionVersion{1, 0}));
+-  EXPECT_TRUE(ExtsRV64GCV.at("zve64d") == (RISCVISAUtils::ExtensionVersion{1, 0}));
+-  EXPECT_TRUE(ExtsRV64GCV.at("zvl32b") == (RISCVISAUtils::ExtensionVersion{1, 0}));
+-  EXPECT_TRUE(ExtsRV64GCV.at("zvl64b") == (RISCVISAUtils::ExtensionVersion{1, 0}));
+-  EXPECT_TRUE(ExtsRV64GCV.at("zvl128b") == (RISCVISAUtils::ExtensionVersion{1, 0}));
++  EXPECT_TRUE(ExtsRV64GCV.at("zve32x") ==
++              (RISCVISAUtils::ExtensionVersion{1, 0}));
++  EXPECT_TRUE(ExtsRV64GCV.at("zve32f") ==
++              (RISCVISAUtils::ExtensionVersion{1, 0}));
++  EXPECT_TRUE(ExtsRV64GCV.at("zve64x") ==
++              (RISCVISAUtils::ExtensionVersion{1, 0}));
++  EXPECT_TRUE(ExtsRV64GCV.at("zve64f") ==
++              (RISCVISAUtils::ExtensionVersion{1, 0}));
++  EXPECT_TRUE(ExtsRV64GCV.at("zve64d") ==
++              (RISCVISAUtils::ExtensionVersion{1, 0}));
++  EXPECT_TRUE(ExtsRV64GCV.at("zvl32b") ==
++              (RISCVISAUtils::ExtensionVersion{1, 0}));
++  EXPECT_TRUE(ExtsRV64GCV.at("zvl64b") ==
++              (RISCVISAUtils::ExtensionVersion{1, 0}));
++  EXPECT_TRUE(ExtsRV64GCV.at("zvl128b") ==
++              (RISCVISAUtils::ExtensionVersion{1, 0}));
+   EXPECT_EQ(InfoRV64GCV.getXLen(), 64U);
+   EXPECT_EQ(InfoRV64GCV.getFLen(), 64U);
+   EXPECT_EQ(InfoRV64GCV.getMinVLen(), 128U);
+@@ -984,7 +995,7 @@ TEST(OrderedExtensionMap, ExtensionsAreCorrectlyOrdered) {
+   // FIXME: 'l' and 'y' should be ordered after 'i', 'm', 'c'.
+   EXPECT_THAT(ExtNames,
+               ElementsAre("i", "m", "l", "c", "y", "zicsr", "zmfoo", "zfinx",
+-                           "zzfoo", "sbar", "sfoo", "xbar", "xfoo"));
++                          "zzfoo", "sbar", "sfoo", "xbar", "xfoo"));
+ }
+ 
+ TEST(ParseArchString, ZceImplication) {
+@@ -1641,6 +1652,7 @@ Experimental extensions
      smpmpmt              0.6
      svukte               0.3
+     xqccmt               0.1
 +    xqv                  0.1
-     xrivosvisni          0.1
-     xrivosvizip          0.1
      xsfmclic             0.1
+     xsfsclic             0.1
+ 
+@@ -1674,8 +1686,8 @@ For example, clang -march=rv32i_v1p0)";
+ 
+   std::string CapturedOutput = testing::internal::GetCapturedStdout();
+   EXPECT_TRUE([](std::string &Captured, std::string &Expected) {
+-                return Captured.find(Expected) != std::string::npos;
+-              }(CapturedOutput, ExpectedOutput));
++    return Captured.find(Expected) != std::string::npos;
++  }(CapturedOutput, ExpectedOutput));
+ }
+ 
+ TEST(TargetParserTest, RISCVPrintEnabledExtensions) {
 -- 
 2.51.1
 

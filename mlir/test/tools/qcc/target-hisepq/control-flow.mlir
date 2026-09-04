@@ -16,8 +16,7 @@ func.func @main() attributes { qcc.entry_point } {
 // CHECK-LABEL: main:
 // CHECK:           vsetvli    {{.*}}, zero, e8, m1, ta, ma
 // CHECK:           vmv.v.i    [[V1:v[0-9]+]], 1
-// CHECK:           li    [[AVL:a[0-9]+]], 1
-// CHECK:           vsetvli    zero, [[AVL]], e8, m1, ta, ma
+// CHECK:           vsetivli    zero, 1, e8, m1, ta, ma
 // CHECK:           qv.h    [[V1]], zero, 0
 // TODO: qv.mz and bnez are not connected so far. ISA spec says that
 // hardware leaves this unimplemented. Also unclear how to exactly handle the
