@@ -57,33 +57,58 @@ void QVecDialect::initialize() {
 // Qubit provenance
 //===----------------------------------------------------------------------===//
 
-// FIXME: code is ugly.
-
 namespace {
 
-/// One qubit, named either as element `index` of the qubit vector `value`, or, when `index` is unset, as the scalar
-/// qubit `value` itself.
-struct QubitRef { // FIXME: represents two things (scalar qubits vs single element of vector of qubits)
+/// Represents a single qubit.
+///
+/// There are two cases:
+/// 1. A qubit in a vector.
+/// 2. A standalone qubit (not part of a vector).
+///
+/// In the first case `value` refers to a vector of qubits and `index` points to the qubit we mean. In the second case
+/// `value` is already the qubit itself and `index` has no meaning (nullopt).
+struct QubitRef {
+  [[nodiscard]] bool isInVector() const { return index.has_value(); }
+
   Value value;
   std::optional<int64_t> index;
 };
 
 /// The result of tracing a qubit one step back towards its definition.
-struct QubitStep { // FIXME: Suboptimal that QubitRef only defined sometimes.
+class QubitStep {
+public:
   enum class Kind : uint8_t {
     Stepped, ///< The same qubit, one step closer to its definition.
     Origin,  ///< The trail ends here, because nothing upstream of the definition holds this qubit.
     Unknown, ///< An operation this walk cannot look through, so the origin stays out of reach.
   };
 
-  Kind kind = Kind::Unknown;
-  QubitRef qubit; ///< Where to continue. Only set for `Stepped`.
+  /// Constructs a terminal step (`Origin` or `Unknown`): the walk stops here, so there is no qubit to continue with.
+  explicit QubitStep(Kind kind) : kind(kind) {
+    assert(kind != Kind::Stepped && "Stepped requires a qubit; use the other constructor");
+  }
+
+  /// Constructs a `Stepped` result: `qubit` is where the walk continues next.
+  explicit QubitStep(QubitRef qubit) : kind(Kind::Stepped), qubit(qubit) {}
+
+  [[nodiscard]] Kind getKind() const { return kind; }
+
+  /// Where to continue. Only valid for `Stepped`.
+  [[nodiscard]] QubitRef getQubit() const {
+    assert(kind == Kind::Stepped && "qubit is only defined for Stepped");
+    return qubit;
+  }
+
+private:
+  Kind kind;
+  QubitRef qubit;
 };
 
 } // namespace
 
+/// Convenience wrapper to `QubitStep` ctor for stepped kind.
 static QubitStep stepTo(Value value, std::optional<int64_t> index = std::nullopt) {
-  return {.kind = QubitStep::Kind::Stepped, .qubit = QubitRef{.value = value, .index = index}};
+  return QubitStep(QubitRef{.value = value, .index = index});
 }
 
 /// Whether `type` carries qubits, one or a whole vector of them.
@@ -96,13 +121,13 @@ static bool carriesQubits(Type type) {
 static QubitStep stepBackElement(Value element) {
   Operation* definingOp = element.getDefiningOp();
   if (definingOp == nullptr) {
-    return {.kind = QubitStep::Kind::Origin, .qubit = {}}; // A block argument.
+    return QubitStep(QubitStep::Kind::Origin); // A block argument.
   }
 
   // The element may be read out of another qubit vector, in which case the walk continues there.
   if (auto extractOp = dyn_cast<vector::ExtractOp>(definingOp)) {
     if (extractOp.hasDynamicPosition() || extractOp.getStaticPosition().size() != 1) {
-      return {.kind = QubitStep::Kind::Unknown, .qubit = {}};
+      return QubitStep(QubitStep::Kind::Unknown);
     }
     return stepTo(extractOp.getSource(), extractOp.getStaticPosition().front());
   }
@@ -110,28 +135,28 @@ static QubitStep stepBackElement(Value element) {
   // An operation without qubit inputs creates the qubits it returns, `qco.static` and `qco.alloc` being the ones we
   // care about. Anything else may well pass a qubit through, and we cannot tell from where.
   if (llvm::none_of(definingOp->getOperandTypes(), carriesQubits)) {
-    return {.kind = QubitStep::Kind::Origin, .qubit = {}};
+    return QubitStep(QubitStep::Kind::Origin);
   }
-  return {.kind = QubitStep::Kind::Unknown, .qubit = {}};
+  return QubitStep(QubitStep::Kind::Unknown);
 }
 
 /// Traces element `index` of the qubit vector `qubits` one step back.
 static QubitStep stepBackVectorElement(Value qubits, int64_t index) {
   Operation* definingOp = qubits.getDefiningOp();
   if (definingOp == nullptr) {
-    return {.kind = QubitStep::Kind::Origin, .qubit = {}}; // A block argument.
+    return QubitStep(QubitStep::Kind::Origin); // A block argument.
   }
 
   // A `qvec` operation hands its qubits on slot by slot, element order untouched, so the index carries over.
   if (auto slotOp = dyn_cast<QubitSlotOpInterface>(definingOp)) {
     Value tied = slotOp.getTiedQubitOperand(cast<OpResult>(qubits));
-    return tied ? stepTo(tied, index) : QubitStep{.kind = QubitStep::Kind::Origin, .qubit = {}};
+    return tied ? stepTo(tied, index) : QubitStep(QubitStep::Kind::Origin);
   }
 
   if (auto fromElementsOp = dyn_cast<vector::FromElementsOp>(definingOp)) {
     ValueRange elements = fromElementsOp.getElements();
     if (index < 0 || std::cmp_greater_equal(index, elements.size())) {
-      return {.kind = QubitStep::Kind::Unknown, .qubit = {}}; // FIXME: how is this possible?
+      return QubitStep(QubitStep::Kind::Unknown); // FIXME: how is this possible?
     }
     return stepTo(elements[static_cast<size_t>(index)]);
   }
@@ -139,7 +164,7 @@ static QubitStep stepBackVectorElement(Value qubits, int64_t index) {
   if (auto sliceOp = dyn_cast<vector::ExtractStridedSliceOp>(definingOp)) {
     if (sliceOp.getSourceVectorType().getRank() != 1 || sliceOp.getOffsets().size() != 1 ||
         sliceOp.hasNonUnitStrides()) {
-      return {.kind = QubitStep::Kind::Unknown, .qubit = {}};
+      return QubitStep(QubitStep::Kind::Unknown);
     }
     SmallVector<int64_t> offsets;
     sliceOp.getOffsets(offsets);
@@ -150,32 +175,32 @@ static QubitStep stepBackVectorElement(Value qubits, int64_t index) {
     // A qubit vector holds distinct qubits, so only the "trivial" broadcast to a single-element vector makes sense.
     if (broadcastOp.getResultVectorType().getNumElements() != 1 || index != 0 ||
         isa<VectorType>(broadcastOp.getSourceType())) {
-      return {.kind = QubitStep::Kind::Unknown, .qubit = {}};
+      return QubitStep(QubitStep::Kind::Unknown);
     }
     return stepTo(broadcastOp.getSource());
   }
 
-  return {.kind = QubitStep::Kind::Unknown, .qubit = {}};
+  return QubitStep(QubitStep::Kind::Unknown);
 }
 
 /// Traces `qubit` one step back towards its definition, through the operations that only move qubits around.
 static QubitStep stepBack(QubitRef qubit) {
-  return qubit.index ? stepBackVectorElement(qubit.value, *qubit.index) : stepBackElement(qubit.value);
+  return qubit.isInVector() ? stepBackVectorElement(qubit.value, *qubit.index) : stepBackElement(qubit.value);
 }
 
 qco::StaticOp qcc::qvec::getStaticOpAncestor(TypedValue<VectorType> qubits, int64_t index) {
   // Every step moves strictly towards a definition, so the walk terminates.
   for (QubitRef qubit{.value = qubits, .index = index};;) {
     const QubitStep step = stepBack(qubit);
-    if (step.kind == QubitStep::Kind::Unknown) {
+    if (step.getKind() == QubitStep::Kind::Unknown) {
       return {};
     }
-    if (step.kind == QubitStep::Kind::Origin) {
+    if (step.getKind() == QubitStep::Kind::Origin) {
       // A vector value is never defined by a `qco.static`, so this covers both ends of the walk.
       return qubit.value.getDefiningOp<qco::StaticOp>();
     }
-    assert(step.kind == QubitStep::Kind::Stepped && "unexpected QubitStep::Kind");
-    qubit = step.qubit;
+    assert(step.getKind() == QubitStep::Kind::Stepped && "unexpected QubitStep::Kind");
+    qubit = step.getQubit();
   }
 }
 
@@ -184,22 +209,22 @@ bool qcc::qvec::collectQubitProducers(TypedValue<VectorType> qubits, SmallPtrSet
 
   for (int64_t index = 0, numElements = qubits.getType().getNumElements(); index < numElements; ++index) {
     // Every step moves strictly towards a definition, so the walk terminates.
-    for (QubitRef qubitRef{.value = qubits, .index = index};;) {
-      if (auto producer = dyn_cast_if_present<QubitSlotOpInterface>(qubitRef.value.getDefiningOp())) {
+    for (QubitRef qubit{.value = qubits, .index = index};;) {
+      if (auto producer = dyn_cast_if_present<QubitSlotOpInterface>(qubit.value.getDefiningOp())) {
         producers.insert(producer);
         break;
       }
 
-      const QubitStep step = stepBack(qubitRef);
-      if (step.kind == QubitStep::Kind::Unknown) {
+      const QubitStep step = stepBack(qubit);
+      if (step.getKind() == QubitStep::Kind::Unknown) {
         complete = false;
         break;
       }
-      if (step.kind == QubitStep::Kind::Origin) {
+      if (step.getKind() == QubitStep::Kind::Origin) {
         break;
       }
-      assert(step.kind == QubitStep::Kind::Stepped && "unexpected QubitStep::Kind");
-      qubitRef = step.qubit;
+      assert(step.getKind() == QubitStep::Kind::Stepped && "unexpected QubitStep::Kind");
+      qubit = step.getQubit();
     }
   }
 
