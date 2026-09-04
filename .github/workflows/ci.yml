@@ -48,7 +48,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runs-on: [macos-26, macos-26-intel]
+        runs-on: [macos-26]
         compiler: [clang]
         preset: [release]
         include:
