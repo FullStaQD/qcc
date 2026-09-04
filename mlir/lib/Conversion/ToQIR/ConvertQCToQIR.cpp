@@ -437,7 +437,9 @@ private:
         getKV("qir_profiles", "adaptive_profile"), getKV("required_num_qubits", std::to_string(requiredNumQubits)),
         getKV("required_num_results", std::to_string(requiredNumResults))};
 
-    funcOp->setAttr(qcc::passthroughAttrName, builder.getArrayAttr(passthrough));
+    // We set `llvm.passthrough` rather than `passthrough` (`qcc::passthroughAttrName`) because only with the `llvm`
+    // prefix it is forwarded as `passthrough` when lowering to `llvm.func`. Otherwise it is silently dropped.
+    funcOp->setAttr("llvm." + qcc::passthroughAttrName.str(), builder.getArrayAttr(passthrough));
 
     return success();
   }

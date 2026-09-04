@@ -1,6 +1,6 @@
 // RUN: qcc-opt %s -finalize-to-qir | FileCheck %s
 
-func.func @main() -> i64 attributes { qcc.entry_point, passthrough = [ "some_attr" ] } {
+func.func @main() -> i64 attributes { qcc.entry_point, llvm.passthrough = [ "some_attr" ] } {
     %0 = call @get_zero() : () -> i64
     return %0 : i64
 }

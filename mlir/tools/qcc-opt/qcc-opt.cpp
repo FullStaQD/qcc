@@ -78,10 +78,9 @@ int main(int argc, char** argv) {
   mlir::registerConvertLinalgToLoopsPass();
   mlir::bufferization::registerEmptyTensorToAllocTensorPass();
   mlir::bufferization::registerOneShotBufferizePass();
-  mlir::registerLinalgDetensorizePass();
   mlir::bufferization::registerBufferLoopHoistingPass();
   mlir::registerMem2RegPass();
-  mlir::registerSCCP();
+  mlir::registerSCCPPass();
   mlir::bufferization::registerPromoteBuffersToStackPass();
   mlir::registerInlinerPass();
   mlir::affine::registerAffineLoopUnroll();
