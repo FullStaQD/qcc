@@ -60,7 +60,7 @@ jobs:
       runs-on: ${{ matrix.runs-on }}
       compiler: ${{ matrix.compiler }}
       setup-mlir: true
-      llvm-version: 22.1.7
+      llvm-version: 23.1.0
       preset-name: ${{ matrix.preset }}
 
   cpp-tests-windows:
@@ -82,7 +82,7 @@ jobs:
       runs-on: ${{ matrix.runs-on }}
       compiler: ${{ matrix.compiler }}
       setup-mlir: true
-      llvm-version: 22.1.7
+      llvm-version: 23.1.0
       mlir-debug: ${{ matrix.preset == 'debug-windows' }}
       preset-name: ${{ matrix.preset }}
 
@@ -101,7 +101,7 @@ jobs:
       # this job does not have.
       cpp-linter-ignore-extra: "mlir/lib/Target/HiSEPQ/**"
       setup-mlir: true
-      llvm-version: 22.1.7
+      llvm-version: 23.1.0
     permissions:
       contents: read # Needed to fetch code
       pull-requests: write # Needed to post PR comments
