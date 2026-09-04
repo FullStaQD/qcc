@@ -155,9 +155,7 @@ static QubitStep stepBackVectorElement(Value qubits, int64_t index) {
 
   if (auto fromElementsOp = dyn_cast<vector::FromElementsOp>(definingOp)) {
     ValueRange elements = fromElementsOp.getElements();
-    if (index < 0 || std::cmp_greater_equal(index, elements.size())) {
-      return QubitStep(QubitStep::Kind::Unknown); // FIXME: how is this possible?
-    }
+    assert(index >= 0 && std::cmp_less(index, elements.size()) && "index out of bounds");
     return stepTo(elements[static_cast<size_t>(index)]);
   }
 
@@ -189,6 +187,8 @@ static QubitStep stepBack(QubitRef qubit) {
 }
 
 qco::StaticOp qcc::qvec::getStaticOpAncestor(TypedValue<VectorType> qubits, int64_t index) {
+  assert(index >= 0 && index < qubits.getType().getNumElements() && "index out of bounds for qubits");
+
   // Every step moves strictly towards a definition, so the walk terminates.
   for (QubitRef qubit{.value = qubits, .index = index};;) {
     const QubitStep step = stepBack(qubit);
