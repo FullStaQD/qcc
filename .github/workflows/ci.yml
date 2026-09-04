@@ -38,7 +38,7 @@ jobs:
       runs-on: ${{ matrix.runs-on }}
       compiler: ${{ matrix.compiler }}
       setup-mlir: true
-      llvm-version: 22.1.7
+      llvm-version: 23.1.0
       preset-name: ${{ matrix.preset }}
 
   cpp-tests-macos:
