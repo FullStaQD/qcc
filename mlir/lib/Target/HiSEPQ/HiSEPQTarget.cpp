@@ -15,8 +15,16 @@
 
 #include "qcc/Target/HiSEPQ/HiSEPQTarget.h"
 
+#include "qcc/Conversion/QCOToQVec/QCOToQVec.h"
 #include "qcc/Conversion/ToHiSEPQ/ToHiSEPQ.h"
+#include "qcc/Dialect/QVec/Transforms/Passes.h"
 #include "qcc/Target/QIR/QIRTarget.h"
+
+// The aggregate header, because `createConvertFuncToLLVMPass` is declared nowhere else.
+#include "mlir/Conversion/Passes.h"
+#include "mlir/Conversion/QCToQCO/QCToQCO.h"
+#include "mlir/Pass/PassManager.h"
+#include "mlir/Transforms/Passes.h"
 
 #include "llvm/IR/Function.h"
 #include "llvm/IR/LegacyPassManager.h"
@@ -35,10 +43,33 @@
 
 namespace qcc {
 
-void addLoweringPassesHiSEPQ(mlir::PassManager& pm) {
+void addLoweringPassesHiSEPQViaQIR(mlir::PassManager& pm) {
   addLoweringPassesQIR(pm);
   pm.addPass(qcc::createConvertQIRToHiSEPQIntrinsics());
   pm.addPass(qcc::createEmitHiSEPQStart());
+}
+
+void addLoweringPassesHiSEPQViaQVec(mlir::PassManager& pm) {
+  // qc -> qco -> qvec -> QV intrinsics
+  pm.addPass(mlir::createQCToQCO());
+  pm.addPass(qcc::createConvertQCOToQVec());
+
+  // TODO: Describe the actual machine instead of the default one.
+  pm.addPass(qcc::createQVecMerge());
+  pm.addPass(qcc::createConvertQVecToHiSEPQIntrinsics());
+
+  // Classical remainder to LLVM
+  pm.addPass(mlir::createSCFToControlFlowPass());
+  pm.addPass(mlir::createConvertVectorToLLVMPass());
+  pm.addPass(mlir::createArithToLLVMConversionPass());
+  pm.addPass(mlir::createConvertControlFlowToLLVMPass());
+  pm.addPass(mlir::createConvertFuncToLLVMPass());
+
+  pm.addPass(qcc::createEmitHiSEPQStart());
+
+  // cleanup
+  pm.addPass(mlir::createCanonicalizerPass());
+  pm.addPass(mlir::createCSEPass());
 }
 
 bool emitNativeHiSEPQ(llvm::Module& module, llvm::raw_pwrite_stream& os, const NativeCodegenOptions& options) {
