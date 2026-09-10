@@ -1,4 +1,4 @@
-// RUN: qcc-opt %s -emit-hisepq-start | FileCheck %s
+// RUN: qcc-opt %s -emit-hisepq-start --split-input-file | FileCheck %s
 
 llvm.func @kernel() attributes { passthrough = ["entry_point"] } {
   llvm.return
@@ -21,3 +21,12 @@ llvm.func @helper() {
 // CHECK-DAG:     %[[ENTRY:.*]] = llvm.mlir.addressof @kernel
 // CHECK:         llvm.inline_asm has_side_effects{{.*}}"mv sp, $0{{.*}}jalr ra, 0($1){{.*}}", "r,r" %[[SP]], %[[ENTRY]]
 // CHECK:         llvm.unreachable
+
+// -----
+
+llvm.func @kernel() attributes { qcc.entry_point } {
+  llvm.return
+}
+
+// CHECK-LABEL: llvm.func @_start()
+// CHECK:         llvm.mlir.addressof @kernel
