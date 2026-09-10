@@ -11,6 +11,7 @@
 
 #include "mlir/Dialect/QCO/IR/QCODialect.h"
 #include "mlir/Dialect/QCO/IR/QCOOps.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinTypes.h"
@@ -128,6 +129,53 @@ struct SinkLowering final : public OpConversionPattern<qco::SinkOp> {
   }
 };
 
+/// Rewrites `qco.if` into `scf.if`, keeping qubit results so later users stay ordered after it.
+struct IfLowering final : public OpConversionPattern<qco::IfOp> {
+  using OpConversionPattern::OpConversionPattern;
+
+  LogicalResult matchAndRewrite(qco::IfOp op, OpAdaptor adaptor, ConversionPatternRewriter& rewriter) const override {
+    auto ifOp = scf::IfOp::create(rewriter, op.getLoc(), op.getResultTypes(), adaptor.getCondition(),
+                                  /*withElseRegion=*/true);
+
+    rewriter.eraseBlock(&ifOp.getThenRegion().front());
+    inlineBranch(op.getThenRegion(), ifOp.getThenRegion(), adaptor.getQubits(), rewriter);
+    rewriter.eraseBlock(&ifOp.getElseRegion().front());
+    inlineBranch(op.getElseRegion(), ifOp.getElseRegion(), adaptor.getQubits(), rewriter);
+
+    rewriter.replaceOp(op, ifOp.getResults());
+    return success();
+  }
+
+private:
+  /// Moves `branch` into `target`, replacing its block arguments with `qubits`.
+  static void inlineBranch(Region& branch, Region& target, ValueRange qubits, ConversionPatternRewriter& rewriter) {
+    rewriter.inlineRegionBefore(branch, target, target.end());
+
+    Block& block = target.front();
+    assert(block.getNumArguments() == qubits.size() && "a `qco.if` branch takes exactly the op's qubits");
+    TypeConverter::SignatureConversion signature(block.getNumArguments());
+    for (auto [argument, qubit] : llvm::zip_equal(block.getArguments(), qubits)) {
+      signature.remapInput(argument.getArgNumber(), qubit);
+    }
+    rewriter.applySignatureConversion(&block, signature);
+  }
+};
+
+/// Rewrites a `qco.yield` inside an `scf.if` into `scf.yield`.
+struct YieldLowering final : public OpConversionPattern<qco::YieldOp> {
+  using OpConversionPattern::OpConversionPattern;
+
+  LogicalResult matchAndRewrite(qco::YieldOp op, OpAdaptor adaptor,
+                                ConversionPatternRewriter& rewriter) const override {
+    if (!isa<scf::IfOp>(op->getParentOp())) {
+      return failure();
+    }
+
+    rewriter.replaceOpWithNewOp<scf::YieldOp>(op, adaptor.getTargets());
+    return success();
+  }
+};
+
 /// Rewrites `qco.measure` into a one-element `qvec.mz`.
 struct MeasureLowering final : public OpConversionPattern<qco::MeasureOp> {
   using OpConversionPattern::OpConversionPattern;
@@ -163,7 +211,7 @@ protected:
     auto* ctx = moduleOp.getContext();
 
     ConversionTarget target(*ctx);
-    target.addLegalDialect<QVecDialect, vector::VectorDialect>();
+    target.addLegalDialect<QVecDialect, vector::VectorDialect, scf::SCFDialect>();
     target.addIllegalDialect<qco::QCODialect>();
     target.addLegalOp<qco::StaticOp>(); // still needed as qubit source
 
@@ -177,7 +225,7 @@ protected:
                  SingleGateLowering<qco::SdgOp, SingleGate::Sdg>, //
                  SingleGateLowering<qco::TOp, SingleGate::T>,     //
                  SingleGateLowering<qco::TdgOp, SingleGate::Tdg>, //
-                 ISwapLowering, CtrlLowering, MeasureLowering, SinkLowering>(ctx);
+                 ISwapLowering, CtrlLowering, MeasureLowering, SinkLowering, IfLowering, YieldLowering>(ctx);
 
     if (failed(applyPartialConversion(moduleOp, target, std::move(patterns)))) {
       signalPassFailure();
