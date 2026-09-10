@@ -153,3 +153,30 @@ func.func @output_recording(%value: i64, %buffer: memref<4xi1>) {
 
 // CHECK:         llvm.call_intrinsic "llvm.riscv.qv.mz"
 // CHECK-NOT:     aux.record
+
+// -----
+
+// A qubit coming out of an `scf.if` is the one that went in, whichever branch ran, so it still resolves to its index.
+
+// CHECK-LABEL: func.func @qubit_through_if
+func.func @qubit_through_if(%cond: i1) {
+    %q0 = qco.static 5 : !qco.qubit
+    %q0_after = scf.if %cond -> (!qco.qubit) {
+      %v0 = vector.from_elements %q0 : vector<1x!qco.qubit>
+      %x0 = qvec.single x %v0 : vector<1x!qco.qubit>
+      %e0 = vector.extract %x0[0] : !qco.qubit from vector<1x!qco.qubit>
+      scf.yield %e0 : !qco.qubit
+    } else {
+      scf.yield %q0 : !qco.qubit
+    }
+    %v = vector.from_elements %q0_after : vector<1x!qco.qubit>
+    %h = qvec.single h %v : vector<1x!qco.qubit>
+    func.return
+}
+
+// CHECK:         %[[IDX:.*]] = llvm.mlir.constant(dense<5> : vector<1xi8>)
+// CHECK:         scf.if
+// CHECK:           llvm.call_intrinsic "llvm.riscv.qv.x"
+// CHECK:         }
+// CHECK:         %[[Q:.*]] = llvm.intr.vector.insert %[[IDX]]
+// CHECK:         llvm.call_intrinsic "llvm.riscv.qv.h"(%[[Q]]
