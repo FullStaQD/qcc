@@ -153,3 +153,28 @@ func.func @output_recording(%value: i64, %buffer: memref<4xi1>) {
 
 // CHECK:         llvm.call_intrinsic "llvm.riscv.qv.mz"
 // CHECK-NOT:     aux.record
+
+// -----
+
+// Qubits yielded by `scf.if` resolve to their static index.
+
+// CHECK-LABEL: func.func @qubit_through_if
+func.func @qubit_through_if(%cond: i1) {
+    %q0 = qco.static 5 : !qco.qubit
+    %v0 = vector.from_elements %q0 : vector<1x!qco.qubit>
+    %x0 = scf.if %cond -> (vector<1x!qco.qubit>) {
+      %x = qvec.single x %v0 : vector<1x!qco.qubit>
+      scf.yield %x : vector<1x!qco.qubit>
+    } else {
+      scf.yield %v0 : vector<1x!qco.qubit>
+    }
+    %h = qvec.single h %x0 : vector<1x!qco.qubit>
+    func.return
+}
+
+// CHECK:         %[[IDX:.*]] = llvm.mlir.constant(dense<5> : vector<1xi8>)
+// CHECK:         scf.if
+// CHECK:           llvm.call_intrinsic "llvm.riscv.qv.x"
+// CHECK:         }
+// CHECK:         %[[Q:.*]] = llvm.intr.vector.insert %[[IDX]]
+// CHECK:         llvm.call_intrinsic "llvm.riscv.qv.h"(%[[Q]]

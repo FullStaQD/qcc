@@ -229,3 +229,30 @@ func.func @wide_member_slice_is_one_op() {
 // CHECK:         %[[S1:.*]] = vector.extract_strided_slice %[[H]] {offsets = [2], sizes = [2], strides = [1]}
 // CHECK:         qvec.single x %[[S0]] : vector<2x!qco.qubit>
 // CHECK:         qvec.single y %[[S1]] : vector<2x!qco.qubit>
+
+// -----
+
+// CHECK-LABEL: func.func @no_merge_across_if
+func.func @no_merge_across_if(%cond: i1) {
+    %q0 = qco.static 0 : !qco.qubit
+    %q1 = qco.static 1 : !qco.qubit
+    %v0 = vector.from_elements %q0 : vector<1x!qco.qubit>
+    %v1 = vector.from_elements %q1 : vector<1x!qco.qubit>
+
+    %h1 = qvec.single h %v1 : vector<1x!qco.qubit>
+    %x0 = scf.if %cond -> (vector<1x!qco.qubit>) {
+      %x = qvec.single x %v0 : vector<1x!qco.qubit>
+      scf.yield %x : vector<1x!qco.qubit>
+    } else {
+      scf.yield %v0 : vector<1x!qco.qubit>
+    }
+    %h0 = qvec.single h %x0 : vector<1x!qco.qubit>
+
+    func.return
+}
+
+// CHECK:         qvec.single h %{{.*}} : vector<1x!qco.qubit>
+// CHECK:         scf.if
+// CHECK:           qvec.single x
+// CHECK:         }
+// CHECK:         qvec.single h %{{.*}} : vector<1x!qco.qubit>
