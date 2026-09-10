@@ -121,3 +121,17 @@ func.func @static_qubits_survive() {
 }
 
 // CHECK:         qco.static 7 : !qco.qubit
+
+// -----
+
+// Check that `qco.sink` is erased.
+
+// CHECK-LABEL: func.func @sinks_are_dropped
+func.func @sinks_are_dropped() {
+    %q0 = qco.static 0 : !qco.qubit
+    %h = qco.h %q0 : !qco.qubit -> !qco.qubit
+    qco.sink %h : !qco.qubit
+    func.return
+}
+
+// CHECK-NOT:     qco.sink
