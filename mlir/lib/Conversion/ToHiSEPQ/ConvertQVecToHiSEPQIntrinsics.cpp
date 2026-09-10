@@ -28,7 +28,6 @@
 
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/Support/MathExtras.h"
 
 #include <cstdint>
 #include <optional>
@@ -319,15 +318,12 @@ protected:
     ModuleOp moduleOp = getOperation();
     auto* ctx = moduleOp.getContext();
 
-    // A VLEN below `64` would make `vscale` a fraction, and anything that is not a power of two is not a VLEN at all.
-    if (minVLen < 64 || !llvm::isPowerOf2_32(minVLen)) {
+    if (!HiSEPQMachine::isSupportedMinVLen(minVLen)) {
       emitError(moduleOp.getLoc()) << "'min-vlen' expects a power of two of at least 64, got " << Twine(minVLen);
       return signalPassFailure();
     }
 
-    // 8 and 16 are the only safe values for QEW for our currently hardcoded set of possible LMUL values (see
-    // HiSEPQMachine).
-    if (qubitElementWidth != 8 && qubitElementWidth != 16) {
+    if (!HiSEPQMachine::isSupportedQubitElementWidth(qubitElementWidth)) {
       emitError(moduleOp.getLoc()) << "'qubit-element-width' expects 8 or 16, got " << Twine(qubitElementWidth);
       return signalPassFailure();
     }
