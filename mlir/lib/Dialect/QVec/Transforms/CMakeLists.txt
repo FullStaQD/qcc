@@ -1,0 +1,16 @@
+add_mlir_dialect_library(
+  QCCQVecTransforms
+  QVecMerge.cpp
+  DEPENDS
+  QCCQVecTransformsIncGen
+  LINK_LIBS
+  PRIVATE
+  MLIRIR
+  MLIRPass
+  MLIRSupport
+  MLIRSideEffectInterfaces
+  MLIRTransforms
+  MLIRVectorDialect
+  MLIRQCODialect
+  MLIRQTensorDialect
+  QCCQVecDialect)

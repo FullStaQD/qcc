@@ -9,7 +9,10 @@ target_link_libraries(
           # Dialect libraries used by our project
           QCCJaspDialect
           QCCAuxDialect
-          MLIRQCDialect)
+          QCCQVecDialect
+          MLIRQCDialect
+          MLIRQCODialect
+          MLIRQTensorDialect)
 
 llvm_update_compile_flags(qcc-lsp-server)
 mlir_check_all_link_libraries(qcc-lsp-server)

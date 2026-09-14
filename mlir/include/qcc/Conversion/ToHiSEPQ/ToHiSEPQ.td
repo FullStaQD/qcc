@@ -20,7 +20,7 @@ def ConvertQIRToHiSEPQIntrinsics : Pass<"convert-qir-to-hisepq-intrinsics", "mli
 
       Each qubit pointer argument (produced by `llvm.inttoptr` of a constant
       integer index) is re-encoded as a `vector<[8]xi8>` scalable-vector value
-      carrying that index in lane 0, matching the `anyvector` operand that the
+      carrying that index in element 0, matching the `anyvector` operand that the
       QVSingle / QVPair intrinsics expect.
 
       The QIR runtime calls below have no HiSEP-Q QISA counterpart yet, so they
@@ -70,6 +70,53 @@ def EmitHiSEPQStart : Pass<"emit-hisepq-start", "mlir::ModuleOp"> {
       TODO: Drop this pass once HiSEP-Q ships a crt0. Then qcc can emit a plain
       `main` and leave the startup code to the runtime.
   }];
+
+  let dependentDialects = [
+    "mlir::LLVM::LLVMDialect"
+  ];
+}
+
+def ConvertQVecToHiSEPQIntrinsics : Pass<"convert-qvec-to-hisepq-intrinsics", "mlir::ModuleOp"> {
+  let summary = "Replaces `qvec` ops with HiSEP-Q intrinsics.";
+
+  let description = [{
+      Replaces every `qvec` operation with the `llvm.call_intrinsic` op targeting the RISC-V QV extension that encodes
+      it (`llvm.riscv.qv.h`, `llvm.riscv.qv.cx`, `llvm.riscv.qv.mz`, etc).
+
+      The qubit operands are materialized at the start of scalable vectors `vector<[N]xi{QEW}>` (N guaranteed to be a
+      power of two) whose unoccupied elements are poison valued. Recall that the number of elements in a scalable
+      vector `vector<[N]xi{QEW}>` is `vscale * N` where `vscale = VLEN / 64`. The set of allowed `N` follows from the
+      LMUL register groups the QV instructions address, `{mf4, mf2, m1, m2, m4, m8}`.
+
+      The machine is described by two pass options:
+
+      - `min-vlen`, the guaranteed lower bound on VLEN, and
+      - `qubit-element-width`, or QEW, how many bits one qubit index occupies (used as SEW for qubit instructions).
+
+      Together they select the narrowest `N` that fits all qubits, or error if the vector register capacity is
+      exceeded even at the highest LMUL.
+
+      Assumptions:
+      - Every qubit vector traces back to a `vector.from_elements` whose elements are all `qco.static` ops, so that the
+        qubit indices are known at compile time.
+        TODO: Lift this once the dialect grows dynamic qubits. Then the qubit vector becomes a runtime value and the
+        constant folding here turns into a type conversion.
+      - Qubit indices are encoded in an unsigned `i{QEW}`, and there are no more qubits than LMUL 8 holds at the minimum
+        VLEN.
+
+      Gates without an intrinsic are rejected (error).
+
+      `llvm.riscv.qv.mz` returns void and the QISA specifies no way to read a measurement back, so the classical result
+      of `qvec.mz` is replaced with `poison`, i.e. the measurement result is lost.
+      TODO: Support this once HiSEP-Q specifies the corresponding QISA operation.
+  }];
+
+  let options = [
+    Option<"minVLen", "min-vlen", "unsigned", /*default=*/"64",
+           "Guaranteed lower bound on VLEN in bits; a power of two, at least 64.">,
+    Option<"qubitElementWidth", "qubit-element-width", "unsigned", /*default=*/"8",
+           "Number of bits one qubit index occupies (QEW); either 8 or 16.">
+  ];
 
   let dependentDialects = [
     "mlir::LLVM::LLVMDialect"

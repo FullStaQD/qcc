@@ -10,10 +10,13 @@
 #include "qcc/Conversion/AffineRaise/AffineRaise.h"
 #include "qcc/Conversion/Aux_/AuxOutputRecording.h"
 #include "qcc/Conversion/JaspToQC/JaspToQC.h"
+#include "qcc/Conversion/QCOToQVec/QCOToQVec.h"
 #include "qcc/Conversion/ToHiSEPQ/ToHiSEPQ.h"
 #include "qcc/Conversion/ToQIR/ToQIR.h"
 #include "qcc/Dialect/Aux_/IR/Aux_.h"
 #include "qcc/Dialect/Jasp/IR/Jasp.h"
+#include "qcc/Dialect/QVec/IR/QVec.h"
+#include "qcc/Dialect/QVec/Transforms/Passes.h"
 
 #include "mlir/Conversion/ArithToLLVM/ArithToLLVM.h"
 #include "mlir/Conversion/FuncToLLVM/ConvertFuncToLLVM.h"
@@ -37,10 +40,12 @@
 #include "mlir/Dialect/MemRef/Transforms/AllocationOpInterfaceImpl.h"
 #include "mlir/Dialect/MemRef/Transforms/Passes.h"
 #include "mlir/Dialect/QC/IR/QCDialect.h"
+#include "mlir/Dialect/QCO/IR/QCODialect.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SCF/Transforms/BufferizableOpInterfaceImpl.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Tensor/Transforms/BufferizableOpInterfaceImpl.h"
+#include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/Tools/mlir-opt/MlirOptMain.h"
@@ -64,9 +69,12 @@ int main(int argc, char** argv) {
     mlir::memref::MemRefDialect,
     mlir::LLVM::LLVMDialect,
     mlir::DLTIDialect,
+    mlir::vector::VectorDialect,
     jasp::JaspDialect,
     mlir::qc::QCDialect,
-    qcc::aux::AuxDialect
+    mlir::qco::QCODialect,
+    qcc::aux::AuxDialect,
+    qcc::qvec::QVecDialect
       // clang-format on
       >();
 
@@ -75,6 +83,7 @@ int main(int argc, char** argv) {
   mlir::registerCSEPass();
   mlir::registerArithToLLVMConversionPass();
   mlir::registerConvertControlFlowToLLVMPass();
+  mlir::registerConvertVectorToLLVMPass();
   mlir::registerConvertLinalgToLoopsPass();
   mlir::bufferization::registerEmptyTensorToAllocTensorPass();
   mlir::bufferization::registerOneShotBufferizePass();
@@ -99,6 +108,9 @@ int main(int argc, char** argv) {
   mlir::registerConvertFuncToLLVMPass();
   qcc::registerConvertQIRToHiSEPQIntrinsics();
   qcc::registerEmitHiSEPQStart();
+  qcc::registerConvertQCOToQVec();
+  qcc::registerConvertQVecToHiSEPQIntrinsics();
+  qcc::registerQVecMerge();
 
   // Extension registration
   mlir::arith::registerBufferizableOpInterfaceExternalModels(registry);
