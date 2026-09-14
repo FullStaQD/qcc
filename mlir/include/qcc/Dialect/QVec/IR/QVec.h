@@ -67,7 +67,8 @@ inline bool isQubitVector(mlir::Type type) {
 
 namespace qcc::qvec {
 
-/// Traces back the qubit at `index` in the vector `qubits` to a StaticOp and returns it if possible (null value if not).
+/// Traces back the qubit at `index` in the vector `qubits` to a StaticOp and returns it if possible (null value if
+/// not).
 mlir::qco::StaticOp getStaticOpAncestor(mlir::TypedValue<mlir::VectorType> qubits, int64_t index);
 
 /// Adds the `qvec` (lane) operations that produced any element of `qubits` to `producers`.
