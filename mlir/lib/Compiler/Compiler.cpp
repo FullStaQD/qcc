@@ -60,9 +60,6 @@ static void addLoweringQrisp(mlir::PassManager& pm) {
   bufferizeOptions.bufferizeFunctionBoundaries = true;
   pm.addPass(mlir::bufferization::createOneShotBufferizePass(bufferizeOptions));
 
-  // To facilitate data flow analysis, memory allocation is "hoisted out of loops" whenever possible.
-  pm.addNestedPass<mlir::func::FuncOp>(mlir::bufferization::createBufferLoopHoistingPass());
-
   // Leftover `linalg` operations are converted to `affine` loops.
   pm.addNestedPass<mlir::func::FuncOp>(mlir::createConvertLinalgToAffineLoopsPass());
 
