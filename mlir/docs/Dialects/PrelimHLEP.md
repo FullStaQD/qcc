@@ -141,6 +141,32 @@ We use the notation of (linear homotopy) type theory throughout:
 - $\Gamma \vdash J$ is the hypothetical judgment "$J$ holds in context $\Gamma$". We use it for the dependence of a linearized map on its measurement result.
 - $\text{Type}$ is the universe of hybrid types described below.
 
+#### Background: vector bundles over finite sets
+
+The semantic model below is phrased in terms of vector bundles. Since that term tends to evoke differential geometry, let us spell out how little of that machinery is actually needed here.
+
+A _vector bundle over a finite set_ $W$ is nothing more than a $W$-indexed family of vector spaces: for every element $w : W$, a finite-dimensional $\mathbb{C}$-vector space $H_w$, called the _fiber_ over $w$. We picture the _base_ set $W$ drawn horizontally, with the fiber $H_w$ attached vertically over each point, and write
+
+$$
+\begin{bmatrix}H_{\bullet} \\ \downarrow \\ W\end{bmatrix}
+$$
+
+for the whole datum. A physicist who has met fiber bundles in gauge theory or general relativity can safely forget all the analytic content: the base is a finite discrete set, so there are no charts, no transition functions, no connection — only bookkeeping. What survives, and what we exploit, is the structural picture of "one linear space per base point". In particular, fibers over different points may have different dimensions.
+
+The physical reading is what makes this the right notion for hybrid programs:
+
+- The base set $W$ enumerates the possible values of the _classical_ data: the contents of a classical register, or the outcomes of the measurements performed so far.
+- The fiber $H_w$ is the Hilbert space of the _quantum_ data in the branch where the classical data reads $w$. The fiber may genuinely depend on $w$: in the branch where a measurement came out $1$, the program may have discarded or allocated qubits.
+- A term of such a type is a base point $w$ together with a vector $\xi : H_w$ — definite classical data, quantum data conditioned on it. Superpositions _across_ base points do not exist in this type; making them expressible is precisely the job of the linearization functor $\text{Lin}$ below, which collapses the base to a point and direct-sums all fibers into a single "total space" $\bigoplus_{w:W} H_w$.
+- Readers who think in density matrices may recognize the classical-quantum states $\sum_w p_w \ket{w}\bra{w} \otimes \rho_w$ from quantum information theory: hybrid types are the pure-state, branch-by-branch refinement of that picture, with $W$ playing the role of the classical index.
+
+A _morphism_ of bundles consists of a map $f_{\text{cl}} : W \to W'$ of base sets together with, for each $w$, a linear map $f_{\text{lin},w} : H_w \to H'_{f_{\text{cl}}(w)}$ of fibers "covering" it — the fiber over $w$ must land in the fiber over the image point $f_{\text{cl}}(w)$. Physically: read the classical register, apply a linear map (which may depend on what was read) to the quantum data, and update the register. Classically controlled quantum operations are thus the _native_ morphisms of this model, with two informative extremes:
+
+- $f_{\text{cl}} = \text{id}$ and fibers $U_w$: a classically controlled unitary;
+- all fibers zero or trivial: an ordinary classical function.
+
+Note the direction of information flow: along a single morphism, the classical part cannot depend on the quantum data. Measurement — the creation of classical data out of quantum data — is therefore _not_ a single bundle morphism. It is a whole family of morphisms indexed by the possible outcomes; capturing this is exactly what the hypothetical-judgment notation $\phi : M(f) \vdash \text{Lin}\,f$ is for, and it is the technical heart of the linearization machinery below.
+
 #### Semantics
 
 - Informed by, but not realizing in full, Linear Homotopy Type Theory.
@@ -170,7 +196,7 @@ We use the notation of (linear homotopy) type theory throughout:
     $$
     \begin{bmatrix}H_{\bullet} \\ \downarrow \\ W\end{bmatrix} \times \begin{bmatrix}H'_{\bullet} \\ \downarrow \\ W'\end{bmatrix} :\equiv \begin{bmatrix}H_{\bullet} \oplus H'_{\bullet} \\ \downarrow \\ W\times W'\end{bmatrix}, \quad \text{Unit: }\begin{bmatrix}0 \\ \downarrow \\ *\end{bmatrix}
     $$
-    This represents independent quantum systems. It will be avoided by our IR.
+    On the classical bases this is the ordinary pair type. On the quantum fibers, however, it takes the direct sum rather than the tensor product, so it does _not_ describe the joint state space of two coexisting quantum systems (that is the linear product below): a fiber vector is a superposition of "the quantum data lives in the left summand" and "… in the right summand" — an additive either/or, the biproduct of linear logic. It will be avoided by our IR.
   - Linear product:
     $$\begin{bmatrix}H_{\bullet} \\ \downarrow \\ W\end{bmatrix} \otimes \begin{bmatrix}H'_{\bullet} \\ \downarrow \\ W'\end{bmatrix} :\equiv \begin{bmatrix}H_{\bullet} \otimes  H'_{\bullet} \\ \downarrow \\ W\times W'\end{bmatrix}, \quad \text{Unit: }\begin{bmatrix}\mathbb{C} \\ \downarrow \\ *\end{bmatrix}$$
     This represents the ordinary tensor product on purely linear types, and the Cartesian product on _classical types with linear halo_. This product will be used implicitly throughout the IR in quantum context.
@@ -214,7 +240,7 @@ $$
 $$
 
 i.e. a $1$-dimensional Hilbert space over the single classical label $*$. A term of this type is a complex scalar, which we also view as a phase, since we don't usually care about the modulus.
-Classically this phase is invisible, but once the term is combined, via the linear product, with other haloed or quantum values (e.g. inside an `scf.if` branch, cf. the Controlled Gate example above), that phase becomes a _relative_ phase between branches, which is observable through interference. A generic optimizer that reuses `mlir`'s builtin unit type for this purpose could legally dead-code-eliminate a "do-nothing" value that is in fact carrying exactly the phase information a computation depends on.
+Classically this phase is invisible, but once the term is combined, via the linear product, with other haloed or quantum values (e.g. inside an `scf.if` branch, cf. the Controlled Gate example below), that phase becomes a _relative_ phase between branches, which is observable through interference. A generic optimizer that reuses `mlir`'s builtin unit type for this purpose could legally dead-code-eliminate a "do-nothing" value that is in fact carrying exactly the phase information a computation depends on.
 
 On the flipside, the unique value of `none` type is implicitly left out of IR.
 A function with "no arguments" really is a function with a single argument `%none: none`.
@@ -233,9 +259,9 @@ func.func @global_phase(%halo: !prelim_hlep.unit) -> !prelim_hlep.unit attribute
 }
 
 // Call from classical function:
-func.func main() {
+func.func @main() {
   %halo = prelim_hlep.unit_value : !prelim_hlep.unit
-  %out_halo = func.call @global_phase(%halo) : !prelim_hlep.unit -> !prelim_hlep.unit
+  %out_halo = func.call @global_phase(%halo) : (!prelim_hlep.unit) -> !prelim_hlep.unit
   // out_halo can be forgotten.
 }
 ```
@@ -620,27 +646,25 @@ By linearity, the maps agree on the subspace spanned by all compatible summands 
 $$
 \begin{align}
 \iota_g(\psi) \circ \iota_f(\phi)(w')
-&= \iota_g(\psi)\bigl(\text{pr}_{V'}(f_{\text{cl}}(w,w'))\bigr)
+&= \iota_g(\psi)(v'), \quad v' :\equiv \text{pr}_{V'}(f_{\text{cl}}(w,w'))
 && \text{since } \pi_f(w) = \phi \\
-&= \iota_g(\psi)(v), \quad v :\equiv f_V(w,w')
-&& \text{writing } f_V(w,w') = \text{pr}_{V'}(f_{\text{cl}}(w,w')) \\
-&= \text{pr}_{X'}\bigl(g_{\text{cl}}(v, \text{pr}_{V'}(f_{\text{cl}}(w,w')))\bigr)
-&& \text{since } \pi_g(v) = \pi_g(f_V(w,w')) = \psi \\
+&= \text{pr}_{X'}\bigl(g_{\text{cl}}(v, v')\bigr), \quad v :\equiv f_V(w,w')
+&& \text{since } \pi_g(v) = \psi \\
 &= \text{pr}_{X'}\bigl((g \circ f)_{\text{cl}}(w,w')\bigr)
-&& \text{definition of } (g\circ f)_{\text{cl}} \\
+&& (v, v') = f_{\text{cl}}(w,w') \\
 &= \iota_{g\circ f}(\rho)(w')
 && \text{since } \pi_{g\circ f}(w) = \rho \\
 &= \text{Lin}\,(g \circ f)_{\rho,\text{cl}}(w').
 \end{align}
 $$
 
-In fibers, we evaluate on $\xi_w : H_w \otimes H'_{w'}$. (Introducing $\tilde{\phi} = f_V(w, w') = \text{pr}_V(f_{\text{cl}}(w,w'))$ and abusing notation $\phi = \text{Lin}\,f_{\phi,\text{cl}} : W' \to V'$.)
+In fibers, we evaluate on $\xi_w : H_w \otimes H'_{w'}$. (We keep $v' :\equiv \text{pr}_{V'}(f_{\text{cl}}(w,w'))$ from above; since $\pi_f(w) = \phi$, this is the base point $\text{Lin}\,f_{\phi,\text{cl}}(w') : V'$ over which the fiber map of $\text{Lin}\,g_\psi$ is taken.)
 
 $$
 \begin{align}
-&\left(  \text{Lin}\,g_{\text{lin},\tilde{\phi}} \circ \text{Lin}\,f_{\text{lin},w'}  \right)_{w}(\xi_w)
-= \sum_{v:V}\left(  \text{Lin}\,g_{\text{lin},\tilde{\phi}} \right)_{v} \circ \left(\text{Lin}\,f_{\text{lin},w'}  \right)_{w,v}(\xi_w)\\
-&\quad\equiv \sum_{v:V} \delta_{\pi_g(v), \psi} \delta_{\pi_f(w), \phi} \delta_{v, f_V(w,w')} \;g_{\text{lin},v,\tilde{\phi}} \circ f_{\text{lin},w,w'}(\xi_w)
+&\left(  \text{Lin}\,g_{\text{lin},v'} \circ \text{Lin}\,f_{\text{lin},w'}  \right)_{w}(\xi_w)
+= \sum_{v:V}\left(  \text{Lin}\,g_{\text{lin},v'} \right)_{v} \circ \left(\text{Lin}\,f_{\text{lin},w'}  \right)_{w,v}(\xi_w)\\
+&\quad\equiv \sum_{v:V} \delta_{\pi_g(v), \psi} \delta_{\pi_f(w), \phi} \delta_{v, f_V(w,w')} \;g_{\text{lin},v,v'} \circ f_{\text{lin},w,w'}(\xi_w)
 \\&\quad= \delta_{\pi_g(f_V(w,w')), \psi} \delta_{\pi_f(w), \phi} \;(g \circ f)_{\text{lin},w,w'}(\xi_w)
 \\&\quad= (g \circ f)_{\text{lin},w,w'}(\xi_w)
 \\&\quad= \delta_{\pi_{g\circ f}(w), \rho}\;(g \circ f)_{\text{lin},w,w'}(\xi_w)
@@ -649,6 +673,79 @@ $$
 $$
 
 where the third line uses $\delta_{v, f_V(w,w')}$ to collapse the sum, the fourth line uses the witnessing conditions ($\delta_{\pi_f(w), \phi} = 1$ and $\delta_{\pi_g(f_V(w,w')), \psi} = 1$), and the fifth line reinserts $\delta_{\pi_{g\circ f}(w), \rho} = 1$ (also from witnessing) to match the definition of $\text{Lin}\,(g\circ f)_\rho$. $\square$
+
+##### Worked example: Bell pair, measurement, correction, measurement
+
+To see bundles, measurement contexts, and their composition in action, we trace a small but complete protocol through the semantic model — no IR in this subsection, only the mathematics. The pipeline is:
+
+1. Prepare a Bell pair from two qubits initialized to $\ket{0}$.
+2. Measure qubit 1.
+3. Flip qubit 2 if (and only if) the outcome was $1$.
+4. Measure qubit 2.
+
+Throughout, $Q :\equiv \begin{bmatrix}\mathbb{C}\{0,1\} \\ \downarrow \\ *\end{bmatrix}$ denotes the qubit type.
+
+**Stage 1: Bell pair.** Preparation is a purely linear bundle morphism $u : Q \otimes Q \to Q \otimes Q$: the classical part is $\text{id}_*$, and the single fiber map is the unitary $\text{CNOT} \circ (H \otimes \text{id})$. Starting from the term $\ket{00}$ over the unique base point,
+
+$$
+u : \ket{00} \mapsto \tfrac{1}{\sqrt{2}}\bigl( \ket{00} + \ket{11} \bigr).
+$$
+
+The base is a singleton, so no classical information exists yet; the entire program state is one fiber vector.
+
+**Stage 2: measure qubit 1.** This is the Measurement example above, with qubit 2 carried along as the captured (right) tensor factor. The pre-linearized map is
+
+$$
+f: \begin{bmatrix}\mathbb{C}_{\bullet} \\ \downarrow \\ \{0,1\}\end{bmatrix} \otimes Q \to \begin{bmatrix}\mathbb{C}^2 \\ \downarrow \\ *\end{bmatrix} \otimes \begin{bmatrix}\mathbb{C}_{\bullet} \\ \downarrow \\ \{0,1\}\end{bmatrix},
+$$
+
+whose classical part sends $(b, *) \mapsto (*, b)$, with identities on fibers (qubit 2's $\mathbb{C}^2$ passes from the right factor into the left factor, which is where surviving quantum data must sit to be re-linearized). As in the Measurement example, $M(f) \equiv \{0,1\}$: two possible worlds. In context $b$, partial linearization gives the bundle morphism
+
+$$
+b : M(f) \;\vdash\; m_1 :\equiv \text{Lin}\,f : \begin{bmatrix}\mathbb{C}^2 \otimes \mathbb{C}^2 \\ \downarrow \\ *\end{bmatrix} \to \begin{bmatrix}\mathbb{C}^2_{\bullet} \\ \downarrow \\ \{0,1\}\end{bmatrix}
+$$
+
+with classical part $* \mapsto b$ and fiber map $\bra{b} \otimes \text{id} : \mathbb{C}^2 \otimes \mathbb{C}^2 \to \mathbb{C}^2$. The codomain is our first genuinely hybrid type: the base records the measurement outcome, and each base point carries qubit 2's Hilbert space as its fiber. Applying $m_1$ to the Bell state:
+
+$$
+b : M(f) \;\vdash\; \Bigl( b,\; \tfrac{1}{\sqrt{2}}\ket{b} \Bigr),
+$$
+
+i.e. in world $b$ the term sits over base point $b$ with fiber vector $\tfrac{1}{\sqrt{2}}\ket{b}$. The entanglement of the Bell pair has become a correlation between base label and fiber vector. Note that the fiber vector is deliberately _not_ renormalized: its squared norm $\tfrac{1}{2}$ is the Born probability of world $b$.
+
+**Stage 3: conditional flip.** This stage needs no context at all — it is a single, ordinary bundle morphism
+
+$$
+c : \begin{bmatrix}\mathbb{C}^2_{\bullet} \\ \downarrow \\ \{0,1\}\end{bmatrix} \to \begin{bmatrix}\mathbb{C}^2_{\bullet} \\ \downarrow \\ \{0,1\}\end{bmatrix}, \qquad c_{\text{cl}} :\equiv \text{id}, \qquad c_{\text{lin},b} :\equiv X^b.
+$$
+
+A classically controlled quantum operation is not a special construct in this model; it is simply a bundle morphism whose fiber maps differ from base point to base point. (In IR, this stage would be plain classical control flow — an `scf.if` on the measurement result.) The state becomes
+
+$$
+b : M(f) \;\vdash\; \Bigl( b,\; \tfrac{1}{\sqrt{2}}X^b\ket{b} \Bigr) \equiv \Bigl( b,\; \tfrac{1}{\sqrt{2}}\ket{0} \Bigr):
+$$
+
+the two worlds still differ in their base label, but now agree in their fiber vector.
+
+**Stage 4: measure qubit 2.** Analogous to stage 2, with the classical bit riding along as spectator; the context is a second outcome $b' : \{0,1\}$, and the resulting morphism family is
+
+$$
+b' : \{0,1\} \;\vdash\; m_2 : \begin{bmatrix}\mathbb{C}^2_{\bullet} \\ \downarrow \\ \{0,1\}\end{bmatrix} \to \begin{bmatrix}\mathbb{C}_{\bullet} \\ \downarrow \\ \{0,1\}^2\end{bmatrix}
+$$
+
+with classical part $b \mapsto (b, b')$ and fiber maps $\bra{b'} : \mathbb{C}^2 \to \mathbb{C}$. Applying it to the stage-3 state yields, in the joint context $(b, b')$, the term over base point $(b, b')$ with fiber scalar
+
+$$
+\tfrac{1}{\sqrt{2}}\langle b'|0\rangle = \delta_{b',0}\cdot\tfrac{1}{\sqrt{2}}.
+$$
+
+**Discussion.**
+
+- Of the four naive world combinations $(b, b') : M(f) \times M(m_2)$, exactly two carry a nonzero vector: $(0,0)$ and $(1,0)$. This is the possible-pairs phenomenon made concrete: $M(f) \times_{\text{poss}} M(m_2) = \{(0,0), (1,0)\}$ is a proper subset of the naive product, in accordance with the Proposition (possible pairs are exactly the nonzero blocks). The impossible pairs are not an error state; the formalism simply assigns them the zero map, and no execution ever realizes them.
+- The squared norms of the surviving worlds are $\tfrac{1}{2}$ each, summing to $1$: the model propagates unnormalized amplitudes world by world, and Born statistics are read off at the end. World $(0,0)$ and world $(1,0)$ each occur with probability $\tfrac{1}{2}$.
+- The second measurement is _deterministic_: $b' = 0$ in every possible world. Semantically, the composite pipeline contains only one bit of genuine randomness even though it contains two measurement stages. This is exactly the kind of fact the merging strategy below can expose: after merging the linearization ops, the classical residue of stage 4 is the constant $0$, so a lowering may delete the second measurement entirely and materialize the result as a constant `false`.
+- The correction is what makes it deterministic. Dropping stage 3 leaves the possible pairs $\{(0,0), (1,1)\}$ — the perfect correlation of the Bell pair. Stage 3 shifts that correlation from a cross-world relation ("$b'$ equals $b$") into a compile-time fact ("$b'$ equals $0$").
+- At no point did we need density matrices or ensembles: the world-indexed family of pure, unnormalized states — i.e. the hypothetical-judgment discipline $\phi : M(f) \vdash \dots$ — carries all the information, including the probabilities.
 
 ##### Lowering Strategy
 
@@ -668,12 +765,14 @@ where the third line uses $\delta_{v, f_V(w,w')}$ to collapse the sum, the fourt
 
 The exponential map obtains a unitary operator from a Lie algebra element and a real number.
 It is available only for purely quantum types, which we identify via the linearization functor.
-In addition, we only support the Lie algebras $\text{u}(2^n)$, so the only allowed types are $\text{Lin}\begin{bmatrix}\mathbb{C}_{\bullet} \\ \downarrow \\ \{0,1\}^n \end{bmatrix}$, or `i<n>` in IR syntax.
+In addition, we only support the Lie algebras $\text{u}(2^n)$, so the only allowed types are $\text{Lin}\begin{bmatrix}\mathbb{C}_{\bullet} \\ \downarrow \\ \{0,1\}^n \end{bmatrix}$, or `!prelim_hlep.lin<i<n>>` in IR syntax.
 The Lie algebra element is given in the basis of Pauli products:
 
 $$
-\text{u}(2^n) = \text{span}\left( \{\sigma_{1} \otimes \dots \otimes \sigma_{n}\}, \quad \sigma_{1},\dots,\sigma_{n} : \{\sigma_{X},\sigma_{Y},\sigma_{Z}\}\right)
+\text{u}(2^n) = \text{span}\left( \{\sigma_{1} \otimes \dots \otimes \sigma_{n}\}, \quad \sigma_{1},\dots,\sigma_{n} : \{\text{id}, \sigma_{X},\sigma_{Y},\sigma_{Z}\}\right)
 $$
+
+Identity factors are allowed (and required to span all of $\text{u}(2^n)$, including single-qubit terms on a multi-qubit register and the all-identity term generating global phase); in the IR syntax below, qubit indices not mentioned in a product term implicitly carry $\text{id}$.
 
 In IR, we write
 
