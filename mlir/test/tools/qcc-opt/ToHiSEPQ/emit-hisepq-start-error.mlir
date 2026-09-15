@@ -6,7 +6,7 @@ llvm.func @first_entry() attributes { passthrough = ["entry_point"] } {
 }
 
 // expected-error @+1 {{expected at most one function tagged as the entry point}}
-llvm.func @second_entry() attributes { passthrough = ["entry_point"] } {
+llvm.func @second_entry() attributes { qcc.entry_point } {
   llvm.return
 }
 
