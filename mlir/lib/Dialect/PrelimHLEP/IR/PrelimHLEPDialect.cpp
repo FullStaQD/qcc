@@ -4,6 +4,7 @@
 #include <mlir/IR/DialectImplementation.h>
 #include <mlir/Interfaces/ControlFlowInterfaces.h>
 #include <mlir/Interfaces/FunctionInterfaces.h>
+#include <mlir/Transforms/InliningUtils.h>
 
 using namespace mlir;
 using namespace qcc::prelimhlep;
@@ -392,7 +393,37 @@ LogicalResult PrelimHLEPDialect::verifyOperationAttribute(Operation* op, NamedAt
   return success();
 }
 
+namespace {
+/// Inliner interface for the PrelimHLEP dialect. All PrelimHLEP ops are
+/// cloneable and may be inlined into any haloed context (in particular into
+/// `prelim_hlep.lin` bodies), but not into non-haloed functions: that would
+/// strip the linear context the ops' verifiers and the linearity checker
+/// rely on. Since the inliner only inlines a call if every op of the
+/// callee may move, this also keeps haloed callees out of non-haloed
+/// callers.
+struct PrelimHLEPInlinerInterface final : DialectInlinerInterface {
+  using DialectInlinerInterface::DialectInlinerInterface;
+
+  bool isLegalToInline(Region* /*dest*/, Region* /*src*/, bool /*wouldBeCloned*/,
+                       IRMapping& /*valueMapping*/) const override {
+    return true;
+  }
+
+  bool isLegalToInline(Operation* /*op*/, Region* dest, bool /*wouldBeCloned*/,
+                       IRMapping& /*valueMapping*/) const override {
+    std::string haloAttrName = (PrelimHLEPDialect::getDialectNamespace() + "." + HaloAttr::getMnemonic()).str();
+    Operation* parent = dest->getParentOp();
+    while (parent && !isa<FunctionOpInterface>(parent)) {
+      parent = parent->getParentOp();
+    }
+    return parent && parent->hasAttr(haloAttrName);
+  }
+};
+} // namespace
+
 void PrelimHLEPDialect::initialize() {
+  addInterfaces<PrelimHLEPInlinerInterface>();
+
   addTypes<
 #define GET_TYPEDEF_LIST
 #include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEPTypes.cpp.inc"

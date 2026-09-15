@@ -10,6 +10,7 @@
 #include "qcc/Conversion/AffineRaise/AffineRaise.h"
 #include "qcc/Conversion/Aux_/AuxOutputRecording.h"
 #include "qcc/Conversion/JaspToQC/JaspToQC.h"
+#include "qcc/Conversion/PrelimHLEPToQCO/PrelimHLEPToQCO.h"
 #include "qcc/Conversion/ToIntrinsics/ToIntrinsics.h"
 #include "qcc/Conversion/ToQIR/ToQIR.h"
 #include "qcc/Dialect/Aux_/IR/Aux_.h"
@@ -39,6 +40,7 @@
 #include "mlir/Dialect/MemRef/Transforms/AllocationOpInterfaceImpl.h"
 #include "mlir/Dialect/MemRef/Transforms/Passes.h"
 #include "mlir/Dialect/QC/IR/QCDialect.h"
+#include "mlir/Dialect/QCO/IR/QCODialect.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SCF/Transforms/BufferizableOpInterfaceImpl.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
@@ -69,6 +71,7 @@ int main(int argc, char** argv) {
     mlir::DLTIDialect,
     jasp::JaspDialect,
     mlir::qc::QCDialect,
+    mlir::qco::QCODialect,
     qcc::aux::AuxDialect,
     qcc::prelimhlep::PrelimHLEPDialect
       // clang-format on
@@ -103,6 +106,7 @@ int main(int argc, char** argv) {
   qcc::registerConvertMemrefToStaticQubits();
   mlir::registerConvertFuncToLLVMPass();
   qcc::registerConvertQIRToIntrinsics();
+  qcc::registerPrelimHLEPToQCO();
 
   // Extension registration
   mlir::arith::registerBufferizableOpInterfaceExternalModels(registry);
