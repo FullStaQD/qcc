@@ -1,4 +1,4 @@
-// RUN: qcc-opt %s --convert-memref-to-static-qubits | FileCheck %s
+// RUN: qcc-opt %s --convert-memref-to-static-qubits --split-input-file | FileCheck %s
 
 // Test that the constant size `memref.alloc` are successfully converted to `qc.static` calls.
 func.func public @test(){
@@ -44,3 +44,29 @@ func.func public @test(){
 // CHECK:     return
 // CHECK:   }
 // CHECK: }
+
+// -----
+
+// Check that a deallocated array is erased along with its `memref.dealloc`, and that a later allocation gets
+// fresh qubits rather than the deallocated ones.
+func.func public @dealloc() {
+    %c0 = arith.constant 0 : index
+    %anc = memref.alloc() : memref<1x!qc.qubit>
+    %0 = memref.load %anc[%c0] : memref<1x!qc.qubit>
+    qc.h %0 : !qc.qubit
+    memref.dealloc %anc : memref<1x!qc.qubit>
+    %anc2 = memref.alloc() : memref<1x!qc.qubit>
+    %1 = memref.load %anc2[%c0] : memref<1x!qc.qubit>
+    qc.x %1 : !qc.qubit
+    memref.dealloc %anc2 : memref<1x!qc.qubit>
+    return
+  }
+
+// CHECK-LABEL:   func.func public @dealloc() {
+// CHECK-NOT:     memref.
+// CHECK:     %[[Q0:.*]] = qc.static 0 : !qc.qubit
+// CHECK:     qc.h %[[Q0]] : !qc.qubit
+// CHECK:     %[[Q1:.*]] = qc.static 1 : !qc.qubit
+// CHECK:     qc.x %[[Q1]] : !qc.qubit
+// CHECK-NOT:     memref.
+// CHECK:     return
