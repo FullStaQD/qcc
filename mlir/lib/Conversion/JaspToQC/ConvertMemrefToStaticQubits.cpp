@@ -129,31 +129,30 @@ protected:
     }
 
     // --- Step 3: Deletes Dangling Memref Usages ---
-    // Applies a third walk and removes all the memref instances that deal with qubit type.
-    WalkResult thirdResult = op->walk([&](Operation* memrefOp) {
+    // Erase users before allocs to avoid dangling references.
+    SmallVector<Operation*> allocs;
+    SmallVector<Operation*> users;
+    op->walk([&](Operation* memrefOp) {
       if (auto allocOp = dyn_cast<memref::AllocOp>(memrefOp)) {
         if (isQubitMemref(allocOp.getType())) {
-          allocOp->erase();
-          return WalkResult::advance();
+          allocs.push_back(allocOp);
         }
       } else if (auto deallocOp = dyn_cast<memref::DeallocOp>(memrefOp)) {
-        auto memrefType = dyn_cast<MemRefType>(deallocOp.getMemref().getType());
-        if (memrefType && isQubitMemref(memrefType)) {
-          deallocOp->erase();
-          return WalkResult::advance();
+        if (isQubitMemref(deallocOp.getMemref().getType())) {
+          users.push_back(deallocOp);
         }
       } else if (auto castOp = dyn_cast<memref::CastOp>(memrefOp)) {
-        auto memrefType = dyn_cast<MemRefType>(castOp.getType());
-        if (memrefType && isQubitMemref(memrefType)) {
-          castOp->erase();
-          return WalkResult::advance();
+        if (isQubitMemref(castOp.getType())) {
+          users.push_back(castOp);
         }
       }
-      return WalkResult::advance();
     });
 
-    if (thirdResult.wasInterrupted()) {
-      signalPassFailure();
+    for (Operation* user : users) {
+      user->erase();
+    }
+    for (Operation* alloc : allocs) {
+      alloc->erase();
     }
   }
 };
