@@ -1,12 +1,14 @@
 add_mlir_dialect_library(
   QCCPrelimHLEPDialect
   PrelimHLEPDialect.cpp
+  LinShapes.cpp
   # 'HamiltonianAttr.cpp' and 'LinearityChecker.cpp' are textually included by 'PrelimHLEPDialect.cpp' rather than
   # compiled on their own.
   PARTIAL_SOURCES_INTENDED
   DEPENDS
   QCCPrelimHLEPDialectIncGen
   QCCPrelimHLEPTypesIncGen
+  QCCPrelimHLEPEnumsIncGen
   QCCPrelimHLEPAttrsIncGen
   QCCPrelimHLEPOpsIncGen
   LINK_LIBS
@@ -16,4 +18,9 @@ add_mlir_dialect_library(
   MLIRInferTypeOpInterface
   MLIRSideEffectInterfaces
   MLIRFunctionInterfaces
-  MLIRControlFlowInterfaces)
+  MLIRControlFlowInterfaces
+  PUBLIC
+  MLIRArithDialect
+  MLIRComplexDialect
+  MLIRFuncDialect
+  MLIRSCFDialect)

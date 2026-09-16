@@ -1,10 +1,10 @@
-// RUN: qcc-opt %s --inline --prelim-hlep-to-qco --canonicalize | FileCheck %s
+// RUN: qcc-opt %s --inline --prelim-hlep-normalize-lin --prelim-hlep-to-qco --canonicalize | FileCheck %s
 
 // End-to-end lowering of the Grover program from
 // prelim-hlep-advanced-test.mlir. Compared to that file, the helpers are
 // private and `@main` is haloed, so the inliner (which refuses to inline
 // haloed callees into non-haloed functions) can flatten the whole program
-// into `@main` before the conversion runs; the inliner's canonicalization
+// into `@main` before the normalization runs; the inliner's canonicalization
 // also folds the `func.call_indirect` on the oracle function value into a
 // direct call to `@is_ten`, which then inlines into the phase-tag body.
 
@@ -266,10 +266,10 @@ func.func @main(%u : !prelimhlep.unit) -> i4 attributes { prelimhlep.halo } {
 // CHECK-NEXT: qco.z
 // CHECK-NEXT: qco.yield
 
-// Final measurement of all four qubits and recombination into an i4.
-// CHECK-COUNT-4: qco.measure
+// Final measurement of all four qubits (each sunk right after being
+// measured) and recombination into an i4.
+// CHECK-COUNT-4: qco.measure{{.*}}{{[[:space:]]+}}qco.sink
 // CHECK: arith.ori
-// CHECK-COUNT-4: qco.sink
 // CHECK: return {{.*}} : i4
 
 // CHECK-NOT: prelimhlep

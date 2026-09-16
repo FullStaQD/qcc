@@ -57,6 +57,12 @@ inline llvm::hash_code hash_value(const HamiltonianTermHeader& header) {
 #include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEPTypes.h.inc"
 
 //===----------------------------------------------------------------------===//
+// PrelimHLEP Enums
+//===----------------------------------------------------------------------===//
+
+#include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEPEnums.h.inc"
+
+//===----------------------------------------------------------------------===//
 // PrelimHLEP Attributes
 //===----------------------------------------------------------------------===//
 

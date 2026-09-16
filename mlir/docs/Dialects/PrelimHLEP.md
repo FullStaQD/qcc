@@ -753,6 +753,7 @@ $$
 - First possibility: Direct lowering
   - Shave off ops at the boundary and lower those ops.
 - Second possibility: Lower to specialized ops within HLEP
+  - This is the implemented approach: see "Normal form of `lin` ops" below.
 - Non-invertible linear maps:
   - Automatic block encoding (non-deterministic)
   - Synthesized Uncomputation
@@ -867,6 +868,60 @@ In order to create literal values of these types, we provide
 ```
 
 to define constant values from string attributes.
+
+### Normal form of `lin` ops
+
+The composition theorem above makes it legal to decompose one `prelimhlep.lin` op into a chain of `lin` ops, as long as the chain's classical functions compose to the original one.
+We exploit this for lowering: a preparation pass (`--prelim-hlep-normalize-lin`) rewrites every `lin` op into a chain of ops from a small, fixed set of **shapes**, each of which corresponds directly to one gate, one measurement, or one register rewiring.
+A backend conversion (e.g. `--prelim-hlep-to-qco`) then only dispatches on the shape and never interprets a body.
+The intermediate IR is ordinary PrelimHLEP, so it is verifiable, inspectable, and can be refined incrementally.
+
+A `lin` op announces its shape with the optional `shape` attribute, printed as a bare keyword after the op name:
+
+```mlir
+%out = prelimhlep.lin x (%b : i1 from %q : !prelimhlep.lin<i1>) -> (!prelimhlep.lin<i1>) {
+  %one = arith.constant true
+  %nb = arith.xori %b, %one : i1
+  prelimhlep.output (%nb : i1)
+}
+```
+
+The tag is a _claim_ about the body, and `LinOp`'s verifier checks it: the body stays the ground truth, and a consumer that trusts the tag can still be sure of what the op does.
+Bodies are compared against the shape definitions semantically where they consist of classical bit logic (via a symbolic evaluator over the `arith` ops `constant`, `extui`, `trunci`, `shli`/`shrui` by constants, `ori`, `xori`, `andi`), and structurally where they contain `scf.if`.
+
+All shapes except `split` and `join` operate on single qubits, `!prelimhlep.lin<i1>`.
+With `q` standing for that type, the shapes are:
+
+| Shape          | Signature                                       | Body                                                                                                                                                                         | Meaning                                        |
+| -------------- | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| `alloc`        | `() -> (q)`                                     | outputs the constant `false`                                                                                                                                                 | a fresh qubit in $\ket{0}$                     |
+| `split`        | `(i<n> from lin<i<n>>) -> (q, ..., q)`          | output $j$ is bit $j$ of the input (least-significant first)                                                                                                                 | register to qubits (no gate)                   |
+| `join`         | `(i1 from q, ..., i1 from q) -> (lin<i<n>>)`    | output bit $j$ is input $j$                                                                                                                                                  | qubits to register (no gate)                   |
+| `x`            | `(i1 from q) -> (q)`                            | outputs the negated input                                                                                                                                                    | Pauli $X$                                      |
+| `measure`      | `(i1 from q) -> (q, i1)`                        | empty; outputs the input and carries it                                                                                                                                      | measurement, keeping the qubit                 |
+| `measure_drop` | `(i1 from q) -> (i1)`                           | empty; carries the input                                                                                                                                                     | measurement, discarding the qubit              |
+| `hadamard`     | `(i1 from q) -> (lin<x<1>>)` or `lin<y<1>>`     | `scf.if` on the bit yielding the constant `"-"`/`"<-"` if set, `"+"`/`"->"` otherwise; carried                                                                               | $H$ (X basis) or $S H$ (Y basis)               |
+| `phase`        | `(i1 from q) -> (q)`                            | `scf.if` on the bit: `prelimhlep.scale` by a `complex.constant` of unit modulus $c$, else pass through                                                                       | $\mathrm{diag}(1, c)$, i.e. $Z$ or $P(\arg c)$ |
+| `ctrl`         | `(i1 from q, ..., i1 from q) -> (q, ..., q, q)` | `scf.if` on the `arith.andi` of all control bits: an `x`- or `phase`-shaped `lin` applied to one captured qubit, else pass through; controls output in order, target carried | multi-controlled $X$ or phase                  |
+
+Everything a backend needs beyond the tag (the phase factor, the controlled gate, the target) is exposed through accessors in `LinShapes.h`, so no consumer has to re-match a body.
+
+The normalization pass accepts exactly the fragment it can express in these shapes:
+
+- classical bit logic that never combines two input bits (every output bit is a constant or a possibly negated input bit),
+- at most one `scf.if` per body, in one of three forms: a conditional phase (the "phase tag" pattern), a basis-conditional constant (the Hadamard family, see below), or a controlled sub-circuit (a then-branch of already-normalized `lin` ops applied to captured values, passed through in the else-branch),
+- classical auxiliary results, which become measurements of the bits they depend on,
+- `lin` ops nested directly in a body, which act on the captured factor only and are hoisted out.
+
+Ops are processed innermost first.
+By the time an enclosing body is examined, the ops inside its `scf.if` branches are already in normal form, so any sequence of gates can be put under control one gate at a time (a nested `ctrl` simply gains the enclosing controls).
+Conditions on bits required to be $0$ are handled by $X$-conjugation of those bits.
+Multi-qubit operands are split lazily, only when some bit is touched individually, and outputs that are exactly an untouched operand reuse it, so pure permutations of whole registers leave no op behind.
+
+Bodies outside this fragment (arithmetic mixing input bits, discarding a qubit without measuring it, calls that survived inlining, ...) are reported as errors; general reversible-circuit synthesis and automatic uncomputation are out of scope for now.
+Because the pass leaves tagged ops alone, it is idempotent and can be re-run after further transformations.
+
+The gate-level ops that are not linearizations (`prelimhlep.exp`, `prelimhlep.scale`, `prelimhlep.add_phase`, `prelimhlep.base_change`, `prelimhlep.constant`) are not touched by the normalization; they are already at the granularity of the shapes and are lowered directly by the backend conversion.
 
 ### Further IR examples
 

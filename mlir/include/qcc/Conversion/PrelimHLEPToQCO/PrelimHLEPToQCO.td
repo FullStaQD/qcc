@@ -25,18 +25,18 @@ def PrelimHLEPToQCO : Pass<"prelim-hlep-to-qco", "mlir::ModuleOp"> {
       basis rotations are only emitted where states are created.
       `!prelimhlep.unit` values are erased.
 
-      `prelimhlep.lin` bodies are lowered through a pattern library of
-      recognized shapes (rewiring/allocation/negation, measurement,
-      conditional phase, conditional unitary, basis-conditional constants,
-      identity, and purely classical bodies). Unrecognized bodies are
-      reported as errors rather than lowered; general reversible-circuit
-      synthesis is out of scope.
+      `prelimhlep.lin` ops must be in normal form, i.e. tagged with one of
+      the shapes `--prelim-hlep-normalize-lin` produces (`alloc`, `split`,
+      `join`, `x`, `measure`, `measure_drop`, `hadamard`, `phase`, `ctrl`;
+      see "Normal form of `lin` ops" in mlir/docs/Dialects/PrelimHLEP.md).
+      Each shape maps onto one QCO op (allocation, rewiring, `x`,
+      `measure` (+ `sink`), `h` (+ `s`), `z`/`p`, `ctrl`); untagged ops are
+      reported as errors.
 
       The pass expects calls between haloed functions to have been inlined
-      beforehand (e.g. via `--inline`); calls to haloed functions that
-      survive inside `lin` bodies are diagnosed. `prelimhlep.exp` is only
-      supported for single-term Hamiltonians whose Pauli product maps onto
-      a QCO rotation gate.
+      beforehand (e.g. via `--inline`). `prelimhlep.exp` is only supported
+      for single-term Hamiltonians whose Pauli product maps onto a QCO
+      rotation gate.
   }];
 
   let dependentDialects = ["mlir::qco::QCODialect", "mlir::arith::ArithDialect",

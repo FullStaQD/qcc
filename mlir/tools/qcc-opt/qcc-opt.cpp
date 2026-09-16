@@ -17,6 +17,7 @@
 #include "qcc/Dialect/Aux_/IR/Aux_.h"
 #include "qcc/Dialect/Jasp/IR/Jasp.h"
 #include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEP.h"
+#include "qcc/Dialect/PrelimHLEP/Transforms/Passes.h"
 #include "qcc/Dialect/QVec/IR/QVec.h"
 #include "qcc/Dialect/QVec/Transforms/Passes.h"
 
@@ -117,6 +118,7 @@ int main(int argc, char** argv) {
   qcc::registerConvertQVecToHiSEPQIntrinsics();
   qcc::registerQVecMerge();
   qcc::registerPrelimHLEPToQCO();
+  qcc::registerPrelimHLEPNormalizeLin();
 
   // Extension registration
   mlir::arith::registerBufferizableOpInterfaceExternalModels(registry);

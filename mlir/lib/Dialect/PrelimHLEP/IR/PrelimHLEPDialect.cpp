@@ -1,3 +1,4 @@
+#include "qcc/Dialect/PrelimHLEP/IR/LinShapes.h"
 #include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEP.h"
 
 #include <llvm/ADT/TypeSwitch.h>
@@ -12,6 +13,7 @@ using namespace qcc::prelimhlep;
 #include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEPDialect.cpp.inc"
 
 #define GET_TYPEDEF_CLASSES
+#include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEPEnums.cpp.inc"
 #include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEPTypes.cpp.inc"
 
 #define GET_ATTRDEF_CLASSES
@@ -221,8 +223,18 @@ LogicalResult ExpOp::verify() {
   return success();
 }
 
-// Parses `( %arg : argType from %operand : operandType, ... ) -> ( resultType, ... ) region`.
+// Parses `shape? ( %arg : argType from %operand : operandType, ... ) -> ( resultType, ... ) region`,
+// where the optional leading `shape` is a bare `LinShape` keyword.
 ParseResult LinOp::parse(OpAsmParser& parser, OperationState& result) {
+  StringRef shapeKeyword;
+  if (succeeded(parser.parseOptionalKeyword(&shapeKeyword))) {
+    std::optional<LinShape> shape = symbolizeLinShape(shapeKeyword);
+    if (!shape) {
+      return parser.emitError(parser.getCurrentLocation(), "unknown 'prelimhlep.lin' shape '") << shapeKeyword << "'";
+    }
+    result.addAttribute(getShapeAttrName(result.name), LinShapeAttr::get(parser.getContext(), *shape));
+  }
+
   SmallVector<OpAsmParser::Argument> blockArgs;
   SmallVector<OpAsmParser::UnresolvedOperand> operands;
   SmallVector<Type> operandTypes;
@@ -262,6 +274,9 @@ ParseResult LinOp::parse(OpAsmParser& parser, OperationState& result) {
 }
 
 void LinOp::print(OpAsmPrinter& p) {
+  if (std::optional<LinShape> shape = getShape()) {
+    p << " " << stringifyLinShape(*shape);
+  }
   p << " (";
   llvm::interleaveComma(llvm::zip(getBody().front().getArguments(), getDelinearizedOperands()), p,
                         [&](const auto& binding) {
@@ -273,7 +288,7 @@ void LinOp::print(OpAsmPrinter& p) {
   llvm::interleaveComma(getResultTypes(), p);
   p << ") ";
   p.printRegion(getBody(), /*printEntryBlockArgs=*/false);
-  p.printOptionalAttrDict((*this)->getAttrs());
+  p.printOptionalAttrDict((*this)->getAttrs(), {getShapeAttrName()});
 }
 
 LogicalResult LinOp::verify() {
@@ -333,7 +348,7 @@ LogicalResult LinOp::verify() {
     }
   }
 
-  return success();
+  return verifyLinShape(*this);
 }
 
 LogicalResult PrelimHLEPDialect::verifyOperationAttribute(Operation* op, NamedAttribute attribute) {

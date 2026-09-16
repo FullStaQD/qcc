@@ -8,6 +8,11 @@ mlir_tablegen(PrelimHLEPTypes.h.inc -gen-typedef-decls --typedefs-dialect=prelim
 mlir_tablegen(PrelimHLEPTypes.cpp.inc -gen-typedef-defs --typedefs-dialect=prelimhlep)
 add_public_tablegen_target(QCCPrelimHLEPTypesIncGen)
 
+set(LLVM_TARGET_DEFINITIONS PrelimHLEPEnums.td)
+mlir_tablegen(PrelimHLEPEnums.h.inc -gen-enum-decls)
+mlir_tablegen(PrelimHLEPEnums.cpp.inc -gen-enum-defs)
+add_public_tablegen_target(QCCPrelimHLEPEnumsIncGen)
+
 set(LLVM_TARGET_DEFINITIONS PrelimHLEPAttrs.td)
 mlir_tablegen(PrelimHLEPAttrs.h.inc -gen-attrdef-decls --attrdefs-dialect=prelimhlep)
 mlir_tablegen(PrelimHLEPAttrs.cpp.inc -gen-attrdef-defs --attrdefs-dialect=prelimhlep)

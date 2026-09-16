@@ -109,3 +109,18 @@ func.func @halo_linearity_if_ok(%cond: i1, %v: !prelimhlep.lin<i1>) -> !prelimhl
 func.func private @haloed(%halo: !prelimhlep.unit) -> !prelimhlep.unit attributes { prelimhlep.halo = #prelimhlep.halo }
 // CHECK-LABEL: func.func private @haloed
 // CHECK-SAME: prelimhlep.halo
+
+// The optional normal-form shape tag is printed as a bare keyword after the
+// op name.
+
+func.func @tagged_lin(%q: !prelimhlep.lin<i1>) -> !prelimhlep.lin<i1> attributes { prelimhlep.halo } {
+    %0 = prelimhlep.lin x (%b : i1 from %q : !prelimhlep.lin<i1>) -> (!prelimhlep.lin<i1>) {
+        %one = arith.constant true
+        %nb = arith.xori %b, %one : i1
+        prelimhlep.output (%nb : i1)
+    }
+    return %0 : !prelimhlep.lin<i1>
+}
+// CHECK-LABEL: func.func @tagged_lin
+// CHECK: prelimhlep.lin x (%{{.*}} : i1 from %{{.*}} : !prelimhlep.lin<i1>) -> (!prelimhlep.lin<i1>) {
+// CHECK-NOT: shape

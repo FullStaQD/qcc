@@ -1,4 +1,8 @@
-// RUN: qcc-opt %s --prelim-hlep-to-qco | FileCheck %s
+// RUN: qcc-opt %s --prelim-hlep-normalize-lin --prelim-hlep-to-qco | FileCheck %s
+
+// The QCO lowering of the whole PrelimHLEP fragment the normalization pass
+// accepts. See prelim-hlep-normalize-lin-test.mlir for the intermediate
+// normal form these inputs take.
 
 // Constant bits allocate fresh qubits; the unit argument is erased.
 
@@ -186,8 +190,8 @@ func.func @phase_tag_2(%state : !prelimhlep.lin<i2>) -> !prelimhlep.lin<i2> attr
 // CHECK-NEXT:    return [[UNDO]], [[TOUT]] : !qco.qubit, !qco.qubit
 
 // Purely classical auxiliary results become measurements; qubits that are
-// not re-output are sunk, and the classical register is rebuilt from the
-// individual measurement bits.
+// not re-output are sunk right away, and the classical register is rebuilt
+// from the individual measurement bits.
 
 func.func @measure_2(%state : !prelimhlep.lin<i2>) -> i2 attributes { prelimhlep.halo } {
     %result = prelimhlep.lin (%bits : i2 from %state : !prelimhlep.lin<i2>) -> (i2) {
@@ -199,14 +203,14 @@ func.func @measure_2(%state : !prelimhlep.lin<i2>) -> i2 attributes { prelimhlep
 // CHECK-LABEL: func.func @measure_2(
 // CHECK-SAME:      [[Q0:%.+]]: !qco.qubit, [[Q1:%.+]]: !qco.qubit) -> i2
 // CHECK:         [[M0:%.+]], [[B0:%.+]] = qco.measure [[Q0]]
+// CHECK-NEXT:    qco.sink [[M0]]
 // CHECK-NEXT:    [[M1:%.+]], [[B1:%.+]] = qco.measure [[Q1]]
+// CHECK-NEXT:    qco.sink [[M1]]
 // CHECK-DAG:     [[E0:%.+]] = arith.extui [[B0]] : i1 to i2
 // CHECK-DAG:     [[E1:%.+]] = arith.extui [[B1]] : i1 to i2
 // CHECK:         arith.shli [[E1]],
 // CHECK:         [[RES:%.+]] = arith.ori
-// CHECK-DAG:     qco.sink [[M0]]
-// CHECK-DAG:     qco.sink [[M1]]
-// CHECK:         return [[RES]] : i2
+// CHECK-NEXT:    return [[RES]] : i2
 
 func.func @measure_and_keep(%qubit : !prelimhlep.lin<i1>) -> (!prelimhlep.lin<i1>, i1) attributes { prelimhlep.halo } {
     %q, %bit = prelimhlep.lin (%b : i1 from %qubit : !prelimhlep.lin<i1>) -> (!prelimhlep.lin<i1>, i1) {

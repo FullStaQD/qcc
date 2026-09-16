@@ -97,15 +97,24 @@ def LinOp : PrelimHLEPOp<"lin", [SingleBlock]> {
         parsed and are only related by `LinOp`'s verifier, not the grammar
         itself.
 
+        The optional `shape` attribute, printed as a bare keyword right
+        after the op name (`prelimhlep.lin x (...) -> (...) { ... }`), tags
+        the op as one of the normal-form shapes listed in "Normal form of
+        `lin` ops" in the design doc. The `prelim-hlep-normalize-lin` pass
+        decomposes general bodies into chains of tagged ops; consumers such
+        as the QCO conversion dispatch on the tag alone.
+
         The verifier checks that the op is nested (directly or indirectly)
         within a `prelim_hlep.halo`-attributed function; that the body
         block's argument types match the `delinearizedOperands` element
-        types; and that the op's result types are the re-linearization of
-        the `prelim_hlep.output` terminator's delinearized results,
-        followed by its auxiliary results unchanged.
+        types; that the op's result types are the re-linearization of the
+        `prelim_hlep.output` terminator's delinearized results, followed by
+        its auxiliary results unchanged; and, if a `shape` tag is present,
+        that the body matches that shape's definition.
     }];
 
-    let arguments = (ins Variadic<LinType>:$delinearizedOperands);
+    let arguments = (ins Variadic<LinType>:$delinearizedOperands,
+                         OptionalAttr<LinShapeAttr>:$shape);
     let results = (outs Variadic<AnyType>:$results);
     let regions = (region SizedRegion<1>:$body);
     let hasVerifier = 1;

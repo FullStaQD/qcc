@@ -22,13 +22,15 @@
 // element types are purely static tags, so `prelimhlep.base_change` lowers
 // to nothing and basis rotations are only emitted where states are created.
 //
-// `prelimhlep.lin` bodies are recognized against a pattern library (see
-// LinLowering below); unrecognized bodies are diagnosed, not synthesized.
+// `prelimhlep.lin` ops must be in normal form (tagged with a shape; see
+// `--prelim-hlep-normalize-lin`): every shape maps onto one QCO op, so
+// this pass only dispatches on the tag and never inspects a body.
 //
-// ===----------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #include "qcc/Conversion/PrelimHLEPToQCO/PrelimHLEPToQCO.h"
 
+#include "qcc/Dialect/PrelimHLEP/IR/LinShapes.h"
 #include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEP.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
@@ -108,769 +110,20 @@ LogicalResult expandType(Type type, SmallVectorImpl<Type>& out) {
   return success();
 }
 
-/// Symbolic value of a single classical bit inside a `lin` body: either a
-/// known constant, or a (possibly negated) input bit of the enclosing
-/// `prelimhlep.lin` (indexed into the flattened list of delinearized input
-/// bits).
-struct BitValue {
-  enum class Kind { Constant, Input };
-  Kind kind;
-  /// For Constant: the bit. For Input: whether the bit is negated.
-  bool flag;
-  /// For Input: the flattened input bit index.
-  unsigned input = 0;
-
-  static BitValue makeConstant(bool value) { return {Kind::Constant, value, 0}; }
-  static BitValue makeInput(unsigned index, bool negated) { return {Kind::Input, negated, index}; }
-
-  bool isConstant() const { return kind == Kind::Constant; }
-  bool isInput() const { return kind == Kind::Input; }
-
-  bool operator==(const BitValue& other) const {
-    return kind == other.kind && flag == other.flag && input == other.input;
-  }
-};
-
-using Bits = SmallVector<BitValue>;
-
-/// A conjunction of required input bit values, as (input bit, required
-/// value) pairs sorted by input bit index.
-using Predicate = SmallVector<std::pair<unsigned, bool>>;
-
 /// Per-function lowering state: maps every not-yet-erased PrelimHLEP-typed
 /// SSA value to the list of qubit values (LSB first) it lowers to.
 using QubitMap = DenseMap<Value, SmallVector<Value>>;
 
-//===----------------------------------------------------------------------===//
-// LinLowering: the `prelimhlep.lin` body pattern library
-//===----------------------------------------------------------------------===//
-
-/// Recognizes and lowers a single `prelimhlep.lin` op. The body is
-/// interpreted symbolically: every classical integer value is mapped to a
-/// vector of `BitValue`s over the flattened delinearized input bits. On top
-/// of that, at most one `scf.if` is handled structurally, covering the
-/// conditional-phase, conditional-unitary, and basis-conditional-constant
-/// shapes. Everything the interpretation cannot express is diagnosed.
-class LinLowering {
-public:
-  LinLowering(hlep::LinOp op, OpBuilder& builder, QubitMap& qubitMap)
-      : op(op), builder(builder), qubitMap(qubitMap), loc(op.getLoc()) {}
-
-  LogicalResult run();
-
-private:
-  Type qubitType() { return qco::QubitType::get(op.getContext()); }
-
-  std::optional<Bits> evalBits(Value value);
-  std::optional<Predicate> evalPredicate(Value cond);
-
-  LogicalResult classifyIf(scf::IfOp ifOp);
-  LogicalResult lowerConditionalPhase(scf::IfOp ifOp, const Predicate& predicate);
-  LogicalResult lowerConditionalConstant(scf::IfOp ifOp, const Predicate& predicate);
-  LogicalResult lowerConditionalUnitary(scf::IfOp ifOp, const Predicate& predicate);
-
-  LogicalResult emitMeasurements(ValueRange auxResults);
-  FailureOr<SmallVector<Value>> emitDelinearizedResult(Value output);
-  Value buildClassicalValue(const Bits& bits, Type type);
-
-  Value emitX(Value qubit) { return qco::XOp::create(builder, loc, qubitType(), qubit); }
-
-  /// Applies `qco.x` to every predicate qubit whose required value is 0 and
-  /// returns the control qubits in predicate order (to be undone by
-  /// `undoPolarityConjugation` on the ctrl outputs).
-  SmallVector<Value> applyPolarityConjugation(const Predicate& predicate);
-  void undoPolarityConjugation(const Predicate& predicate, ValueRange controlsOut);
-
-  hlep::LinOp op;
-  OpBuilder& builder;
-  QubitMap& qubitMap;
-  Location loc;
-
-  /// Current qubit value per flattened input bit.
-  SmallVector<Value> current;
-  /// Input bits already consumed by an output (or a structural pattern).
-  SmallVector<bool> used;
-  /// Input bits that have been measured; `measuredBit[k]` is the i1 result.
-  SmallVector<bool> measured;
-  SmallVector<Value> measuredBit;
-
-  /// Memoized symbolic evaluation of classical values in the body.
-  DenseMap<Value, Bits> bitsCache;
-  /// Qubit lists for linear-typed `scf.if` results handled structurally.
-  DenseMap<Value, SmallVector<Value>> structuralResults;
-};
-
-std::optional<Bits> LinLowering::evalBits(Value value) {
-  if (auto it = bitsCache.find(value); it != bitsCache.end()) {
-    return it->second;
-  }
-
-  auto intType = dyn_cast<IntegerType>(value.getType());
-  if (!intType || intType.getWidth() > 64) {
-    op.emitError("unrecognized prelimhlep.lin body: cannot interpret non-integer value");
-    return std::nullopt;
-  }
-  unsigned width = intType.getWidth();
-
-  APInt constant;
-  if (matchPattern(value, m_ConstantInt(&constant))) {
-    Bits bits;
-    for (unsigned j = 0; j < width; ++j) {
-      bits.push_back(BitValue::makeConstant(constant[j]));
-    }
-    bitsCache[value] = bits;
-    return bits;
-  }
-
-  Operation* def = value.getDefiningOp();
-  if (!def) {
-    op.emitError("unrecognized prelimhlep.lin body: value is not derived from the delinearized inputs");
-    return std::nullopt;
-  }
-
-  std::optional<Bits> result;
-  if (auto ext = dyn_cast<arith::ExtUIOp>(def)) {
-    if (std::optional<Bits> src = evalBits(ext.getIn())) {
-      result = *src;
-      result->append(width - src->size(), BitValue::makeConstant(false));
-    }
-  } else if (auto trunc = dyn_cast<arith::TruncIOp>(def)) {
-    if (std::optional<Bits> src = evalBits(trunc.getIn())) {
-      result = Bits(src->begin(), src->begin() + width);
-    }
-  } else if (isa<arith::ShLIOp, arith::ShRUIOp>(def)) {
-    std::optional<Bits> src = evalBits(def->getOperand(0));
-    std::optional<Bits> amountBits = evalBits(def->getOperand(1));
-    if (src && amountBits) {
-      uint64_t amount = 0;
-      bool amountConstant = true;
-      for (unsigned j = 0; j < amountBits->size(); ++j) {
-        BitValue bit = (*amountBits)[j];
-        if (!bit.isConstant()) {
-          amountConstant = false;
-          break;
-        }
-        amount |= static_cast<uint64_t>(bit.flag) << j;
-      }
-      if (!amountConstant || amount > width) {
-        op.emitError("unrecognized prelimhlep.lin body: shift by non-constant amount");
-        return std::nullopt;
-      }
-      Bits shifted(width, BitValue::makeConstant(false));
-      for (unsigned j = 0; j + amount < width; ++j) {
-        if (isa<arith::ShLIOp>(def)) {
-          shifted[j + amount] = (*src)[j];
-        } else {
-          shifted[j] = (*src)[j + amount];
-        }
-      }
-      result = shifted;
-    }
-  } else if (auto orOp = dyn_cast<arith::OrIOp>(def)) {
-    std::optional<Bits> lhs = evalBits(orOp.getLhs());
-    std::optional<Bits> rhs = evalBits(orOp.getRhs());
-    if (lhs && rhs) {
-      Bits bits;
-      for (unsigned j = 0; j < width; ++j) {
-        BitValue l = (*lhs)[j];
-        BitValue r = (*rhs)[j];
-        if (l.isConstant() && r.isConstant()) {
-          bits.push_back(BitValue::makeConstant(l.flag || r.flag));
-        } else if (l.isConstant()) {
-          bits.push_back(l.flag ? BitValue::makeConstant(true) : r);
-        } else if (r.isConstant()) {
-          bits.push_back(r.flag ? BitValue::makeConstant(true) : l);
-        } else {
-          op.emitError("unrecognized prelimhlep.lin body: 'or' of overlapping input bits");
-          return std::nullopt;
-        }
-      }
-      result = bits;
-    }
-  } else if (auto xorOp = dyn_cast<arith::XOrIOp>(def)) {
-    std::optional<Bits> lhs = evalBits(xorOp.getLhs());
-    std::optional<Bits> rhs = evalBits(xorOp.getRhs());
-    if (lhs && rhs) {
-      Bits bits;
-      for (unsigned j = 0; j < width; ++j) {
-        BitValue l = (*lhs)[j];
-        BitValue r = (*rhs)[j];
-        if (l.isConstant() && r.isConstant()) {
-          bits.push_back(BitValue::makeConstant(l.flag != r.flag));
-        } else if (l.isConstant() || r.isConstant()) {
-          BitValue inputBit = l.isConstant() ? r : l;
-          bool toggle = l.isConstant() ? l.flag : r.flag;
-          bits.push_back(BitValue::makeInput(inputBit.input, inputBit.flag != toggle));
-        } else {
-          op.emitError("unrecognized prelimhlep.lin body: 'xor' of two input bits");
-          return std::nullopt;
-        }
-      }
-      result = bits;
-    }
-  } else if (auto andOp = dyn_cast<arith::AndIOp>(def)) {
-    std::optional<Bits> lhs = evalBits(andOp.getLhs());
-    std::optional<Bits> rhs = evalBits(andOp.getRhs());
-    if (lhs && rhs) {
-      Bits bits;
-      for (unsigned j = 0; j < width; ++j) {
-        BitValue l = (*lhs)[j];
-        BitValue r = (*rhs)[j];
-        if (l.isConstant() && !l.flag) {
-          bits.push_back(BitValue::makeConstant(false));
-        } else if (r.isConstant() && !r.flag) {
-          bits.push_back(BitValue::makeConstant(false));
-        } else if (l.isConstant()) {
-          bits.push_back(r);
-        } else if (r.isConstant()) {
-          bits.push_back(l);
-        } else {
-          op.emitError("unrecognized prelimhlep.lin body: 'and' of two input bits");
-          return std::nullopt;
-        }
-      }
-      result = bits;
-    }
-  } else if (isa<func::CallIndirectOp>(def)) {
-    def->emitError("indirect call inside prelimhlep.lin body; requires inlining a constant callee");
-    return std::nullopt;
-  } else if (isa<func::CallOp>(def)) {
-    def->emitError("call inside prelimhlep.lin body survived inlining");
-    return std::nullopt;
-  } else {
-    def->emitError("unrecognized op in prelimhlep.lin body");
-    return std::nullopt;
-  }
-
-  if (result) {
-    bitsCache[value] = *result;
-  }
-  return result;
-}
-
-std::optional<Predicate> LinLowering::evalPredicate(Value cond) {
-  DenseMap<unsigned, bool> required;
-
-  auto addRequirement = [&](unsigned input, bool value) -> bool {
-    auto [it, inserted] = required.try_emplace(input, value);
-    if (!inserted && it->second != value) {
-      op.emitError("unrecognized prelimhlep.lin body: contradictory condition on an input bit");
-      return false;
-    }
-    return true;
-  };
-
-  auto cmp = cond.getDefiningOp<arith::CmpIOp>();
-  if (cmp && (cmp.getPredicate() == arith::CmpIPredicate::eq || cmp.getPredicate() == arith::CmpIPredicate::ne)) {
-    std::optional<Bits> lhs = evalBits(cmp.getLhs());
-    std::optional<Bits> rhs = evalBits(cmp.getRhs());
-    if (!lhs || !rhs) {
-      return std::nullopt;
-    }
-    auto allConstant = [](const Bits& bits) {
-      return llvm::all_of(bits, [](BitValue bit) { return bit.isConstant(); });
-    };
-    Bits constantSide;
-    Bits inputSide;
-    if (allConstant(*rhs)) {
-      constantSide = *rhs;
-      inputSide = *lhs;
-    } else if (allConstant(*lhs)) {
-      constantSide = *lhs;
-      inputSide = *rhs;
-    } else {
-      op.emitError("unrecognized prelimhlep.lin body: comparison of two non-constant values");
-      return std::nullopt;
-    }
-    bool negate = cmp.getPredicate() == arith::CmpIPredicate::ne;
-    if (negate && inputSide.size() != 1) {
-      op.emitError("unrecognized prelimhlep.lin body: multi-bit 'ne' comparison");
-      return std::nullopt;
-    }
-    for (unsigned j = 0; j < inputSide.size(); ++j) {
-      bool requiredValue = constantSide[j].flag != negate;
-      BitValue bit = inputSide[j];
-      if (bit.isConstant()) {
-        if (bit.flag != requiredValue) {
-          op.emitError("unrecognized prelimhlep.lin body: condition is constant");
-          return std::nullopt;
-        }
-        continue;
-      }
-      if (!addRequirement(bit.input, requiredValue != bit.flag)) {
-        return std::nullopt;
-      }
-    }
-  } else {
-    std::optional<Bits> bits = evalBits(cond);
-    if (!bits) {
-      return std::nullopt;
-    }
-    BitValue bit = (*bits)[0];
-    if (bit.isConstant()) {
-      op.emitError("unrecognized prelimhlep.lin body: condition is constant");
-      return std::nullopt;
-    }
-    if (!addRequirement(bit.input, !bit.flag)) {
-      return std::nullopt;
-    }
-  }
-
-  if (required.empty()) {
-    op.emitError("unrecognized prelimhlep.lin body: condition does not constrain any input bit");
-    return std::nullopt;
-  }
-  Predicate predicate(required.begin(), required.end());
-  llvm::sort(predicate, [](const auto& a, const auto& b) { return a.first < b.first; });
-  return predicate;
-}
-
-SmallVector<Value> LinLowering::applyPolarityConjugation(const Predicate& predicate) {
-  SmallVector<Value> controls;
-  for (auto [input, value] : predicate) {
-    if (!value) {
-      current[input] = emitX(current[input]);
-    }
-    controls.push_back(current[input]);
-  }
-  return controls;
-}
-
-void LinLowering::undoPolarityConjugation(const Predicate& predicate, ValueRange controlsOut) {
-  for (auto [pair, control] : llvm::zip_equal(predicate, controlsOut)) {
-    auto [input, value] = pair;
-    current[input] = value ? control : emitX(control);
-  }
-}
-
-/// Conditional phase: `scf.if %pred { scale by constant c } else
-/// { passthrough }` over classical bits. Lowered to a (multi-)controlled
-/// `qco.z` / `qco.p`, with X-conjugation on negative-polarity controls.
-LogicalResult LinLowering::lowerConditionalPhase(scf::IfOp ifOp, const Predicate& predicate) {
-  if (ifOp.getNumResults() != 1) {
-    return op.emitError("unrecognized prelimhlep.lin body: conditional phase with multiple results");
-  }
-  auto thenYield = cast<scf::YieldOp>(ifOp.thenBlock()->getTerminator());
-  auto elseYield = cast<scf::YieldOp>(ifOp.elseBlock()->getTerminator());
-
-  auto scale = thenYield.getOperand(0).getDefiningOp<hlep::ScaleOp>();
-  if (!scale) {
-    return op.emitError("unrecognized prelimhlep.lin body: expected a scale in the conditional branch");
-  }
-  auto factorOp = scale.getFactor().getDefiningOp<complex::ConstantOp>();
-  if (!factorOp) {
-    return scale.emitError("non-constant scale factor inside prelimhlep.lin body");
-  }
-  double re = cast<FloatAttr>(factorOp.getValue()[0]).getValueAsDouble();
-  double im = cast<FloatAttr>(factorOp.getValue()[1]).getValueAsDouble();
-  if (std::abs(std::hypot(re, im) - 1.0) > 1e-9) {
-    return scale.emitError("non-unit-modulus scale factor cannot be lowered to QCO");
-  }
+/// Emits the QCO gate of a `phase`-shaped `lin` op on `qubit`: `qco.z` for
+/// a factor of -1, `qco.p(angle)` otherwise.
+Value emitPhaseGate(OpBuilder& builder, Location loc, hlep::LinOp phase, Value qubit) {
+  auto [re, im] = hlep::getPhaseShapeFactor(phase);
   double angle = std::atan2(im, re);
-
-  std::optional<Bits> scaledBits = evalBits(scale.getInput());
-  std::optional<Bits> elseBits = evalBits(elseYield.getOperand(0));
-  if (!scaledBits || !elseBits) {
-    return failure();
-  }
-  if (*scaledBits != *elseBits) {
-    return op.emitError("unrecognized prelimhlep.lin body: conditional branches disagree on the passed-through bits");
-  }
-
-  SmallVector<Value> controls = applyPolarityConjugation(predicate);
-  Value target = controls.pop_back_val();
-  SmallVector<Value> controlsOut;
-  Value targetOut;
   bool isMinusOne = std::abs(angle - M_PI) < 1e-9 || std::abs(angle + M_PI) < 1e-9;
-  if (controls.empty()) {
-    targetOut = isMinusOne ? qco::ZOp::create(builder, loc, qubitType(), target).getResult()
-                           : qco::POp::create(builder, loc, target, angle).getResult();
-  } else {
-    auto ctrl =
-        qco::CtrlOp::create(builder, loc, controls, ValueRange{target}, [&](ValueRange targets) -> SmallVector<Value> {
-          Value result = isMinusOne ? qco::ZOp::create(builder, loc, qubitType(), targets[0]).getResult()
-                                    : qco::POp::create(builder, loc, targets[0], angle).getResult();
-          return {result};
-        });
-    controlsOut.append(ctrl.getControlsOut().begin(), ctrl.getControlsOut().end());
-    targetOut = ctrl.getTargetsOut()[0];
+  if (isMinusOne) {
+    return qco::ZOp::create(builder, loc, qco::QubitType::get(builder.getContext()), qubit);
   }
-  controlsOut.push_back(targetOut);
-  undoPolarityConjugation(predicate, controlsOut);
-
-  bitsCache[ifOp.getResult(0)] = *elseBits;
-  return success();
-}
-
-/// Basis-conditional constant (Hadamard family): `scf.if %bit` yielding a
-/// one-symbol X- or Y-basis `prelimhlep.constant` in both branches. The
-/// input qubit is transformed in place by `h` (optionally preceded by `x`,
-/// optionally followed by `s` for the Y basis).
-LogicalResult LinLowering::lowerConditionalConstant(scf::IfOp ifOp, const Predicate& predicate) {
-  auto thenYield = cast<scf::YieldOp>(ifOp.thenBlock()->getTerminator());
-  auto elseYield = cast<scf::YieldOp>(ifOp.elseBlock()->getTerminator());
-  auto thenConstant = thenYield.getOperand(0).getDefiningOp<hlep::ConstantOp>();
-  auto elseConstant = elseYield.getOperand(0).getDefiningOp<hlep::ConstantOp>();
-  if (!thenConstant || !elseConstant || ifOp.getNumResults() != 1) {
-    return op.emitError("unrecognized prelimhlep.lin body: conditional over linear values that is neither a "
-                        "controlled unitary nor a basis-conditional constant");
-  }
-  if (predicate.size() != 1) {
-    return op.emitError("unrecognized prelimhlep.lin body: basis-conditional constant with a multi-bit condition");
-  }
-
-  auto linType = cast<hlep::LinType>(ifOp.getResult(0).getType());
-  bool isY = isa<hlep::YType>(linType.getElementType());
-  // The second basis symbol is `-` for X and `<-` for Y.
-  auto isSecondSymbol = [&](hlep::ConstantOp constant) { return constant.getValue().front() == '-' == !isY; };
-  bool thenSecond = isSecondSymbol(thenConstant);
-  bool elseSecond = isSecondSymbol(elseConstant);
-  if (thenSecond == elseSecond) {
-    return op.emitError("unrecognized prelimhlep.lin body: conditional constant does not depend on the condition");
-  }
-
-  auto [input, polarity] = predicate.front();
-  // Symbol produced for input bit 0. `{0 -> first, 1 -> second}` is a plain
-  // Hadamard; the swapped mapping is X followed by Hadamard.
-  bool zeroSecond = polarity ? elseSecond : thenSecond;
-  Value qubit = current[input];
-  if (zeroSecond) {
-    qubit = emitX(qubit);
-  }
-  qubit = qco::HOp::create(builder, loc, qubitType(), qubit);
-  if (isY) {
-    qubit = qco::SOp::create(builder, loc, qubitType(), qubit);
-  }
-  current[input] = qubit;
-  used[input] = true;
-  structuralResults[ifOp.getResult(0)] = {qubit};
-  return success();
-}
-
-/// Conditional unitary: `scf.if %pred` applying a nested `prelimhlep.lin`
-/// to captured linear values in the then-branch and passing them through in
-/// the else-branch. The nested body must be a bit-permutation-free
-/// negation of exactly one bit, so the `qco.ctrl` body holds a single
-/// `qco.x` (the ctrl verifier admits exactly one unitary op).
-LogicalResult LinLowering::lowerConditionalUnitary(scf::IfOp ifOp, const Predicate& predicate) {
-  auto thenYield = cast<scf::YieldOp>(ifOp.thenBlock()->getTerminator());
-  auto elseYield = cast<scf::YieldOp>(ifOp.elseBlock()->getTerminator());
-
-  hlep::LinOp inner;
-  for (Operation& nested : ifOp.thenBlock()->without_terminator()) {
-    auto nestedLin = dyn_cast<hlep::LinOp>(nested);
-    if (!nestedLin || inner) {
-      return op.emitError("unrecognized prelimhlep.lin body: conditional branch is not a single nested linearization");
-    }
-    inner = nestedLin;
-  }
-  if (!inner || thenYield.getOperands() != inner.getResults() ||
-      elseYield.getOperands() != inner.getDelinearizedOperands()) {
-    return op.emitError("unrecognized prelimhlep.lin body: conditional branches do not apply and pass through the "
-                        "same linear values");
-  }
-
-  // Interpret the nested body over its own delinearized inputs.
-  LinLowering innerEval(inner, builder, qubitMap);
-  Block& innerBody = inner.getBody().front();
-  unsigned innerBits = 0;
-  for (BlockArgument arg : innerBody.getArguments()) {
-    auto intType = dyn_cast<IntegerType>(arg.getType());
-    if (!intType) {
-      return inner.emitError("unrecognized prelimhlep.lin body: non-integer delinearized value");
-    }
-    Bits bits;
-    for (unsigned j = 0; j < intType.getWidth(); ++j) {
-      bits.push_back(BitValue::makeInput(innerBits + j, false));
-    }
-    innerEval.bitsCache[arg] = bits;
-    innerBits += intType.getWidth();
-  }
-  auto innerOutput = cast<hlep::OutputOp>(innerBody.getTerminator());
-  if (!innerOutput.getAuxiliaryResults().empty()) {
-    return inner.emitError("unrecognized prelimhlep.lin body: auxiliary results under a condition");
-  }
-  Bits innerResultBits;
-  for (Value output : innerOutput.getDelinearizedResults()) {
-    std::optional<Bits> bits = innerEval.evalBits(output);
-    if (!bits) {
-      return failure();
-    }
-    innerResultBits.append(*bits);
-  }
-  std::optional<unsigned> negatedBit;
-  if (innerResultBits.size() != innerBits) {
-    return inner.emitError("unrecognized prelimhlep.lin body: conditional unitary changes the number of qubits");
-  }
-  for (unsigned j = 0; j < innerResultBits.size(); ++j) {
-    BitValue bit = innerResultBits[j];
-    if (!bit.isInput() || bit.input != j) {
-      return inner.emitError("unrecognized prelimhlep.lin body: conditional unitary permutes or allocates qubits");
-    }
-    if (bit.flag) {
-      if (negatedBit) {
-        return inner.emitError("unrecognized prelimhlep.lin body: conditional unitary needs more than one gate");
-      }
-      negatedBit = j;
-    }
-  }
-
-  // Gather the captured target qubits, in nested-operand order.
-  SmallVector<Value> targets;
-  for (Value captured : inner.getDelinearizedOperands()) {
-    auto it = qubitMap.find(captured);
-    if (it == qubitMap.end()) {
-      return op.emitError("unrecognized prelimhlep.lin body: conditional unitary target is not a captured linear "
-                          "value");
-    }
-    targets.append(it->second.begin(), it->second.end());
-  }
-
-  SmallVector<Value> targetsOut;
-  if (!negatedBit) {
-    // Identity under a condition: nothing to emit.
-    targetsOut = targets;
-  } else {
-    SmallVector<Value> controls = applyPolarityConjugation(predicate);
-    auto ctrl =
-        qco::CtrlOp::create(builder, loc, controls, targets, [&](ValueRange blockTargets) -> SmallVector<Value> {
-          SmallVector<Value> yielded(blockTargets.begin(), blockTargets.end());
-          yielded[*negatedBit] = emitX(yielded[*negatedBit]);
-          return yielded;
-        });
-    undoPolarityConjugation(predicate, ctrl.getControlsOut());
-    targetsOut.append(ctrl.getTargetsOut().begin(), ctrl.getTargetsOut().end());
-  }
-
-  // Slice the outputs back per if-result, following the else-branch
-  // (pass-through) operand widths.
-  unsigned offset = 0;
-  for (auto [result, passthrough] : llvm::zip_equal(ifOp.getResults(), elseYield.getOperands())) {
-    int64_t width = *getLinWidth(passthrough.getType());
-    structuralResults[result] = SmallVector<Value>(targetsOut.begin() + offset, targetsOut.begin() + offset + width);
-    offset += width;
-  }
-  return success();
-}
-
-LogicalResult LinLowering::classifyIf(scf::IfOp ifOp) {
-  std::optional<Predicate> predicate = evalPredicate(ifOp.getCondition());
-  if (!predicate) {
-    return failure();
-  }
-  bool linearResults = llvm::any_of(ifOp.getResultTypes(), isPrelimHLEPType);
-  if (!linearResults) {
-    return lowerConditionalPhase(ifOp, *predicate);
-  }
-  auto thenYield = cast<scf::YieldOp>(ifOp.thenBlock()->getTerminator());
-  if (thenYield.getNumOperands() == 1 && thenYield.getOperand(0).getDefiningOp<hlep::ConstantOp>()) {
-    return lowerConditionalConstant(ifOp, *predicate);
-  }
-  return lowerConditionalUnitary(ifOp, *predicate);
-}
-
-LogicalResult LinLowering::emitMeasurements(ValueRange auxResults) {
-  for (Value aux : auxResults) {
-    if (isPrelimHLEPType(aux.getType())) {
-      continue;
-    }
-    std::optional<Bits> bits = evalBits(aux);
-    if (!bits) {
-      return failure();
-    }
-    for (BitValue bit : *bits) {
-      if (bit.isConstant() || measured[bit.input]) {
-        continue;
-      }
-      auto measure = qco::MeasureOp::create(builder, loc, current[bit.input]);
-      current[bit.input] = measure.getQubitOut();
-      measured[bit.input] = true;
-      measuredBit[bit.input] = measure.getResult();
-    }
-  }
-  return success();
-}
-
-/// Materializes the qubit list for one delinearized output value: constant
-/// bits become fresh allocations, input bits are (possibly negated and)
-/// rewired.
-FailureOr<SmallVector<Value>> LinLowering::emitDelinearizedResult(Value output) {
-  std::optional<Bits> bits = evalBits(output);
-  if (!bits) {
-    return failure();
-  }
-  SmallVector<Value> qubits;
-  for (BitValue bit : *bits) {
-    if (bit.isConstant()) {
-      Value qubit = qco::AllocOp::create(builder, loc);
-      if (bit.flag) {
-        qubit = emitX(qubit);
-      }
-      qubits.push_back(qubit);
-      continue;
-    }
-    if (used[bit.input]) {
-      return op.emitError("unrecognized prelimhlep.lin body: input bit used in more than one output");
-    }
-    used[bit.input] = true;
-    Value qubit = current[bit.input];
-    if (bit.flag) {
-      qubit = emitX(qubit);
-    }
-    qubits.push_back(qubit);
-  }
-  return qubits;
-}
-
-/// Rebuilds a classical integer value from measured/constant bits.
-Value LinLowering::buildClassicalValue(const Bits& bits, Type type) {
-  unsigned width = cast<IntegerType>(type).getWidth();
-  auto bitValue = [&](BitValue bit) -> Value {
-    Value value = measuredBit[bit.input];
-    if (bit.flag) {
-      Value one = arith::ConstantOp::create(builder, loc, builder.getBoolAttr(true));
-      value = arith::XOrIOp::create(builder, loc, value, one);
-    }
-    return value;
-  };
-  if (width == 1) {
-    BitValue bit = bits.front();
-    if (bit.isConstant()) {
-      return arith::ConstantOp::create(builder, loc, builder.getBoolAttr(bit.flag));
-    }
-    return bitValue(bit);
-  }
-
-  uint64_t constantPart = 0;
-  for (unsigned j = 0; j < width; ++j) {
-    if (bits[j].isConstant() && bits[j].flag) {
-      constantPart |= uint64_t(1) << j;
-    }
-  }
-  Value accumulated = arith::ConstantOp::create(builder, loc, builder.getIntegerAttr(type, constantPart));
-  for (unsigned j = 0; j < width; ++j) {
-    BitValue bit = bits[j];
-    if (bit.isConstant()) {
-      continue;
-    }
-    Value extended = arith::ExtUIOp::create(builder, loc, type, bitValue(bit));
-    if (j > 0) {
-      Value amount = arith::ConstantOp::create(builder, loc, builder.getIntegerAttr(type, j));
-      extended = arith::ShLIOp::create(builder, loc, extended, amount);
-    }
-    accumulated = arith::OrIOp::create(builder, loc, accumulated, extended);
-  }
-  return accumulated;
-}
-
-LogicalResult LinLowering::run() {
-  Block& body = op.getBody().front();
-
-  // Seed the flattened input bits from the delinearized operands.
-  unsigned numBits = 0;
-  for (auto [arg, operand] : llvm::zip_equal(body.getArguments(), op.getDelinearizedOperands())) {
-    auto it = qubitMap.find(operand);
-    if (it == qubitMap.end()) {
-      return op.emitError("delinearized operand has no lowered qubits");
-    }
-    if (auto intType = dyn_cast<IntegerType>(arg.getType())) {
-      Bits bits;
-      for (unsigned j = 0; j < intType.getWidth(); ++j) {
-        bits.push_back(BitValue::makeInput(numBits + j, false));
-      }
-      bitsCache[arg] = bits;
-    } else {
-      return op.emitError("unrecognized prelimhlep.lin body: non-integer delinearized value");
-    }
-    current.append(it->second.begin(), it->second.end());
-    numBits += it->second.size();
-  }
-  used.assign(numBits, false);
-  measured.assign(numBits, false);
-  measuredBit.assign(numBits, Value());
-
-  // Handle at most one structural scf.if.
-  scf::IfOp structuralIf;
-  for (Operation& nested : body.without_terminator()) {
-    if (auto ifOp = dyn_cast<scf::IfOp>(nested)) {
-      if (structuralIf) {
-        return op.emitError("unrecognized prelimhlep.lin body: more than one conditional");
-      }
-      structuralIf = ifOp;
-    }
-  }
-  if (structuralIf && failed(classifyIf(structuralIf))) {
-    return failure();
-  }
-
-  auto output = cast<hlep::OutputOp>(body.getTerminator());
-
-  if (failed(emitMeasurements(output.getAuxiliaryResults()))) {
-    return failure();
-  }
-
-  // Delinearized (re-linearized) results.
-  SmallVector<SmallVector<Value>> resultQubits;
-  for (Value delinearized : output.getDelinearizedResults()) {
-    FailureOr<SmallVector<Value>> qubits = emitDelinearizedResult(delinearized);
-    if (failed(qubits)) {
-      return failure();
-    }
-    resultQubits.push_back(std::move(*qubits));
-  }
-
-  // Auxiliary results: carried linear values pass through; classical values
-  // are rebuilt from their measurement outcomes.
-  SmallVector<std::optional<SmallVector<Value>>> auxQubits;
-  SmallVector<Value> auxClassical;
-  for (Value aux : output.getAuxiliaryResults()) {
-    if (isPrelimHLEPType(aux.getType())) {
-      auxClassical.push_back(Value());
-      if (auto it = structuralResults.find(aux); it != structuralResults.end()) {
-        auxQubits.push_back(it->second);
-      } else if (auto it = qubitMap.find(aux); it != qubitMap.end()) {
-        auxQubits.push_back(it->second);
-      } else {
-        return op.emitError("unrecognized prelimhlep.lin body: carried linear value is neither captured nor produced "
-                            "by a recognized conditional");
-      }
-      continue;
-    }
-    std::optional<Bits> bits = evalBits(aux);
-    if (!bits) {
-      return failure();
-    }
-    auxQubits.push_back(std::nullopt);
-    auxClassical.push_back(buildClassicalValue(*bits, aux.getType()));
-  }
-
-  // Sink measured-and-dropped qubits; diagnose silently discarded ones.
-  for (unsigned k = 0; k < numBits; ++k) {
-    if (used[k]) {
-      continue;
-    }
-    if (measured[k]) {
-      qco::SinkOp::create(builder, loc, current[k]);
-    } else {
-      return op.emitError("unrecognized prelimhlep.lin body: input bit is discarded without measurement");
-    }
-  }
-
-  // Wire up the op's results: first the re-linearized delinearized results,
-  // then the auxiliary results.
-  unsigned resultIndex = 0;
-  for (SmallVector<Value>& qubits : resultQubits) {
-    qubitMap[op.getResult(resultIndex++)] = std::move(qubits);
-  }
-  for (auto [index, aux] : llvm::enumerate(output.getAuxiliaryResults())) {
-    Value result = op.getResult(resultIndex++);
-    if (auxQubits[index]) {
-      qubitMap[result] = std::move(*auxQubits[index]);
-    } else {
-      result.replaceAllUsesWith(auxClassical[index]);
-    }
-  }
-  return success();
+  return qco::POp::create(builder, loc, qubit, angle);
 }
 
 //===----------------------------------------------------------------------===//
@@ -888,12 +141,16 @@ private:
   LogicalResult lowerOp(Operation* operation);
   LogicalResult lowerConstant(hlep::ConstantOp constant);
   LogicalResult lowerExp(hlep::ExpOp exp);
+  LogicalResult lowerLin(hlep::LinOp lin);
   LogicalResult lowerCall(func::CallOp call);
   LogicalResult lowerReturn(func::ReturnOp ret);
 
   /// Looks up the qubit expansion of `value`; classical values expand to
   /// themselves.
   LogicalResult expandValue(Value value, SmallVectorImpl<Value>& out);
+
+  /// The single qubit a `!prelimhlep.lin<i1>` value lowers to.
+  FailureOr<Value> qubitOf(Operation* user, Value value);
 
   Type qubitType() { return qco::QubitType::get(fn.getContext()); }
 
@@ -1021,6 +278,133 @@ LogicalResult FunctionLowering::lowerExp(hlep::ExpOp exp) {
   return success();
 }
 
+FailureOr<Value> FunctionLowering::qubitOf(Operation* user, Value value) {
+  auto it = qubitMap.find(value);
+  if (it == qubitMap.end() || it->second.size() != 1) {
+    return user->emitError("operand has no lowered qubit");
+  }
+  return it->second.front();
+}
+
+/// Lowers one normal-form `lin` op. The shape verifier guarantees the
+/// operand/result layout of every shape, so only the tag is inspected.
+LogicalResult FunctionLowering::lowerLin(hlep::LinOp lin) {
+  Location loc = lin.getLoc();
+  std::optional<hlep::LinShape> shape = lin.getShape();
+  if (!shape) {
+    return lin.emitError("prelimhlep.lin is not in normal form; run --prelim-hlep-normalize-lin first");
+  }
+  opsToErase.push_back(lin);
+
+  switch (*shape) {
+  case hlep::LinShape::Alloc:
+    qubitMap[lin.getResult(0)] = {qco::AllocOp::create(builder, loc)};
+    return success();
+
+  case hlep::LinShape::Split: {
+    auto it = qubitMap.find(lin.getDelinearizedOperands()[0]);
+    if (it == qubitMap.end()) {
+      return lin.emitError("operand has no lowered qubits");
+    }
+    SmallVector<Value> qubits = it->second;
+    for (auto [result, qubit] : llvm::zip_equal(lin.getResults(), qubits)) {
+      qubitMap[result] = {qubit};
+    }
+    return success();
+  }
+
+  case hlep::LinShape::Join: {
+    SmallVector<Value> qubits;
+    for (Value operand : lin.getDelinearizedOperands()) {
+      FailureOr<Value> qubit = qubitOf(lin, operand);
+      if (failed(qubit)) {
+        return failure();
+      }
+      qubits.push_back(*qubit);
+    }
+    qubitMap[lin.getResult(0)] = std::move(qubits);
+    return success();
+  }
+
+  case hlep::LinShape::X: {
+    FailureOr<Value> qubit = qubitOf(lin, lin.getDelinearizedOperands()[0]);
+    if (failed(qubit)) {
+      return failure();
+    }
+    qubitMap[lin.getResult(0)] = {qco::XOp::create(builder, loc, qubitType(), *qubit)};
+    return success();
+  }
+
+  case hlep::LinShape::Measure:
+  case hlep::LinShape::MeasureDrop: {
+    FailureOr<Value> qubit = qubitOf(lin, lin.getDelinearizedOperands()[0]);
+    if (failed(qubit)) {
+      return failure();
+    }
+    auto measure = qco::MeasureOp::create(builder, loc, *qubit);
+    if (*shape == hlep::LinShape::Measure) {
+      qubitMap[lin.getResult(0)] = {measure.getQubitOut()};
+      lin.getResult(1).replaceAllUsesWith(measure.getResult());
+    } else {
+      qco::SinkOp::create(builder, loc, measure.getQubitOut());
+      lin.getResult(0).replaceAllUsesWith(measure.getResult());
+    }
+    return success();
+  }
+
+  case hlep::LinShape::Hadamard: {
+    FailureOr<Value> qubit = qubitOf(lin, lin.getDelinearizedOperands()[0]);
+    if (failed(qubit)) {
+      return failure();
+    }
+    Value rotated = qco::HOp::create(builder, loc, qubitType(), *qubit);
+    if (isa<hlep::YType>(cast<hlep::LinType>(lin.getResult(0).getType()).getElementType())) {
+      rotated = qco::SOp::create(builder, loc, qubitType(), rotated);
+    }
+    qubitMap[lin.getResult(0)] = {rotated};
+    return success();
+  }
+
+  case hlep::LinShape::Phase: {
+    FailureOr<Value> qubit = qubitOf(lin, lin.getDelinearizedOperands()[0]);
+    if (failed(qubit)) {
+      return failure();
+    }
+    qubitMap[lin.getResult(0)] = {emitPhaseGate(builder, loc, lin, *qubit)};
+    return success();
+  }
+
+  case hlep::LinShape::Ctrl: {
+    SmallVector<Value> controls;
+    for (Value operand : lin.getDelinearizedOperands()) {
+      FailureOr<Value> qubit = qubitOf(lin, operand);
+      if (failed(qubit)) {
+        return failure();
+      }
+      controls.push_back(*qubit);
+    }
+    FailureOr<Value> target = qubitOf(lin, hlep::getCtrlShapeTarget(lin));
+    if (failed(target)) {
+      return failure();
+    }
+    hlep::LinOp gate = hlep::getCtrlShapeGate(lin);
+    auto ctrl =
+        qco::CtrlOp::create(builder, loc, controls, ValueRange{*target}, [&](ValueRange targets) -> SmallVector<Value> {
+          if (*gate.getShape() == hlep::LinShape::X) {
+            return {qco::XOp::create(builder, loc, qubitType(), targets[0])};
+          }
+          return {emitPhaseGate(builder, loc, gate, targets[0])};
+        });
+    for (auto [result, control] : llvm::zip_equal(lin.getResults().drop_back(), ctrl.getControlsOut())) {
+      qubitMap[result] = {control};
+    }
+    qubitMap[lin.getResults().back()] = {ctrl.getTargetsOut()[0]};
+    return success();
+  }
+  }
+  llvm_unreachable("unknown LinShape");
+}
+
 LogicalResult FunctionLowering::lowerCall(func::CallOp call) {
   bool involvesPrelimHLEP =
       llvm::any_of(call.getOperandTypes(), isPrelimHLEPType) || llvm::any_of(call.getResultTypes(), isPrelimHLEPType);
@@ -1132,12 +516,7 @@ LogicalResult FunctionLowering::lowerOp(Operation* operation) {
     return lowerExp(exp);
   }
   if (auto lin = dyn_cast<hlep::LinOp>(operation)) {
-    LinLowering lowering(lin, builder, qubitMap);
-    if (failed(lowering.run())) {
-      return failure();
-    }
-    opsToErase.push_back(lin);
-    return success();
+    return lowerLin(lin);
   }
   if (auto call = dyn_cast<func::CallOp>(operation)) {
     return lowerCall(call);
@@ -1211,7 +590,7 @@ LogicalResult FunctionLowering::run() {
       return WalkResult::advance();
     }
     worklist.push_back(operation);
-    // The pattern library interprets lin bodies itself.
+    // Normal-form lin bodies are consumed by the shape lowering.
     return isa<hlep::LinOp>(operation) ? WalkResult::skip() : WalkResult::advance();
   });
   for (Operation* operation : worklist) {

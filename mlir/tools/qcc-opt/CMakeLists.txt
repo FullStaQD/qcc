@@ -33,6 +33,7 @@ target_link_libraries(
           QCCPrelimHLEPDialect
           QCCJaspToQC
           QCCPrelimHLEPToQCO
+          QCCPrelimHLEPTransforms
           MLIRFuncToLLVM
           MLIRVectorToLLVMPass
           QCCQVecTransforms

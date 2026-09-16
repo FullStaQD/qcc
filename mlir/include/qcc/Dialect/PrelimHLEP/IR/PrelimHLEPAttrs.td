@@ -4,6 +4,7 @@
 include "mlir/IR/AttrTypeBase.td"
 include "mlir/IR/BuiltinAttributeInterfaces.td"
 include "PrelimHLEPDialect.td"
+include "PrelimHLEPEnums.td"
 
 
 //===----------------------------------------------------------------------===//
@@ -100,6 +101,19 @@ def HamiltonianAttr : PrelimHLEPAttr<"Hamiltonian", "hamiltonian"> {
 
     let hasCustomAssemblyFormat = 1;
     let genVerifyDecl = 1;
+}
+
+def LinShapeAttr : EnumAttr<PrelimHLEPDialect, PrelimHLEP_LinShape, "shape"> {
+    let summary = "Tags a `prelimhlep.lin` op as one of the normal-form shapes.";
+    let description = [{
+        Attached as the optional `shape` attribute of `prelimhlep.lin`, and
+        printed as a bare keyword right after the op name (e.g.
+        `prelimhlep.lin x (...)`). The tag is a *claim* about the body, which
+        `LinOp`'s verifier checks against the shape's definition (see
+        "Normal form of `lin` ops" in the design doc), so a consumer such as
+        the QCO conversion may dispatch on the tag alone.
+    }];
+    let assemblyFormat = "$value";
 }
 
 #endif // INCLUDE_QCC_DIALECT_PRELIMHLEP_IR_PRELIMHLEPATTRS_TD_
