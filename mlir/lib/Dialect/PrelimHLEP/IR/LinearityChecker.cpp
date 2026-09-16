@@ -99,7 +99,7 @@ void getRegionSuccessors(RegionBranchOpInterface branchOp, Region* region,
     }
     auto terminator = dyn_cast<RegionBranchTerminatorOpInterface>(block.back());
     if (!terminator) {
-      successors.emplace_back(branchOp, branchOp->getResults());
+      successors.emplace_back(branchOp.getOperation());
       continue;
     }
     branchOp.getSuccessorRegions(RegionBranchPoint(terminator), successors);
@@ -177,7 +177,7 @@ LogicalResult checkBranchCoverage(const Twine& description, Operation* branchOp,
   // regions of `branchOp` and go straight to its results -- an `scf.if`
   // without an `else` region, for instance, lists its parent as an entry
   // successor.
-  bool hasParentBypass = llvm::any_of(successors, [](RegionSuccessor& s) { return s.isParent(); });
+  bool hasParentBypass = llvm::any_of(successors, [](RegionSuccessor& s) { return s.isOperation(); });
   for (const RegionSuccessor& successor : successors) {
     propagate(successor, kZeroUses); // Initializes the worklist.
   }
@@ -247,7 +247,7 @@ LogicalResult checkBranchCoverage(const Twine& description, Operation* branchOp,
         successors.clear();
         getRegionSuccessors(regionBranchOp, region, successors);
         bool leadsOutWithoutUse = llvm::any_of(successors, [&](RegionSuccessor& s) {
-          return s.isParent() || onUseFreeExitPath.contains(s.getSuccessor());
+          return s.isOperation() || onUseFreeExitPath.contains(s.getSuccessor());
         });
         if (leadsOutWithoutUse) {
           onUseFreeExitPath.insert(region);

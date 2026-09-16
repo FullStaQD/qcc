@@ -7,6 +7,7 @@
 //
 // ===----------------------------------------------------------------------===//
 
+#include "qcc/Constants.h"
 #include "qcc/Conversion/ToQIR/Constants.h"
 #include "qcc/Conversion/ToQIR/ToQIR.h"
 
@@ -38,14 +39,16 @@ protected:
     createVoidFnDecl(qcc::qirRtInit, 1);
     createRtBoolRecordOutputDecl();
     createRtIntRecordOutputDecl();
+    createRtArrayRecordOutputDecl();
+    createRtTupleRecordOutputDecl();
     createRtReadResultDecl();
 
     // QIS:
     auto fnMZ = createVoidFnDecl(qcc::qirQisMZ, 2);
     fnMZ.setArgAttr(1, "llvm.writeonly", builder.getUnitAttr());
-    fnMZ->setAttr("passthrough", builder.getStrArrayAttr({"irreversible"}));
+    fnMZ->setAttr(qcc::passthroughAttrName, builder.getStrArrayAttr({"irreversible"}));
     auto fnReset = createVoidFnDecl(qcc::qirQisReset, 1);
-    fnReset->setAttr("passthrough", builder.getStrArrayAttr({"irreversible"}));
+    fnReset->setAttr(qcc::passthroughAttrName, builder.getStrArrayAttr({"irreversible"}));
     createVoidFnDecl(qcc::qirQisH, 1);
     createVoidFnDecl(qcc::qirQisX, 1);
     createVoidFnDecl(qcc::qirQisS, 1);
@@ -120,6 +123,36 @@ private:
     auto fnType = LLVM::LLVMFunctionType::get(voidType, {i64Type, ptrType});
 
     LLVM::LLVMFuncOp::create(builder, moduleOp.getLoc(), qcc::qirRtIntRecordOutput, fnType);
+  }
+
+  /// Inserts `llvm.func` with signature `__quantum__rt__array_record_output(i1, ptr) -> void`.
+  void createRtArrayRecordOutputDecl() {
+    ModuleOp moduleOp = getOperation();
+    auto* ctx = moduleOp.getContext();
+    OpBuilder builder(ctx);
+    builder.setInsertionPointToEnd(moduleOp.getBody());
+
+    auto voidType = LLVM::LLVMVoidType::get(ctx);
+    auto i1Type = IntegerType::get(ctx, 1);
+    auto ptrType = LLVM::LLVMPointerType::get(ctx);
+    auto fnType = LLVM::LLVMFunctionType::get(voidType, {i1Type, ptrType});
+
+    LLVM::LLVMFuncOp::create(builder, moduleOp.getLoc(), qcc::qirRtArrayRecordOutput, fnType);
+  }
+
+  /// Inserts `llvm.func` with signature `__quantum__rt__tuple_record_output(i1, ptr) -> void`.
+  void createRtTupleRecordOutputDecl() {
+    ModuleOp moduleOp = getOperation();
+    auto* ctx = moduleOp.getContext();
+    OpBuilder builder(ctx);
+    builder.setInsertionPointToEnd(moduleOp.getBody());
+
+    auto voidType = LLVM::LLVMVoidType::get(ctx);
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto ptrType = LLVM::LLVMPointerType::get(ctx);
+    auto fnType = LLVM::LLVMFunctionType::get(voidType, {i64Type, ptrType});
+
+    LLVM::LLVMFuncOp::create(builder, moduleOp.getLoc(), qcc::qirRtTupleRecordOutput, fnType);
   }
 
   /// Creates the module flags which specify the capabilities which the backend needs to support.

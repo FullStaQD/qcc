@@ -14,6 +14,5 @@ add_mlir_library(
   MLIRQCDialect
   # Passes
   MLIRArithTransforms
-  MLIRQCToQIR
   QCCAuxOutputRecording
   QCCToQIR)

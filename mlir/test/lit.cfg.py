@@ -1,3 +1,4 @@
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -15,7 +16,7 @@ config.name = "QCC_MLIR_COMPILER"
 config.test_format = lit.formats.ShTest(execute_external=False)
 
 # suffixes: A list of file extensions to treat as test files.
-config.suffixes = [".mlir"]
+config.suffixes = [".mlir", ".test"]
 
 # test_source_root: The root path where tests are located.
 config.test_source_root = Path(__file__).parent
@@ -32,10 +33,10 @@ llvm_config.use_default_substitutions()
 config.excludes = []
 
 # Gate HiSEP-Q target tests: only available when qcc was built with the HiSEP-Q
-# target (QCC_ENABLE_HISEP_Q). Tests opt in via `REQUIRES: hisep-q` (or exclude
-# with `UNSUPPORTED: hisep-q`).
-if config.enable_hisep_q:
-    config.available_features.add("hisep-q")
+# target (QCC_ENABLE_HISEPQ). Tests opt in via `REQUIRES: hisepq` (or exclude
+# with `UNSUPPORTED: hisepq`).
+if config.enable_hisepq:
+    config.available_features.add("hisepq")
 
 # test_exec_root: The root path where tests should be run.
 config.test_exec_root = Path(config.project_binary_dir) / "test"
@@ -65,6 +66,21 @@ for candidate_dir in candidate_dirs:
 
 if not found:
     lit_config.fatal(f"Could not find qcc and qcc-opt anywhere under {base_tool_dir}.")
+
+if config.enable_hisepq:
+    llvm_config.add_tool_substitutions(["hisepq-elf2mem"], [str(candidate_dir)])
+
+    # Optional prebuilt HiSEP-Q testbench `sim_hisepq`: Provision it with
+    # `utils/provision-sim-hisepq`, or point CMake at your own build via
+    # `-DQCC_SIM_HISEPQ_EXECUTABLE=...`.
+    sim_hisepq = config.sim_hisepq_executable
+    if os.path.isfile(sim_hisepq) and os.access(sim_hisepq, os.X_OK):
+        config.available_features.add("sim-hisepq")
+        config.substitutions.append((r"\bsim_hisepq\b", sim_hisepq))
+
+# Tests opt in via `REQUIRES: lld`.
+if shutil.which("ld.lld", path=config.environment["PATH"]) is not None:
+    config.available_features.add("lld")
 
 # If `qir-runner` is not already available in the environment, fall back to
 # running it ephemerally via `uvx`.

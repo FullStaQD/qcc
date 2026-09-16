@@ -15,12 +15,7 @@
 
 #include "qcc/Target/TargetRegistry.h"
 
-#include <mlir/Pass/PassManager.h>
-
-namespace llvm {
-class Module;
-class raw_pwrite_stream;
-} // namespace llvm
+#include "mlir/Pass/PassManager.h"
 
 namespace qcc {
 

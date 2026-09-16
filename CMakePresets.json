@@ -68,15 +68,6 @@
       }
     },
     {
-      "name": "debug-windows",
-      "inherits": "base-windows",
-      "displayName": "debug config (Windows)",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "LLVM_ENABLE_ASSERTIONS": "ON"
-      }
-    },
-    {
       "name": "release-windows",
       "inherits": "base-windows",
       "displayName": "release config (Windows)",
@@ -103,11 +94,6 @@
       "configurePreset": "lint"
     },
     {
-      "name": "debug-windows",
-      "configurePreset": "debug-windows",
-      "configuration": "Debug"
-    },
-    {
       "name": "release-windows",
       "configurePreset": "release-windows",
       "configuration": "Release"
@@ -131,12 +117,6 @@
       "name": "release",
       "inherits": "base",
       "configurePreset": "release"
-    },
-    {
-      "name": "debug-windows",
-      "inherits": "base",
-      "configurePreset": "debug-windows",
-      "configuration": "Debug"
     },
     {
       "name": "release-windows",

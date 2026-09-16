@@ -12,7 +12,7 @@
 #include "qcc/Config/Config.h"
 #include "qcc/Target/QIR/QIRTarget.h"
 
-#if QCC_ENABLE_HISEP_Q
+#if QCC_ENABLE_HISEPQ
 #include "qcc/Target/HiSEPQ/HiSEPQTarget.h"
 #endif
 
@@ -25,8 +25,8 @@ llvm::ArrayRef<Target> getTargets() {
       {.name = "qir",
        .description = "QIR (LLVM-based) target",
        .addLoweringPasses = [](mlir::PassManager& pm) { addLoweringPassesQIR(pm); }},
-#if QCC_ENABLE_HISEP_Q
-      {.name = "hisep-q",
+#if QCC_ENABLE_HISEPQ
+      {.name = "hisepq",
        .description = "HiSEP-Q QISA target (RISC-V based)",
        .addLoweringPasses = [](mlir::PassManager& pm) { addLoweringPassesHiSEPQ(pm); },
        .emitNative = [](llvm::Module& module, llvm::raw_pwrite_stream& os,

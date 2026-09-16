@@ -1,0 +1,1 @@
+add_mlir_library(QCCTargetHiSEPQMem Elf2Mem.cpp LINK_COMPONENTS Object Support)

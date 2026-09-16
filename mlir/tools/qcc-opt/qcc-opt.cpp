@@ -11,11 +11,14 @@
 #include "qcc/Conversion/Aux_/AuxOutputRecording.h"
 #include "qcc/Conversion/JaspToQC/JaspToQC.h"
 #include "qcc/Conversion/PrelimHLEPToQCO/PrelimHLEPToQCO.h"
-#include "qcc/Conversion/ToIntrinsics/ToIntrinsics.h"
+#include "qcc/Conversion/QCOToQVec/QCOToQVec.h"
+#include "qcc/Conversion/ToHiSEPQ/ToHiSEPQ.h"
 #include "qcc/Conversion/ToQIR/ToQIR.h"
 #include "qcc/Dialect/Aux_/IR/Aux_.h"
 #include "qcc/Dialect/Jasp/IR/Jasp.h"
 #include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEP.h"
+#include "qcc/Dialect/QVec/IR/QVec.h"
+#include "qcc/Dialect/QVec/Transforms/Passes.h"
 
 #include "mlir/Conversion/ArithToLLVM/ArithToLLVM.h"
 #include "mlir/Conversion/FuncToLLVM/ConvertFuncToLLVM.h"
@@ -45,6 +48,7 @@
 #include "mlir/Dialect/SCF/Transforms/BufferizableOpInterfaceImpl.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Tensor/Transforms/BufferizableOpInterfaceImpl.h"
+#include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/Tools/mlir-opt/MlirOptMain.h"
@@ -69,10 +73,12 @@ int main(int argc, char** argv) {
     mlir::memref::MemRefDialect,
     mlir::LLVM::LLVMDialect,
     mlir::DLTIDialect,
+    mlir::vector::VectorDialect,
     jasp::JaspDialect,
     mlir::qc::QCDialect,
     mlir::qco::QCODialect,
     qcc::aux::AuxDialect,
+    qcc::qvec::QVecDialect,
     qcc::prelimhlep::PrelimHLEPDialect
       // clang-format on
       >();
@@ -82,13 +88,13 @@ int main(int argc, char** argv) {
   mlir::registerCSEPass();
   mlir::registerArithToLLVMConversionPass();
   mlir::registerConvertControlFlowToLLVMPass();
+  mlir::registerConvertVectorToLLVMPass();
   mlir::registerConvertLinalgToLoopsPass();
   mlir::bufferization::registerEmptyTensorToAllocTensorPass();
   mlir::bufferization::registerOneShotBufferizePass();
-  mlir::registerLinalgDetensorizePass();
   mlir::bufferization::registerBufferLoopHoistingPass();
   mlir::registerMem2RegPass();
-  mlir::registerSCCP();
+  mlir::registerSCCPPass();
   mlir::bufferization::registerPromoteBuffersToStackPass();
   mlir::registerInlinerPass();
   mlir::affine::registerAffineLoopUnroll();
@@ -105,7 +111,11 @@ int main(int argc, char** argv) {
   qcc::registerJaspCheckStaticQubitAllocation();
   qcc::registerConvertMemrefToStaticQubits();
   mlir::registerConvertFuncToLLVMPass();
-  qcc::registerConvertQIRToIntrinsics();
+  qcc::registerConvertQIRToHiSEPQIntrinsics();
+  qcc::registerEmitHiSEPQStart();
+  qcc::registerConvertQCOToQVec();
+  qcc::registerConvertQVecToHiSEPQIntrinsics();
+  qcc::registerQVecMerge();
   qcc::registerPrelimHLEPToQCO();
 
   // Extension registration

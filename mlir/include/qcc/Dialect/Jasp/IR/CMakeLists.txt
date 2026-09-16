@@ -14,3 +14,5 @@ set(LLVM_TARGET_DEFINITIONS ${PROJECT_SOURCE_DIR}/third-party/qrisp/JaspOps.td)
 mlir_tablegen(JaspOps.h.inc -gen-op-decls)
 mlir_tablegen(JaspOps.cpp.inc -gen-op-defs)
 add_public_tablegen_target(QCCJaspOpsIncGen)
+
+add_qcc_doc(${PROJECT_SOURCE_DIR}/third-party/qrisp/JaspOps JaspDialect Dialects/ -gen-dialect-doc -dialect=jasp)

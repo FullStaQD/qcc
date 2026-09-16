@@ -1,0 +1,5 @@
+{{- /* Relative path from the current page to the site's index.html, at any
+nesting depth. */ -}} {{- $depth := sub (len (split .RelPermalink "/")) 2 -}}
+{{- $prefix := "" -}} {{- range seq $depth }}{{ $prefix = print $prefix "../"
+}}{{ end -}} {{- if eq $prefix "" }}{{ $prefix = "./" }}{{ end -}} {{- printf
+"%sindex.html" $prefix -}}

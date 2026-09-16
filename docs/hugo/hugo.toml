@@ -1,0 +1,7 @@
+baseURL = "/"
+title = "qcc docs"
+# Makes the generated site plain double-click-and-browse friendly: links resolve relative to the
+# current page and point at real *.html files, so it works straight off disk via file:// with no
+# web server involved.
+relativeURLs = true
+uglyURLs = true

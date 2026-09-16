@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{ block "title" . }}{{ .Site.Title }}{{ end }}</title>
+    <style>
+      :root {
+        --bg: #ffffff;
+        --fg: #1c1e21;
+        --muted: #5b6470;
+        --sidebar-bg: #f6f7f8;
+        --border: #e2e5e9;
+        --link: #1a73e8;
+        --code-bg: #f0f1f3;
+        --heading: #16181d;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #1a1b1e;
+          --fg: #d7dadf;
+          --muted: #9aa2ac;
+          --sidebar-bg: #202124;
+          --border: #33353a;
+          --link: #6ab0ff;
+          --code-bg: #26282c;
+          --heading: #f0f1f3;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial,
+          sans-serif;
+        line-height: 1.55;
+        display: flex;
+        min-height: 100vh;
+      }
+      nav.sidebar {
+        flex: 0 0 260px;
+        background: var(--sidebar-bg);
+        border-right: 1px solid var(--border);
+        padding: 1.5rem 1rem;
+        overflow-y: auto;
+      }
+      nav.sidebar h1 {
+        font-size: 1.05rem;
+        margin: 0 0 1rem;
+      }
+      nav.sidebar h1 a {
+        color: var(--heading);
+        text-decoration: none;
+      }
+      nav.sidebar h2 {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--muted);
+        margin: 1.25rem 0 0.4rem;
+      }
+      nav.sidebar ul {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      nav.sidebar li {
+        margin: 0.15rem 0;
+      }
+      nav.sidebar a {
+        color: var(--fg);
+        text-decoration: none;
+        font-size: 0.9rem;
+      }
+      nav.sidebar a:hover {
+        color: var(--link);
+      }
+      main {
+        flex: 1;
+        min-width: 0;
+        padding: 2rem 2.5rem 4rem;
+        max-width: 860px;
+      }
+      h1,
+      h2,
+      h3,
+      h4 {
+        color: var(--heading);
+        line-height: 1.25;
+      }
+      a {
+        color: var(--link);
+      }
+      code {
+        background: var(--code-bg);
+        padding: 0.1em 0.35em;
+        border-radius: 4px;
+        font-size: 0.9em;
+      }
+      pre {
+        background: var(--code-bg);
+        padding: 0.9rem 1rem;
+        border-radius: 6px;
+        overflow-x: auto;
+      }
+      pre code {
+        background: none;
+        padding: 0;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        margin: 1rem 0;
+      }
+      th,
+      td {
+        border: 1px solid var(--border);
+        padding: 0.4rem 0.6rem;
+        text-align: left;
+        font-size: 0.92rem;
+      }
+      th {
+        background: var(--sidebar-bg);
+      }
+      hr {
+        border: none;
+        border-top: 1px solid var(--border);
+      }
+    </style>
+  </head>
+  <body>
+    <nav class="sidebar">
+      <h1><a href="{{ partial `home-link.html` . }}">{{ .Site.Title }}</a></h1>
+      {{ range .Site.Sections }}
+      <h2>{{ .Title }}</h2>
+      <ul>
+        {{ range .Pages }}
+        <li><a href="{{ .RelPermalink }}">{{ .File.ContentBaseName }}</a></li>
+        {{ end }}
+      </ul>
+      {{ end }}
+    </nav>
+    <main>{{ block "main" . }}{{ end }}</main>
+  </body>
+</html>

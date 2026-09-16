@@ -1,6 +1,10 @@
 // RUN: qcc %s -o %t.ll
 // RUN: FileCheck %s --check-prefix=CHECK-QIR < %t.ll
-// RUN: qir-runner --file %t.ll -s 5 | FileCheck %s --check-prefix=CHECK-SIM
+// qir-runner links against an older LLVM that cannot parse the `f0x...` floating-point literal syntax LLVM 23 now emits
+// in textual IR (see https://github.com/llvm/llvm-project/pull/190649), so feed it bitcode instead, which is
+// unaffected. TODO: revert back to text once qir-runner fixes this.
+// RUN: qcc %s -o %t.bc --binary
+// RUN: qir-runner --file %t.bc -s 5 | FileCheck %s --check-prefix=CHECK-SIM
 
 // GENERATED FROM QRISP VERSION 0.9.6
 

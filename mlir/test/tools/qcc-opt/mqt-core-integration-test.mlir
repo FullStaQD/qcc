@@ -1,7 +1,7 @@
 // RUN: qcc-opt %s | FileCheck %s
 module {
   func.func @main() -> i64 attributes {passthrough = ["entry_point"]} {
-    %0 = qc.alloc("q", 1, 0) : !qc.qubit
+    %0 = qc.alloc : !qc.qubit
     qc.x %0 : !qc.qubit
     qc.dealloc %0 : !qc.qubit
     %c0_i64 = arith.constant 0 : i64
@@ -10,7 +10,7 @@ module {
 }
 
 // CHECK-LABEL: @main
-// CHECK: [[q0:%.+]] = qc.alloc("q", 1, 0) : !qc.qubit
+// CHECK: [[q0:%.+]] = qc.alloc : !qc.qubit
 // CHECK: qc.x [[q0]] : !qc.qubit
 // CHECK: qc.dealloc [[q0]] : !qc.qubit
 // CHECK: [[c0_i64:%.+]] = arith.constant 0 : i64

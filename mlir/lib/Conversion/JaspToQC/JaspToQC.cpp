@@ -302,10 +302,13 @@ private:
       QCOp::create(rewriter, op.getLoc(), operands[targetOperandIndices]...,
                    operands[paramOperandIndices + paramIndexOffset]...);
     } else {
-      qc::CtrlOp::create(rewriter, op.getLoc(), operands.take_front(numControls), [&]() {
-        QCOp::create(rewriter, op.getLoc(), operands[targetOperandIndices + targetIndexOffset]...,
-                     operands[paramOperandIndices + paramIndexOffset]...);
-      });
+      // `qc.ctrl` takes its targets as operands and aliases them to the block arguments of its
+      // body region, so the nested gate must be built on those block arguments.
+      qc::CtrlOp::create(rewriter, op.getLoc(), operands.take_front(numControls),
+                         operands.slice(targetIndexOffset, numTargets), [&](ValueRange targets) {
+                           QCOp::create(rewriter, op.getLoc(), targets[targetOperandIndices]...,
+                                        operands[paramOperandIndices + paramIndexOffset]...);
+                         });
     }
 
     rewriter.eraseOp(op);

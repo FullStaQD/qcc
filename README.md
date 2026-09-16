@@ -15,7 +15,7 @@ This project is currently in its **infant stages**, so we are keeping things "in
 
 ---
 
-# Compiler
+# QCC Compiler
 
 The structure of the project follows that of standard MLIR compilers.
 The root directory is `mlir`, which contains all the source code.
@@ -127,6 +127,19 @@ cmake --build build/dev --target check-qcc
 
 # Run specific tests (filters by filename):
 lit build/dev/mlir/test/ -v --filter "convert"
+```
+
+---
+
+## Docs
+
+Build docs like so:
+
+```shell
+# Just the markdown files:
+cmake --build build/dev/ --target qcc-doc
+# For the html (open with browser at generated index.html). Needs hugo (e.g. apt install hugo on ubuntu).
+cmake --build build/dev/ --target qcc-doc-html
 ```
 
 ---

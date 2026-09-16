@@ -14,5 +14,5 @@
 #pragma once
 
 // Non-zero when qcc was built with the HiSEP-Q target. Use with `#if
-// QCC_ENABLE_HISEP_Q`.
-#cmakedefine01 QCC_ENABLE_HISEP_Q
+// QCC_ENABLE_HISEPQ`.
+#cmakedefine01 QCC_ENABLE_HISEPQ

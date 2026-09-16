@@ -58,22 +58,27 @@ module @jasp_module {
 // CHECK:           qc.ry({{.*}}) [[Q0]] : !qc.qubit
 // CHECK:           qc.rz({{.*}}) [[Q0]] : !qc.qubit
 // CHECK:           qc.u({{.*}}, {{.*}}, {{.*}}) [[Q0]] : !qc.qubit
-// CHECK:           qc.ctrl([[Q0]]) {
-// CHECK:             qc.x [[Q1]] : !qc.qubit
-// CHECK:           } : !qc.qubit
-// CHECK:           qc.ctrl([[Q0]]) {
-// CHECK:             qc.y [[Q1]] : !qc.qubit
-// CHECK:           } : !qc.qubit
-// CHECK:           qc.ctrl([[Q0]]) {
-// CHECK:             qc.z [[Q1]] : !qc.qubit
-// CHECK:           } : !qc.qubit
+// CHECK:           qc.ctrl([[Q0]]) targets ([[T_X:%.+]] = [[Q1]]) {
+// CHECK:             qc.x [[T_X]] : !qc.qubit
+// CHECK:             qc.yield
+// CHECK:           } : {{.*!qc.qubit.*!qc.qubit.*}}
+// CHECK:           qc.ctrl([[Q0]]) targets ([[T_Y:%.+]] = [[Q1]]) {
+// CHECK:             qc.y [[T_Y]] : !qc.qubit
+// CHECK:             qc.yield
+// CHECK:           } : {{.*!qc.qubit.*!qc.qubit.*}}
+// CHECK:           qc.ctrl([[Q0]]) targets ([[T_Z:%.+]] = [[Q1]]) {
+// CHECK:             qc.z [[T_Z]] : !qc.qubit
+// CHECK:             qc.yield
+// CHECK:           } : {{.*!qc.qubit.*!qc.qubit.*}}
 // CHECK:           qc.swap [[Q0]], [[Q1]] : !qc.qubit, !qc.qubit
-// CHECK:           qc.ctrl([[Q0]]) {
-// CHECK:             qc.p({{.*}}) [[Q1]] : !qc.qubit
-// CHECK:           } : !qc.qubit
-// CHECK:           qc.ctrl([[Q0]]) {
-// CHECK:             qc.rz({{.*}}) [[Q1]] : !qc.qubit
-// CHECK:           } : !qc.qubit
+// CHECK:           qc.ctrl([[Q0]]) targets ([[T_P:%.+]] = [[Q1]]) {
+// CHECK:             qc.p({{.*}}) [[T_P]] : !qc.qubit
+// CHECK:             qc.yield
+// CHECK:           } : {{.*!qc.qubit.*!qc.qubit.*}}
+// CHECK:           qc.ctrl([[Q0]]) targets ([[T_RZ:%.+]] = [[Q1]]) {
+// CHECK:             qc.rz({{.*}}) [[T_RZ]] : !qc.qubit
+// CHECK:             qc.yield
+// CHECK:           } : {{.*!qc.qubit.*!qc.qubit.*}}
 // CHECK:           qc.rxx({{.*}}) [[Q0]], [[Q1]] : !qc.qubit, !qc.qubit
 // CHECK:           qc.rzz({{.*}}) [[Q0]], [[Q1]] : !qc.qubit, !qc.qubit
 // CHECK:           qc.xx_plus_yy({{.*}}, {{.*}}) [[Q0]], [[Q1]] : !qc.qubit, !qc.qubit

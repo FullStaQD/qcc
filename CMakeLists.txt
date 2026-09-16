@@ -1,9 +1,9 @@
 cmake_minimum_required(VERSION 3.24...4.2)
 
 project(
-  fullstaqd-compiler # TODO: rename according to the final name when it is decided
-  DESCRIPTION "FullStaQD compiler project"
-  LANGUAGES CXX C)
+  qcc
+  DESCRIPTION "Quantum Compiler Collection, part of FullStaQD"
+  LANGUAGES C CXX)
 
 if(NOT DEFINED CMAKE_CXX_STANDARD OR CMAKE_CXX_STANDARD LESS 20)
   set(CMAKE_CXX_STANDARD
@@ -21,7 +21,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_BINDIR})
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR})
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR})
 
-option(QCC_ENABLE_HISEP_Q "Build the HiSEP-Q target" OFF)
+option(QCC_ENABLE_HISEPQ "Build the HiSEP-Q target" OFF)
 
 # ExternalDependencies MUST be included before SetupMLIR. `mqt-core` calls find_package(MLIR) internally. Setting up
 # MLIR here before they are done with the build would create conflicts.

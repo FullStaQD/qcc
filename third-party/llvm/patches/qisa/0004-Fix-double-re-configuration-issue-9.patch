@@ -1,0 +1,92 @@
+From c3be8f83012c6c23ec57055654f4809b6e4af9c7 Mon Sep 17 00:00:00 2001
+From: Reinhard Stahn <rainij36@proton.me>
+Date: Thu, 3 Sep 2026 15:24:12 +0200
+Subject: [PATCH 4/4] Fix double re-configuration issue (#9)
+
+In QCC we suffer from double configurations like this (note that the two configurations are identical):
+
+```riscv
+	vsetivli	zero, 8, e8, mf2, ta, ma
+	vid.v	v8
+	li	a0, 8
+	vsetvli	zero, a0, e8, mf2, ta, ma
+	qv.h	v8, zero, 0
+```
+
+After the fix we now emit the much cleaner assembly which uses the immediate format also for the `qv` instructions:
+
+```riscv
+	vsetivli	zero, 8, e8, mf2, ta, ma
+	vid.v	v8
+	qv.h	v8, zero, 0
+```
+---
+ llvm/lib/Target/RISCV/RISCVInstrInfoXQV.td |  6 +++---
+ llvm/test/CodeGen/RISCV/rv32xqv-bell.ll    | 23 +++++++++++-----------
+ 2 files changed, 14 insertions(+), 15 deletions(-)
+
+diff --git a/llvm/lib/Target/RISCV/RISCVInstrInfoXQV.td b/llvm/lib/Target/RISCV/RISCVInstrInfoXQV.td
+index 3cb44a45694c..d7d0cfe08352 100644
+--- a/llvm/lib/Target/RISCV/RISCVInstrInfoXQV.td
++++ b/llvm/lib/Target/RISCV/RISCVInstrInfoXQV.td
+@@ -46,13 +46,13 @@ multiclass RVPseudoQVPair {
+   }
+ }
+ 
+-// Patterns to match the intrinsics to the Pseudos
++// Patterns to match the intrinsics to the Pseudos.
+ multiclass RVPatQVSingle<string intrinsic, string inst> {
+   foreach vti = SupportedQVVTypes in {
+     let Predicates = GetVTypeMinimalPredicates<vti>.Predicates in {
+       def : Pat<(!cast<Intrinsic>(intrinsic) (vti.Vector vti.RegClass:$vs1),
+                                              (XLenVT GPR:$rs2), 
+-                                             (XLenVT uimm5:$block_imm), (XLenVT GPR:$vl)),
++                                             (XLenVT uimm5:$block_imm), VLOpFrag),
+                 (!cast<Instruction>(inst#"_"#vti.LMul.MX) vti.RegClass:$vs1,
+                                                           GPR:$rs2, uimm5:$block_imm,
+                                                           GPR:$vl, vti.Log2SEW)>;
+@@ -64,7 +64,7 @@ multiclass RVPatQVPair<string intrinsic, string inst> {
+   foreach vti = SupportedQVVTypes in {
+     def : Pat<(!cast<Intrinsic>(intrinsic) (vti.Vector vti.RegClass:$vs1),
+                                            (vti.Vector vti.RegClass:$vs2),
+-                                           (XLenVT uimm5:$block_imm), (XLenVT GPR:$vl)),
++                                           (XLenVT uimm5:$block_imm), VLOpFrag),
+               (!cast<Instruction>(inst#"_"#vti.LMul.MX) vti.RegClass:$vs1,
+                                                         vti.RegClass:$vs2,
+                                                         uimm5:$block_imm,
+diff --git a/llvm/test/CodeGen/RISCV/rv32xqv-bell.ll b/llvm/test/CodeGen/RISCV/rv32xqv-bell.ll
+index e1b6ce6f4fc1..2a3abdfe104b 100644
+--- a/llvm/test/CodeGen/RISCV/rv32xqv-bell.ll
++++ b/llvm/test/CodeGen/RISCV/rv32xqv-bell.ll
+@@ -35,17 +35,16 @@ attributes #0 = { "target-features"="+experimental-xqv" }
+ 
+ ; CHECK-LABEL: load_vectors:
+ ; CHECK:       # %bb.0: # %entry
+-; CHECK-NEXT:    lui [[A0:a[0-9]+]], %hi(ctrl_qubits)
+-; CHECK-NEXT:    addi [[A0]], [[A0]], %lo(ctrl_qubits)
+-; CHECK-NEXT:    lui [[A1:a[0-9]+]], %hi(tgt_qubits)
+-; CHECK-NEXT:    addi [[A1]], [[A1]], %lo(tgt_qubits)
+-; CHECK-NEXT:    vl1r.v [[VCTRL:v[0-9]+]], ([[A0]])
+-; CHECK-NEXT:    vl1r.v [[VTGT:v[0-9]+]], ([[A1]])
+-; CHECK-NEXT:    li [[A0]], 4
+-; CHECK-NEXT:    li [[A1]], 85
+-; CHECK-NEXT:    vsetvli zero, [[A0]], e8, m1, ta, ma
+-; CHECK-NEXT:    qv.h [[VCTRL]], [[A1]], 12
++; CHECK-NEXT:    lui [[CTRL:a[0-9]+]], %hi(ctrl_qubits)
++; CHECK-NEXT:    addi [[CTRL]], [[CTRL]], %lo(ctrl_qubits)
++; CHECK-NEXT:    vl1r.v [[VCTRL:v[0-9]+]], ([[CTRL]])
++; CHECK-NEXT:    lui [[TGT:a[0-9]+]], %hi(tgt_qubits)
++; CHECK-NEXT:    addi [[TGT]], [[TGT]], %lo(tgt_qubits)
++; CHECK-NEXT:    vl1r.v [[VTGT:v[0-9]+]], ([[TGT]])
++; CHECK-NEXT:    li [[RS2:a[0-9]+]], 85
++; CHECK-NEXT:    vsetivli zero, 4, e8, m1, ta, ma
++; CHECK-NEXT:    qv.h [[VCTRL]], [[RS2]], 12
+ ; CHECK-NEXT:    qv.cx [[VCTRL]], [[VTGT]], 12
+-; CHECK-NEXT:    qv.mz [[VCTRL]], [[A1]], 12
+-; CHECK-NEXT:    qv.mz [[VTGT]], [[A1]], 12
++; CHECK-NEXT:    qv.mz [[VCTRL]], [[RS2]], 12
++; CHECK-NEXT:    qv.mz [[VTGT]], [[RS2]], 12
+ ; CHECK-NEXT:    ret
+-- 
+2.51.1
+

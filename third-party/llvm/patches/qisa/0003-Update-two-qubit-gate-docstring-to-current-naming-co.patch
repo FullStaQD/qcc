@@ -1,0 +1,122 @@
+From f1c92117f9e3409c570754c4ac26dc8a4ed6a328 Mon Sep 17 00:00:00 2001
+From: Enrique NB <enrique@naranjobejarano.com>
+Date: Thu, 3 Sep 2026 14:19:01 +0200
+Subject: [PATCH 3/4] Update two-qubit gate docstring to current naming
+ convention (#8)
+
+---
+ llvm/include/llvm/IR/IntrinsicsRISCVXQV.td    |  6 ++---
+ llvm/lib/Target/RISCV/RISCVInstrFormatsXQV.td |  9 +++----
+ llvm/test/CodeGen/RISCV/rv32xqv-bell.ll       | 24 +++++++++----------
+ llvm/test/MC/RISCV/rv32xqv-valid.s            |  2 +-
+ 4 files changed, 21 insertions(+), 20 deletions(-)
+
+diff --git a/llvm/include/llvm/IR/IntrinsicsRISCVXQV.td b/llvm/include/llvm/IR/IntrinsicsRISCVXQV.td
+index c1641289f71a..2324fee0049f 100644
+--- a/llvm/include/llvm/IR/IntrinsicsRISCVXQV.td
++++ b/llvm/include/llvm/IR/IntrinsicsRISCVXQV.td
+@@ -12,7 +12,7 @@
+ 
+ // QV.SINGLE vs1, rs2, Block_imm
+ class QVSingleIntrinsic : Intrinsic<[], // void return type
+-                     [llvm_anyvector_ty, // vs1 (tgt)
++                     [llvm_anyvector_ty, // vs1 (qubits)
+                       llvm_anyint_ty,    // rs2 (tag)
+                       llvm_anyint_ty,    // Block_imm (wait time)
+                       llvm_anyint_ty],   // vl
+@@ -20,8 +20,8 @@ class QVSingleIntrinsic : Intrinsic<[], // void return type
+     
+ // QV.Pair vs1, vs2, Block_imm
+ class QVPairIntrinsic : Intrinsic<[],
+-                     [llvm_anyvector_ty, // vs1 (tgt)
+-                      llvm_anyvector_ty, // vs2 (src)
++                     [llvm_anyvector_ty, // vs1
++                      llvm_anyvector_ty, // vs2
+                       llvm_anyint_ty,    // Block_imm (wait time)
+                       llvm_anyint_ty],   // vl
+                      [IntrHasSideEffects, IntrNoMem]>;
+diff --git a/llvm/lib/Target/RISCV/RISCVInstrFormatsXQV.td b/llvm/lib/Target/RISCV/RISCVInstrFormatsXQV.td
+index 97fbae8f12c1..51babc0c65be 100644
+--- a/llvm/lib/Target/RISCV/RISCVInstrFormatsXQV.td
++++ b/llvm/lib/Target/RISCV/RISCVInstrFormatsXQV.td
+@@ -19,7 +19,7 @@ defvar SupportedQVVTypes = [VI8MF4, VI8MF2, VI8M1, VI8M2, VI8M4, VI8M8];
+ // elem2 channel (e.g., as a software tag or timestamp).
+ // 31       25   24    20   19    15   14  12   11     7   6     0
+ // +---------+----------+----------+--------+----------+---------+
+-// |  GateID |   rs2    |  vs1 (S) | 000(S) | Block_imm| CUSTOM_0|
++// |  GateID |   rs2    |   vs1    | 000(S) | Block_imm| CUSTOM_0|
+ // +---------+----------+----------+--------+----------+---------+
+ 
+ class RVInstQVSingle<bits<7> gateid, string opcodestr>
+@@ -48,11 +48,12 @@ class RVInstQVSingle<bits<7> gateid, string opcodestr>
+ }
+ 
+ // QV.PAIR — Two-Qubit Gate
+-// Applies a two-qubit gate to element-wise pairs from vs2 (source/control)
+-// and vs1 (target).
++// Applies a two-qubit gate to element-wise pairs of the qubits listed
++// in vs1 and vs2. For a controlled gate, vs1 holds the control qubits
++// and vs2 the target qubits.
+ // 31       25   24    20   19    15   14  12   11     7   6     0
+ // +---------+----------+----------+--------+----------+---------+
+-// |  GateID | vs2(src) | vs1(tgt) | 001(P) | Block_imm| CUSTOM_0|
++// |  GateID |   vs2    |    vs1   | 001(P) | Block_imm| CUSTOM_0|
+ // +---------+----------+----------+--------+----------+---------+
+ 
+ class RVInstQVPair<bits<7> gateid, string opcodestr>
+diff --git a/llvm/test/CodeGen/RISCV/rv32xqv-bell.ll b/llvm/test/CodeGen/RISCV/rv32xqv-bell.ll
+index e898bf8fc0e7..e1b6ce6f4fc1 100644
+--- a/llvm/test/CodeGen/RISCV/rv32xqv-bell.ll
++++ b/llvm/test/CodeGen/RISCV/rv32xqv-bell.ll
+@@ -20,8 +20,9 @@ entry:
+   %ctrl = load <vscale x 8 x i8>, ptr @ctrl_qubits, align 8
+   %tgt  = load <vscale x 8 x i8>, ptr @tgt_qubits, align 8
+ 
+-  call void @llvm.riscv.qv.h.nxv8i8.i32.i32.i32(<vscale x 8 x i8> %tgt, i32 85, i32 12, i32 2)
+-  call void @llvm.riscv.qv.cx.nxv8i8.nxv8i8.i32.i32(<vscale x 8 x i8> %tgt, <vscale x 8 x i8> %ctrl, i32 12, i32 4)
++  call void @llvm.riscv.qv.h.nxv8i8.i32.i32.i32(<vscale x 8 x i8> %ctrl, i32 85, i32 12, i32 4)
++  call void @llvm.riscv.qv.cx.nxv8i8.nxv8i8.i32.i32(<vscale x 8 x i8> %ctrl, <vscale x 8 x i8> %tgt, i32 12, i32 4)
++  call void @llvm.riscv.qv.mz.nxv8i8.i32.i32.i32(<vscale x 8 x i8> %ctrl, i32 85, i32 12, i32 4)
+   call void @llvm.riscv.qv.mz.nxv8i8.i32.i32.i32(<vscale x 8 x i8> %tgt, i32 85, i32 12, i32 4)
+ 
+ ; TODO: output recording, e.g. via __quantum__rt__bool_record_output .
+@@ -38,14 +39,13 @@ attributes #0 = { "target-features"="+experimental-xqv" }
+ ; CHECK-NEXT:    addi [[A0]], [[A0]], %lo(ctrl_qubits)
+ ; CHECK-NEXT:    lui [[A1:a[0-9]+]], %hi(tgt_qubits)
+ ; CHECK-NEXT:    addi [[A1]], [[A1]], %lo(tgt_qubits)
+-; CHECK-NEXT:    vl1r.v [[V8:v[0-9]+]], ([[A1]])
+-; CHECK-NEXT:    li [[A1]], 2
+-; CHECK-NEXT:    vl1r.v [[V9:v[0-9]+]], ([[A0]])
+-; CHECK-NEXT:    li [[A0]], 85
+-; CHECK-NEXT:    vsetvli zero, [[A1]], e8, m1, ta, ma
+-; CHECK-NEXT:    qv.h [[V8]], [[A0]], 12
+-; CHECK-NEXT:    li [[A1]], 4
+-; CHECK-NEXT:    vsetvli zero, [[A1]], e8, m1, ta, ma
+-; CHECK-NEXT:    qv.cx [[V8]], [[V9]], 12
+-; CHECK-NEXT:    qv.mz [[V8]], [[A0]], 12
++; CHECK-NEXT:    vl1r.v [[VCTRL:v[0-9]+]], ([[A0]])
++; CHECK-NEXT:    vl1r.v [[VTGT:v[0-9]+]], ([[A1]])
++; CHECK-NEXT:    li [[A0]], 4
++; CHECK-NEXT:    li [[A1]], 85
++; CHECK-NEXT:    vsetvli zero, [[A0]], e8, m1, ta, ma
++; CHECK-NEXT:    qv.h [[VCTRL]], [[A1]], 12
++; CHECK-NEXT:    qv.cx [[VCTRL]], [[VTGT]], 12
++; CHECK-NEXT:    qv.mz [[VCTRL]], [[A1]], 12
++; CHECK-NEXT:    qv.mz [[VTGT]], [[A1]], 12
+ ; CHECK-NEXT:    ret
+diff --git a/llvm/test/MC/RISCV/rv32xqv-valid.s b/llvm/test/MC/RISCV/rv32xqv-valid.s
+index 387bca647f38..3e29388b191c 100644
+--- a/llvm/test/MC/RISCV/rv32xqv-valid.s
++++ b/llvm/test/MC/RISCV/rv32xqv-valid.s
+@@ -26,7 +26,7 @@ qv.x v8, a0, 12
+ # CHECK-ENCODING: [0x0b,0x06,0xa4,0xd0]
+ qv.mz v8, a0, 12
+ 
+-# qv.cx: two-qubit CNOT — qv.cx vs1(tgt), vs2(ctrl), block_imm
++# qv.cx: two-qubit CNOT — qv.cx vs1(ctrl), vs2(tgt), block_imm
+ # gateid=0b1100110, funct3=0b001
+ 
+ # CHECK-INST:     qv.cx v8, v9, 12
+-- 
+2.51.1
+
