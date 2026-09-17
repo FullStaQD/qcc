@@ -1,4 +1,4 @@
-// RUN: qcc --target=hisepq --min-vlen=64 --qubit-element-width=8 --compile-to=native %s | FileCheck %s
+// RUN: qcc --target=hisepq --compile-to=native %s | FileCheck %s
 
 // Exercising control flow constructs
 func.func @main() attributes { qcc.entry_point } {

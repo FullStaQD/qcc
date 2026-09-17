@@ -3,3 +3,5 @@
 
 // CHECK-LIST: qir
 // CHECK-LIST-HISEPQ: hisepq
+// CHECK-LIST-HISEPQ: -mattr=+zvl128b
+// CHECK-LIST-HISEPQ: -mattr=+qew16

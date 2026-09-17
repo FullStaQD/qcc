@@ -16,6 +16,6 @@
 namespace qcc {
 
 /// Assembles the whole compilation pipeline for qcc.
-void buildPipeline(mlir::PassManager& pm, const Target* target, const TargetOptions& targetOptions);
+void buildPipeline(mlir::PassManager& pm, const Target* target, llvm::ArrayRef<llvm::StringRef> features);
 
 } // namespace qcc

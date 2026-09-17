@@ -24,12 +24,15 @@ namespace qcc {
 /// TODO: Superseded by `addLoweringPassesHiSEPQ` and slated for removal.
 void addLoweringPassesHiSEPQViaQIR(mlir::PassManager& pm);
 
+/// `Target::features` for the HiSEP-Q target.
+extern const llvm::ArrayRef<Feature> hisepqFeatures;
+
 /// `Target::addLoweringPasses` for the HiSEP-Q target, going through `qvec`.
-void addLoweringPassesHiSEPQ(mlir::PassManager& pm, const TargetOptions& targetOptions);
+void addLoweringPassesHiSEPQ(mlir::PassManager& pm, llvm::ArrayRef<llvm::StringRef> features);
 
 /// `Target::emitNative` for the HiSEP-Q target: lowers the QV-intrinsic LLVM
 /// module to RISC-V assembly or an object file. Returns true on failure.
 bool emitNativeHiSEPQ(llvm::Module& module, llvm::raw_pwrite_stream& os, const NativeCodegenOptions& options,
-                      const TargetOptions& targetOptions);
+                      llvm::ArrayRef<llvm::StringRef> features);
 
 } // namespace qcc

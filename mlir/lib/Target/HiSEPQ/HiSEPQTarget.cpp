@@ -32,7 +32,6 @@
 #include "llvm/IR/Module.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/CodeGen.h"
-#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
@@ -45,17 +44,36 @@
 
 namespace qcc {
 
-/// Max qubits per QV instruction
-static unsigned maxVectorizationFactor(const TargetOptions& targetOptions) {
-  using hisepq::HiSEPQMachine;
-  if (!HiSEPQMachine::isSupportedMinVLen(targetOptions.minVLen) ||
-      !HiSEPQMachine::isSupportedQubitElementWidth(targetOptions.qubitElementWidth)) {
-    // TODO: that this branch is possible means the function has a design flaw. Returning "unlimited" here is plainly
-    // wrong.
-    return 0;
-  }
+static constexpr Feature hisepqFeatureTable[] = {
+    {"zvl64b", "Minimum vector length 64 bits (the default)"},
+    {"zvl128b", "Minimum vector length 128 bits"},
+    {"zvl256b", "Minimum vector length 256 bits"},
+    {"zvl512b", "Minimum vector length 512 bits"},
+    {"zvl1024b", "Minimum vector length 1024 bits"},
+    {"zvl2048b", "Minimum vector length 2048 bits"},
+    {"zvl4096b", "Minimum vector length 4096 bits"},
+    {"zvl8192b", "Minimum vector length 8192 bits"},
+    {"zvl16384b", "Minimum vector length 16384 bits"},
+    {"zvl32768b", "Minimum vector length 32768 bits"},
+    {"zvl65536b", "Minimum vector length 65536 bits"},
+    {"qew8", "8-bit qubit indices (the default)"},
+    {"qew16", "16-bit qubit indices"},
+};
+const llvm::ArrayRef<Feature> hisepqFeatures = hisepqFeatureTable;
 
-  return HiSEPQMachine(targetOptions.minVLen, targetOptions.qubitElementWidth).maxQubits();
+/// The machine `features` describe; the last of a kind wins.
+static hisepq::HiSEPQMachine machineFor(llvm::ArrayRef<llvm::StringRef> features) {
+  unsigned minVLen = 64;
+  unsigned qubitElementWidth = 8;
+  for (llvm::StringRef feature : features) {
+    if (feature.consume_front("zvl")) {
+      feature.consume_back("b");
+      feature.getAsInteger(10, minVLen);
+    } else if (feature.consume_front("qew")) {
+      feature.getAsInteger(10, qubitElementWidth);
+    }
+  }
+  return {minVLen, qubitElementWidth};
 }
 
 void addLoweringPassesHiSEPQViaQIR(mlir::PassManager& pm) {
@@ -64,18 +82,20 @@ void addLoweringPassesHiSEPQViaQIR(mlir::PassManager& pm) {
   pm.addPass(qcc::createEmitHiSEPQStart());
 }
 
-void addLoweringPassesHiSEPQ(mlir::PassManager& pm, const TargetOptions& targetOptions) {
+void addLoweringPassesHiSEPQ(mlir::PassManager& pm, llvm::ArrayRef<llvm::StringRef> features) {
+  const hisepq::HiSEPQMachine machine = machineFor(features);
+
   // qc -> qco -> qvec -> QV intrinsics
   pm.addPass(mlir::createQCToQCO());
   pm.addPass(qcc::createConvertQCOToQVec());
 
   QVecMergeOptions mergeOptions;
-  mergeOptions.maxVF = maxVectorizationFactor(targetOptions);
+  mergeOptions.maxVF = machine.maxQubits();
   pm.addPass(qcc::createQVecMerge(mergeOptions));
 
   ConvertQVecToHiSEPQIntrinsicsOptions intrinsicsOptions;
-  intrinsicsOptions.minVLen = targetOptions.minVLen;
-  intrinsicsOptions.qubitElementWidth = targetOptions.qubitElementWidth;
+  intrinsicsOptions.minVLen = machine.getMinVLen();
+  intrinsicsOptions.qubitElementWidth = machine.getQubitElementWidth();
   pm.addPass(qcc::createConvertQVecToHiSEPQIntrinsics(intrinsicsOptions));
 
   // Classical remainder to LLVM
@@ -93,7 +113,7 @@ void addLoweringPassesHiSEPQ(mlir::PassManager& pm, const TargetOptions& targetO
 }
 
 bool emitNativeHiSEPQ(llvm::Module& module, llvm::raw_pwrite_stream& os, const NativeCodegenOptions& options,
-                      const TargetOptions& targetOptions) {
+                      llvm::ArrayRef<llvm::StringRef> features) {
   // HiSEP-Q QISA is encoded as the experimental "xqv" RISC-V vector extension,
   // provided by the HiSEP-Q LLVM fork.
   LLVMInitializeRISCVTargetInfo();
@@ -102,7 +122,8 @@ bool emitNativeHiSEPQ(llvm::Module& module, llvm::raw_pwrite_stream& os, const N
   LLVMInitializeRISCVAsmPrinter();
   LLVMInitializeRISCVAsmParser();
 
-  const std::string attrsStr = "+experimental-xqv,+zvl" + std::to_string(targetOptions.minVLen) + "b";
+  // QEW is not forwarded; the backend does not know it.
+  const std::string attrsStr = "+experimental-xqv,+zvl" + std::to_string(machineFor(features).getMinVLen()) + "b";
   llvm::Triple triple(llvm::Triple::normalize("riscv32-unknown-unknown"));
 
   std::string errorStr;

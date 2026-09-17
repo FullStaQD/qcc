@@ -16,6 +16,9 @@
 #include "qcc/Target/HiSEPQ/HiSEPQTarget.h"
 #endif
 
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/Support/raw_ostream.h"
+
 #include <vector>
 
 namespace qcc {
@@ -25,16 +28,16 @@ llvm::ArrayRef<Target> getTargets() {
       {.name = "qir",
        .description = "QIR (LLVM-based) target",
        .addLoweringPasses = [](mlir::PassManager& pm,
-                               const TargetOptions& /*targetOptions*/) { addLoweringPassesQIR(pm); }},
+                               llvm::ArrayRef<llvm::StringRef> /*features*/) { addLoweringPassesQIR(pm); }},
 #if QCC_ENABLE_HISEPQ
       {.name = "hisepq",
        .description = "HiSEP-Q QISA target (RISC-V based)",
+       .features = hisepqFeatures,
        .addLoweringPasses = [](mlir::PassManager& pm,
-                               const TargetOptions& targetOptions) { addLoweringPassesHiSEPQ(pm, targetOptions); },
+                               llvm::ArrayRef<llvm::StringRef> features) { addLoweringPassesHiSEPQ(pm, features); },
        .emitNative =
            [](llvm::Module& module, llvm::raw_pwrite_stream& os, const NativeCodegenOptions& options,
-              const TargetOptions& targetOptions) { return emitNativeHiSEPQ(module, os, options, targetOptions); },
-       .usesMachineOptions = true},
+              llvm::ArrayRef<llvm::StringRef> features) { return emitNativeHiSEPQ(module, os, options, features); }},
 #endif
   };
 
@@ -48,6 +51,22 @@ const Target* lookupTarget(llvm::StringRef name) {
     }
   }
   return nullptr;
+}
+
+mlir::FailureOr<llvm::SmallVector<llvm::StringRef>> parseFeatures(const Target& target, llvm::StringRef mattr) {
+  llvm::SmallVector<llvm::StringRef> flags;
+  mattr.split(flags, ',', /*MaxSplit=*/-1, /*KeepEmpty=*/false);
+
+  llvm::SmallVector<llvm::StringRef> names;
+  for (const llvm::StringRef flag : flags) {
+    const llvm::StringRef name = flag.starts_with("+") ? flag.drop_front() : "";
+    if (llvm::none_of(target.features, [&](const Feature& feature) { return feature.name == name; })) {
+      llvm::errs() << "error: unknown feature '" << flag << "' for --target=" << target.name << "\n";
+      return mlir::failure();
+    }
+    names.push_back(name);
+  }
+  return names;
 }
 
 } // namespace qcc

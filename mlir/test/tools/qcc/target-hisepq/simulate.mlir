@@ -3,7 +3,7 @@
 // Full HiSEP-Q integration test: compile, link, convert to a memory image, then actually execute that image on the
 // prebuilt RTL testbench.
 
-// RUN: qcc --target=hisepq --min-vlen=64 --qubit-element-width=8 --compile-to=native --binary %s -o %t.o
+// RUN: qcc --target=hisepq --compile-to=native --binary %s -o %t.o
 // RUN: ld.lld -T %project_source_dir/mlir/lib/Target/HiSEPQ/Scripts/hisepq.ld %t.o -o %t.elf
 // RUN: hisepq-elf2mem %t.elf -o %t.mem
 // RUN: sim_hisepq +MEM_FILE=%t.mem > %t.log
