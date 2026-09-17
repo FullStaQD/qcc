@@ -1,0 +1,46 @@
+// The Mojo frontend, end to end: `kgen` elaborates the kernel and writes it
+// out, `qcc --frontend=mojo-ir` translates the Mojo residue and lowers the
+// PrelimHLEP program to QCO.
+//
+// The CHECK lines are those of tools/qcc-opt/prelim-hlep-to-qco-grover-test.mlir,
+// which is the same program written directly in MLIR. That both files produce
+// the same circuit is the point: Mojo is a way of writing PrelimHLEP, not a
+// second language with its own semantics.
+//
+// REQUIRES: mojo-kernels
+// RUN: rm -rf %t && mkdir -p %t
+// RUN: %kgen --elaborate -O1 --emit-quantum-kernels=%t %mojo_kernels/grover.mojo
+// RUN: qcc --frontend=mojo-ir --compile-to=mlir %t/grover.mlir | FileCheck %s
+
+// CHECK-LABEL: func.func @grover() -> i4
+
+// State preparation.
+// CHECK-COUNT-4: qco.alloc
+
+// Three phase-tag/diffusion iterations, each pair lowered to a controlled Z.
+// CHECK: qco.ctrl
+// CHECK-NEXT: qco.z
+// CHECK-NEXT: qco.yield
+// CHECK: qco.ctrl
+// CHECK-NEXT: qco.z
+// CHECK-NEXT: qco.yield
+// CHECK: qco.ctrl
+// CHECK-NEXT: qco.z
+// CHECK-NEXT: qco.yield
+// CHECK: qco.ctrl
+// CHECK-NEXT: qco.z
+// CHECK-NEXT: qco.yield
+// CHECK: qco.ctrl
+// CHECK-NEXT: qco.z
+// CHECK-NEXT: qco.yield
+// CHECK: qco.ctrl
+// CHECK-NEXT: qco.z
+// CHECK-NEXT: qco.yield
+
+// Final measurement of all four qubits (each sunk right after being
+// measured) and recombination into an i4.
+// CHECK-COUNT-4: qco.measure{{.*}}{{[[:space:]]+}}qco.sink
+// CHECK: arith.ori
+// CHECK: return {{.*}} : i4
+
+// CHECK-NOT: prelimhlep

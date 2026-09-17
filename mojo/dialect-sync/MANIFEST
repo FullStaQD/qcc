@@ -1,0 +1,25 @@
+# Files of the PrelimHLEP dialect definition that qcc shares verbatim with the
+# Mojo fork. qcc is the source of truth: a change is made here and copied over
+# with 'sync.py'; the fork never carries its own edits to these files.
+#
+# One entry per line: '<path in the qcc repo> -> <path in the fork>'.
+# Blank lines and '#' comments are ignored.
+#
+# Not shared, and deliberately so: the verifiers (qcc checks quantum semantics,
+# once, in the subprocess), 'LinShapes.*', 'LinearityChecker.cpp' and the
+# passes. The fork supplies stubs for the verifiers it must define.
+
+mlir/include/qcc/Dialect/PrelimHLEP/IR/PrelimHLEPDialect.td -> Mojo/include/qcc/Dialect/PrelimHLEP/IR/PrelimHLEPDialect.td
+mlir/include/qcc/Dialect/PrelimHLEP/IR/PrelimHLEPTypes.td   -> Mojo/include/qcc/Dialect/PrelimHLEP/IR/PrelimHLEPTypes.td
+mlir/include/qcc/Dialect/PrelimHLEP/IR/PrelimHLEPEnums.td   -> Mojo/include/qcc/Dialect/PrelimHLEP/IR/PrelimHLEPEnums.td
+mlir/include/qcc/Dialect/PrelimHLEP/IR/PrelimHLEPAttrs.td   -> Mojo/include/qcc/Dialect/PrelimHLEP/IR/PrelimHLEPAttrs.td
+mlir/include/qcc/Dialect/PrelimHLEP/IR/PrelimHLEPOps.td     -> Mojo/include/qcc/Dialect/PrelimHLEP/IR/PrelimHLEPOps.td
+
+# The C++ header the generated code and the syntax file are written against.
+# It declares the ODS parameter types ('PauliFactor', 'HamiltonianTermHeader'),
+# so it belongs to the definition just as the TableGen does.
+mlir/include/qcc/Dialect/PrelimHLEP/IR/PrelimHLEP.h -> Mojo/include/qcc/Dialect/PrelimHLEP/IR/PrelimHLEP.h
+
+# The custom parsers and printers. Syntax defines the exchange format, so it
+# must be one implementation.
+mlir/lib/Dialect/PrelimHLEP/IR/PrelimHLEPSyntax.cpp -> Mojo/lib/PrelimHLEPDialect/PrelimHLEPSyntax.cpp

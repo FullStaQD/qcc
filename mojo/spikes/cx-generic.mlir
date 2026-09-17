@@ -1,0 +1,51 @@
+#loc2 = loc("s1cx.mojo":34:12)
+#loc3 = loc("s1cx.mojo":34:30)
+#loc6 = loc("s1cx.mojo":35:24)
+#loc11 = loc("s1cx.mojo":18:24)
+"builtin.module"() ({
+  "kgen.func"() <{LLVMArgMetadata = [], LLVMMetadata = {}, crossDeviceCaptures = #M<strings[]>, decorators = #kgen<decorators[]>, exportKind = #kgen.export<exported>, funcTypeGenerator = !kgen.generator<(!prelimhlep.lin<i1> owned, !prelimhlep.lin<i1> owned) -> !kgen.struct<(struct<(!prelimhlep.lin<i1>, !prelimhlep.lin<i1>)>)>>, inlineLevel = 0 : i32, sym_name = "cx"}> ({
+  ^bb0(%arg0: !prelimhlep.lin<i1> loc("s1cx.mojo":34:12), %arg1: !prelimhlep.lin<i1> loc("s1cx.mojo":34:30)):
+    %0 = "kgen.param.constant"() <{value = #kgen<simd true> : !kgen.scalar<bool>}> : () -> !kgen.scalar<bool> loc(#loc4)
+    %1:2 = "prelimhlep.lin"(%arg0) ({
+    ^bb0(%arg2: i1 loc("s1cx.mojo":35:24)):
+      %4 = "pop.cast_from_builtin"(%arg2) : (i1) -> !kgen.scalar<bool> loc(#loc21)
+      %5 = "hlcf.if"(%4) ({
+        %6 = "prelimhlep.lin"(%arg1) ({
+        ^bb0(%arg3: i1 loc("s1cx.mojo":18:24)):
+          %7 = "pop.cast_from_builtin"(%arg3) : (i1) -> !kgen.scalar<bool> loc(#loc22)
+          %8 = "pop.simd.xor"(%7, %0) : (!kgen.scalar<bool>, !kgen.scalar<bool>) -> !kgen.scalar<bool> loc(#loc23)
+          %9 = "pop.cast_to_builtin"(%8) : (!kgen.scalar<bool>) -> i1 loc(#loc24)
+          "prelimhlep.output"(%9) <{operandSegmentSizes = array<i32: 1, 0>}> : (i1) -> () loc(#loc17)
+        }) : (!prelimhlep.lin<i1>) -> !prelimhlep.lin<i1> loc(#loc10)
+        "hlcf.yield"(%6) : (!prelimhlep.lin<i1>) -> () loc(#loc9)
+      }, {
+        "hlcf.yield"(%arg1) : (!prelimhlep.lin<i1>) -> () loc(#loc9)
+      }) : (!kgen.scalar<bool>) -> !prelimhlep.lin<i1> loc(#loc9)
+      "prelimhlep.output"(%arg2, %5) <{operandSegmentSizes = array<i32: 1, 1>}> : (i1, !prelimhlep.lin<i1>) -> () loc(#loc18)
+    }) : (!prelimhlep.lin<i1>) -> (!prelimhlep.lin<i1>, !prelimhlep.lin<i1>) loc(#loc5)
+    %2 = "kgen.struct.create"(%1#0, %1#1) : (!prelimhlep.lin<i1>, !prelimhlep.lin<i1>) -> !kgen.struct<(!prelimhlep.lin<i1>, !prelimhlep.lin<i1>)> loc(#loc19)
+    %3 = "kgen.struct.create"(%2) : (!kgen.struct<(!prelimhlep.lin<i1>, !prelimhlep.lin<i1>)>) -> !kgen.struct<(struct<(!prelimhlep.lin<i1>, !prelimhlep.lin<i1>)>)> loc(#loc19)
+    "kgen.return"(%3) : (!kgen.struct<(struct<(!prelimhlep.lin<i1>, !prelimhlep.lin<i1>)>)>) -> () loc(#loc20)
+  }) : () -> () loc(#loc1)
+}) {M.target_info = #M.target<triple = "x86_64-unknown-linux-gnu", arch = "raptorlake", features = "+adx,+aes,+avx,+avx2,+avxvnni,+bmi,+bmi2,+clflushopt,+clwb,+cmov,+crc32,+cx16,+cx8,+f16c,+fma,+fsgsbase,+fxsr,+gfni,+hreset,+invpcid,+kl,+lzcnt,+mmx,+movbe,+movdir64b,+movdiri,+pclmul,+pconfig,+pku,+popcnt,+prfchw,+ptwrite,+rdpid,+rdrnd,+rdseed,+sahf,+serialize,+sha,+shstk,+sse,+sse2,+sse3,+sse4.1,+sse4.2,+ssse3,+vaes,+vpclmulqdq,+waitpkg,+widekl,+x87,+xsave,+xsavec,+xsaveopt,+xsaves,-sgx", data_layout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128", relocation_model = "pic", simd_bit_width = 256, index_bit_width = 64>, kgen.env = #kgen.env<{BUILD_TYPE = "relwithdebinfo" : !kgen.string, MODULAR_ASYNCRT_MAX_PROFILING_LEVEL = 0 : index, MODULAR_PRODUCTION = 1 : index, __OPTIMIZATION_LEVEL = 1 : index, __SANITIZE_ADDRESS = 0 : index}>} : () -> () loc(#loc)
+#loc = loc("s1cx.mojo":1:1)
+#loc1 = loc("s1cx.mojo":34:5)
+#loc4 = loc(unknown)
+#loc5 = loc("s1cx.mojo":47:6)
+#loc7 = loc("Mojo/stdlib/std/builtin/bool.mojo":126:10)
+#loc8 = loc("s1cx.mojo":36:16)
+#loc9 = loc("s1cx.mojo":36:9)
+#loc10 = loc("s1cx.mojo":27:76)
+#loc12 = loc("s1cx.mojo":23:22)
+#loc13 = loc("Mojo/stdlib/std/builtin/bool.mojo":347:40)
+#loc14 = loc("s1cx.mojo":23:14)
+#loc15 = loc("Mojo/stdlib/std/builtin/bool.mojo":202:69)
+#loc16 = loc("s1cx.mojo":23:40)
+#loc17 = loc("s1cx.mojo":22:10)
+#loc18 = loc("s1cx.mojo":41:10)
+#loc19 = loc("s1cx.mojo":48:27)
+#loc20 = loc("s1cx.mojo":48:5)
+#loc21 = loc(callsite(#loc7 at #loc8))
+#loc22 = loc(callsite(#loc7 at #loc12))
+#loc23 = loc(callsite(#loc13 at #loc14))
+#loc24 = loc(callsite(#loc15 at #loc16))

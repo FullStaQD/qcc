@@ -78,6 +78,28 @@ if config.enable_hisepq:
         config.available_features.add("sim-hisepq")
         config.substitutions.append((r"\bsim_hisepq\b", sim_hisepq))
 
+# Gate the cross-repository PrelimHLEP tests on a Mojo fork checkout being
+# configured (CMake cache variable QCC_MOJO_FORK) and its `kgen-opt` being
+# built. Tests opt in via `REQUIRES: mojo-fork`.
+if config.mojo_fork and os.path.isdir(config.mojo_fork) and os.path.isfile(config.mojo_kgen_opt):
+    config.available_features.add("mojo-fork")
+    config.substitutions.append(("%mojo_fork", config.mojo_fork))
+    config.substitutions.append(("%kgen_opt", config.mojo_kgen_opt))
+
+# Compiling a Mojo kernel needs the compiler and a built standard library as
+# well. Tests opt in via `REQUIRES: mojo-kernels`.
+if config.mojo_fork and os.path.isfile(config.mojo_kgen) and os.path.isdir(config.mojo_stdlib):
+    config.available_features.add("mojo-kernels")
+    config.environment["MODULAR_MOJO_MAX_IMPORT_PATH"] = config.mojo_stdlib
+    # `kgen -I <dir>` is how a kernel finds the `hlep` library; the kernels
+    # themselves live beside it in the source tree.
+    config.substitutions.append(
+        ("%kgen", "%s -I %s/mojo/hlep" % (config.mojo_kgen, config.project_source_dir))
+    )
+    config.substitutions.append(
+        ("%mojo_kernels", os.path.join(config.project_source_dir, "mojo", "kernels"))
+    )
+
 # Tests opt in via `REQUIRES: lld`.
 if shutil.which("ld.lld", path=config.environment["PATH"]) is not None:
     config.available_features.add("lld")

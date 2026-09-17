@@ -10,6 +10,7 @@
 #include "qcc/Conversion/AffineRaise/AffineRaise.h"
 #include "qcc/Conversion/Aux_/AuxOutputRecording.h"
 #include "qcc/Conversion/JaspToQC/JaspToQC.h"
+#include "qcc/Conversion/MojoResidueToStd/MojoResidueToStd.h"
 #include "qcc/Conversion/PrelimHLEPToQCO/PrelimHLEPToQCO.h"
 #include "qcc/Conversion/QCOToQVec/QCOToQVec.h"
 #include "qcc/Conversion/ToHiSEPQ/ToHiSEPQ.h"
@@ -117,6 +118,7 @@ int main(int argc, char** argv) {
   qcc::registerConvertQCOToQVec();
   qcc::registerConvertQVecToHiSEPQIntrinsics();
   qcc::registerQVecMerge();
+  qcc::registerMojoResidueToStd();
   qcc::registerPrelimHLEPToQCO();
   qcc::registerPrelimHLEPNormalizeLin();
 

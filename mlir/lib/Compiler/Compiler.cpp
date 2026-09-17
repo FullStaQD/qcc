@@ -11,6 +11,9 @@
 
 #include "qcc/Conversion/AffineRaise/AffineRaise.h"
 #include "qcc/Conversion/JaspToQC/JaspToQC.h"
+#include "qcc/Conversion/MojoResidueToStd/MojoResidueToStd.h"
+#include "qcc/Conversion/PrelimHLEPToQCO/PrelimHLEPToQCO.h"
+#include "qcc/Dialect/PrelimHLEP/Transforms/Passes.h"
 
 #include "mlir/Conversion/AffineToStandard/AffineToStandard.h"
 #include "mlir/Dialect/Affine/Transforms/Passes.h"
@@ -31,6 +34,20 @@ namespace qcc {
 void buildPipeline(mlir::PassManager& pm, const Target* target) {
   addLoweringQrisp(pm);
   target->addLoweringPasses(pm);
+}
+
+void buildMojoFrontendPipeline(mlir::PassManager& pm) {
+  // Make the Mojo module a PrelimHLEP program.
+  pm.addPass(qcc::createMojoResidueToStd());
+
+  // The eDSL library is a call per gate, and the PrelimHLEP normalization
+  // works within one function, so the kernel is flattened first. Private
+  // symbols (everything but the entry point) are what lets the inliner do it.
+  pm.addPass(mlir::createInlinerPass());
+
+  pm.addPass(qcc::createPrelimHLEPNormalizeLin());
+  pm.addPass(qcc::createPrelimHLEPToQCO());
+  pm.addPass(mlir::createCanonicalizerPass());
 }
 
 } // namespace qcc

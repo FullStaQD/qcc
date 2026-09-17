@@ -1,0 +1,25 @@
+// Rules qcc owns, reported by qcc, at a Mojo column.
+//
+// These programs are valid Mojo: the fork registers the PrelimHLEP dialect
+// but stubs its verifiers, because quantum semantics are qcc's to check, once.
+// The locations Mojo wrote into the IR are what makes the diagnostic land on
+// the line the user wrote.
+//
+// REQUIRES: mojo-kernels
+// RUN: rm -rf %t && mkdir -p %t
+// RUN: %kgen --elaborate -O1 --emit-quantum-kernels=%t %mojo_kernels/errors/leak.mojo
+// RUN: not qcc --frontend=mojo-ir --compile-to=mlir %t/leak.mlir 2>&1 \
+// RUN:     | FileCheck --check-prefix=LEAK %s
+// RUN: %kgen --elaborate -O1 --emit-quantum-kernels=%t %mojo_kernels/errors/bad_basis.mojo
+// RUN: not qcc --frontend=mojo-ir --compile-to=mlir %t/bad_basis.mlir 2>&1 \
+// RUN:     | FileCheck --check-prefix=BASIS %s
+
+// A variable assigned inside a linearization body and read after it. Mem2Reg
+// cannot promote it -- what a body writes does not leave it -- so it survives
+// as memory, and the memory op is what qcc has to name.
+// LEAK: leak.mojo:14:9: error: 'pop.stack_allocation' is not supported in a quantum kernel: a value assigned inside a linearization body cannot be read after it; results leave a body through 'prelimhlep.output'
+// LEAK: var leaked = False
+
+// An X-basis constant that is not one: caught by qcc's verifier, printed at
+// the Mojo line that wrote it.
+// BASIS: bad_basis.mojo:21:14: error: 'prelimhlep.constant' op expected only '+'/'-' symbols for result type '!prelimhlep.lin<!prelimhlep.x<1>>', got '?'

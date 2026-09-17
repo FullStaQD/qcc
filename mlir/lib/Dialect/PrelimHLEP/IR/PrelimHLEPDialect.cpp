@@ -108,55 +108,6 @@ LogicalResult BaseChangeOp::verify() {
   return success();
 }
 
-// Parses `( %operand : type, ... ) (`carrying` ( %operand : type, ... ))?`.
-// The `carrying (...)` group is omitted entirely when there are no
-// auxiliary results, both on parse and on print.
-ParseResult OutputOp::parse(OpAsmParser& parser, OperationState& result) {
-  SmallVector<OpAsmParser::UnresolvedOperand> delinearizedResults;
-  SmallVector<Type> delinearizedResultTypes;
-  auto parseTypedOperand = [&](SmallVectorImpl<OpAsmParser::UnresolvedOperand>& operands,
-                               SmallVectorImpl<Type>& types) -> ParseResult {
-    return failure(parser.parseOperand(operands.emplace_back()) || parser.parseColonType(types.emplace_back()));
-  };
-
-  if (parser.parseCommaSeparatedList(OpAsmParser::Delimiter::Paren, [&]() {
-        return parseTypedOperand(delinearizedResults, delinearizedResultTypes);
-      })) {
-    return failure();
-  }
-
-  SmallVector<OpAsmParser::UnresolvedOperand> auxiliaryResults;
-  SmallVector<Type> auxiliaryResultTypes;
-  if (succeeded(parser.parseOptionalKeyword("carrying")) &&
-      parser.parseCommaSeparatedList(OpAsmParser::Delimiter::Paren,
-                                     [&]() { return parseTypedOperand(auxiliaryResults, auxiliaryResultTypes); })) {
-    return failure();
-  }
-
-  llvm::SMLoc loc = parser.getCurrentLocation();
-  if (parser.resolveOperands(delinearizedResults, delinearizedResultTypes, loc, result.operands) ||
-      parser.resolveOperands(auxiliaryResults, auxiliaryResultTypes, loc, result.operands)) {
-    return failure();
-  }
-  result.addAttribute(OutputOp::getOperandSegmentSizesAttrName(result.name),
-                      parser.getBuilder().getDenseI32ArrayAttr({static_cast<int32_t>(delinearizedResults.size()),
-                                                                static_cast<int32_t>(auxiliaryResults.size())}));
-
-  return parser.parseOptionalAttrDict(result.attributes);
-}
-
-void OutputOp::print(OpAsmPrinter& p) {
-  p << " (";
-  llvm::interleaveComma(getDelinearizedResults(), p, [&](Value value) { p << value << " : " << value.getType(); });
-  p << ")";
-  if (!getAuxiliaryResults().empty()) {
-    p << " carrying (";
-    llvm::interleaveComma(getAuxiliaryResults(), p, [&](Value value) { p << value << " : " << value.getType(); });
-    p << ")";
-  }
-  p.printOptionalAttrDict((*this)->getAttrs(), {OutputOp::getOperandSegmentSizesAttrName((*this)->getName())});
-}
-
 LogicalResult OutputOp::verify() { return verifyWithinHaloedFunction(getOperation()); }
 
 LogicalResult ConstantOp::verify() {
@@ -221,74 +172,6 @@ LogicalResult ExpOp::verify() {
   }
 
   return success();
-}
-
-// Parses `shape? ( %arg : argType from %operand : operandType, ... ) -> ( resultType, ... ) region`,
-// where the optional leading `shape` is a bare `LinShape` keyword.
-ParseResult LinOp::parse(OpAsmParser& parser, OperationState& result) {
-  StringRef shapeKeyword;
-  if (succeeded(parser.parseOptionalKeyword(&shapeKeyword))) {
-    std::optional<LinShape> shape = symbolizeLinShape(shapeKeyword);
-    if (!shape) {
-      return parser.emitError(parser.getCurrentLocation(), "unknown 'prelimhlep.lin' shape '") << shapeKeyword << "'";
-    }
-    result.addAttribute(getShapeAttrName(result.name), LinShapeAttr::get(parser.getContext(), *shape));
-  }
-
-  SmallVector<OpAsmParser::Argument> blockArgs;
-  SmallVector<OpAsmParser::UnresolvedOperand> operands;
-  SmallVector<Type> operandTypes;
-
-  auto parseBinding = [&]() -> ParseResult {
-    OpAsmParser::Argument& blockArg = blockArgs.emplace_back();
-    if (parser.parseArgument(blockArg, /*allowType=*/true) || parser.parseKeyword("from")) {
-      return failure();
-    }
-
-    OpAsmParser::UnresolvedOperand& operand = operands.emplace_back();
-    Type& operandType = operandTypes.emplace_back();
-    return failure(parser.parseOperand(operand) || parser.parseColonType(operandType));
-  };
-  if (parser.parseCommaSeparatedList(OpAsmParser::Delimiter::Paren, parseBinding)) {
-    return failure();
-  }
-
-  SmallVector<Type> resultTypes;
-  if (parser.parseArrow() || parser.parseCommaSeparatedList(OpAsmParser::Delimiter::Paren, [&]() {
-        return parser.parseType(resultTypes.emplace_back());
-      })) {
-    return failure();
-  }
-  result.addTypes(resultTypes);
-
-  Region* body = result.addRegion();
-  if (parser.parseRegion(*body, blockArgs)) {
-    return failure();
-  }
-
-  if (parser.resolveOperands(operands, operandTypes, parser.getCurrentLocation(), result.operands)) {
-    return failure();
-  }
-
-  return parser.parseOptionalAttrDict(result.attributes);
-}
-
-void LinOp::print(OpAsmPrinter& p) {
-  if (std::optional<LinShape> shape = getShape()) {
-    p << " " << stringifyLinShape(*shape);
-  }
-  p << " (";
-  llvm::interleaveComma(llvm::zip(getBody().front().getArguments(), getDelinearizedOperands()), p,
-                        [&](const auto& binding) {
-                          BlockArgument arg = std::get<0>(binding);
-                          Value operand = std::get<1>(binding);
-                          p << arg << " : " << arg.getType() << " from " << operand << " : " << operand.getType();
-                        });
-  p << ") -> (";
-  llvm::interleaveComma(getResultTypes(), p);
-  p << ") ";
-  p.printRegion(getBody(), /*printEntryBlockArgs=*/false);
-  p.printOptionalAttrDict((*this)->getAttrs(), {getShapeAttrName()});
 }
 
 LogicalResult LinOp::verify() {

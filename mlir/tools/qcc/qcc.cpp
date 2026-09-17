@@ -8,8 +8,12 @@
 // ===----------------------------------------------------------------------===//
 
 #include "qcc/Compiler/Compiler.h"
+#include "qcc/Conversion/MojoResidueToStd/MojoResidueToStd.h"
+#include "qcc/Conversion/PrelimHLEPToQCO/PrelimHLEPToQCO.h"
 #include "qcc/Dialect/Aux_/IR/Aux_.h"
 #include "qcc/Dialect/Jasp/IR/Jasp.h"
+#include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEP.h"
+#include "qcc/Dialect/PrelimHLEP/Transforms/Passes.h"
 #include "qcc/Dialect/QVec/IR/QVec.h"
 #include "qcc/Target/TargetRegistry.h"
 
@@ -56,6 +60,15 @@ static cl::OptionCategory qccCategory("QCC options");
 namespace {
 /// The stage to compile to and emit.
 enum class Stage : uint8_t { Mlir, LlvmIr, Native };
+
+/// What the input file is written in.
+enum class Frontend : uint8_t {
+  /// qcc's own IR: a well-formed module of dialects qcc knows.
+  Mlir,
+  /// Elaborated Mojo IR, as `kgen --emit-quantum-kernels` writes it. See
+  /// `mojo/README.md`.
+  MojoIr,
+};
 } // namespace
 
 /// Prints the targets compiled into this build.
@@ -86,6 +99,11 @@ int main(int argc, char** argv) {
       cl::cat(qccCategory));
   const cl::opt<bool> binary("binary", cl::desc("Emit the binary encoding (obj/bytecode/bitcode) instead of text"),
                              cl::init(false), cl::cat(qccCategory));
+  const cl::opt<Frontend> frontend(
+      "frontend", cl::desc("Language the input file is written in"), cl::init(Frontend::Mlir),
+      cl::values(clEnumValN(Frontend::Mlir, "mlir", "qcc's own IR (the default)"),
+                 clEnumValN(Frontend::MojoIr, "mojo-ir", "Elaborated Mojo IR from 'kgen --emit-quantum-kernels'")),
+      cl::cat(qccCategory));
 
   cl::ParseCommandLineOptions(argc, argv, "qcc - Quantum Compiler Collection\n");
 
@@ -110,6 +128,16 @@ int main(int argc, char** argv) {
     return 1;
   }
 
+  // The PrelimHLEP pipeline reaches QCO, and no further: the lowering from
+  // there to a target is qcc's Qrisp path, which starts at JASP and has no
+  // entry for a QCO module yet. So a Mojo kernel compiles to MLIR, and the
+  // rest of the chain is the next phase's work rather than a silent no-op.
+  if (frontend == Frontend::MojoIr && compileTo != Stage::Mlir) {
+    llvm::errs() << "error: --frontend=mojo-ir currently supports only "
+                    "--compile-to=mlir; the PrelimHLEP pipeline stops at QCO\n";
+    return 1;
+  }
+
   mlir::DialectRegistry registry;
 
   // Register all builtin dialects and their extensions/interfaces:
@@ -117,7 +145,7 @@ int main(int argc, char** argv) {
 
   // Our dialects:
   registry.insert<jasp::JaspDialect, mlir::qc::QCDialect, mlir::qco::QCODialect, qcc::aux::AuxDialect,
-                  qcc::qvec::QVecDialect>();
+                  qcc::prelimhlep::PrelimHLEPDialect, qcc::qvec::QVecDialect>();
 
   // Register the specific interface implementations for the pipeline
   // Note: OneShotBufferize requires these for the "Standard" dialects
@@ -135,6 +163,14 @@ int main(int argc, char** argv) {
 
   mlir::MLIRContext context(registry);
 
+  // Elaborated Mojo IR carries `kgen`, `pop` and `hlcf` ops that qcc does not
+  // know, and is not a well-formed PrelimHLEP program until
+  // `mojo-residue-to-std` has run. Both are properties of the exchange
+  // format, not of a broken input.
+  if (frontend == Frontend::MojoIr) {
+    context.allowUnregisteredDialects();
+  }
+
   std::string errorMessage;
   auto inFile = mlir::openInputFile(inputFilename, &errorMessage);
   if (!inFile) {
@@ -148,7 +184,11 @@ int main(int argc, char** argv) {
   // Enable nice diagnostic printing for parser and pass errors
   const mlir::SourceMgrDiagnosticHandler diagnosticHandler(sourceMgr, &context);
 
-  mlir::OwningOpRef<mlir::ModuleOp> module = mlir::parseSourceFile<mlir::ModuleOp>(sourceMgr, &context);
+  // The Mojo locations name `.mojo` files, which the diagnostic handler above
+  // reads on demand, so a qcc diagnostic prints the Mojo line it came from.
+  const mlir::ParserConfig parserConfig(&context,
+                                        /*verifyAfterParse=*/frontend != Frontend::MojoIr);
+  mlir::OwningOpRef<mlir::ModuleOp> module = mlir::parseSourceFile<mlir::ModuleOp>(sourceMgr, parserConfig);
   if (!module) {
     return 1;
   }
@@ -158,7 +198,11 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  qcc::buildPipeline(pm, target);
+  if (frontend == Frontend::MojoIr) {
+    qcc::buildMojoFrontendPipeline(pm);
+  } else {
+    qcc::buildPipeline(pm, target);
+  }
 
   if (mlir::failed(pm.run(*module))) {
     return 1;

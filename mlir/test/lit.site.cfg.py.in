@@ -8,6 +8,10 @@ config.project_source_dir = "@PROJECT_SOURCE_DIR@"
 config.cmake_build_type = "@CMAKE_BUILD_TYPE@"
 config.enable_hisepq = @QCC_ENABLE_HISEPQ_PY@
 config.sim_hisepq_executable = "@QCC_SIM_HISEPQ_EXECUTABLE@"
+config.mojo_fork = "@QCC_MOJO_FORK@"
+config.mojo_kgen_opt = "@QCC_MOJO_KGEN_OPT@"
+config.mojo_kgen = "@QCC_MOJO_KGEN@"
+config.mojo_stdlib = "@QCC_MOJO_STDLIB@"
 
 import lit.llvm
 lit.llvm.initialize(lit_config, config)

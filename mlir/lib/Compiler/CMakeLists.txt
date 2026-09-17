@@ -3,7 +3,10 @@ add_mlir_library(
   Compiler.cpp
   DEPENDS
   JaspToQCIncGen
+  MojoResidueToStdIncGen
+  PrelimHLEPToQCOIncGen
   QCCAffineRaiseIncGen
+  QCCPrelimHLEPTransformsIncGen
   LINK_LIBS
   MLIRPass
   MLIRTransforms
@@ -15,6 +18,7 @@ add_mlir_library(
   MLIRLinalgDialect
   MLIRBufferizationDialect
   QCCJaspDialect
+  QCCPrelimHLEPDialect
   # Passes
   MLIRLinalgTransforms
   MLIRSCFTransforms
@@ -24,5 +28,8 @@ add_mlir_library(
   MLIRBufferizationTransforms
   QCCAffineRaise
   QCCJaspToQC
+  QCCMojoResidueToStd
+  QCCPrelimHLEPToQCO
+  QCCPrelimHLEPTransforms
   # Extensions/Interfaces
   MLIRTransformUtils)

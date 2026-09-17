@@ -1,0 +1,8 @@
+// Fails when qcc's PrelimHLEP dialect definition and the Mojo fork's stamped
+// copy of it have diverged: qcc changed and the fork has not been re-synced.
+// The fix is to run 'mojo/dialect-sync/sync.py --fork <checkout>' and commit
+// the fork. The complementary test, that the fork's copy was not edited in
+// place, lives in the fork as //Mojo/test/prelimhlep:dialect_sync.
+//
+// REQUIRES: mojo-fork
+// RUN: %python %project_source_dir/mojo/dialect-sync/sync.py --fork %mojo_fork --check

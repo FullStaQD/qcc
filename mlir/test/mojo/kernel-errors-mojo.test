@@ -1,0 +1,25 @@
+// Rules Mojo owns, reported by Mojo, at a Mojo column.
+//
+// Linearity is not checked twice. `Lin` is neither `Copyable` nor
+// `Deinitable`, so using a qubit twice and dropping one are both ordinary
+// Mojo ownership errors; qcc never sees these programs.
+//
+// REQUIRES: mojo-kernels
+// RUN: not %kgen --elaborate -O1 --emit-quantum-kernels=%t %mojo_kernels/errors/drop.mojo 2>&1 \
+// RUN:     | FileCheck --check-prefix=DROP %s
+// RUN: not %kgen --elaborate -O1 --emit-quantum-kernels=%t %mojo_kernels/errors/double.mojo 2>&1 \
+// RUN:     | FileCheck --check-prefix=DOUBLE %s
+// RUN: not %kgen --elaborate -O1 --emit-quantum-kernels=%t %mojo_kernels/errors/early_return.mojo 2>&1 \
+// RUN:     | FileCheck --check-prefix=RETURN %s
+
+// A dropped qubit gets the library's own `@explicit_destroy` message.
+// DROP: drop.mojo:13:29: error: 'dropped' abandoned without being explicitly destroyed: quantum values must be consumed: 'measure()', 'discard()', or pass it on
+
+// A second use reads a binding the first use ended.
+// DOUBLE: double.mojo:16:27: error: use of uninitialized value 'a'
+// DOUBLE: double.mojo:12:9: note: 'a' declared here
+
+// An early exit from a linearization body is a parse error, not something
+// that reaches qcc: a `__mlir_region` body is not a function, so there is
+// nothing for `return` to return from.
+// RETURN: early_return.mojo:16:13: error: 'return' must be inside a function

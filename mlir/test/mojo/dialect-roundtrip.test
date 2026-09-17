@@ -1,0 +1,7 @@
+// Fails when qcc and the Mojo fork print PrelimHLEP syntax differently: the
+// textual exchange format between the two compilers must be one format, not
+// two that happen to look alike across the LLVM version skew.
+//
+// REQUIRES: mojo-fork
+// RUN: %python %project_source_dir/mojo/dialect-sync/roundtrip.py \
+// RUN:     --qcc-opt qcc-opt --kgen-opt %kgen_opt
