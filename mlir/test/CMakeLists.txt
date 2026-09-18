@@ -46,6 +46,26 @@ if(QCC_MOJO_FORK)
                     "with './bazelw build --config=build-mojo //Mojo/tools/kgen:kgen //Mojo/stdlib/std'. The "
                     "end-to-end Mojo kernel tests will be skipped.")
   endif()
+
+  # Running a kernel, rather than only compiling one, goes through the 'mojo' driver: it is what a user runs, and its
+  # JIT needs the compiler runtime beside it.
+  find_program(
+    QCC_MOJO_DRIVER
+    NAMES mojo
+    HINTS "${QCC_MOJO_FORK}/bazel-bin/Mojo/tools/mojo"
+    DOC "Path to the Mojo fork's 'mojo' driver, used for the single-source run tests"
+    NO_DEFAULT_PATH)
+  find_file(
+    QCC_MOJO_COMPILERRT
+    NAMES libKGENCompilerRTShared.so libKGENCompilerRTShared.dylib
+    HINTS "${QCC_MOJO_FORK}/bazel-bin/Mojo"
+    DOC "Path to the Mojo fork's compiler runtime, which the 'mojo' driver's JIT loads"
+    NO_DEFAULT_PATH)
+  if(NOT QCC_MOJO_DRIVER OR NOT QCC_MOJO_COMPILERRT)
+    message(WARNING "QCC_MOJO_FORK is set but the 'mojo' driver or its compiler runtime was not found under it; build "
+                    "them with './bazelw build --config=build-mojo //Mojo/tools/mojo:mojo //Mojo:CompilerRT'. The "
+                    "tests that run a kernel will be skipped.")
+  endif()
 endif()
 
 configure_lit_site_cfg(${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in ${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py

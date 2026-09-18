@@ -46,4 +46,4 @@
 // something about an unlowerable type.
 // RUN: env -u MOJO_QCC not %kgen --emit=object -O1 %mojo_kernels/grover.mojo -o %t/none.o 2>&1 \
 // RUN:     | FileCheck %s --check-prefix=NOQCC
-// NOQCC: this file contains a quantum kernel, which is compiled by qcc, but qcc was not found: pass --qcc=<path> or set MOJO_QCC
+// NOQCC: this file contains a quantum kernel, which is compiled by qcc, but qcc was not found: set MOJO_QCC to its path, or pass --qcc=<path> to kgen

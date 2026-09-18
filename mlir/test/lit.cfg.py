@@ -105,6 +105,45 @@ if config.mojo_fork and os.path.isfile(config.mojo_kgen) and os.path.isdir(confi
     config.substitutions.append(
         ("%qcc_bin", os.path.join(str(candidate_dir), "qcc"))
     )
+    # The host half of a quantum program imports `qpu.host` the way a kernel
+    # imports `hlep`, so both live on the include path.
+    config.substitutions.append(
+        ("%mojo_qpu", os.path.join(config.project_source_dir, "mojo", "qpu"))
+    )
+
+    # Running a kernel, rather than only compiling one, additionally needs the
+    # `mojo` driver and the compiler runtime its JIT loads. Tests opt in via
+    # `REQUIRES: mojo-run`.
+    if os.path.isfile(config.mojo_driver) and os.path.isfile(
+        config.mojo_compilerrt
+    ):
+        config.available_features.add("mojo-run")
+        config.environment["MODULAR_MOJO_MAX_COMPILERRT_PATH"] = (
+            config.mojo_compilerrt
+        )
+        # A binary `mojo build` produced links against that same runtime, and
+        # finds it at run time only if it is on the loader's path.
+        llvm_config.with_environment(
+            "LD_LIBRARY_PATH",
+            os.path.dirname(config.mojo_compilerrt),
+            append_path=True,
+        )
+        # `mojo run` finds qcc the way any other invocation does. The flag is
+        # `kgen`-only, so the environment variable is what the driver reads.
+        config.environment["MOJO_QCC"] = os.path.join(
+            str(candidate_dir), "qcc"
+        )
+        # The driver takes its subcommand first, so the include flags cannot
+        # ride along in this substitution; `%mojo_libs` carries them and a
+        # test writes `%mojo run %mojo_libs <file>`.
+        config.substitutions.append((r"%mojo\b", config.mojo_driver))
+        config.substitutions.append(
+            (
+                "%mojo_libs",
+                "-I %s/mojo/hlep -I %s/mojo/qpu"
+                % (config.project_source_dir, config.project_source_dir),
+            )
+        )
 
 # Tests opt in via `REQUIRES: lld`.
 if shutil.which("ld.lld", path=config.environment["PATH"]) is not None:
@@ -112,10 +151,17 @@ if shutil.which("ld.lld", path=config.environment["PATH"]) is not None:
 
 # If `qir-runner` is not already available in the environment, fall back to
 # running it ephemerally via `uvx`.
+qir_runner = "qir-runner"
 if shutil.which("qir-runner", path=config.environment["PATH"]) is None:
     if shutil.which("uv", path=config.environment["PATH"]) is None:
         lit_config.fatal(
             "Could not find the 'qir-runner' executable, which is required to run some tests. "
             "Either install it yourself, or install 'uv' (see README) to run it ephemerally instead."
         )
-    config.substitutions.append((r"\bqir-runner\b", "uv tool run --from qirrunner qir-runner"))
+    qir_runner = "uv tool run --from qirrunner qir-runner"
+    config.substitutions.append((r"\bqir-runner\b", qir_runner))
+
+# `qpu.host` picks its device from the environment for the same reason: the
+# runner here may be a command rather than an executable on PATH, which is
+# exactly what QPU_QIR_RUNNER exists to carry.
+config.environment["QPU_QIR_RUNNER"] = qir_runner

@@ -1,0 +1,41 @@
+// Phase 3's exit: one `mojo` invocation on a file holding both a quantum
+// kernel and the host code that launches it, and the program runs.
+//
+// `single-source.test` checks the compile half -- that the artifact is
+// embedded and the kernel erased. This one checks that the artifact then runs:
+// `qpu.host` reads it back through the accessors the compiler synthesized and
+// submits it to a device.
+//
+// REQUIRES: mojo-run
+// RUN: rm -rf %t && mkdir -p %t
+
+// The whole chain from source, with nothing staged by hand: the fork
+// elaborates the kernel, runs qcc on it, embeds the QIR, compiles `main` for
+// the CPU, and runs it.
+// RUN: %mojo run %mojo_libs %mojo_kernels/bell.mojo | FileCheck %s
+
+// The device the runtime picked. There is one, and it is the simulator.
+// CHECK: device: qir-simulator (#0)
+
+// Both qubits are entangled, so every shot agrees with itself. `qpu.host`
+// keeps a kernel's several results together in one outcome, which is what
+// makes that checkable at all: a histogram over each bit separately would
+// show the same 50/50 for a Bell pair as for two independent coins.
+// CHECK: outcomes: {
+// CHECK-NOT: true, false
+// CHECK-NOT: false, true
+// CHECK: agreed: 1000 of 1000 shots
+
+// The same program built to a standalone binary, which carries the artifact
+// in its own constant data: no compiler and no qcc are involved in the run.
+// RUN: %mojo build %mojo_libs %mojo_kernels/bell.mojo -o %t/bell
+// RUN: %t/bell | FileCheck %s --check-prefix=BUILT
+// BUILT: agreed: 1000 of 1000 shots
+
+// With no device to submit to, the runtime says what it looked for and how to
+// point it somewhere else. A program that got this far has compiled: the
+// kernel is in the binary either way, so the failure belongs to the run.
+// RUN: env QPU_QIR_RUNNER=definitely-not-a-qir-runner not %t/bell 2>&1 \
+// RUN:     | FileCheck %s --check-prefix=NODEV
+// NODEV: no quantum device is available
+// NODEV-SAME: set QPU_QIR_RUNNER to the command that runs it

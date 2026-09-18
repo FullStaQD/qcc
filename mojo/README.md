@@ -8,9 +8,13 @@ A Mojo-embedded language for PrelimHLEP, compiled by qcc. See
 - `hlep/hlep.mojo` — the eDSL: `Lin`, `Reg4`, `Quad`, `Halo` and the
   primitive gates, written in raw inline MLIR. Users compose primitives with
   plain calls.
+- `qpu/qpu/host.mojo` — the runtime: `QPUContext`, `Job`, `Histogram`, and
+  `artifact_of[kernel]()`, which is the whole of the compiler-to-runtime
+  interface. Host code imports this the way a kernel imports `hlep`.
 - `kernels/` — kernels written against it. `grover.mojo` is the Mojo version
   of `mlir/test/tools/qcc-opt/prelim-hlep-to-qco-grover-test.mlir` and lowers
-  to the same circuit; `kernels/errors/` holds one rejected program per rule
+  to the same circuit; `bell.mojo` is a kernel and the host code that launches
+  it in one file; `kernels/errors/` holds one rejected program per rule
   owner.
 - `spikes/` — the phase 0/1/2 spikes, and the captured elaborator output the
   qcc importer's fixtures are made of.
@@ -164,6 +168,68 @@ instead of being thrown away with the temporary directory.
 the module and in the object file, the kernel gone from both, a qcc error at
 its Mojo line, and a clear message when there is no qcc to run.
 
+## Running one
+
+`qpu/qpu/host.mojo` is the other side of those accessors. A kernel and the
+host code that launches it live in one file, and one `mojo run` compiles both
+and runs the result:
+
+```mojo
+from hlep import Lin, cx, h, make_qubit, measure
+from qpu.host import QPUContext
+
+@export("bell")
+def bell() abi("C") -> Tuple[Bool, Bool]:
+    var a = h(make_qubit())
+    var b = make_qubit()
+    cx(a, b)
+    return measure(a^), measure(b^)
+
+def main() raises:
+    var qpu = QPUContext(device_id=0)
+    var histogram = qpu.enqueue[bell](shots=1000).result()
+    print(histogram)          # {true, true: 514, false, false: 486}
+```
+
+```
+mojo run -I <repo>/mojo/hlep -I <repo>/mojo/qpu kernels/bell.mojo
+```
+
+**The kernel is named as a comptime parameter, never called.** By the time
+`main` runs there is nothing to call: the compiler erased the kernel once qcc
+had compiled it. `enqueue[bell]` uses the name only to reach
+`__qpu_artifact_bell`, which it resolves through `get_linkage_name[bell]()`
+and `external_call`. That is why a kernel's exported name has to be spellable
+as an identifier, and why the compiler rejects one that is not rather than
+quietly rewriting it into a symbol the runtime cannot name.
+
+**The first device is the QIR simulator**, which is the `qir-runner`
+executable run as a subprocess: the artifact is written to a temporary file,
+run for the requested number of shots, and its output records are collected.
+`QPU_QIR_RUNNER` overrides the command, and holds a command rather than a
+path so that a runner which is not a plain executable works without a wrapper
+script. The same process boundary the compiler uses to reach qcc, for the same
+reason: the artifact is an interchange format, not something to link against.
+
+**A histogram keeps a kernel's results together.** One shot is one invocation,
+and one outcome holds every value that shot produced (`"true, true"`), so
+correlations between them survive — which for a Bell pair is the entire point.
+A histogram per bit would show the same 50/50 for an entangled pair as for two
+independent coins.
+
+**The entry point takes no classical arguments.** A QIR profile's entry point
+takes none and returns nothing; results leave through the output records
+instead. So `enqueue` passes none, and `Device.accepts_arguments` is false for
+every QIR device. A kernel with a `Float64` parameter therefore has nowhere to
+put it yet, and that is a property of this device rather than of the chain:
+the sidecar already carries the classical signature, and `kgen` already
+compiles a kernel that has one.
+
+`mlir/test/mojo/bell.test` is what this promises: one `mojo run` on a
+single-source file prints a histogram in which every shot agrees with itself,
+the same program built to a standalone binary runs with no compiler and no
+qcc involved, and a program with no device to submit to says so.
+
 ## Who reports what
 
 Every rule has one owner, and the diagnostic comes from that owner at the
@@ -236,7 +302,42 @@ a step between elaboration and the CPU backend, and the launch resolves the
 artifact by the kernel's exported name rather than through a comptime
 parameter.
 
-Still open, for the rest of phase 3 and later: the `qpu.host` runtime and a
-simulator backend to run the embedded QIR, loops in a body (`hlcf.loop`, not
-yet in the residue table), and `Lin` being monomorphic because a
-`__mlir_region` block argument cannot be typed by a parameter.
+Phase 3 is done. `qpu/qpu/host.mojo` and the QIR simulator backend close it:
+`kernels/bell.mojo` is a kernel and its host code in one file, and one
+`mojo run` on it prints a histogram of real shots. See "Running one".
+
+Two of the things the plan listed as blocking that turned out differently:
+
+- **`define void @grover()` is not a gap.** A QIR entry point returns void by
+  the profile's own rules, and the kernel's result is not dropped: it leaves
+  through `__quantum__rt__int_record_output`, which is what the runtime reads
+  back. Nothing needed changing.
+- **Classical entry-point arguments are a device limitation, not a missing
+  piece of the chain.** The QIR profile's entry point takes none, so the
+  simulator cannot accept one; a device that can is what unblocks a kernel
+  with a `Float64` parameter.
+
+Getting a kernel to run needed two fork changes the plan did not predict, both
+of them about drivers rather than about quantum computing:
+
+- The quantum handoff lived only in `kgen`, so `mojo build` and `mojo run` --
+  the commands a user actually types -- tried to lower `prelimhlep` to LLVM
+  and failed. It is now a library (`Mojo/lib/QuantumKernels/`) that all three
+  drivers call at the same point.
+- `external_call` to a function _defined_ in the same module was rejected,
+  which is exactly what reaching a compiler-synthesized accessor is. The
+  attribute check exists to reconcile two declarations of an external
+  function; a definition is not a declaration to reconcile against.
+
+Still open, for phase 4 and later: loops in a body (`hlcf.loop`, not yet in
+the residue table), rotations, `Lin` being monomorphic because a
+`__mlir_region` block argument cannot be typed by a parameter, and a device
+that accepts classical arguments.
+
+One thing found while running Grover that is not a frontend matter: the
+simulated distribution peaks on the marked state at the right iteration count
+but far below the amplitude the mathematics gives (~0.63 against ~0.96 at
+three iterations), with the missing weight sitting mostly on the marked
+state's bit-reverse. That points at a bit-ordering disagreement inside the
+shared PrelimHLEP-to-QCO-to-QIR path -- the Mojo and MLIR Grover programs
+lower to the same circuit, so it is not the frontend's.

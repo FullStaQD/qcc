@@ -12,6 +12,8 @@ config.mojo_fork = "@QCC_MOJO_FORK@"
 config.mojo_kgen_opt = "@QCC_MOJO_KGEN_OPT@"
 config.mojo_kgen = "@QCC_MOJO_KGEN@"
 config.mojo_stdlib = "@QCC_MOJO_STDLIB@"
+config.mojo_driver = "@QCC_MOJO_DRIVER@"
+config.mojo_compilerrt = "@QCC_MOJO_COMPILERRT@"
 
 import lit.llvm
 lit.llvm.initialize(lit_config, config)
