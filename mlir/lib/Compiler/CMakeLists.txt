@@ -7,6 +7,7 @@ add_mlir_library(
   PrelimHLEPToQCOIncGen
   QCCAffineRaiseIncGen
   QCCPrelimHLEPTransformsIncGen
+  QCCQCOTransformsIncGen
   LINK_LIBS
   MLIRPass
   MLIRTransforms
@@ -31,5 +32,8 @@ add_mlir_library(
   QCCMojoResidueToStd
   QCCPrelimHLEPToQCO
   QCCPrelimHLEPTransforms
+  QCCQCOTransforms
+  MLIRQCOToQC
+  MLIRQCOTransforms
   # Extensions/Interfaces
   MLIRTransformUtils)

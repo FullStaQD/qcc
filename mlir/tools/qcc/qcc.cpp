@@ -17,6 +17,9 @@
 #include "qcc/Dialect/QVec/IR/QVec.h"
 #include "qcc/Target/TargetRegistry.h"
 
+#include "mqt/Dialect/QC/IR/QCDialect.h"
+#include "mqt/Dialect/QCO/IR/QCODialect.h"
+
 #include "mlir/Bytecode/BytecodeWriter.h"
 #include "mlir/Conversion/VectorToSCF/VectorToSCF.h"
 #include "mlir/Dialect/Arith/Transforms/BufferizableOpInterfaceImpl.h"
@@ -26,8 +29,6 @@
 #include "mlir/Dialect/Linalg/Transforms/BufferizableOpInterfaceImpl.h"
 #include "mlir/Dialect/MemRef/Transforms/AllocationOpInterfaceImpl.h"
 #include "mlir/Dialect/MemRef/Transforms/Passes.h"
-#include "mlir/Dialect/QC/IR/QCDialect.h"
-#include "mlir/Dialect/QCO/IR/QCODialect.h"
 #include "mlir/Dialect/SCF/Transforms/BufferizableOpInterfaceImpl.h"
 #include "mlir/Dialect/Tensor/Transforms/BufferizableOpInterfaceImpl.h"
 #include "mlir/IR/Diagnostics.h"
@@ -128,16 +129,6 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  // The PrelimHLEP pipeline reaches QCO, and no further: the lowering from
-  // there to a target is qcc's Qrisp path, which starts at JASP and has no
-  // entry for a QCO module yet. So a Mojo kernel compiles to MLIR, and the
-  // rest of the chain is the next phase's work rather than a silent no-op.
-  if (frontend == Frontend::MojoIr && compileTo != Stage::Mlir) {
-    llvm::errs() << "error: --frontend=mojo-ir currently supports only "
-                    "--compile-to=mlir; the PrelimHLEP pipeline stops at QCO\n";
-    return 1;
-  }
-
   mlir::DialectRegistry registry;
 
   // Register all builtin dialects and their extensions/interfaces:
@@ -199,7 +190,9 @@ int main(int argc, char** argv) {
   }
 
   if (frontend == Frontend::MojoIr) {
-    qcc::buildMojoFrontendPipeline(pm);
+    // `--compile-to=mlir` stops at QCO, which is what the PrelimHLEP lit
+    // tests check; anything further needs the target's lowering.
+    qcc::buildMojoFrontendPipeline(pm, compileTo == Stage::Mlir ? nullptr : target);
   } else {
     qcc::buildPipeline(pm, target);
   }

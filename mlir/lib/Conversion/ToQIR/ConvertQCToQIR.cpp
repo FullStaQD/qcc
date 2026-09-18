@@ -11,14 +11,15 @@
 #include "qcc/Conversion/ToQIR/Constants.h"
 #include "qcc/Dialect/Aux_/IR/Aux_.h"
 
+#include "mqt/Dialect/QC/IR/QCDialect.h"
+#include "mqt/Dialect/QC/IR/QCInterfaces.h"
+#include "mqt/Dialect/QC/IR/QCOps.h"
+
 #include "mlir/Conversion/LLVMCommon/TypeConverter.h"
 #include "mlir/Conversion/MemRefToLLVM/MemRefToLLVM.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
-#include "mlir/Dialect/QC/IR/QCDialect.h"
-#include "mlir/Dialect/QC/IR/QCInterfaces.h"
-#include "mlir/Dialect/QC/IR/QCOps.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/Types.h"
@@ -224,17 +225,28 @@ struct RecordIntLowering : public OpConversionPattern<aux::RecordIntOp> {
         LLVM::AddressOfOp::create(rewriter, loc, LLVM::LLVMPointerType::get(rewriter.getContext()), labelName);
 
     Type ty = op.getValue().getType();
-
-    llvm::StringRef callee;
-    if (ty.isInteger(1)) {
-      callee = qirRtBoolRecordOutput;
-    } else if (ty.isInteger(64)) {
-      callee = qirRtIntRecordOutput;
-    } else {
+    auto intType = llvm::dyn_cast<IntegerType>(ty);
+    if (!intType || intType.getWidth() > 64) {
       return failure();
     }
 
-    LLVM::CallOp::create(rewriter, loc, TypeRange(), callee, ValueRange{adaptor.getValue(), addressOf});
+    llvm::StringRef callee;
+    Value value = adaptor.getValue();
+    if (intType.getWidth() == 1) {
+      callee = qirRtBoolRecordOutput;
+    } else {
+      callee = qirRtIntRecordOutput;
+      // `__quantum__rt__int_record_output` takes an i64, so anything narrower
+      // is widened here. MLIR integers are signless and the values that reach
+      // this op are packed measurement outcomes, so the extension is
+      // unsigned; a frontend recording a signed quantity has to widen it
+      // itself before the record op.
+      if (intType.getWidth() < 64) {
+        value = LLVM::ZExtOp::create(rewriter, loc, rewriter.getI64Type(), value);
+      }
+    }
+
+    LLVM::CallOp::create(rewriter, loc, TypeRange(), callee, ValueRange{value, addressOf});
 
     rewriter.eraseOp(op);
     return success();

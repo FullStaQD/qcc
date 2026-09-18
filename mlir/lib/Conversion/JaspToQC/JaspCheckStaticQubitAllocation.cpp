@@ -9,8 +9,9 @@
 
 #include "qcc/Conversion/JaspToQC/JaspToQC.h"
 
+#include "mqt/Dialect/QC/IR/QCDialect.h"
+
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/QC/IR/QCDialect.h"
 #include "mlir/Support/LLVM.h"
 
 namespace qcc {

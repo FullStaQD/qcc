@@ -1,0 +1,12 @@
+add_mlir_dialect_library(
+  QCCQCOTransforms
+  QCOAssignStaticQubits.cpp
+  DEPENDS
+  QCCQCOTransformsIncGen
+  LINK_LIBS
+  PRIVATE
+  MLIRIR
+  MLIRPass
+  MLIRSupport
+  MLIRTransforms
+  MLIRQCODialect)

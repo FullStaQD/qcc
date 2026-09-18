@@ -11,8 +11,9 @@
 #include "qcc/Conversion/ToHiSEPQ/ToHiSEPQ.h" // IWYU pragma: keep
 #include "qcc/Dialect/QVec/IR/QVec.h"
 
+#include "mqt/Dialect/QCO/IR/QCOOps.h"
+
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
-#include "mlir/Dialect/QCO/IR/QCOOps.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinAttributes.h"

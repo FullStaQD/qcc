@@ -132,6 +132,8 @@ They should therefore be manifestly present in a high-level IR.
 
 ### Type System
 
+The type system is informed by, but does not realize in full, Linear Homotopy Type Theory.
+
 #### Vector bundles over finite sets
 
 The semantic model below is phrased in terms of vector bundles.
@@ -155,7 +157,6 @@ Note the direction of information flow: along a single morphism, the classical p
 
 #### Semantics
 
-- Informed by, but not realizing in full, Linear Homotopy Type Theory.
 - Denotational semantic model: A type is a finite-dimensional $\mathbb{C}$-vector bundle over a finite set, e.g. $$H_{\bullet} :\equiv\begin{bmatrix}H_{\bullet} \\ \downarrow \\ W\end{bmatrix} : \text{Type},$$where $W$ is a finite set and $H_{\bullet}$ is a $W$-indexed family of finite-dimensional $\mathbb{C}$-vector spaces.
 - We are only concerned with pure functions. A function
   $$

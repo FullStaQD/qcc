@@ -12,7 +12,7 @@
 
 include "qcc/Dialect/QVec/IR/QVecDialect.td"
 
-include "mlir/Dialect/QCO/IR/QCOTypes.td"
+include "mqt/Dialect/QCO/IR/QCOTypes.td"
 include "mlir/IR/CommonTypeConstraints.td"
 
 //===----------------------------------------------------------------------===//

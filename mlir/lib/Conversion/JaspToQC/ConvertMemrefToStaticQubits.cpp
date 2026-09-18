@@ -9,9 +9,10 @@
 
 #include "qcc/Conversion/JaspToQC/JaspToQC.h"
 
+#include "mqt/Dialect/QC/IR/QCDialect.h"
+#include "mqt/Dialect/QC/IR/QCOps.h"
+
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/QC/IR/QCDialect.h"
-#include "mlir/Dialect/QC/IR/QCOps.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Types.h"

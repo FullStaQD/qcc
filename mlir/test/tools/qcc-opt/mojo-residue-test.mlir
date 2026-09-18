@@ -17,7 +17,10 @@
 // fork registers the dialect and writes the property itself.
 // CHECK-LABEL: func.func @cx_pair(
 // CHECK-SAME:      %[[C:.*]]: !prelimhlep.lin<i1>, %[[T:.*]]: !prelimhlep.lin<i1>) -> i1
-// CHECK-SAME:      attributes {prelimhlep.halo = #prelimhlep.halo}
+// The kernel is `@export`ed, so it is also marked as a starting point of a
+// quantum program; that is what the QIR lowering looks for, in place of the
+// JASP path's `@main` naming convention.
+// CHECK-SAME:      attributes {prelimhlep.halo = #prelimhlep.halo, qcc.entry_point}
 // CHECK:         %[[TRUE:.*]] = arith.constant true
 // CHECK:         %[[OUT:.*]]:2 = prelimhlep.lin (%[[CB:.*]] : i1 from %[[C]] : !prelimhlep.lin<i1>)
 // CHECK:           %[[NT:.*]] = scf.if %[[CB]] -> (!prelimhlep.lin<i1>) {

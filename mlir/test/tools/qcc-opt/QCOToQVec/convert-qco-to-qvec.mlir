@@ -15,7 +15,10 @@ func.func @single_gates() {
     %sdg = qco.sdg %s : !qco.qubit -> !qco.qubit
     %t = qco.t %sdg : !qco.qubit -> !qco.qubit
     %tdg = qco.tdg %t : !qco.qubit -> !qco.qubit
-    %id = qco.id %tdg : !qco.qubit -> !qco.qubit
+    // No `qco.id` here: mqt-core gives `IdOp` a folder, so the conversion
+    // driver folds an identity into its operand before any pattern sees it.
+    // `SingleGateLowering<qco::IdOp, SingleGate::I>` is kept for a directly
+    // applied pattern, but it is unreachable through this pass.
     func.return
 }
 
@@ -36,7 +39,6 @@ func.func @single_gates() {
 // CHECK:         qvec.single sdg
 // CHECK:         qvec.single t
 // CHECK:         qvec.single tdg
-// CHECK:         qvec.single i
 
 // -----
 

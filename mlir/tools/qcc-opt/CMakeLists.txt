@@ -38,6 +38,7 @@ target_link_libraries(
           MLIRFuncToLLVM
           MLIRVectorToLLVMPass
           QCCQVecTransforms
+          QCCQCOTransforms
           QCCQCOToQVec
           QCCToHiSEPQ
           QCCToQIR
@@ -48,4 +49,6 @@ target_link_libraries(
           MLIRTransformUtils
           MLIRQCDialect
           MLIRQTensorDialect
-          MLIRQCODialect)
+          MLIRQCODialect
+          MLIRQCOToQC
+          MLIRQCOTransforms)

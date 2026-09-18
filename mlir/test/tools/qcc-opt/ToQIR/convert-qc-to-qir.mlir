@@ -60,7 +60,9 @@ func.func @test() -> i64 attributes { qcc.entry_point } {
     // CHECK:           llvm.call @__quantum__rt__read_result
 
     aux.record_int %m5 : i1
-    // CHECK:           %[[LLVM_CONST:.*]] = llvm.mlir.constant(3 : i64) : i64
+    // The tuple size is how many values this entry point records: two bools,
+    // the i64 and the i4 below.
+    // CHECK:           %[[LLVM_CONST:.*]] = llvm.mlir.constant(4 : i64) : i64
     // CHECK:           %[[LABEL_PTR_0:.*]] = llvm.mlir.addressof @".qir_dummy_label" : !llvm.ptr
     // CHECK:           llvm.call @__quantum__rt__tuple_record_output(%[[LLVM_CONST]], %[[LABEL_PTR_0]]) : (i64, !llvm.ptr) -> ()
     // CHECK:           %[[LABEL_PTR:.*]] = llvm.mlir.addressof @".qir_dummy_label" : !llvm.ptr
@@ -72,6 +74,17 @@ func.func @test() -> i64 attributes { qcc.entry_point } {
     aux.record_int %record_int : i64
     // CHECK:           %[[LABEL_PTR_1:.*]] = llvm.mlir.addressof @".qir_dummy_label" : !llvm.ptr
     // CHECK:           llvm.call @__quantum__rt__int_record_output(%[[CONST_INT]], %[[LABEL_PTR_1]]) : (i64, !llvm.ptr) -> ()
+
+    // The runtime function takes an i64, so a narrower integer -- a packed
+    // register of measurement outcomes, say -- is zero-extended rather than
+    // rejected. The bit pattern here has its high bit set, and MLIR prints a
+    // signless integer signed, so it comes back as `-7 : i4`; the `zext` is
+    // what makes the recorded value 9 rather than -7.
+    %record_narrow = arith.constant 9 : i4
+    // CHECK:           %[[CONST_NARROW:.*]] = arith.constant -7 : i4
+    aux.record_int %record_narrow : i4
+    // CHECK:           %[[WIDENED:.*]] = llvm.zext %[[CONST_NARROW]] : i4 to i64
+    // CHECK:           llvm.call @__quantum__rt__int_record_output(%[[WIDENED]], {{.*}}) : (i64, !llvm.ptr) -> ()
 
     %exit_code = arith.constant 0 : i64
     return %exit_code : i64

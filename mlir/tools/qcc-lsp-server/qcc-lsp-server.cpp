@@ -12,8 +12,9 @@
 #include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEP.h"
 #include "qcc/Dialect/QVec/IR/QVec.h"
 
-#include "mlir/Dialect/QC/IR/QCDialect.h"
-#include "mlir/Dialect/QCO/IR/QCODialect.h"
+#include "mqt/Dialect/QC/IR/QCDialect.h"
+#include "mqt/Dialect/QCO/IR/QCODialect.h"
+
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/InitAllDialects.h"
 #include "mlir/Tools/mlir-lsp-server/MlirLspServerMain.h"

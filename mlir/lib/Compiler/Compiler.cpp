@@ -14,6 +14,10 @@
 #include "qcc/Conversion/MojoResidueToStd/MojoResidueToStd.h"
 #include "qcc/Conversion/PrelimHLEPToQCO/PrelimHLEPToQCO.h"
 #include "qcc/Dialect/PrelimHLEP/Transforms/Passes.h"
+#include "qcc/Dialect/QCO/Transforms/Passes.h"
+
+#include "mqt/Conversion/QCOToQC/QCOToQC.h"
+#include "mqt/Dialect/QCO/Transforms/Passes.h"
 
 #include "mlir/Conversion/AffineToStandard/AffineToStandard.h"
 #include "mlir/Dialect/Affine/Transforms/Passes.h"
@@ -36,7 +40,7 @@ void buildPipeline(mlir::PassManager& pm, const Target* target) {
   target->addLoweringPasses(pm);
 }
 
-void buildMojoFrontendPipeline(mlir::PassManager& pm) {
+void buildMojoFrontendPipeline(mlir::PassManager& pm, const Target* target) {
   // Make the Mojo module a PrelimHLEP program.
   pm.addPass(qcc::createMojoResidueToStd());
 
@@ -48,6 +52,31 @@ void buildMojoFrontendPipeline(mlir::PassManager& pm) {
   pm.addPass(qcc::createPrelimHLEPNormalizeLin());
   pm.addPass(qcc::createPrelimHLEPToQCO());
   pm.addPass(mlir::createCanonicalizerPass());
+
+  if (target != nullptr) {
+    buildQCOLoweringPipeline(pm, target);
+  }
+}
+
+void buildQCOLoweringPipeline(mlir::PassManager& pm, const Target* target) {
+  // The target backends speak one- and two-qubit gates, so a wider controlled
+  // gate is decomposed here rather than rejected by the QIR legalizer with a
+  // message about an op the program never mentioned.
+  pm.addPass(mlir::qco::createDecomposeMultiControlled());
+
+  // `qc.alloc` is illegal in the QIR lowering: qubits are a register file
+  // addressed by index. This is the QCO counterpart of the JASP path's
+  // `convert-memref-to-static-qubits`.
+  pm.addPass(qcc::createQCOAssignStaticQubits());
+
+  pm.addPass(mlir::createQCOToQC());
+
+  // A private helper that nothing calls would otherwise reach the QIR
+  // lowering, which cannot lower a qubit that arrives as a function argument
+  // rather than from a `qc.static`.
+  pm.addPass(mlir::createSymbolDCEPass());
+
+  target->addLoweringPasses(pm);
 }
 
 } // namespace qcc

@@ -9,8 +9,9 @@
 
 #pragma once
 
-#include "mlir/Dialect/QCO/IR/QCODialect.h" // IWYU pragma: keep
-#include "mlir/Dialect/QCO/IR/QCOOps.h"
+#include "mqt/Dialect/QCO/IR/QCODialect.h" // IWYU pragma: keep
+#include "mqt/Dialect/QCO/IR/QCOOps.h"
+
 #include "mlir/IR/BuiltinTypes.h"
 
 #include "llvm/ADT/SmallPtrSet.h"

@@ -28,6 +28,7 @@
 
 #include "qcc/Conversion/MojoResidueToStd/MojoResidueToStd.h"
 
+#include "qcc/Constants.h"
 #include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEP.h"
 
 #include "mlir/AsmParser/AsmParser.h"
@@ -987,7 +988,13 @@ LogicalResult Translator::translateFunc(Operation* op) {
   OpBuilder builder(op);
   auto func =
       func::FuncOp::create(builder, op->getLoc(), symName.getValue(), builder.getFunctionType(argTypes, resultTypes));
-  if (!isExported(op)) {
+  if (isExported(op)) {
+    // Mojo's `@export` is what names a quantum program's starting point, so
+    // the attribute the QIR lowering looks for is set here rather than by
+    // `add-entrypoint-to-main`: a Mojo kernel is called after its `@export`
+    // name, and there is no `@main` to find.
+    func->setAttr(qcc::entryPointAttrName, builder.getUnitAttr());
+  } else {
     func.setPrivate();
   }
 

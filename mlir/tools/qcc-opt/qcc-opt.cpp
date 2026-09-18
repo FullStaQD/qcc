@@ -19,8 +19,14 @@
 #include "qcc/Dialect/Jasp/IR/Jasp.h"
 #include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEP.h"
 #include "qcc/Dialect/PrelimHLEP/Transforms/Passes.h"
+#include "qcc/Dialect/QCO/Transforms/Passes.h"
 #include "qcc/Dialect/QVec/IR/QVec.h"
 #include "qcc/Dialect/QVec/Transforms/Passes.h"
+
+#include "mqt/Conversion/QCOToQC/QCOToQC.h"
+#include "mqt/Dialect/QC/IR/QCDialect.h"
+#include "mqt/Dialect/QCO/IR/QCODialect.h"
+#include "mqt/Dialect/QCO/Transforms/Passes.h"
 
 #include "mlir/Conversion/ArithToLLVM/ArithToLLVM.h"
 #include "mlir/Conversion/FuncToLLVM/ConvertFuncToLLVM.h"
@@ -44,8 +50,6 @@
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/MemRef/Transforms/AllocationOpInterfaceImpl.h"
 #include "mlir/Dialect/MemRef/Transforms/Passes.h"
-#include "mlir/Dialect/QC/IR/QCDialect.h"
-#include "mlir/Dialect/QCO/IR/QCODialect.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SCF/Transforms/BufferizableOpInterfaceImpl.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
@@ -97,6 +101,7 @@ int main(int argc, char** argv) {
   mlir::bufferization::registerBufferLoopHoistingPass();
   mlir::registerMem2RegPass();
   mlir::registerSCCPPass();
+  mlir::registerSymbolDCEPass();
   mlir::bufferization::registerPromoteBuffersToStackPass();
   mlir::registerInlinerPass();
   mlir::affine::registerAffineLoopUnroll();
@@ -121,6 +126,9 @@ int main(int argc, char** argv) {
   qcc::registerMojoResidueToStd();
   qcc::registerPrelimHLEPToQCO();
   qcc::registerPrelimHLEPNormalizeLin();
+  mlir::registerQCOToQC();
+  qcc::registerQCOAssignStaticQubits();
+  mlir::qco::registerDecomposeMultiControlled();
 
   // Extension registration
   mlir::arith::registerBufferizableOpInterfaceExternalModels(registry);
