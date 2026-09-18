@@ -1,0 +1,49 @@
+// One `kgen` invocation, a file with a quantum kernel in it, and no qcc on the
+// command line: the fork runs qcc itself, embeds what comes back, and the
+// kernel is gone by the time the CPU backend runs.
+//
+// This is the caller's half of the contract `mojo/README.md` describes.
+// `grover.test` drives the same chain by hand, one stage at a time; this one
+// checks that `kgen` drives it.
+//
+// REQUIRES: mojo-kernels
+// RUN: rm -rf %t && mkdir -p %t
+
+// RUN: %kgen --elaborate -O1 -S --qcc=%qcc_bin %mojo_kernels/grover.mojo -o %t/host.mlir
+// RUN: FileCheck %s --input-file=%t/host.mlir
+
+// The artifact reaches the host program the way a Mojo string literal does:
+// as a constant whose address an accessor hands back. Two accessors rather
+// than one struct keeps the C ABI trivial for the runtime library.
+// CHECK: kgen.func export @__qpu_artifact_grover() cabi -> !kgen.scalar<index>
+// CHECK: kgen.param.constant: string = <"; ModuleID
+// CHECK: pop.string.address
+// CHECK: kgen.func export @__qpu_artifact_size_grover() cabi -> !kgen.scalar<index>
+// CHECK: pop.string.size
+
+// The kernel itself does not survive into the host module. Its arguments and
+// results are quantum types with no CPU representation; leaving it here would
+// fail somewhere deep in LLVM lowering instead of being compiled by qcc.
+// CHECK-NOT: kgen.func{{.*}}@grover
+// CHECK-NOT: prelimhlep
+
+// The same invocation all the way to an object file, so that the embedding is
+// checked against a real backend and not only against the IR printer.
+// RUN: %kgen --emit=object -O1 --qcc=%qcc_bin %mojo_kernels/grover.mojo -o %t/grover.o
+// RUN: llvm-nm --defined-only %t/grover.o | FileCheck %s --check-prefix=SYMS
+// SYMS-DAG: __qpu_artifact_grover
+// SYMS-DAG: __qpu_artifact_size_grover
+
+// A kernel qcc rejects is a `kgen` error, at the Mojo line that wrote it: the
+// relay re-emits qcc's `--diagnostics=json` records through this compiler's
+// own diagnostic engine. `kernel-errors-qcc.test` checks the same program
+// with qcc driven by hand; the point here is that nothing is lost in between.
+// RUN: not %kgen --emit=object -O1 --qcc=%qcc_bin %mojo_kernels/errors/bad_basis.mojo \
+// RUN:     -o %t/bad.o 2>&1 | FileCheck %s --check-prefix=BASIS
+// BASIS: bad_basis.mojo:21:14: error: 'prelimhlep.constant' op expected only '+'/'-' symbols for result type '!prelimhlep.lin<!prelimhlep.x<1>>', got '?'
+
+// Without a qcc to run, the compiler says so rather than failing later with
+// something about an unlowerable type.
+// RUN: env -u MOJO_QCC not %kgen --emit=object -O1 %mojo_kernels/grover.mojo -o %t/none.o 2>&1 \
+// RUN:     | FileCheck %s --check-prefix=NOQCC
+// NOQCC: this file contains a quantum kernel, which is compiled by qcc, but qcc was not found: pass --qcc=<path> or set MOJO_QCC

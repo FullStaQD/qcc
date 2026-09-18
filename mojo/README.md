@@ -26,6 +26,10 @@ mojo source
   -> qcc --frontend=mojo-ir DIR/<kernel>.mlir
 ```
 
+That is the chain driven by hand, one stage at a time, which is how the lit
+tests drive it. `kgen --qcc=<path>` runs the same two stages itself; see "The
+caller's half" below.
+
 `kgen --emit-quantum-kernels` writes one generic-form module per exported
 quantum kernel: that function plus everything it calls, with locations.
 `qcc --frontend=mojo-ir` reads one, translates the Mojo residue
@@ -115,6 +119,51 @@ the residue translation synthesizes one for a kernel with no classical
 arguments — so the caller has nothing to pass for it. That the kernel is a
 quantum one is said once, by `halo`.
 
+## The caller's half
+
+`kgen --qcc=<path>` (or `MOJO_QCC` in the environment) makes the handoff the
+compiler's job rather than a person's: one invocation on a file that contains
+a quantum kernel compiles the host code here and the kernel over there.
+
+```
+kgen --emit=object -O1 -I <repo>/mojo/hlep --qcc=<path>/qcc kernel.mojo -o kernel.o
+```
+
+Between elaboration and the CPU backend, `kgen` extracts each exported
+quantum kernel exactly as `--emit-quantum-kernels` does, runs qcc on it per
+the contract above, and then:
+
+- **Relays qcc's diagnostics.** Each `--diagnostics=json` record is re-emitted
+  through this compiler's own diagnostic engine at the location it names, so a
+  quantum error prints with the Mojo line and caret and is indistinguishable
+  from a Mojo error. A stderr line that is not a record is passed through
+  verbatim rather than swallowed: a failed compile with nothing to explain it
+  is worse than a stray line.
+- **Reads the sidecar as a check.** This compiler already knows the kernel's
+  Mojo signature, so `--emit-entry-points` is read back to confirm that qcc
+  compiled the entry point under the name the host code will look up, not to
+  discover what the signature is.
+- **Embeds the artifact.** Two accessors per kernel,
+  `__qpu_artifact_<name>` and `__qpu_artifact_size_<name>`, C-ABI functions
+  returning the address and the length of a string constant holding what qcc
+  wrote. The bytes reach the object file the way a Mojo string literal does.
+  Two accessors rather than one struct so the runtime library needs no layout
+  agreement with the compiler.
+- **Erases the haloed functions.** Their arguments and results are quantum
+  types with no CPU representation; left in place they would fail somewhere
+  deep in LLVM lowering rather than here. A kernel that is still called
+  directly after that is an error at the call, because a kernel is launched
+  and not called: the artifact is its compiled form and there is no
+  host-callable body to jump to.
+
+`--qcc-target` chooses the backend qcc compiles for (`qir` by default); with
+`--save-temps` the module handed over, the artifact and the sidecar are kept
+instead of being thrown away with the temporary directory.
+
+`mlir/test/mojo/single-source.test` is what this promises: the accessors in
+the module and in the object file, the kernel gone from both, a qcc error at
+its Mojo line, and a clear message when there is no qcc to run.
+
 ## Who reports what
 
 Every rule has one owner, and the diagnostic comes from that owner at the
@@ -173,9 +222,21 @@ chain" above. Getting there needed three things the plan did not predict:
   pattern through the driver; `convert-qco-to-qvec.mlir` says so where it used
   to test that it converts.
 
-The protocol surface is built too; see "The driver contract" above.
+The protocol surface is built too; see "The driver contract" above, and so is
+the caller's half of it: `kgen` drives qcc itself, embeds the artifact and
+drops the kernel before the CPU backend. See "The caller's half".
 
-Still open, for the rest of phase 3 and later: F9's launch site so that `mojo build` drives qcc rather than a person, the
-`qpu.host` runtime and a simulator backend, loops in a body (`hlcf.loop`, not
+F9 did not go where the plan put it. The plan said to follow the GPU launch's
+nested compile (`kgen.compile_offload`), but that machinery exists to slice a
+_pre-elaboration_ module and re-run the elaborator against a different target,
+with a `TargetInfoAttr` and a `TargetTraits` entry to match. A quantum kernel
+needs none of that: it is already fully elaborated in the host module, which
+is why `--emit-quantum-kernels` works where it sits. The handoff is therefore
+a step between elaboration and the CPU backend, and the launch resolves the
+artifact by the kernel's exported name rather than through a comptime
+parameter.
+
+Still open, for the rest of phase 3 and later: the `qpu.host` runtime and a
+simulator backend to run the embedded QIR, loops in a body (`hlcf.loop`, not
 yet in the residue table), and `Lin` being monomorphic because a
 `__mlir_region` block argument cannot be typed by a parameter.

@@ -99,6 +99,12 @@ if config.mojo_fork and os.path.isfile(config.mojo_kgen) and os.path.isdir(confi
     config.substitutions.append(
         ("%mojo_kernels", os.path.join(config.project_source_dir, "mojo", "kernels"))
     )
+    # `kgen --qcc=` wants a bare path, which the `qcc` tool substitution cannot
+    # give: it rewrites the word `qcc` wherever it appears, including inside
+    # the flag's own name.
+    config.substitutions.append(
+        ("%qcc_bin", os.path.join(str(candidate_dir), "qcc"))
+    )
 
 # Tests opt in via `REQUIRES: lld`.
 if shutil.which("ld.lld", path=config.environment["PATH"]) is not None:
