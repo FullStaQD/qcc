@@ -1,16 +1,20 @@
+# The Preliminary High Level Entry Point
+
 We would like to incorporate as an entry point to the compilation pipeline an IR specification which is
 
 - high-level,
 - hybrid, and
 - broad.
 
-This IR specification may correspond to one or more MLIR dialects. In this document, we refer to “the high-level dialect” as this IR specification, while keeping the question open whether it will actually be implemented as a dialect.
+In this document, we first outline our requirements of the entry point. This IR specification may correspond to one or more MLIR dialects. We refer to “the high-level dialect” as this IR specification, while keeping the question open whether it will actually be implemented as a dialect.
 
-# Requirements
+Secondly, we lay out a proposal for the entry point, realized as the `PrelimHLEP` dialect.
 
-## High Level
+## Requirements
 
-### Abstractions
+### High Level
+
+#### Abstractions
 
 The hybrid type category most likely has three relevant operations to construct types:
 
@@ -18,15 +22,13 @@ The hybrid type category most likely has three relevant operations to construct 
 - Cartesian product (classical product, quantum direct sum)
 - Linear product (classical product, quantum tensor product)
 
-(Cartesian and linear product both act as the ordinary classical product on the underlying classical label set; they differ only in the _fiber_ operation — direct sum vs. tensor product of the associated vector spaces. See "Types can be constructed in the following ways" below for the formal definitions.)
-
 From these building blocks, one should be able to construct new types that only exist at compile time and cause no runtime overhead.
 
 In addition, one can consider generics (possibly in the form of dependent types), interfaces (abstract base classes, traits, something like this), or other abstractions.
 
 Ideally, abstractions should be zero-cost.
 
-### Rigorous type system capturing quantum logic
+#### Rigorous type system capturing quantum logic
 
 On lower level quantum programming, there is a tradeoff related to the distinction between pointer and value semantics:
 
@@ -39,13 +41,13 @@ A rich type theory will allow higher order concepts, such as dependent types, (h
 
 Embedding a linear aspect into a type theory requires some form of bookkeeping, in the form of lifetimes, color palettes, or by another scheme.
 
-## Hybrid
+### Hybrid
 
-### Structured classical control flow
+#### Structured classical control flow
 
 Interaction with classical parts of the program should be seamless and ideally use existing technology (e.g. `cf`, `scf`, `affine` dialects).
 
-### Structured quantum control flow
+#### Structured quantum control flow
 
 Controlled gates have a clear meaning in terms of control flow. This has two implications:
 
@@ -54,21 +56,20 @@ Controlled gates have a clear meaning in terms of control flow. This has two imp
   - Nvidia’s `quake` dialect, where control-wires are typed differently from regular wires, and
   - the `unqomp` algorithm for automated uncomputation.
     In both cases, the control-wires are multi-edges and break linearity, exploiting the z-commutativity property of controlled gates on the control qubits.
-    (References for these and other cited languages/algorithms — Nvidia's `quake` dialect, `unqomp`, Qrisp, Quipper, qurts, Silq — should be added once settled on; see "Open Questions / TODOs".)
 
-### (Linearization of classical types)
+#### Linearization of classical types
 
 One possibility for introducing quantum types is to provide a quantization generic, which transforms a classical type into the quantum type that has the classical value set as a distinguished basis.
 
 This avoids the careful introduction of quantum base types and opens the door to a monadic programming paradigm, as well as just-a-phase-style gate definitions.
 
-Keeping the underlying classical types explicit, one could also define quantizations of classical functions, which result in free quantum functions that play an important role in silq (called “qfree” there).
+Keeping the underlying classical types explicit, one could also define quantizations of classical functions, which result in free quantum functions that play an important role in `silq` (called "`qfree`" there).
 
-## Broad
+### Broad
 
-### Existing and proposed high-level languages can be embedded
+#### Existing and proposed high-level languages can be embedded
 
-MLIR’s full potential is best leveraged if as much of the lowering as possible happens within the framework. Ideally, the passing from a high-level language to the MLIR entry dialect is only a syntactic translation, not a semantic lowering or other transformation.
+MLIR’s full potential is best leveraged if as much of the lowering as possible happens within the framework. Ideally, the passing from a high-level language to the MLIR entry dialect is only a syntactic translation, not a semantic lowering.
 
 To meet this goal with multiple frontends, expecting newly developed ones in the future, the high-level dialect must be able to faithfully capture the language concepts of all supported input languages. It is of course hard to predict how a possible future frontend language will look like. However, the following observation helps.
 
@@ -78,17 +79,15 @@ Currently, the space of quantum programming languages is divided into
 
 - high-level languages based on solid theoretical foundations that are academic research objects and are either not implemented or ignored by the practitioner community.
 
-Qrisp sits somewhere between these groups and can be seen as a step towards higher-level languages actually being realized.
+More recently, frameworks like `qrisp` sit somewhere between these groups and can be seen as a step towards higher-level languages actually being realized.
 
-If we are able to capture qrisp alongside the essential concepts of the most promising high-level languages in the dialect, the chance is high that it will support a well-designed future frontend language. In particular, we should consider:
+If we are able to capture `qrisp` alongside the essential concepts of the most promising high-level languages in the dialect, the chance is high that it will support a well-designed future frontend language. In particular, we should consider:
 
 - From qrisp:
   - Quantum versions of:
-    - `Float`, misnomer, really fixed-point rationals.
+    - `Float` (misnomer, really fixed-point rationals).
     - `Bool`
     - `Modulus`, e.g. `Float mod 2pi`.
-    - `Char`
-    - `String`
   - Quantum arithmetic
     - Allow for the specification of, say, particular adder circuits.
   - Kernel decorator for automatic uncomputation.
@@ -104,14 +103,17 @@ If we are able to capture qrisp alongside the essential concepts of the most pro
   - …
 - From …
 
-### Syntactic sugaring for common concepts
+#### Syntactic sugaring for common concepts
 
 - Automatic uncomputation is a common feature of high-level programming languages. If it is implicit, linearity will be broken on the highest level.
 - Just-a-phase style if-let statements are a neat way to define gates from few ingredients and rich structure.
 
 ## Draft of the preliminary High Level Entry Point Dialect
 
-Guided by the requirements above, we focus for now on well-defined semantics, leaving lowering for later. Informally, a hybrid type in this model is a classical set of labels, each label carrying its own quantum state space (a finite-dimensional Hilbert space); purely classical and purely quantum types are the special cases where all state spaces are trivial or where there is a single label, respectively. The formal model below makes this precise as a finite-dimensional $\mathbb{C}$-vector bundle over a finite set.
+Guided by the requirements above, we focus for now on well-defined semantics, leaving lowering for later. Informally, a hybrid type in this model is a classical set of labels, each label carrying its own quantum state space (a finite-dimensional Hilbert space).
+Purely classical and purely quantum types are the special cases where all state spaces are trivial or where there is a single label, respectively.
+The formal model below makes this precise as a finite-dimensional $\mathbb{C}$-vector bundle over a finite set.
+We only give **denotational semantics** -- meaning we describe what mathematical concepts the language constructs correspond to. We don't provide a type theory here, and we don't give operational semantics.
 
 ### Philosophy
 
@@ -130,52 +132,37 @@ They should therefore be manifestly present in a high-level IR.
 
 ### Type System
 
-#### Notational conventions
+The type system is informed by, but does not realize in full, Linear Homotopy Type Theory.
 
-We use the notation of (linear homotopy) type theory throughout:
+#### Vector bundles over finite sets
 
-- $a : A$ is the typing judgment "$a$ is a term of type $A$". We use it uniformly, also where a set-theoretic text would write $a \in A$.
-- $a :\equiv b$ _defines_ $a$ to be $b$.
-- $a \equiv b$ is judgmental equality (e.g. two terms that become identical after unfolding definitions).
-- $a = b$ is an equality that has to be derived, i.e. the statement of a proposition or the conclusion of a computation.
-- $\Gamma \vdash J$ is the hypothetical judgment "$J$ holds in context $\Gamma$". We use it for the dependence of a linearized map on its measurement result.
-- $\text{Type}$ is the universe of hybrid types described below.
-
-#### Background: vector bundles over finite sets
-
-The semantic model below is phrased in terms of vector bundles. Since that term tends to evoke differential geometry, let us spell out how little of that machinery is actually needed here.
-
+The semantic model below is phrased in terms of vector bundles.
 A _vector bundle over a finite set_ $W$ is nothing more than a $W$-indexed family of vector spaces: for every element $w : W$, a finite-dimensional $\mathbb{C}$-vector space $H_w$, called the _fiber_ over $w$. We picture the _base_ set $W$ drawn horizontally, with the fiber $H_w$ attached vertically over each point, and write
 
 $$
 \begin{bmatrix}H_{\bullet} \\ \downarrow \\ W\end{bmatrix}
 $$
 
-for the whole datum. A physicist who has met fiber bundles in gauge theory or general relativity can safely forget all the analytic content: the base is a finite discrete set, so there are no charts, no transition functions, no connection — only bookkeeping. What survives, and what we exploit, is the structural picture of "one linear space per base point". In particular, fibers over different points may have different dimensions.
-
-The physical reading is what makes this the right notion for hybrid programs:
-
-- The base set $W$ enumerates the possible values of the _classical_ data: the contents of a classical register, or the outcomes of the measurements performed so far.
-- The fiber $H_w$ is the Hilbert space of the _quantum_ data in the branch where the classical data reads $w$. The fiber may genuinely depend on $w$: in the branch where a measurement came out $1$, the program may have discarded or allocated qubits.
-- A term of such a type is a base point $w$ together with a vector $\xi : H_w$ — definite classical data, quantum data conditioned on it. Superpositions _across_ base points do not exist in this type; making them expressible is precisely the job of the linearization functor $\text{Lin}$ below, which collapses the base to a point and direct-sums all fibers into a single "total space" $\bigoplus_{w:W} H_w$.
-- Readers who think in density matrices may recognize the classical-quantum states $\sum_w p_w \ket{w}\bra{w} \otimes \rho_w$ from quantum information theory: hybrid types are the pure-state, branch-by-branch refinement of that picture, with $W$ playing the role of the classical index.
-
-A _morphism_ of bundles consists of a map $f_{\text{cl}} : W \to W'$ of base sets together with, for each $w$, a linear map $f_{\text{lin},w} : H_w \to H'_{f_{\text{cl}}(w)}$ of fibers "covering" it — the fiber over $w$ must land in the fiber over the image point $f_{\text{cl}}(w)$. Physically: read the classical register, apply a linear map (which may depend on what was read) to the quantum data, and update the register. Classically controlled quantum operations are thus the _native_ morphisms of this model, with two informative extremes:
-
-- $f_{\text{cl}} = \text{id}$ and fibers $U_w$: a classically controlled unitary;
-- all fibers zero or trivial: an ordinary classical function.
+for the whole datum. In many instances, the all fibres will be equal ($H_w \equiv H_{w'}$ for any $w$, $w'$).
 
 Note the direction of information flow: along a single morphism, the classical part cannot depend on the quantum data. Measurement — the creation of classical data out of quantum data — is therefore _not_ a single bundle morphism. It is a whole family of morphisms indexed by the possible outcomes; capturing this is exactly what the hypothetical-judgment notation $\phi : M(f) \vdash \text{Lin}\,f$ is for, and it is the technical heart of the linearization machinery below.
 
 #### Semantics
 
-- Informed by, but not realizing in full, Linear Homotopy Type Theory.
-- Denotational semantic model: A type is a finite-dimensional $\mathbb{C}$-vector bundle over a finite set, e.g. $$H_{\bullet} :\equiv\begin{bmatrix}H_{\bullet} \\ \downarrow \\ W\end{bmatrix} : \text{Type},$$where $W$ is a finite set and $H_{\bullet}$ is a $W$-indexed family of finite-dimensional $\mathbb{C}$-vector spaces.
+- Denotational semantic model:
+  A type is a finite-dimensional $\mathbb{C}$-vector bundle over a finite set, e.g. $$H_{\bullet} :\equiv\begin{bmatrix}H_{\bullet} \\ \downarrow \\ W\end{bmatrix} : \text{Type},$$where $W$ is a finite set and $H_{\bullet}$ is a $W$-indexed family of finite-dimensional $\mathbb{C}$-vector spaces.
+  The physical reading is what makes this the right notion for hybrid programs:
+
+  - The base set $W$ enumerates the possible values of the _classical_ data: the contents of a classical register, or the outcomes of the measurements performed so far. The model lends itself to a many-worlds view in which we allow ourselves to think of elements of $W$ (measurement results) as _possible worlds_.
+  - The _fiber_ $H_w$ is the Hilbert space of the _quantum_ data in the branch (world) where the classical data reads $w$. The fiber may genuinely depend on $w$: in the branch where a measurement came out $1$, the program may have discarded or allocated qubits.
+  - A term of such a type is a base point $w$ together with a vector $\xi : H_w$ — definite classical data, quantum data conditioned on it.
+
 - We are only concerned with pure functions. A function
   $$
   f: \begin{bmatrix}H_{\bullet} \\ \downarrow \\ W\end{bmatrix} \to \begin{bmatrix}H'_{\bullet} \\ \downarrow \\ W'\end{bmatrix}
   $$
   is given by a classical part $f_{\text{cl}}:W\to W'$, together with a $W$-family of linear maps $f_{\text{lin},w}:H_{w}\to H_{f_{\text{cl}}(w)}$.
+  Such a function is called a _bundle morphism_; that it is applicable to hybrid computation is one reason why we choose to formalize the types as bundles, not merely families of vector spaces.
 - Purely classical types $W$ are embedded into this type system as covered by the Zero space, and purely linear types $H$ (i.e. vector spaces) cover the singleton:
   $$
   W :\equiv\begin{bmatrix}
@@ -184,7 +171,7 @@ Note the direction of information flow: along a single morphism, the classical p
   H \\ \downarrow \\ *
   \end{bmatrix}.
   $$
-  However, in order for classical types to interact meaningfully with quantum types (e.g. by measurement), they need to be embedded into the quantum context. To this end, they are commonly equipped with an "infinitesimal halo" of linearity, which means they are covered by the tensor unit $\mathbb{C}$:
+  However, in order for classical types to interact meaningfully with quantum types (e.g. by measurement), they need to be embedded into the quantum context. To this end, they are commonly equipped with "linear vacuum", which means they are covered by the tensor unit $\mathbb{C}$:
   $$
   \mathbb{C} \times W :\equiv\begin{bmatrix}
   \mathbb{C}_{\bullet} \\ \downarrow \\ W
