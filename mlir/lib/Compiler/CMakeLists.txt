@@ -1,6 +1,7 @@
 add_mlir_library(
   QCCCompiler
   Compiler.cpp
+  Protocol.cpp
   DEPENDS
   JaspToQCIncGen
   MojoResidueToStdIncGen
@@ -36,4 +37,5 @@ add_mlir_library(
   MLIRQCOToQC
   MLIRQCOTransforms
   # Extensions/Interfaces
-  MLIRTransformUtils)
+  MLIRTransformUtils
+  MLIRSupport)

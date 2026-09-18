@@ -70,6 +70,51 @@ module is not a well-formed PrelimHLEP program until `--mojo-residue-to-std`
 has run. The `prelimhlep` ops themselves are registered on both sides and
 parse with their real syntax.
 
+## The driver contract
+
+`qcc --frontend=mojo-ir` is meant to be run by a compiler, not only by a
+person, so beside the text diagnostics and the artifact on stdout there is a
+machine-readable surface. `mlir/test/tools/qcc/mojo-frontend-protocol.mlir`
+and `mojo-frontend-diagnostics-json.mlir` are what it promises.
+
+| Flag                       | What it does                                                                                                                                                    |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--protocol=N`             | The caller states the contract version it was built against. qcc speaks 1 and refuses anything else, before reading the input. Omitting it skips the handshake. |
+| `--diagnostics=json`       | Diagnostics on stderr as one JSON object per line instead of source-and-caret.                                                                                  |
+| `--emit-entry-points=FILE` | Writes the entry-point sidecar, as JSON.                                                                                                                        |
+| `--verify-only`            | Translates and verifies, then stops: no lowering, no artifact.                                                                                                  |
+
+The Mojo path runs in two stages, and what sits between them is what the
+contract is written in terms of: a verified PrelimHLEP program whose functions
+still carry the signatures the caller wrote. `--verify-only` stops there, and
+the sidecar is taken from there rather than from the lowered module, whose
+signatures belong to the target.
+
+A diagnostic record has `severity` and `message`, plus `file`, `line` and
+`column` when the location names them — a location qcc cannot resolve leaves
+them out rather than inventing a position. Attached notes and the callers of
+an inlined callsite become `notes`, each of the same shape. One object per
+line is what lets the caller relay a diagnostic as it arrives rather than at
+exit. The positions are Mojo's own, because Mojo's locations are.
+
+The sidecar names each `@export`ed kernel and the signature a launcher is
+typed from:
+
+```json
+{
+  "protocol": 1,
+  "entry_points": [
+    { "name": "flip", "halo": true, "arguments": [], "results": ["i1"] }
+  ]
+}
+```
+
+`!prelimhlep.unit` is left out of those signatures. It is qcc's own token —
+the halo verifier wants a haloed function to name the state it acts on, and
+the residue translation synthesizes one for a kernel with no classical
+arguments — so the caller has nothing to pass for it. That the kernel is a
+quantum one is said once, by `halo`.
+
 ## Who reports what
 
 Every rule has one owner, and the diagnostic comes from that owner at the
@@ -128,9 +173,9 @@ chain" above. Getting there needed three things the plan did not predict:
   pattern through the driver; `convert-qco-to-qvec.mlir` says so where it used
   to test that it converts.
 
-Still open, for the rest of phase 3 and later: the protocol surface
-(`--protocol`, `--diagnostics=json`, the entry-point sidecar, `--verify-only`),
-F9's launch site so that `mojo build` drives qcc rather than a person, the
+The protocol surface is built too; see "The driver contract" above.
+
+Still open, for the rest of phase 3 and later: F9's launch site so that `mojo build` drives qcc rather than a person, the
 `qpu.host` runtime and a simulator backend, loops in a body (`hlcf.loop`, not
 yet in the residue table), and `Lin` being monomorphic because a
 `__mlir_region` block argument cannot be typed by a parameter.

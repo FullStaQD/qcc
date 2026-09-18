@@ -145,24 +145,24 @@ $$
 
 for the whole datum. In many instances, the all fibres will be equal ($H_w \equiv H_{w'}$ for any $w$, $w'$).
 
-The physical reading is what makes this the right notion for hybrid programs:
-
-- The base set $W$ enumerates the possible values of the _classical_ data: the contents of a classical register, or the outcomes of the measurements performed so far. The model lends itself to a many-worlds view in which we allow ourselves to think of elements of $W$ (measurement results) as _possible worlds_.
-- The fiber $H_w$ is the Hilbert space of the _quantum_ data in the branch (world) where the classical data reads $w$. The fiber may genuinely depend on $w$: in the branch where a measurement came out $1$, the program may have discarded or allocated qubits.
-- A term of such a type is a base point $w$ together with a vector $\xi : H_w$ — definite classical data, quantum data conditioned on it.
-
-A _morphism_ of bundles consists of a map $f_{\text{cl}} : W \to W'$ of base sets together with, for each $w$, a linear map $f_{\text{lin},w} : H_w \to H'_{f_{\text{cl}}(w)}$ of fibers "covering" it — the fiber over $w$ must land in the fiber over the image point $f_{\text{cl}}(w)$.
-
 Note the direction of information flow: along a single morphism, the classical part cannot depend on the quantum data. Measurement — the creation of classical data out of quantum data — is therefore _not_ a single bundle morphism. It is a whole family of morphisms indexed by the possible outcomes; capturing this is exactly what the hypothetical-judgment notation $\phi : M(f) \vdash \text{Lin}\,f$ is for, and it is the technical heart of the linearization machinery below.
 
 #### Semantics
 
-- Denotational semantic model: A type is a finite-dimensional $\mathbb{C}$-vector bundle over a finite set, e.g. $$H_{\bullet} :\equiv\begin{bmatrix}H_{\bullet} \\ \downarrow \\ W\end{bmatrix} : \text{Type},$$where $W$ is a finite set and $H_{\bullet}$ is a $W$-indexed family of finite-dimensional $\mathbb{C}$-vector spaces.
+- Denotational semantic model:
+  A type is a finite-dimensional $\mathbb{C}$-vector bundle over a finite set, e.g. $$H_{\bullet} :\equiv\begin{bmatrix}H_{\bullet} \\ \downarrow \\ W\end{bmatrix} : \text{Type},$$where $W$ is a finite set and $H_{\bullet}$ is a $W$-indexed family of finite-dimensional $\mathbb{C}$-vector spaces.
+  The physical reading is what makes this the right notion for hybrid programs:
+
+  - The base set $W$ enumerates the possible values of the _classical_ data: the contents of a classical register, or the outcomes of the measurements performed so far. The model lends itself to a many-worlds view in which we allow ourselves to think of elements of $W$ (measurement results) as _possible worlds_.
+  - The _fiber_ $H_w$ is the Hilbert space of the _quantum_ data in the branch (world) where the classical data reads $w$. The fiber may genuinely depend on $w$: in the branch where a measurement came out $1$, the program may have discarded or allocated qubits.
+  - A term of such a type is a base point $w$ together with a vector $\xi : H_w$ — definite classical data, quantum data conditioned on it.
+
 - We are only concerned with pure functions. A function
   $$
   f: \begin{bmatrix}H_{\bullet} \\ \downarrow \\ W\end{bmatrix} \to \begin{bmatrix}H'_{\bullet} \\ \downarrow \\ W'\end{bmatrix}
   $$
   is given by a classical part $f_{\text{cl}}:W\to W'$, together with a $W$-family of linear maps $f_{\text{lin},w}:H_{w}\to H_{f_{\text{cl}}(w)}$.
+  Such a function is called a _bundle morphism_; that it is applicable to hybrid computation is one reason why we choose to formalize the types as bundles, not merely families of vector spaces.
 - Purely classical types $W$ are embedded into this type system as covered by the Zero space, and purely linear types $H$ (i.e. vector spaces) cover the singleton:
   $$
   W :\equiv\begin{bmatrix}
@@ -171,7 +171,7 @@ Note the direction of information flow: along a single morphism, the classical p
   H \\ \downarrow \\ *
   \end{bmatrix}.
   $$
-  However, in order for classical types to interact meaningfully with quantum types (e.g. by measurement), they need to be embedded into the quantum context. To this end, they are commonly equipped with an "infinitesimal halo" of linearity, which means they are covered by the tensor unit $\mathbb{C}$:
+  However, in order for classical types to interact meaningfully with quantum types (e.g. by measurement), they need to be embedded into the quantum context. To this end, they are commonly equipped with "linear vacuum", which means they are covered by the tensor unit $\mathbb{C}$:
   $$
   \mathbb{C} \times W :\equiv\begin{bmatrix}
   \mathbb{C}_{\bullet} \\ \downarrow \\ W

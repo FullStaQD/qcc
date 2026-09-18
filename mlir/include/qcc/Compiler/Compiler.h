@@ -18,14 +18,24 @@ namespace qcc {
 /// Assembles the whole compilation pipeline for qcc.
 void buildPipeline(mlir::PassManager& pm, const Target* target);
 
-/// Assembles the pipeline that turns elaborated Mojo IR into QCO.
+/// Assembles the pipeline that makes elaborated Mojo IR a PrelimHLEP program.
 ///
-/// This is the front half of the PrelimHLEP path: the residue translation
-/// that makes a Mojo module a PrelimHLEP program, the inliner that flattens
-/// the eDSL's calls, and the lowering to QCO. When `target` is null the
-/// pipeline stops at QCO; otherwise `buildQCOLoweringPipeline` continues it
-/// to that target.
-void buildMojoFrontendPipeline(mlir::PassManager& pm, const Target* target = nullptr);
+/// This is the residue translation and nothing else, so that running it and
+/// the verification the pass manager does after it is exactly what
+/// `--verify-only` promises: every rule qcc owns has been checked, and no
+/// lowering decision has been taken yet. It is also the point at which the
+/// module is a function-level program whose entry points can be written to
+/// the sidecar, before the inliner and the QCO lowering rewrite the
+/// signatures.
+void buildMojoResiduePipeline(mlir::PassManager& pm);
+
+/// Assembles the pipeline that lowers a PrelimHLEP program to QCO.
+///
+/// Runs on the output of `buildMojoResiduePipeline`: the inliner that
+/// flattens the eDSL's one call per gate, and the lowering to QCO. When
+/// `target` is null the pipeline stops at QCO; otherwise
+/// `buildQCOLoweringPipeline` continues it to that target.
+void buildMojoLoweringPipeline(mlir::PassManager& pm, const Target* target = nullptr);
 
 /// Assembles the pipeline that lowers a QCO program to `target`.
 ///

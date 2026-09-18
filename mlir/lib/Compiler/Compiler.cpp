@@ -40,10 +40,13 @@ void buildPipeline(mlir::PassManager& pm, const Target* target) {
   target->addLoweringPasses(pm);
 }
 
-void buildMojoFrontendPipeline(mlir::PassManager& pm, const Target* target) {
-  // Make the Mojo module a PrelimHLEP program.
+void buildMojoResiduePipeline(mlir::PassManager& pm) {
+  // Make the Mojo module a PrelimHLEP program. The pass manager verifies
+  // afterwards, which is where the PrelimHLEP verifiers run.
   pm.addPass(qcc::createMojoResidueToStd());
+}
 
+void buildMojoLoweringPipeline(mlir::PassManager& pm, const Target* target) {
   // The eDSL library is a call per gate, and the PrelimHLEP normalization
   // works within one function, so the kernel is flattened first. Private
   // symbols (everything but the entry point) are what lets the inliner do it.
