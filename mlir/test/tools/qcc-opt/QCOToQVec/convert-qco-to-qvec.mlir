@@ -135,3 +135,59 @@ func.func @sinks_are_dropped() {
 }
 
 // CHECK-NOT:     qco.sink
+
+// -----
+
+// `qco.if` becomes `scf.if`. The qubits going in stand in for the block arguments; the qubit results stay, so that
+// whatever uses one afterwards is ordered behind the `if`.
+
+// CHECK-LABEL: func.func @conditional
+func.func @conditional(%cond: i1) {
+    %q0 = qco.static 0 : !qco.qubit
+    %q1 = qco.if %cond args(%a0 = %q0) -> (!qco.qubit) {
+      %x = qco.x %a0 : !qco.qubit -> !qco.qubit
+      qco.yield %x : !qco.qubit
+    } else args(%a0 = %q0) {
+      qco.yield %a0 : !qco.qubit
+    }
+    %h = qco.h %q1 : !qco.qubit -> !qco.qubit
+    func.return
+}
+
+// CHECK-NOT:     qco.if
+// CHECK:         %[[Q0:.*]] = qco.static 0
+// CHECK:         %[[Q1:.*]] = scf.if %{{.*}} -> (!qco.qubit) {
+// CHECK:           %[[V:.*]] = vector.from_elements %[[Q0]] : vector<1x!qco.qubit>
+// CHECK:           %[[X:.*]] = qvec.single x %[[V]] : vector<1x!qco.qubit>
+// CHECK:           %[[X0:.*]] = vector.extract %[[X]][0]
+// CHECK:           scf.yield %[[X0]] : !qco.qubit
+// CHECK:         } else {
+// CHECK:           scf.yield %[[Q0]] : !qco.qubit
+// CHECK:         }
+// CHECK:         vector.from_elements %[[Q1]] : vector<1x!qco.qubit>
+// CHECK:         qvec.single h
+
+// -----
+
+// Classical results come first, then the qubits.
+
+// CHECK-LABEL: func.func @conditional_with_classical_result
+func.func @conditional_with_classical_result(%cond: i1, %lhs: i64, %rhs: i64) -> i64 {
+    %q0 = qco.static 0 : !qco.qubit
+    %pick, %q1 = qco.if %cond args(%a0 = %q0) -> (i64, !qco.qubit) {
+      %x = qco.x %a0 : !qco.qubit -> !qco.qubit
+      qco.yield %lhs, %x : i64, !qco.qubit
+    } else args(%a0 = %q0) {
+      qco.yield %rhs, %a0 : i64, !qco.qubit
+    }
+    qco.sink %q1 : !qco.qubit
+    func.return %pick : i64
+}
+
+// CHECK:         %[[RES:.*]]:2 = scf.if %{{.*}} -> (i64, !qco.qubit) {
+// CHECK:           qvec.single x
+// CHECK:           scf.yield %{{.*}}, %{{.*}} : i64, !qco.qubit
+// CHECK:         } else {
+// CHECK:           scf.yield %{{.*}}, %{{.*}} : i64, !qco.qubit
+// CHECK:         }
+// CHECK:         return %[[RES]]#0 : i64

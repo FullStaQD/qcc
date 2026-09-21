@@ -229,3 +229,37 @@ func.func @wide_member_slice_is_one_op() {
 // CHECK:         %[[S1:.*]] = vector.extract_strided_slice %[[H]] {offsets = [2], sizes = [2], strides = [1]}
 // CHECK:         qvec.single x %[[S0]] : vector<2x!qco.qubit>
 // CHECK:         qvec.single y %[[S1]] : vector<2x!qco.qubit>
+
+// -----
+
+// A gate behind an `scf.if` that touches its qubit consumes the `if`'s result, and a result is only available after
+// the `if`. So the two `h` gates are not merged: that would move the second one above the conditional `x` on its qubit.
+
+// CHECK-LABEL: func.func @no_merge_across_if
+func.func @no_merge_across_if(%cond: i1) {
+    %q0 = qco.static 0 : !qco.qubit
+    %q1 = qco.static 1 : !qco.qubit
+
+    %v1 = vector.from_elements %q1 : vector<1x!qco.qubit>
+    %h1 = qvec.single h %v1 : vector<1x!qco.qubit>
+
+    %q0_after = scf.if %cond -> (!qco.qubit) {
+      %v0 = vector.from_elements %q0 : vector<1x!qco.qubit>
+      %x0 = qvec.single x %v0 : vector<1x!qco.qubit>
+      %e0 = vector.extract %x0[0] : !qco.qubit from vector<1x!qco.qubit>
+      scf.yield %e0 : !qco.qubit
+    } else {
+      scf.yield %q0 : !qco.qubit
+    }
+
+    %v0_after = vector.from_elements %q0_after : vector<1x!qco.qubit>
+    %h0 = qvec.single h %v0_after : vector<1x!qco.qubit>
+
+    func.return
+}
+
+// CHECK:         qvec.single h %{{.*}} : vector<1x!qco.qubit>
+// CHECK:         scf.if
+// CHECK:           qvec.single x
+// CHECK:         }
+// CHECK:         qvec.single h %{{.*}} : vector<1x!qco.qubit>

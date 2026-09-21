@@ -10,6 +10,7 @@
 #include "qcc/Dialect/QVec/IR/QVec.h"
 
 #include "mlir/Dialect/QCO/IR/QCOOps.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/DialectImplementation.h" // IWYU pragma: keep
@@ -117,11 +118,53 @@ static bool carriesQubits(Type type) {
   return isa<qco::QubitType>(shapedType ? shapedType.getElementType() : type);
 }
 
+static QubitStep stepBack(QubitRef qubit);
+
+/// Whether `value` is defined somewhere inside `op`.
+static bool isDefinedInside(Value value, Operation* op) {
+  Operation* owner = value.getParentRegion()->getParentOp();
+  return owner == op || op->isProperAncestor(owner);
+}
+
+/// Traces `qubit` back out of `ifOp`, to the qubit it was before the `if`.
+///
+/// Returns nullopt if the walk gets stuck inside.
+static std::optional<QubitRef> traceOutOf(QubitRef qubit, scf::IfOp ifOp) {
+  while (isDefinedInside(qubit.value, ifOp)) {
+    const QubitStep step = stepBack(qubit);
+    if (step.getKind() != QubitStep::Kind::Stepped) {
+      return std::nullopt;
+    }
+    qubit = step.getQubit();
+  }
+  return qubit;
+}
+
+/// Traces the qubit `ifOp` returns as `result` one step back.
+///
+/// Both branches start from the same qubits and yield them back, with whatever gates acted on them in between. So
+/// following either yield leads back out of the `if`, and the branches have to agree on where: that is the qubit
+/// before the `if`, and the walk continues there.
+static QubitStep stepBackIfResult(scf::IfOp ifOp, OpResult result) {
+  const unsigned resultNumber = result.getResultNumber();
+  std::optional<QubitRef> thenQubit = traceOutOf(QubitRef{.value = ifOp.thenYield().getOperand(resultNumber)}, ifOp);
+  std::optional<QubitRef> elseQubit = traceOutOf(QubitRef{.value = ifOp.elseYield().getOperand(resultNumber)}, ifOp);
+
+  if (!thenQubit || !elseQubit || thenQubit->value != elseQubit->value || thenQubit->index != elseQubit->index) {
+    return QubitStep(QubitStep::Kind::Unknown);
+  }
+  return QubitStep(*thenQubit);
+}
+
 /// Traces the scalar qubit `element` one step back.
 static QubitStep stepBackElement(Value element) {
   Operation* definingOp = element.getDefiningOp();
   if (definingOp == nullptr) {
     return QubitStep(QubitStep::Kind::Origin); // A block argument.
+  }
+
+  if (auto ifOp = dyn_cast<scf::IfOp>(definingOp)) {
+    return stepBackIfResult(ifOp, cast<OpResult>(element));
   }
 
   // The element may be read out of another qubit vector, in which case the walk continues there.

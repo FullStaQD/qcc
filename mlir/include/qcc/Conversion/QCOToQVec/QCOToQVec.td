@@ -36,10 +36,14 @@ def ConvertQCOToQVec : Pass<"convert-qco-to-qvec", "mlir::ModuleOp"> {
       legalized make the pass fail. Note that legality here is the `qvec` gate set, not any one
       machine's: a gate this pass accepts may still be rejected further down by a target that cannot
       execute it.
+
+      `qco.if` becomes `scf.if`. The qubits going in stand in for the block arguments, and the qubit
+      results are kept, so that an operation using one stays behind the `if`.
    }];
 
   let dependentDialects = [
     "mlir::qco::QCODialect",
+    "mlir::scf::SCFDialect",
     "mlir::vector::VectorDialect",
     "qcc::qvec::QVecDialect"
   ];

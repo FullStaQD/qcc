@@ -1,9 +1,5 @@
 // RUN: qcc --target=hisepq --min-vlen=64 --qubit-element-width=8 --compile-to=native %s | FileCheck %s
 
-// XFAIL: *
-// `qc-to-qco` turns the `scf.if` below into a `qco.if`, which `convert-qco-to-qvec` has no pattern for, so the
-// pipeline stops there. Lowering it back to `scf.if` is a separate change; drop this XFAIL along with it.
-
 // Exercising control flow constructs
 func.func @main() attributes { qcc.entry_point } {
     %1 = qc.static 1 : !qc.qubit
@@ -18,9 +14,9 @@ func.func @main() attributes { qcc.entry_point } {
 }
 
 // CHECK-LABEL: main:
-// CHECK:           vsetvli    {{.*}}, zero, e8, m1, ta, ma
+// One qubit at the default VLEN of 64 fits the narrowest register group, `vector<[2]xi8>`, i.e. LMUL 1/4.
+// CHECK:           vsetivli    zero, 1, e8, mf4, ta, ma
 // CHECK:           vmv.v.i    [[V1:v[0-9]+]], 1
-// CHECK:           vsetivli    zero, 1, e8, m1, ta, ma
 // CHECK:           qv.h    [[V1]], zero, 0
 // TODO: qv.mz and bnez are not connected so far. ISA spec says that
 // hardware leaves this unimplemented. Also unclear how to exactly handle the

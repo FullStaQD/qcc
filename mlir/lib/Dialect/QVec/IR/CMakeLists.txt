@@ -13,4 +13,5 @@ add_mlir_dialect_library(
   MLIRSideEffectInterfaces
   MLIRQCODialect
   MLIRQTensorDialect
+  MLIRSCFDialect
   MLIRVectorDialect)

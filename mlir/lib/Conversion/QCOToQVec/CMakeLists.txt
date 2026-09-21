@@ -11,6 +11,7 @@ add_mlir_conversion_library(
   LINK_LIBS
   # Dialects
   MLIRQCODialect
+  MLIRSCFDialect
   MLIRQTensorDialect
   MLIRFuncDialect
   MLIRVectorDialect
