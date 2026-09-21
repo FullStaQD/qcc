@@ -32,9 +32,10 @@ def ConvertQCOToQVec : Pass<"convert-qco-to-qvec", "mlir::ModuleOp"> {
 
       Similar for pairs and measurements.
 
-      `qco.static` is kept as the source of qubits. Gates that cannot be legalized make the pass
-      fail. Note that legality here is the `qvec` gate set, not any one machine's: a gate this pass
-      accepts may still be rejected further down by a target that cannot execute it.
+      `qco.static` is kept as the source of qubits, and `qco.sink` is erased. Gates that cannot be
+      legalized make the pass fail. Note that legality here is the `qvec` gate set, not any one
+      machine's: a gate this pass accepts may still be rejected further down by a target that cannot
+      execute it.
    }];
 
   let dependentDialects = [

@@ -15,14 +15,24 @@
 
 #include "qcc/Target/HiSEPQ/HiSEPQTarget.h"
 
+#include "qcc/Conversion/QCOToQVec/QCOToQVec.h"
+#include "qcc/Conversion/ToHiSEPQ/HiSEPQMachine.h"
 #include "qcc/Conversion/ToHiSEPQ/ToHiSEPQ.h"
+#include "qcc/Dialect/QVec/Transforms/Passes.h"
 #include "qcc/Target/QIR/QIRTarget.h"
+#include "qcc/Target/TargetRegistry.h"
+
+#include "mlir/Conversion/Passes.h"
+#include "mlir/Conversion/QCToQCO/QCToQCO.h"
+#include "mlir/Pass/PassManager.h"
+#include "mlir/Transforms/Passes.h"
 
 #include "llvm/IR/Function.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/CodeGen.h"
+#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
@@ -35,13 +45,55 @@
 
 namespace qcc {
 
-void addLoweringPassesHiSEPQ(mlir::PassManager& pm) {
+/// Max qubits per QV instruction
+static unsigned maxVectorizationFactor(const TargetOptions& targetOptions) {
+  using hisepq::HiSEPQMachine;
+  if (!HiSEPQMachine::isSupportedMinVLen(targetOptions.minVLen) ||
+      !HiSEPQMachine::isSupportedQubitElementWidth(targetOptions.qubitElementWidth)) {
+    // TODO: that this branch is possible means the function has a design flaw. Returning "unlimited" here is plainly
+    // wrong.
+    return 0;
+  }
+
+  return HiSEPQMachine(targetOptions.minVLen, targetOptions.qubitElementWidth).maxQubits();
+}
+
+void addLoweringPassesHiSEPQViaQIR(mlir::PassManager& pm) {
   addLoweringPassesQIR(pm);
   pm.addPass(qcc::createConvertQIRToHiSEPQIntrinsics());
   pm.addPass(qcc::createEmitHiSEPQStart());
 }
 
-bool emitNativeHiSEPQ(llvm::Module& module, llvm::raw_pwrite_stream& os, const NativeCodegenOptions& options) {
+void addLoweringPassesHiSEPQ(mlir::PassManager& pm, const TargetOptions& targetOptions) {
+  // qc -> qco -> qvec -> QV intrinsics
+  pm.addPass(mlir::createQCToQCO());
+  pm.addPass(qcc::createConvertQCOToQVec());
+
+  QVecMergeOptions mergeOptions;
+  mergeOptions.maxVF = maxVectorizationFactor(targetOptions);
+  pm.addPass(qcc::createQVecMerge(mergeOptions));
+
+  ConvertQVecToHiSEPQIntrinsicsOptions intrinsicsOptions;
+  intrinsicsOptions.minVLen = targetOptions.minVLen;
+  intrinsicsOptions.qubitElementWidth = targetOptions.qubitElementWidth;
+  pm.addPass(qcc::createConvertQVecToHiSEPQIntrinsics(intrinsicsOptions));
+
+  // Classical remainder to LLVM
+  pm.addPass(mlir::createSCFToControlFlowPass());
+  pm.addPass(mlir::createConvertVectorToLLVMPass());
+  pm.addPass(mlir::createArithToLLVMConversionPass());
+  pm.addPass(mlir::createConvertControlFlowToLLVMPass());
+  pm.addPass(mlir::createConvertFuncToLLVMPass());
+
+  pm.addPass(qcc::createEmitHiSEPQStart());
+
+  // cleanup
+  pm.addPass(mlir::createCanonicalizerPass());
+  pm.addPass(mlir::createCSEPass());
+}
+
+bool emitNativeHiSEPQ(llvm::Module& module, llvm::raw_pwrite_stream& os, const NativeCodegenOptions& options,
+                      const TargetOptions& targetOptions) {
   // HiSEP-Q QISA is encoded as the experimental "xqv" RISC-V vector extension,
   // provided by the HiSEP-Q LLVM fork.
   LLVMInitializeRISCVTargetInfo();
@@ -50,7 +102,7 @@ bool emitNativeHiSEPQ(llvm::Module& module, llvm::raw_pwrite_stream& os, const N
   LLVMInitializeRISCVAsmPrinter();
   LLVMInitializeRISCVAsmParser();
 
-  const std::string attrsStr = "+experimental-xqv";
+  const std::string attrsStr = "+experimental-xqv,+zvl" + std::to_string(targetOptions.minVLen) + "b";
   llvm::Triple triple(llvm::Triple::normalize("riscv32-unknown-unknown"));
 
   std::string errorStr;
@@ -60,12 +112,12 @@ bool emitNativeHiSEPQ(llvm::Module& module, llvm::raw_pwrite_stream& os, const N
     return true;
   }
 
-  llvm::TargetOptions targetOptions;
+  llvm::TargetOptions llvmTargetOptions;
   // hisepq.ld puts `.text._start` at the boot address, which needs each function in its own
   // `.text.<name>` section, hence setting functionSections to true:
-  targetOptions.FunctionSections = true;
+  llvmTargetOptions.FunctionSections = true;
   std::unique_ptr<llvm::TargetMachine> targetMachine(
-      theTarget->createTargetMachine(triple, /*cpu=*/"", attrsStr, targetOptions, std::nullopt));
+      theTarget->createTargetMachine(triple, /*cpu=*/"", attrsStr, llvmTargetOptions, std::nullopt));
 
   // Nothing unwinds on HiSEP-Q. Without `nounwind` LLVM emits things like
   // `.cfi_startproc` (which is garbage for us).

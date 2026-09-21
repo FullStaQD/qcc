@@ -1,6 +1,6 @@
-// RUN: qcc-opt %s -emit-hisepq-start | FileCheck %s
+// RUN: qcc-opt %s -emit-hisepq-start --split-input-file | FileCheck %s
 
-llvm.func @kernel() attributes { passthrough = ["entry_point"] } {
+llvm.func @kernel() attributes { qcc.entry_point } {
   llvm.return
 }
 

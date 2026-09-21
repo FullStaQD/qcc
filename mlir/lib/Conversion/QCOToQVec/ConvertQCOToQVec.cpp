@@ -117,6 +117,17 @@ struct CtrlLowering final : public OpConversionPattern<qco::CtrlOp> {
   }
 };
 
+/// Erases `qco.sink`.
+struct SinkLowering final : public OpConversionPattern<qco::SinkOp> {
+  using OpConversionPattern::OpConversionPattern;
+
+  LogicalResult matchAndRewrite(qco::SinkOp op, OpAdaptor /*adaptor*/,
+                                ConversionPatternRewriter& rewriter) const override {
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
 /// Rewrites `qco.measure` into a one-element `qvec.mz`.
 struct MeasureLowering final : public OpConversionPattern<qco::MeasureOp> {
   using OpConversionPattern::OpConversionPattern;
@@ -166,7 +177,7 @@ protected:
                  SingleGateLowering<qco::SdgOp, SingleGate::Sdg>, //
                  SingleGateLowering<qco::TOp, SingleGate::T>,     //
                  SingleGateLowering<qco::TdgOp, SingleGate::Tdg>, //
-                 ISwapLowering, CtrlLowering, MeasureLowering>(ctx);
+                 ISwapLowering, CtrlLowering, MeasureLowering, SinkLowering>(ctx);
 
     if (failed(applyPartialConversion(moduleOp, target, std::move(patterns)))) {
       signalPassFailure();

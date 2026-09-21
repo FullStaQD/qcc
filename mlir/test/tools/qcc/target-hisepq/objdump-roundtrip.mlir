@@ -1,4 +1,4 @@
-// RUN: qcc --target=hisepq --compile-to=native --binary %s -o %t.o
+// RUN: qcc --target=hisepq --min-vlen=64 --qubit-element-width=8 --compile-to=native --binary %s -o %t.o
 // RUN: llvm-objdump -d %t.o | FileCheck %s
 
 func.func @main() attributes { qcc.entry_point } {

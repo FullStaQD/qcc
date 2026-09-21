@@ -24,13 +24,17 @@ llvm::ArrayRef<Target> getTargets() {
   static const std::vector<Target> targets = {
       {.name = "qir",
        .description = "QIR (LLVM-based) target",
-       .addLoweringPasses = [](mlir::PassManager& pm) { addLoweringPassesQIR(pm); }},
+       .addLoweringPasses = [](mlir::PassManager& pm,
+                               const TargetOptions& /*targetOptions*/) { addLoweringPassesQIR(pm); }},
 #if QCC_ENABLE_HISEPQ
       {.name = "hisepq",
        .description = "HiSEP-Q QISA target (RISC-V based)",
-       .addLoweringPasses = [](mlir::PassManager& pm) { addLoweringPassesHiSEPQ(pm); },
-       .emitNative = [](llvm::Module& module, llvm::raw_pwrite_stream& os,
-                        const NativeCodegenOptions& options) { return emitNativeHiSEPQ(module, os, options); }},
+       .addLoweringPasses = [](mlir::PassManager& pm,
+                               const TargetOptions& targetOptions) { addLoweringPassesHiSEPQ(pm, targetOptions); },
+       .emitNative =
+           [](llvm::Module& module, llvm::raw_pwrite_stream& os, const NativeCodegenOptions& options,
+              const TargetOptions& targetOptions) { return emitNativeHiSEPQ(module, os, options, targetOptions); },
+       .usesMachineOptions = true},
 #endif
   };
 

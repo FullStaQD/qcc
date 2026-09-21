@@ -134,3 +134,22 @@ func.func @sparse_qubit_indices() {
 // NOTE: 255 == -1; just a printing quirk.
 // CHECK:         llvm.mlir.constant(dense<[7, 3, -1]> : vector<3xi8>) : vector<3xi8>
 // CHECK:         llvm.call_intrinsic "llvm.riscv.qv.h"
+
+// -----
+
+// Output recording has no QISA counterpart, so it goes and the program reports nothing back.
+
+// CHECK-LABEL: func.func @output_recording
+func.func @output_recording(%value: i64, %buffer: memref<4xi1>) {
+    %q0 = qco.static 0 : !qco.qubit
+    %qs = vector.from_elements %q0 : vector<1x!qco.qubit>
+    %mz, %bits = qvec.mz %qs : vector<1x!qco.qubit> -> vector<1xi1>
+
+    aux.record_int %value : i64
+    aux.record_memref %buffer : memref<4xi1>
+
+    func.return
+}
+
+// CHECK:         llvm.call_intrinsic "llvm.riscv.qv.mz"
+// CHECK-NOT:     aux.record

@@ -43,4 +43,5 @@ target_link_libraries(
           MLIRTransformUtils
           MLIRQCDialect
           MLIRQCODialect
+          MLIRQCToQCO
           MLIRQTensorDialect)

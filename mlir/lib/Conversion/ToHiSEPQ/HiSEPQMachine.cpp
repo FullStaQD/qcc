@@ -24,8 +24,18 @@ namespace qcc::hisepq {
 
 HiSEPQMachine::HiSEPQMachine(unsigned minVLen, unsigned qubitElementWidth)
     : minVLen(minVLen), qubitElementWidth(qubitElementWidth) {
-  assert(minVLen >= rvvBitsPerBlock && llvm::isPowerOf2_32(minVLen) && "min VLEN has to be validated by the caller");
-  assert((qubitElementWidth == 8 || qubitElementWidth == 16) && "QEW has to be validated by the caller");
+  assert(isSupportedMinVLen(minVLen) && "min VLEN has to be validated by the caller");
+  assert(isSupportedQubitElementWidth(qubitElementWidth) && "QEW has to be validated by the caller");
+}
+
+bool HiSEPQMachine::isSupportedMinVLen(unsigned minVLen) {
+  return minVLen >= rvvBitsPerBlock && llvm::isPowerOf2_32(minVLen);
+}
+
+bool HiSEPQMachine::isSupportedQubitElementWidth(unsigned qubitElementWidth) {
+  // 8 and 16 are the only safe values for our currently hardcoded set of LMUL values; `knownMinElementsFor` asserts
+  // on anything wider.
+  return qubitElementWidth == 8 || qubitElementWidth == 16;
 }
 
 unsigned HiSEPQMachine::knownMinElementsFor(unsigned lmul8) const {

@@ -34,6 +34,14 @@ class HiSEPQMachine {
 public:
   HiSEPQMachine(unsigned minVLen, unsigned qubitElementWidth);
 
+  /// Whether `minVLen` is a VLEN this class can model. Anything that is not a power of two is not a VLEN at all, and
+  /// below `rvvBitsPerBlock` `vscale` would become a fraction.
+  static bool isSupportedMinVLen(unsigned minVLen);
+
+  /// Whether `qubitElementWidth` is a QEW this class can model, i.e. one that every supported LMUL holds at least one
+  /// element of.
+  static bool isSupportedQubitElementWidth(unsigned qubitElementWidth);
+
   /// Guaranteed lower bound on VLEN (number of bits).
   [[nodiscard]] unsigned getMinVLen() const { return minVLen; }
 

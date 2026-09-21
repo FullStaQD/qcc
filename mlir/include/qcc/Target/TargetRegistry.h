@@ -33,6 +33,17 @@ struct NativeCodegenOptions {
 // entry carrying metadata plus a factory (`addLoweringPasses`) for the target's
 // behavior. If our implementation must be augmented follow LLVM's lead.
 
+/// Description of the machine a target lowers for, as selected on the command line.
+/// The defaults describe the smallest machine we accept.
+///
+/// TODO: These are HiSEP-Q's parameters. Move them behind an `-mattr` string (`+zvl<N>b`).
+struct TargetOptions {
+  /// Guaranteed lower bound on VLEN, the vector register length in bits.
+  unsigned minVLen = 64;
+  /// QEW: how many bits one qubit index occupies in a qubit vector.
+  unsigned qubitElementWidth = 8;
+};
+
 /// Describes a compilation target selectable via `qcc --target=<name>`.
 struct Target {
   /// The `--target` value, e.g. "qir".
@@ -40,10 +51,15 @@ struct Target {
   /// Human-readable description shown by `--list-targets`.
   llvm::StringRef description;
   /// Assembles the lowering pipeline for this target.
-  std::function<void(mlir::PassManager&)> addLoweringPasses;
+  std::function<void(mlir::PassManager&, const TargetOptions&)> addLoweringPasses;
   /// Emits native code for an already-lowered, LLVM-translated module. Null when
   /// the target has no native backend (e.g. QIR). Returns true on failure.
-  std::function<bool(llvm::Module&, llvm::raw_pwrite_stream&, const NativeCodegenOptions&)> emitNative;
+  std::function<bool(llvm::Module&, llvm::raw_pwrite_stream&, const NativeCodegenOptions&, const TargetOptions&)>
+      emitNative;
+  /// Whether `addLoweringPasses` reads the machine parameters in `TargetOptions`.
+  /// `qcc` rejects the corresponding flags for a target that does not, rather
+  /// than silently ignoring them.
+  bool usesMachineOptions = false; // TODO: this option is a workaround, should not exist.
 };
 
 /// Returns the targets compiled into this build.

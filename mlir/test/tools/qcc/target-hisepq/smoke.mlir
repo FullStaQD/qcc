@@ -31,17 +31,20 @@ func.func @main() attributes { qcc.entry_point } {
 // CHECK:      .attribute 5, "{{.*}}_xqv0p1"
 
 // CHECK:      main:
-// CHECK-DAG:     vsetvli  {{.*}}, zero, e8, m1, ta, ma
+
+// One qubit index per vector; at the default VLEN of 64 they fit the narrowest register group, `vector<[2]xi8>`,
+// i.e. LMUL 1/4.
 // CHECK-DAG:     vmv.s.x  [[V1:v[0-9]+]], zero
 // CHECK-DAG:     vmv.v.i  [[V2:v[0-9]+]], 1
 // CHECK-DAG:     vmv.v.i  [[V3:v[0-9]+]], 2
-// CHECK:         vsetivli zero, 1, e8, m1, ta, ma
+// CHECK:         vsetivli zero, 1, e8, mf4, ta, ma
 // CHECK:         qv.h     [[V1]], zero, 0
 // CHECK:         qv.cx    [[V1]], [[V2]], 0
 // CHECK:         qv.cx    [[V2]], [[V3]], 0
-// CHECK-DAG:     qv.mz    [[V1]], zero, 0
-// CHECK-DAG:     qv.mz    [[V2]], zero, 0
-// CHECK-DAG:     qv.mz    [[V3]], zero, 0
+// CHECK:         qv.mz    [[V1]], zero, 0
+
+// CHECK:         vsetivli zero, 2, e8, mf4, ta, ma
+// CHECK:         qv.mz    {{v[0-9]+}}, zero, 0
 // CHECK:         ret
 
 // Two preconditions that the linker script hisepq.ld depends on silently.
