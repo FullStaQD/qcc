@@ -29,10 +29,8 @@ llvm::ArrayRef<Target> getTargets() {
 #if QCC_ENABLE_HISEPQ
       {.name = "hisepq",
        .description = "HiSEP-Q QISA target (RISC-V based)",
-       .addLoweringPasses =
-           [](mlir::PassManager& pm, const TargetOptions& targetOptions) {
-             addLoweringPassesHiSEPQViaQVec(pm, targetOptions);
-           },
+       .addLoweringPasses = [](mlir::PassManager& pm,
+                               const TargetOptions& targetOptions) { addLoweringPassesHiSEPQ(pm, targetOptions); },
        .emitNative =
            [](llvm::Module& module, llvm::raw_pwrite_stream& os, const NativeCodegenOptions& options,
               const TargetOptions& targetOptions) { return emitNativeHiSEPQ(module, os, options, targetOptions); },

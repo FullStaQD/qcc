@@ -44,9 +44,7 @@
 
 namespace qcc {
 
-/// The cap `qvec-merge` gets so that it never builds an operation wider than the QV instructions can address.
-///
-/// Zero (unbounded) for invalid options; `convert-qvec-to-hisepq-intrinsics` reports those.
+/// Max qubits per QV instruction
 static unsigned maxVectorizationFactor(const TargetOptions& targetOptions) {
   using hisepq::HiSEPQMachine;
   if (!HiSEPQMachine::isSupportedMinVLen(targetOptions.minVLen) ||
@@ -63,7 +61,7 @@ void addLoweringPassesHiSEPQViaQIR(mlir::PassManager& pm) {
   pm.addPass(qcc::createEmitHiSEPQStart());
 }
 
-void addLoweringPassesHiSEPQViaQVec(mlir::PassManager& pm, const TargetOptions& targetOptions) {
+void addLoweringPassesHiSEPQ(mlir::PassManager& pm, const TargetOptions& targetOptions) {
   // qc -> qco -> qvec -> QV intrinsics
   pm.addPass(mlir::createQCToQCO());
   pm.addPass(qcc::createConvertQCOToQVec());
@@ -101,10 +99,6 @@ bool emitNativeHiSEPQ(llvm::Module& module, llvm::raw_pwrite_stream& os, const N
   LLVMInitializeRISCVAsmPrinter();
   LLVMInitializeRISCVAsmParser();
 
-  // `zvl<N>b` is how RISC-V spells a guaranteed lower bound on VLEN, so this is the same machine parameter the
-  // lowering above picked its vector types from; see `llvm::RISCVISAInfo::getMinVLen`. Handing it to the backend as
-  // well keeps the two from reasoning about different machines. Note that the other extensions imply a lower bound of
-  // their own, and the larger one wins.
   const std::string attrsStr = "+experimental-xqv,+zvl" + std::to_string(targetOptions.minVLen) + "b";
   llvm::Triple triple(llvm::Triple::normalize("riscv32-unknown-unknown"));
 

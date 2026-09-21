@@ -43,8 +43,6 @@ func.func @main() attributes { qcc.entry_point } {
 // CHECK:         qv.cx    [[V2]], [[V3]], 0
 // CHECK:         qv.mz    [[V1]], zero, 0
 
-// The measurements of qubits 1 and 2 are independent, so `qvec-merge` packs them into a single instruction over both
-// -- note the `vl` of 2. The QIR path emitted one instruction per qubit.
 // CHECK:         vsetivli zero, 2, e8, mf4, ta, ma
 // CHECK:         qv.mz    {{v[0-9]+}}, zero, 0
 // CHECK:         ret

@@ -34,10 +34,7 @@ struct NativeCodegenOptions {
 // behavior. If our implementation must be augmented follow LLVM's lead.
 
 /// Description of the machine a target lowers for, as selected on the command line.
-///
-/// The defaults describe the smallest machine we accept, so that a target which
-/// is handed default-constructed options still produces correct (if needlessly
-/// conservative) code.
+/// The defaults describe the smallest machine we accept.
 ///
 /// TODO: These are HiSEP-Q's parameters. Move them behind an `-mattr` string (`+zvl<N>b`).
 struct TargetOptions {
