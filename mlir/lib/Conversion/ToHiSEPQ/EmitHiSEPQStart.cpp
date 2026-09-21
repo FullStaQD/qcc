@@ -35,10 +35,7 @@ static bool hasQIREntryPointPassthrough(LLVM::LLVMFuncOp funcOp) {
 }
 
 /// Whether `funcOp` is marked as an entry point.
-/// TODO: Erase or modify this check once we know what to do with the QIR Route.
-static bool isEntryPointFunc(LLVM::LLVMFuncOp funcOp) {
-  return funcOp->hasAttr(qcc::entryPointAttrName) || hasQIREntryPointPassthrough(funcOp);
-}
+static bool isEntryPointFunc(LLVM::LLVMFuncOp funcOp) { return funcOp->hasAttr(qcc::entryPointAttrName); }
 
 namespace qcc {
 

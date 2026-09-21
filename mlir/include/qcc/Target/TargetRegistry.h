@@ -59,7 +59,7 @@ struct Target {
   /// Whether `addLoweringPasses` reads the machine parameters in `TargetOptions`.
   /// `qcc` rejects the corresponding flags for a target that does not, rather
   /// than silently ignoring them.
-  bool usesMachineOptions = false;
+  bool usesMachineOptions = false; // TODO: this option is a workaround, should not exist.
 };
 
 /// Returns the targets compiled into this build.

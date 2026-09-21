@@ -32,6 +32,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/CodeGen.h"
+#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
@@ -49,6 +50,8 @@ static unsigned maxVectorizationFactor(const TargetOptions& targetOptions) {
   using hisepq::HiSEPQMachine;
   if (!HiSEPQMachine::isSupportedMinVLen(targetOptions.minVLen) ||
       !HiSEPQMachine::isSupportedQubitElementWidth(targetOptions.qubitElementWidth)) {
+    // TODO: that this branch is possible means the function has a design flaw. Returning "unlimited" here is plainly
+    // wrong.
     return 0;
   }
 
