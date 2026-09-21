@@ -22,7 +22,6 @@
 #include "qcc/Target/QIR/QIRTarget.h"
 #include "qcc/Target/TargetRegistry.h"
 
-// The aggregate header, because `createConvertFuncToLLVMPass` is declared nowhere else.
 #include "mlir/Conversion/Passes.h"
 #include "mlir/Conversion/QCToQCO/QCToQCO.h"
 #include "mlir/Pass/PassManager.h"

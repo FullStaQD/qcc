@@ -106,9 +106,6 @@ def ConvertQVecToHiSEPQIntrinsics : Pass<"convert-qvec-to-hisepq-intrinsics", "m
 
       Gates without an intrinsic are rejected (error).
 
-      Nothing survives that would report a classical result back to the host, because the QISA has no operation that
-      does:
-
       - `llvm.riscv.qv.mz` returns void and the QISA specifies no way to read a measurement back, so the classical
         result of `qvec.mz` is replaced with `poison`, i.e. the measurement result is lost.
       - `aux.record_int` and `aux.record_memref` are erased, so the program produces no output.

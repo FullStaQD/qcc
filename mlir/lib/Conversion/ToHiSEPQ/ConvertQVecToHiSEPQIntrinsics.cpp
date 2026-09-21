@@ -287,11 +287,7 @@ struct MzOpLowering : public OpRewritePattern<MzOp> {
 
 /// Erases an `aux` output recording op.
 ///
-/// These ops ask for a classical result to be reported back to the host, which the QISA has no operation for, so the
-/// program ends up producing no output at all.
-///
-/// TODO: Lower them properly once HiSEP-Q specifies how a program reports its results. That is the same gap that makes
-/// `qvec.mz` lose its measurement result, so both should be fixed together.
+/// TODO: Lower them properly once HiSEP-Q specifies how a program reports its results.
 template <typename RecordOp> struct RecordOpErasure : public OpRewritePattern<RecordOp> {
   using OpRewritePattern<RecordOp>::OpRewritePattern;
 

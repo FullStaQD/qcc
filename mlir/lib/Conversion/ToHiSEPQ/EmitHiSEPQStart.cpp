@@ -21,7 +21,7 @@
 
 using namespace mlir;
 
-/// Whether `funcOp` carries the `entry_point` passthrough attribute QIR marks its entry point with.
+/// Whether `funcOp` carries the `entry_point` passthrough attribute (for QIR).
 static bool hasQIREntryPointPassthrough(LLVM::LLVMFuncOp funcOp) {
   auto passthrough = funcOp->getAttrOfType<ArrayAttr>(qcc::passthroughAttrName);
   if (!passthrough) {
