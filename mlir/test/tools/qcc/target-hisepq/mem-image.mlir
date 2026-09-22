@@ -2,7 +2,7 @@
 
 // Smoke test for the full HiSEP-Q pipeline (see README next to `hisepq.ld`).
 
-// RUN: qcc --target=hisepq --min-vlen=64 --qubit-element-width=8 --compile-to=native --binary %s -o %t.o
+// RUN: qcc --target=hisepq --compile-to=native --binary %s -o %t.o
 // RUN: ld.lld -T %project_source_dir/mlir/lib/Target/HiSEPQ/Scripts/hisepq.ld %t.o -o %t.elf
 // RUN: hisepq-elf2mem %t.elf -o %t.mem
 // RUN: FileCheck --input-file=%t.mem --match-full-lines %s

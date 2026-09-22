@@ -1,18 +1,20 @@
 // RUN: qcc --target=hisepq --compile-to=mlir %s | FileCheck %s --check-prefix=CHECK-DEFAULT
-// RUN: qcc --target=hisepq --min-vlen=128 --compile-to=mlir %s | FileCheck %s --check-prefix=CHECK-VLEN128
-// RUN: qcc --target=hisepq --min-vlen=512 --compile-to=mlir %s | FileCheck %s --check-prefix=CHECK-VLEN512
-// RUN: qcc --target=hisepq --qubit-element-width=16 --compile-to=mlir %s | FileCheck %s --check-prefix=CHECK-QEW16
+// RUN: qcc --target=hisepq -mattr=+zvl128b --compile-to=mlir %s | FileCheck %s --check-prefix=CHECK-VLEN128
+// RUN: qcc --target=hisepq -mattr=+zvl512b --compile-to=mlir %s | FileCheck %s --check-prefix=CHECK-VLEN512
+// RUN: qcc --target=hisepq -mattr=+qew16 --compile-to=mlir %s | FileCheck %s --check-prefix=CHECK-QEW16
+// RUN: qcc --target=hisepq -mattr=+zvl512b,+qew16 --compile-to=mlir %s | FileCheck %s --check-prefix=CHECK-BOTH
 
-// `min-vlen` also reaches the backend, where RISC-V spells it `zvl<N>b`, so that both ends reason about the same
-// machine. Other extensions imply a bound of their own, hence `zvl128b` showing up even at the default of 64.
-// RUN: qcc --target=hisepq --min-vlen=512 --compile-to=native %s | FileCheck %s --check-prefix=CHECK-ASM
+// `zvl<N>b` also reaches the backend, so that both ends reason about the same machine. Other extensions imply a
+// bound of their own, hence `zvl128b` showing up even at the default of 64.
+// RUN: qcc --target=hisepq -mattr=+zvl512b --compile-to=native %s | FileCheck %s --check-prefix=CHECK-ASM
 
-// Neither option takes just any number.
-// RUN: not qcc --target=hisepq --min-vlen=100 --compile-to=mlir %s 2>&1 | FileCheck %s --check-prefix=CHECK-BAD-VLEN
-// RUN: not qcc --target=hisepq --min-vlen=32 --compile-to=mlir %s 2>&1 | FileCheck %s --check-prefix=CHECK-SMALL-VLEN
-// RUN: not qcc --target=hisepq --qubit-element-width=32 --compile-to=mlir %s 2>&1 | FileCheck %s --check-prefix=CHECK-BAD-QEW
+// Only the listed features exist; there is no `zvl100b`, `zvl32b` or `qew32`.
+// RUN: not qcc --target=hisepq -mattr=+zvl100b --compile-to=mlir %s 2>&1 | FileCheck %s --check-prefix=CHECK-BAD-VLEN
+// RUN: not qcc --target=hisepq -mattr=+zvl32b --compile-to=mlir %s 2>&1 | FileCheck %s --check-prefix=CHECK-SMALL-VLEN
+// RUN: not qcc --target=hisepq -mattr=+qew32 --compile-to=mlir %s 2>&1 | FileCheck %s --check-prefix=CHECK-BAD-QEW
+// RUN: not qcc --target=hisepq -mattr=+zvl128b,+v --compile-to=mlir %s 2>&1 | FileCheck %s --check-prefix=CHECK-UNKNOWN
 
-// The machine the HiSEP-Q target lowers for is described by two options. They pick the register group the qubit
+// The machine the HiSEP-Q target lowers for is described by two features. They pick the register group the qubit
 // indices travel in, so the same program comes out in a different vector type for each machine.
 
 func.func @main() attributes { qcc.entry_point } {
@@ -45,12 +47,14 @@ func.func @main() attributes { qcc.entry_point } {
 // CHECK-VLEN128:  llvm.call_intrinsic "llvm.riscv.qv.h"(%{{.*}}) : (vector<[4]xi8>, i32, i32, i32) -> ()
 // CHECK-VLEN512:  llvm.call_intrinsic "llvm.riscv.qv.h"(%{{.*}}) : (vector<[2]xi8>, i32, i32, i32) -> ()
 // CHECK-QEW16:    llvm.call_intrinsic "llvm.riscv.qv.h"(%{{.*}}) : (vector<[8]xi16>, i32, i32, i32) -> ()
+// CHECK-BOTH:     llvm.call_intrinsic "llvm.riscv.qv.h"(%{{.*}}) : (vector<[1]xi16>, i32, i32, i32) -> ()
 
-// TODO: `qubit-element-width=16` gets this far but not past instruction selection: the fork's QV patterns cover the
+// TODO: `+qew16` gets this far but not past instruction selection: the fork's QV patterns cover the
 // i8 element types only (`SupportedQVVTypes` in RISCVInstrFormatsXQV.td). Hence no native RUN line for it.
 
 // CHECK-ASM: .attribute 5, "{{.*}}_zvl512b{{.*}}_xqv0p1"
 
-// CHECK-BAD-VLEN:   'min-vlen' expects a power of two of at least 64, got 100
-// CHECK-SMALL-VLEN: 'min-vlen' expects a power of two of at least 64, got 32
-// CHECK-BAD-QEW:    'qubit-element-width' expects 8 or 16, got 32
+// CHECK-BAD-VLEN:   error: unknown feature '+zvl100b' for --target=hisepq
+// CHECK-SMALL-VLEN: error: unknown feature '+zvl32b' for --target=hisepq
+// CHECK-BAD-QEW:    error: unknown feature '+qew32' for --target=hisepq
+// CHECK-UNKNOWN:    error: unknown feature '+v' for --target=hisepq

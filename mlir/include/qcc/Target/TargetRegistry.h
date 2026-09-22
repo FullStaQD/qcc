@@ -10,8 +10,10 @@
 #pragma once
 
 #include "mlir/Pass/PassManager.h"
+#include "mlir/Support/LLVM.h"
 
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -33,15 +35,10 @@ struct NativeCodegenOptions {
 // entry carrying metadata plus a factory (`addLoweringPasses`) for the target's
 // behavior. If our implementation must be augmented follow LLVM's lead.
 
-/// Description of the machine a target lowers for, as selected on the command line.
-/// The defaults describe the smallest machine we accept.
-///
-/// TODO: These are HiSEP-Q's parameters. Move them behind an `-mattr` string (`+zvl<N>b`).
-struct TargetOptions {
-  /// Guaranteed lower bound on VLEN, the vector register length in bits.
-  unsigned minVLen = 64;
-  /// QEW: how many bits one qubit index occupies in a qubit vector.
-  unsigned qubitElementWidth = 8;
+/// A `-mattr` feature, cf. `llvm::SubtargetFeatureKV`.
+struct Feature {
+  llvm::StringRef name;
+  llvm::StringRef description;
 };
 
 /// Describes a compilation target selectable via `qcc --target=<name>`.
@@ -50,17 +47,19 @@ struct Target {
   llvm::StringRef name;
   /// Human-readable description shown by `--list-targets`.
   llvm::StringRef description;
-  /// Assembles the lowering pipeline for this target.
-  std::function<void(mlir::PassManager&, const TargetOptions&)> addLoweringPasses;
+  /// The features this target accepts in `-mattr`.
+  llvm::ArrayRef<Feature> features;
+  /// Assembles the lowering pipeline for this target and the given features.
+  std::function<void(mlir::PassManager&, llvm::ArrayRef<llvm::StringRef> features)> addLoweringPasses;
   /// Emits native code for an already-lowered, LLVM-translated module. Null when
   /// the target has no native backend (e.g. QIR). Returns true on failure.
-  std::function<bool(llvm::Module&, llvm::raw_pwrite_stream&, const NativeCodegenOptions&, const TargetOptions&)>
+  std::function<bool(llvm::Module&, llvm::raw_pwrite_stream&, const NativeCodegenOptions&,
+                     llvm::ArrayRef<llvm::StringRef> features)>
       emitNative;
-  /// Whether `addLoweringPasses` reads the machine parameters in `TargetOptions`.
-  /// `qcc` rejects the corresponding flags for a target that does not, rather
-  /// than silently ignoring them.
-  bool usesMachineOptions = false; // TODO: this option is a workaround, should not exist.
 };
+
+/// The feature names in `mattr` (`+<name>,...`); fails on one `target` does not know.
+mlir::FailureOr<llvm::SmallVector<llvm::StringRef>> parseFeatures(const Target& target, llvm::StringRef mattr);
 
 /// Returns the targets compiled into this build.
 llvm::ArrayRef<Target> getTargets();

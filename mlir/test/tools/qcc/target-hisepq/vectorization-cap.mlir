@@ -1,5 +1,11 @@
-// RUN: qcc --target=hisepq --min-vlen=64 --qubit-element-width=16 --compile-to=mlir %s | FileCheck %s
+// RUN: qcc --target=hisepq -mattr=+qew16 --compile-to=mlir %s | FileCheck %s
 
+// The vectorization factor `qvec-merge` is allowed to reach is the machine's capacity, so that it never builds an
+// operation wider than the QV instructions can address.
+//
+// At the default VLEN of 64 and a QEW of 16, the widest register group (LMUL 8, `vector<[32]xi16>`) addresses
+// `8 * 64/64 * 64/16 = 32` qubits. The forty gates below are all independent, so without a cap they would merge into
+// one operation on forty qubits, which no register group holds and the lowering would have to reject.
 
 func.func @main() attributes { qcc.entry_point } {
     %q0 = qc.static 0 : !qc.qubit
