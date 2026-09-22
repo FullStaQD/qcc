@@ -112,6 +112,10 @@ int main(int argc, char** argv) {
   qcc::registerConvertQCOToQVec();
   qcc::registerConvertQVecToHiSEPQIntrinsics();
   qcc::registerQVecMerge();
+  qcc::registerQVecToRzz();
+  qcc::registerQVecToUZxz();
+  qcc::registerQVecFuseZxz();
+  qcc::registerQVecLayer();
   mlir::registerQCToQCO();
 
   // Extension registration

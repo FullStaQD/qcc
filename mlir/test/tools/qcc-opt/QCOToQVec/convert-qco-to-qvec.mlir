@@ -135,3 +135,79 @@ func.func @sinks_are_dropped() {
 }
 
 // CHECK-NOT:     qco.sink
+
+// -----
+
+// CHECK-LABEL: func.func @rotations
+func.func @rotations() {
+    %theta = arith.constant 0.5 : f64
+    %q0 = qco.static 0 : !qco.qubit
+    %q1 = qco.static 1 : !qco.qubit
+    %rx = qco.rx(%theta) %q0 : !qco.qubit -> !qco.qubit
+    %ry = qco.ry(%theta) %rx : !qco.qubit -> !qco.qubit
+    %rz = qco.rz(%theta) %ry : !qco.qubit -> !qco.qubit
+    %p = qco.p(%theta) %rz : !qco.qubit -> !qco.qubit
+    %a, %b = qco.rzz(%theta) %p, %q1 : !qco.qubit, !qco.qubit -> !qco.qubit, !qco.qubit
+    func.return
+}
+
+// The angle is lifted to a one-element vector like the qubit. `p` is `rz` up to a global phase.
+// CHECK:         %[[T:.*]] = arith.constant 5.000000e-01 : f64
+// CHECK:         %[[A0:.*]] = vector.from_elements %{{.*}} : vector<1x!qco.qubit>
+// CHECK:         %[[T0:.*]] = vector.from_elements %[[T]] : vector<1xf64>
+// CHECK:         %[[A1:.*]] = qvec.single rx(%[[T0]]) %[[A0]] : vector<1x!qco.qubit>, vector<1xf64>
+// CHECK:         vector.extract %[[A1]][0]
+// CHECK:         qvec.single ry(%{{.*}}) %{{.*}} : vector<1x!qco.qubit>, vector<1xf64>
+// CHECK:         qvec.single rz(%{{.*}}) %{{.*}} : vector<1x!qco.qubit>, vector<1xf64>
+// CHECK:         qvec.single rz(%{{.*}}) %{{.*}} : vector<1x!qco.qubit>, vector<1xf64>
+// CHECK:         %[[T1:.*]] = vector.from_elements %[[T]] : vector<1xf64>
+// CHECK:         qvec.pair rzz(%[[T1]]) %{{.*}}, %{{.*}} : vector<1x!qco.qubit>, vector<1xf64>
+
+// -----
+
+// CHECK-LABEL: func.func @controlled_phase
+func.func @controlled_phase() {
+    %theta = arith.constant 0.5 : f64
+    %c = qco.static 0 : !qco.qubit
+    %t = qco.static 1 : !qco.qubit
+
+    %cp_c, %cp_t = qco.ctrl(%c) targets(%a0 = %t) {
+      %a1 = qco.p(%theta) %a0 : !qco.qubit -> !qco.qubit
+      qco.yield %a1 : !qco.qubit
+    } : ({!qco.qubit}, {!qco.qubit}) -> ({!qco.qubit}, {!qco.qubit})
+
+    // A controlled global phase is a phase gate on the control.
+    %cg = qco.ctrl(%cp_c) targets() {
+      qco.gphase(%theta)
+      qco.yield
+    } : ({!qco.qubit}) -> ({!qco.qubit})
+
+    func.return
+}
+
+// CHECK-NOT:     qco.ctrl
+// CHECK:         %[[T:.*]] = arith.constant 5.000000e-01 : f64
+// CHECK:         %[[C:.*]] = qco.static 0
+// CHECK:         %[[TG:.*]] = qco.static 1
+// CHECK-DAG:     %[[C0:.*]] = vector.from_elements %[[C]] : vector<1x!qco.qubit>
+// CHECK-DAG:     %[[T0:.*]] = vector.from_elements %[[TG]] : vector<1x!qco.qubit>
+// CHECK-DAG:     %[[P0:.*]] = vector.from_elements %[[T]] : vector<1xf64>
+// CHECK:         %[[C1:.*]], %[[T1:.*]] = qvec.pair cp(%[[P0]]) %[[C0]], %[[T0]] : vector<1x!qco.qubit>, vector<1xf64>
+// CHECK:         %[[C2:.*]] = vector.extract %[[C1]][0]
+// CHECK:         %[[C3:.*]] = vector.from_elements %[[C2]] : vector<1x!qco.qubit>
+// CHECK:         %[[P1:.*]] = vector.from_elements %[[T]] : vector<1xf64>
+// CHECK:         qvec.single rz(%[[P1]]) %[[C3]] : vector<1x!qco.qubit>, vector<1xf64>
+
+// -----
+
+// CHECK-LABEL: func.func @global_phase_dropped
+func.func @global_phase_dropped() {
+    %theta = arith.constant 0.5 : f64
+    %q0 = qco.static 0 : !qco.qubit
+    qco.gphase(%theta)
+    %h = qco.h %q0 : !qco.qubit -> !qco.qubit
+    func.return
+}
+
+// CHECK-NOT:     qco.gphase
+// CHECK:         qvec.single h

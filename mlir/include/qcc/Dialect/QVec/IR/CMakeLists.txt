@@ -24,3 +24,5 @@ set(LLVM_TARGET_DEFINITIONS QVecOps.td)
 mlir_tablegen(QVecOps.h.inc -gen-op-decls)
 mlir_tablegen(QVecOps.cpp.inc -gen-op-defs)
 add_public_tablegen_target(QCCQVecOpsIncGen)
+
+add_qcc_doc(QVecOps QVecDialect Dialects/ -gen-dialect-doc -dialect=qvec)

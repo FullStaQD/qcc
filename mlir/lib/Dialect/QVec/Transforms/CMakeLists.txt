@@ -1,6 +1,12 @@
 add_mlir_dialect_library(
   QCCQVecTransforms
+  Angles.cpp
+  QVecFuseZxz.cpp
+  QVecLayer.cpp
   QVecMerge.cpp
+  QVecToRzz.cpp
+  QVecToUZxz.cpp
+  Zxz.cpp
   DEPENDS
   QCCQVecTransformsIncGen
   LINK_LIBS
@@ -10,6 +16,8 @@ add_mlir_dialect_library(
   MLIRSupport
   MLIRSideEffectInterfaces
   MLIRTransforms
+  MLIRArithDialect
+  MLIRFuncDialect
   MLIRVectorDialect
   MLIRQCODialect
   MLIRQTensorDialect

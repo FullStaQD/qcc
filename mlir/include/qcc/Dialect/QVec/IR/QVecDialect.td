@@ -26,6 +26,9 @@ def QVecDialect : Dialect {
 
         The dialect has **value semantics** to ease optimization passes.
 
+        The dialect does not model a global phase: gates are equal if they agree up to a global phase, and a lowering
+        into `qvec` may drop one (e.g. `qco.gphase` at the top level).
+
         Example:
         ```mlir
         // A Hadamard gate on all four qubits in %qs.

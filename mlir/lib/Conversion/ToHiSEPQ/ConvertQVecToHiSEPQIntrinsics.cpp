@@ -149,6 +149,10 @@ static StringRef getSingleGateIntrinsic(SingleGate gate) {
   case SingleGate::Sdg:
   case SingleGate::T:
   case SingleGate::Tdg:
+  case SingleGate::RX:
+  case SingleGate::RY:
+  case SingleGate::RZ:
+  case SingleGate::UZXZ:
     return {};
   }
   return {};
@@ -162,6 +166,8 @@ static StringRef getPairGateIntrinsic(PairGate gate) {
   case PairGate::CY:
   case PairGate::CZ:
   case PairGate::iSWAP:
+  case PairGate::RZZ:
+  case PairGate::CP:
     return {};
   }
   return {};
