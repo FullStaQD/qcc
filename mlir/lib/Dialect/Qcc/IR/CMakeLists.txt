@@ -1,0 +1,13 @@
+add_mlir_dialect_library(
+  QCCQccDialect
+  QccDialect.cpp
+  DEPENDS
+  QCCQccDialectIncGen
+  QCCQccInterfacesIncGen
+  QCCQccAttrsIncGen
+  LINK_LIBS
+  PRIVATE
+  MLIRIR
+  MLIRSupport
+  MLIRParser
+  MLIRFunctionInterfaces)

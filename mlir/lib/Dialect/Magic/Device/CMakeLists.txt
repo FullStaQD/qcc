@@ -1,0 +1,9 @@
+add_mlir_library(
+  QCCMagicDevice
+  MagicDevice.cpp
+  LINK_LIBS
+  PUBLIC
+  QCCQccDialect
+  PRIVATE
+  MLIRIR
+  MLIRSupport)

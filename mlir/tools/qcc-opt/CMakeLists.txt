@@ -21,6 +21,8 @@ target_link_libraries(
           MLIRVectorDialect
           QCCJaspDialect
           QCCAuxDialect
+          QCCMagicDialect
+          QCCQccDialect
           QCCQVecDialect
           # Passes
           MLIRMemRefTransforms
@@ -33,6 +35,7 @@ target_link_libraries(
           MLIRFuncToLLVM
           MLIRVectorToLLVMPass
           QCCQVecTransforms
+          QCCQccTransforms
           QCCQCOToQVec
           QCCToHiSEPQ
           QCCToQIR
