@@ -31,6 +31,16 @@ func.func @fork() {
 
 // -----
 
+func.func @two_blocks() {
+  // expected-error @+1 {{'magic.init' op must be in a single-block region: the dialect has no control flow}}
+  %c0 = magic.init : !magic.ion_chain<0, [0:1]>
+  cf.br ^bb1
+^bb1:
+  return
+}
+
+// -----
+
 func.func @init_duplicate_ion() {
   // expected-error @+1 {{'magic.init' op ion 1 is placed in more than one trap}}
   %a, %b = magic.init : !magic.ion_chain<0, [0:1, 1:1]>, !magic.ion_chain<1, [1:1]>

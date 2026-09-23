@@ -21,8 +21,8 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 // Magic traits
 //===----------------------------------------------------------------------===//
 
-// Chain values are affine: every chain operand of the op must not be used anywhere else. See the dialect
-// description. Implemented in `Magic.h`.
+// Chain values are affine: every chain operand of the op must not be used anywhere else, and the op must sit in a
+// single-block region (the dialect has no control flow). See the dialect description. Implemented in `Magic.h`.
 def Magic_AffineChainOperands : NativeOpTrait<"AffineChainOperands"> {
   let cppNamespace = "::qcc::magic";
 }

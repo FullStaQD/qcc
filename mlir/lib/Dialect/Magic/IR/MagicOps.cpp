@@ -14,6 +14,7 @@
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/Operation.h"
+#include "mlir/IR/Region.h"
 #include "mlir/IR/Value.h"
 
 #include "llvm/ADT/STLExtras.h"
@@ -60,17 +61,23 @@ static void printIonList(OpAsmPrinter& printer, Operation* /*op*/, DenseI64Array
 //===----------------------------------------------------------------------===//
 
 LogicalResult qcc::magic::verifyAffineChainOperands(Operation* op) {
+  // The affine check below reads the use list in program order, which is only meaningful without control flow. With
+  // branches, "used at most once" would have to become "consumed exactly once on every path".
+  Region* region = op->getParentRegion();
+  if (region != nullptr && !region->hasOneBlock()) {
+    return op->emitOpError() << "must be in a single-block region: the dialect has no control flow";
+  }
+
   for (OpOperand& operand : op->getOpOperands()) {
     Value chain = operand.get();
     if (!isa<IonChainType>(chain.getType()) || chain.hasOneUse()) {
       continue;
     }
 
-    // Report the fork at the later user only, so that a fork yields one diagnostic. Users in other blocks count as
-    // later: the first user in our block is the only legitimate one.
-    const bool isFirstUser = llvm::none_of(chain.getUsers(), [&](Operation* user) {
-      return user != op && (user->getBlock() != op->getBlock() || user->isBeforeInBlock(op));
-    });
+    // The verifier stops at the first failing op, so report the fork at the later user: that puts the one diagnostic
+    // on the offending use rather than on the legitimate first one.
+    const bool isFirstUser =
+        llvm::none_of(chain.getUsers(), [&](Operation* user) { return user->isBeforeInBlock(op); });
     if (isFirstUser) {
       continue;
     }
