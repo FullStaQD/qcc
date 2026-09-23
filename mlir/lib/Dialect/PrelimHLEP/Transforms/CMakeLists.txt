@@ -1,0 +1,16 @@
+add_mlir_dialect_library(
+  QCCPrelimHLEPTransforms
+  LinNormalize.cpp
+  DEPENDS
+  QCCPrelimHLEPTransformsIncGen
+  LINK_LIBS
+  PRIVATE
+  MLIRIR
+  MLIRPass
+  MLIRSupport
+  MLIRTransforms
+  MLIRArithDialect
+  MLIRComplexDialect
+  MLIRFuncDialect
+  MLIRSCFDialect
+  QCCPrelimHLEPDialect)

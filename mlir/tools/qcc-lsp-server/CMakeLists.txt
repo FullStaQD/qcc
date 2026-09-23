@@ -9,8 +9,9 @@ target_link_libraries(
           # Dialect libraries used by our project
           QCCJaspDialect
           QCCAuxDialect
-          QCCQVecDialect
           MLIRQCDialect
+          QCCPrelimHLEPDialect
+          QCCQVecDialect
           MLIRQCODialect
           MLIRQTensorDialect)
 

@@ -38,6 +38,8 @@ There is also a [dev container cli](https://github.com/devcontainers/cli) which 
 
 For advanced users: put your own local `devcontainer.json` under `.devcontainer/local/` (gitignored).
 IDEs and the cli should provide you with a way to choose which config you want to use.
+For advanced users: put your own local `devcontainer.json` under `.devcontainer/local/` (gitignored).
+IDEs and the cli should provide you with a way to choose which config you want to use.
 
 ### Option 2: Manual Setup
 

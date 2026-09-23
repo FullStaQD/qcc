@@ -22,6 +22,7 @@ target_link_libraries(
           QCCJaspDialect
           QCCAuxDialect
           QCCQVecDialect
+          QCCPrelimHLEPDialect
           # Passes
           MLIRMemRefTransforms
           MLIRArithTransforms
@@ -29,7 +30,10 @@ target_link_libraries(
           MLIRLinalgTransforms
           MLIRTensorTransforms
           MLIRBufferizationTransforms
+          QCCPrelimHLEPDialect
           QCCJaspToQC
+          QCCPrelimHLEPToQCO
+          QCCPrelimHLEPTransforms
           MLIRFuncToLLVM
           MLIRVectorToLLVMPass
           QCCQVecTransforms
@@ -42,6 +46,6 @@ target_link_libraries(
           MLIRFuncInlinerExtension
           MLIRTransformUtils
           MLIRQCDialect
-          MLIRQCODialect
+          MLIRQTensorDialect
           MLIRQCToQCO
-          MLIRQTensorDialect)
+          MLIRQCODialect)
