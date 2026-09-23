@@ -42,9 +42,7 @@ class Magic_SameChainOp<string mnemonic, list<Trait> traits = []>
   let results = (outs Magic_IonChainType:$chain_out);
 }
 
-// A single-ion gate: the same gate applied to the ions in `ions` (ids, not positions) of one chain, with one angle
-// per ion in each angle array. Subclasses add the angle arrays. Verifier: `ions` distinct and contained in the chain,
-// every angle array as long as `ions`.
+// A single-ion gate: the same gate applied to the ions in `ions` (ids, not positions) of one chain.
 class Magic_SingleIonGateOp<string mnemonic, list<Trait> traits = []> : Magic_SameChainOp<mnemonic, traits> {
   let assemblyFormat = [{
         $chain_in custom<IonList>($ions) attr-dict `:` type($chain_in)
@@ -58,11 +56,12 @@ def Magic_InitOp : Magic_Op<"init"> {
         Creates the chain value of every trap at program start. There is one result per trap; all ions are active.
         Ion ids are distinct across all results, trap ids are distinct.
 
-        Whether the chains agree with the device (occupancies, capacities, identity placement) is checked by the
-        final verification pass, not here.
+        Whether the chains agree with the device (occupancies, capacities, identity placement) can be checked by the
+        verification pass, not here.
 
         Example:
         ```mlir
+        // Creates two traps with 2 and 1 ions respectively.
         %t0, %t1 = magic.init : !magic.ion_chain<0, [0:1, 1:1]>, !magic.ion_chain<1, [2:1]>
         ```
     }];
@@ -76,10 +75,9 @@ def Magic_InitOp : Magic_Op<"init"> {
 }
 
 def Magic_ZxzOp : Magic_SingleIonGateOp<"zxz"> {
-  let summary = "general single-ion rotation Rz(z2)·Rx(x)·Rz(z1) (intermediate)";
+  let summary = "general single-ion rotation Rz(z2)·Rx(x)·Rz(z1) (not native)";
   let description = [{
-        Applies `Rz(z2[k])·Rx(x[k])·Rz(z1[k])` to ion `ions[k]`, `z1` first. Not native: the finalization pass turns it
-        into `sym_zxz` plus a residual `rz`.
+        Applies `Rz(z2[k])·Rx(x[k])·Rz(z1[k])` to ion `ions[k]`, `z1` first.
 
         Example:
         ```mlir
@@ -113,8 +111,7 @@ def Magic_RzOp : Magic_SingleIonGateOp<"rz"> {
 def Magic_SymZxzOp : Magic_SingleIonGateOp<"sym_zxz"> {
   let summary = "symmetric single-ion rotation Rz(-z)·Rx(x)·Rz(z)";
   let description = [{
-        Applies `Rz(-z[k])·Rx(x[k])·Rz(z[k])` to ion `ions[k]`. Native, with zero duration; the machine executes it as
-        one instruction.
+        Applies `Rz(-z[k])·Rx(x[k])·Rz(z[k])` to ion `ions[k]`. Native, with zero duration.
 
         Example:
         ```mlir
@@ -135,7 +132,7 @@ def Magic_ActiveZzOp : Magic_SameChainOp<"active_zz"> {
         `angles`, a `k x k` matrix for `k` active ions, symmetric with zero diagonal. `rzz(θ)` between the active ions
         at active-positions `i` and `j` is `A_ij = A_ji = θ`.
 
-        Not native: its physical realization through `delay`s depends on the coupling matrix of the device.
+        Not native: its physical realization through `delay`s depends on the coupling (J) matrix of the device.
 
         Example (two active ions):
         ```mlir
@@ -156,7 +153,7 @@ def Magic_DelayOp : Magic_SameChainOp<"delay"> {
   let summary = "lets the permanent coupling act between the active ions for a while";
   let description = [{
         Waits `ticks` times the device's time unit. During that time the ZZ coupling acts between all active ions of
-        the chain, with strengths given by the device's coupling matrix for the ions present in the trap. Native.
+        the chain, with strengths given by the device's coupling matrix (J) for the ions present in the trap. Native.
 
         Example:
         ```mlir

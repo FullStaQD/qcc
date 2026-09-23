@@ -20,12 +20,12 @@ include "mlir/IR/AttrTypeBase.td"
 def MagicDialect : Dialect {
     let summary = "Programs for the MAGIC architecture: ion chains in traps coupled by a permanent ZZ interaction.";
     let description = [{
-        The MAGIC architecture consists of ion traps ("chains"), each holding a line of ions. The only two-qubit
-        interaction is a permanent ZZ coupling that acts between all *active* ions of one trap while the trap waits
-        (`magic.delay`). Everything else is single-ion rotations, toggling ions between active and inactive
-        (`magic.recode`), moving ions between traps (`magic.shuttle`) and a final destructive measurement
-        (`magic.mzd`). The device data (occupancies, coupling strengths, time unit) lives in the module attribute
-        `qcc.device` (`#qcc.magic_device`).
+        The MAGIC (Magnetic Gradient Induced Coupling) architecture consists of ion traps ("chains"), each holding a
+        line of ions. The only two-qubit interaction is a permanent ZZ coupling that acts between all *active* ions of
+        one trap while the trap waits (`magic.delay`). Everything else is single-ion rotations, toggling ions between
+        active and inactive (`magic.recode`), moving ions between traps (`magic.shuttle`) and a final destructive
+        measurement (`magic.mzd`). The device data (occupancies, coupling strengths, time unit) lives in the module
+        attribute `qcc.device` (`#qcc.magic_device`).
 
         **Chains as values.** The dialect has value semantics: every op consumes its chain operands and produces new
         chain values. The type `!magic.ion_chain<trap, [ion:active, ...]>` records the trap id and, front to back, the
@@ -36,6 +36,8 @@ def MagicDialect : Dialect {
         ids, never to positions. The position of an ion in its chain (front = 0) follows from the chain type and
         changes only through shuttling. Activation only matters for the global operations `active_zz` and `delay`;
         single-ion gates act on active and inactive ions alike.
+
+        FIXME: shorten most stuff below. Elaborate on sync points.
 
         **Conventions.** Angles are `f64` radians.
         - `zxz(z1, x, z2)` is `Rz(z2)·Rx(x)·Rz(z1)`, i.e. `z1` is applied first. The native `sym_zxz(z, x)` is
