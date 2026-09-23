@@ -225,7 +225,7 @@ func.func @wide_member_slice_is_one_op() {
 
 // Handing a member its share of the merged result takes one operation, whatever the member's width.
 // CHECK:         %[[H:.*]] = qvec.single h %{{.*}} : vector<4x!qco.qubit>
-// CHECK:         %[[S0:.*]] = vector.extract_strided_slice %[[H]] offsets = [0], sizes = [2], strides = [1]
-// CHECK:         %[[S1:.*]] = vector.extract_strided_slice %[[H]] offsets = [2], sizes = [2], strides = [1]
+// CHECK:         %[[S0:.*]] = vector.extract_strided_slice %[[H]] {offsets = [0], sizes = [2], strides = [1]}
+// CHECK:         %[[S1:.*]] = vector.extract_strided_slice %[[H]] {offsets = [2], sizes = [2], strides = [1]}
 // CHECK:         qvec.single x %[[S0]] : vector<2x!qco.qubit>
 // CHECK:         qvec.single y %[[S1]] : vector<2x!qco.qubit>
