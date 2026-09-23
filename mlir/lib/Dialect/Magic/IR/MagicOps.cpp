@@ -60,29 +60,29 @@ static void printIonList(OpAsmPrinter& printer, Operation* /*op*/, DenseI64Array
 // Shared verification
 //===----------------------------------------------------------------------===//
 
-LogicalResult qcc::magic::verifyAffineChainOperands(Operation* op) {
-  // The affine check below reads the use list in program order, which is only meaningful without control flow. With
-  // branches, "used at most once" would have to become "consumed exactly once on every path".
+LogicalResult qcc::magic::verifyAffineChains(Operation* op) {
+  // The dialect has no control flow: a program is one straight line of sync points, which is what the timing model
+  // and the type-level chain tracking assume. It also makes possible to check affine typing via usage counting.
   Region* region = op->getParentRegion();
   if (region != nullptr && !region->hasOneBlock()) {
     return op->emitOpError() << "must be in a single-block region: the dialect has no control flow";
   }
 
+  for (OpResult result : op->getResults()) {
+    if (!isa<IonChainType>(result.getType()) || result.use_empty() || result.hasOneUse()) {
+      continue;
+    }
+    return op->emitOpError() << "chain result #" << result.getResultNumber() << " has " << result.getNumUses()
+                             << " uses, but chain values are affine";
+  }
+
+  // `magic.init` is the sole source of chain values. We do not allow function or block arguments to be chains.
   for (OpOperand& operand : op->getOpOperands()) {
     Value chain = operand.get();
-    if (!isa<IonChainType>(chain.getType()) || chain.hasOneUse()) {
-      continue;
+    if (isa<IonChainType>(chain.getType()) && chain.getDefiningOp() == nullptr) {
+      return op->emitOpError() << "chain operand #" << operand.getOperandNumber()
+                               << " must be produced by a magic op, not a block argument";
     }
-
-    // The verifier stops at the first failing op, so report the fork at the later user: that puts the one diagnostic
-    // on the offending use rather than on the legitimate first one.
-    const bool isFirstUser =
-        llvm::none_of(chain.getUsers(), [&](Operation* user) { return user->isBeforeInBlock(op); });
-    if (isFirstUser) {
-      continue;
-    }
-    return op->emitOpError() << "chain operand #" << operand.getOperandNumber()
-                             << " is used more than once, but chain values are affine";
   }
   return success();
 }

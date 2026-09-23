@@ -63,16 +63,17 @@ inline llvm::hash_code hash_value(const IonSlot& slot) { return llvm::hash_combi
 
 namespace qcc::magic {
 
-/// Verifies that no chain operand of `op` has a second use. See the dialect description on affine chain values.
-llvm::LogicalResult verifyAffineChainOperands(mlir::Operation* op);
+/// Verifies that no chain result of `op` has a second use and that its chain operands come from a magic op. See the
+/// dialect description on affine chain values.
+llvm::LogicalResult verifyAffineChains(mlir::Operation* op);
 
-/// Corresponds to `Magic_AffineChainOperands` in tablegen. An op trait mixin in the style of `mlir::OpTrait`, hence the
+/// Corresponds to `Magic_AffineChains` in tablegen. An op trait mixin in the style of `mlir::OpTrait`, hence the
 /// public constructor.
 template <typename ConcreteType>
-class AffineChainOperands // NOLINT(bugprone-crtp-constructor-accessibility)
-    : public mlir::OpTrait::TraitBase<ConcreteType, AffineChainOperands> {
+class AffineChains // NOLINT(bugprone-crtp-constructor-accessibility)
+    : public mlir::OpTrait::TraitBase<ConcreteType, AffineChains> {
 public:
-  static llvm::LogicalResult verifyTrait(mlir::Operation* op) { return verifyAffineChainOperands(op); }
+  static llvm::LogicalResult verifyTrait(mlir::Operation* op) { return verifyAffineChains(op); }
 };
 
 } // namespace qcc::magic

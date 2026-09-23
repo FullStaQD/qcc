@@ -21,9 +21,9 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 // Magic traits
 //===----------------------------------------------------------------------===//
 
-// Chain values are affine: every chain operand of the op must not be used anywhere else, and the op must sit in a
-// single-block region (the dialect has no control flow). See the dialect description. Implemented in `Magic.h`.
-def Magic_AffineChainOperands : NativeOpTrait<"AffineChainOperands"> {
+// Chain values are affine: every chain result of the op has at most one use, every chain operand comes from a magic
+// op, and the op sits in a single-block region (the dialect has no control flow). Implemented in `Magic.h`.
+def Magic_AffineChains : NativeOpTrait<"AffineChains"> {
   let cppNamespace = "::qcc::magic";
 }
 
@@ -34,7 +34,7 @@ def Magic_AffineChainOperands : NativeOpTrait<"AffineChainOperands"> {
 // All ops are free of memory effects, but deliberately not `Pure`: the chain values are affine, so folding or
 // hoisting must never duplicate them.
 class Magic_Op<string mnemonic, list<Trait> traits = []>
-    : Op<MagicDialect, mnemonic, !listconcat(traits, [NoMemoryEffect, Magic_AffineChainOperands])>;
+    : Op<MagicDialect, mnemonic, !listconcat(traits, [NoMemoryEffect, Magic_AffineChains])>;
 
 // An op that transforms one chain in place: the chain type does not change.
 class Magic_SameChainOp<string mnemonic, list<Trait> traits = []>

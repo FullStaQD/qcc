@@ -22,10 +22,45 @@ func.func @bad_activation(%c: !magic.ion_chain<0, [3:2]>) {
 // -----
 
 func.func @fork() {
+  // expected-error @+1 {{'magic.init' op chain result #0 has 2 uses, but chain values are affine}}
   %c0 = magic.init : !magic.ion_chain<0, [0:1]>
   %c1 = magic.rz %c0 ions [0] {angles = [1.0]} : !magic.ion_chain<0, [0:1]>
-  // expected-error @+1 {{'magic.rz' op chain operand #0 is used more than once, but chain values are affine}}
   %c2 = magic.rz %c0 ions [0] {angles = [2.0]} : !magic.ion_chain<0, [0:1]>
+  return
+}
+
+// -----
+
+// A fork through a consumer outside the dialect: `func.call` carries no trait of ours, so only the result check
+// catches it.
+func.func private @sink(%c: !magic.ion_chain<0, [0:1]>)
+
+func.func @fork_through_call() {
+  // expected-error @+1 {{'magic.init' op chain result #0 has 2 uses, but chain values are affine}}
+  %c0 = magic.init : !magic.ion_chain<0, [0:1]>
+  func.call @sink(%c0) : (!magic.ion_chain<0, [0:1]>) -> ()
+  func.call @sink(%c0) : (!magic.ion_chain<0, [0:1]>) -> ()
+  return
+}
+
+// -----
+
+func.func @chain_as_function_argument(%c: !magic.ion_chain<0, [0:1]>) {
+  // expected-error @+1 {{'magic.rz' op chain operand #0 must be produced by a magic op, not a block argument}}
+  %c1 = magic.rz %c ions [0] {angles = [1.0]} : !magic.ion_chain<0, [0:1]>
+  return
+}
+
+// -----
+
+// The chain enters the loop body as an iteration argument, which the single-block rule alone does not catch.
+func.func @chain_as_iter_arg(%lb: index, %ub: index, %step: index) {
+  %c0 = magic.init : !magic.ion_chain<0, [0:1]>
+  %r = scf.for %i = %lb to %ub step %step iter_args(%c = %c0) -> (!magic.ion_chain<0, [0:1]>) {
+    // expected-error @+1 {{'magic.rz' op chain operand #0 must be produced by a magic op, not a block argument}}
+    %c1 = magic.rz %c ions [0] {angles = [1.0]} : !magic.ion_chain<0, [0:1]>
+    scf.yield %c1 : !magic.ion_chain<0, [0:1]>
+  }
   return
 }
 
@@ -156,10 +191,12 @@ func.func @recode_changes_trap() {
 
 // -----
 
+// Two chains in one trap take two `magic.init` ops: passing a single chain twice trips the affine check first.
 func.func @shuttle_same_trap() {
   %a = magic.init : !magic.ion_chain<0, [0:1]>
+  %b = magic.init : !magic.ion_chain<0, [1:1]>
   // expected-error @+1 {{'magic.shuttle' op cannot shuttle within trap 0}}
-  %a1, %a2 = magic.shuttle %a, %a : !magic.ion_chain<0, [0:1]>, !magic.ion_chain<0, [0:1]> -> !magic.ion_chain<0, []>, !magic.ion_chain<0, [0:1]>
+  %a1, %b1 = magic.shuttle %a, %b : !magic.ion_chain<0, [0:1]>, !magic.ion_chain<0, [1:1]> -> !magic.ion_chain<0, []>, !magic.ion_chain<0, [0:1, 1:1]>
   return
 }
 
@@ -219,11 +256,12 @@ func.func @mzd_result_count() {
 
 // -----
 
+// As above: two `magic.init` ops, since one chain used twice is an affine violation before it is a trap violation.
 func.func @inter_trap_zz_same_trap() {
-  %a, %b = magic.init : !magic.ion_chain<0, [0:1]>, !magic.ion_chain<1, [1:1]>
-  %a1 = magic.rz %a ions [0] {angles = [0.0]} : !magic.ion_chain<0, [0:1]>
+  %a = magic.init : !magic.ion_chain<0, [0:1]>
+  %b = magic.init : !magic.ion_chain<0, [1:1]>
   // expected-error @+1 {{'magic.inter_trap_zz' op chains must belong to different traps, both are trap 0}}
-  %a2, %a3 = magic.inter_trap_zz %a1, %a1 ions [0, 0] {angle = 1.0} : !magic.ion_chain<0, [0:1]>, !magic.ion_chain<0, [0:1]>
+  %a1, %b1 = magic.inter_trap_zz %a, %b ions [0, 1] {angle = 1.0} : !magic.ion_chain<0, [0:1]>, !magic.ion_chain<0, [1:1]>
   return
 }
 

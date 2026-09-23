@@ -31,8 +31,11 @@ def MagicDialect : Dialect {
         chain values. The type `!magic.ion_chain<trap, [ion:active, ...]>` records the trap id and, front to back, the
         ions in the trap together with their activation. Chain values are *affine*: each chain value is used at most
         once (a fork is a verifier error; an unused chain value is legal and removed by dead-code elimination).
-        The dialect has no control flow: every op must sit in a single-block region, which is what makes the affine
-        rule checkable by counting uses.
+        `magic.init` is the sole source of chain values: a chain must never reach an op as a block argument, so the
+        affine rule is checked on the results and covers forks through consumers outside the dialect too.
+
+        The dialect also has no control flow: every op sits in a single-block region. That is what the timing model
+        (one straight line of sync points) and the type-level chain tracking assume.
 
         **Ions vs positions.** Ions carry an id that never changes; `ions [...]` attributes on ops always refer to
         ids, never to positions. The position of an ion in its chain (front = 0) follows from the chain type and
