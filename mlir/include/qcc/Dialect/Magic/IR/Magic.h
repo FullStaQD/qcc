@@ -47,7 +47,8 @@ struct IonSlot {
   bool operator==(const IonSlot& other) const = default;
 };
 
-/// Hashing for the type storage. The name is fixed by LLVM's hashing protocol (found through ADL).
+/// Hashes one slot: the `IonChainType` storage hashes its `ArrayRef<IonSlot>` element-wise.
+/// LLVM finds this by ADL, so it keeps LLVM's snake_case name (see `Hashing.h`).
 // NOLINTNEXTLINE(readability-identifier-naming)
 inline llvm::hash_code hash_value(const IonSlot& slot) { return llvm::hash_combine(slot.ion, slot.active); }
 
@@ -65,8 +66,8 @@ namespace qcc::magic {
 /// Verifies that no chain operand of `op` has a second use. See the dialect description on affine chain values.
 llvm::LogicalResult verifyAffineChainOperands(mlir::Operation* op);
 
-/// Chain values are affine: every chain operand must not be used anywhere else. Defined in TableGen as
-/// `Magic_AffineChainOperands`. An op trait mixin in the style of `mlir::OpTrait`, hence the public constructor.
+/// Corresponds to `Magic_AffineChainOperands` in tablegen. An op trait mixin in the style of `mlir::OpTrait`, hence the
+/// public constructor.
 template <typename ConcreteType>
 class AffineChainOperands // NOLINT(bugprone-crtp-constructor-accessibility)
     : public mlir::OpTrait::TraitBase<ConcreteType, AffineChainOperands> {
