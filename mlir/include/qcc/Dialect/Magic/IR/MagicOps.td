@@ -223,7 +223,7 @@ def Magic_ShuttleOp : Magic_Op<"shuttle"> {
     }];
 }
 
-def Magic_MzdOp : Magic_Op<"mzd"> {
+def Magic_MZDOp : Magic_Op<"mzd"> {
   let summary = "destructively measures every ion of a chain";
   let description = [{
         Measures all ions of the chain in the computational basis and yields one `i1` per ion, in position order. The

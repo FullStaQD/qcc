@@ -250,10 +250,10 @@ LogicalResult ShuttleOp::verify() {
 }
 
 //===----------------------------------------------------------------------===//
-// MzdOp
+// MZDOp
 //===----------------------------------------------------------------------===//
 
-LogicalResult MzdOp::verify() {
+LogicalResult MZDOp::verify() {
   const unsigned numIons = getChain().getType().getNumIons();
   if (numIons == 0) {
     return emitOpError() << "cannot measure the empty chain";
