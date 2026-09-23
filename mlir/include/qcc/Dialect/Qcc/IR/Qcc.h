@@ -39,7 +39,7 @@
 #include "qcc/Dialect/Qcc/IR/QccInterfaces.h.inc"
 
 //===----------------------------------------------------------------------===//
-// Qcc Attributes
+// Shared ODS helpers
 //===----------------------------------------------------------------------===//
 
 namespace qcc::detail {
@@ -89,17 +89,14 @@ template <typename T> void printArray(mlir::AsmPrinter& printer, llvm::ArrayRef<
 
 } // namespace qcc::detail
 
-#define GET_ATTRDEF_CLASSES
-#include "qcc/Dialect/Qcc/IR/QccAttrs.h.inc"
-
 namespace qcc {
 
 /// Reads the device description from a device file.
 ///
 /// A device file is a minimal module that carries only the `qcc.device` attribute, so that attribute aliases work:
 /// ```mlir
-/// #trap = #qcc.magic_trap<...>
-/// module attributes {qcc.device = #qcc.magic_device<..., traps = [#trap, #trap]>} {}
+/// #trap = #magic.trap<...>
+/// module attributes {qcc.device = #magic.device<..., traps = [#trap, #trap]>} {}
 /// ```
 /// Returns the (verified) `qcc.device` attribute. Emits a diagnostic and fails if the file cannot be read or parsed,
 /// or if it carries no `qcc.device` attribute.

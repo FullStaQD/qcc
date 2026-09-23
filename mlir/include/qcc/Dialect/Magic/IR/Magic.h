@@ -9,6 +9,8 @@
 
 #pragma once
 
+#include "qcc/Dialect/Qcc/IR/Qcc.h" // the device attribute implements `qcc::DeviceAttrInterface`.
+
 #include "mlir/Bytecode/BytecodeOpInterface.h" // IWYU pragma: keep
 #include "mlir/IR/Builders.h"                  // IWYU pragma: keep
 #include "mlir/IR/BuiltinAttributes.h"
@@ -32,6 +34,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "qcc/Dialect/Magic/IR/MagicDialect.h.inc"
+
+//===----------------------------------------------------------------------===//
+// Magic Attributes
+//===----------------------------------------------------------------------===//
+
+#define GET_ATTRDEF_CLASSES
+#include "qcc/Dialect/Magic/IR/MagicAttrs.h.inc"
 
 //===----------------------------------------------------------------------===//
 // Magic Types

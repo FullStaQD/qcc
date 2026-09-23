@@ -7,6 +7,7 @@
 //
 // ===----------------------------------------------------------------------===//
 
+#include "qcc/Dialect/Magic/IR/Magic.h" // IWYU pragma: keep, a device file may carry a `#magic.device`.
 #include "qcc/Dialect/Qcc/IR/Qcc.h"
 #include "qcc/Dialect/Qcc/Transforms/Passes.h" // IWYU pragma: keep
 

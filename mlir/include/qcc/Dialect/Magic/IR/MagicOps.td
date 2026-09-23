@@ -11,6 +11,7 @@
 #define INCLUDE_QCC_DIALECT_MAGIC_IR_MAGICOPS_TD_
 
 include "qcc/Dialect/Magic/IR/MagicDialect.td"
+include "qcc/Dialect/Magic/IR/MagicAttrs.td"
 include "qcc/Dialect/Magic/IR/MagicTypes.td"
 
 include "mlir/IR/CommonAttrConstraints.td"

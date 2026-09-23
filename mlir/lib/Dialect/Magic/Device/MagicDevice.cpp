@@ -54,14 +54,14 @@ DenseElementsAttr CouplingMatrix::toAttr(MLIRContext& ctx) const {
 // MagicDevice: construction
 //===----------------------------------------------------------------------===//
 
-MagicDevice MagicDevice::fromAttr(MagicDeviceAttr attr) {
+MagicDevice MagicDevice::fromAttr(DeviceAttr attr) {
   MagicDevice device;
   device.deviceName = attr.getName().str();
   device.timeUnit = attr.getTimeUnitNs();
   for (const int64_t occupancy : attr.getInitialOccupancies()) {
     device.occupancies.push_back(static_cast<IonCount>(occupancy));
   }
-  for (MagicTrapAttr trapAttr : attr.getTraps()) {
+  for (TrapAttr trapAttr : attr.getTraps()) {
     Trap& trap = device.traps.emplace_back();
     trap.capacity = static_cast<IonCount>(trapAttr.getCapacity());
     for (DenseElementsAttr matrix : trapAttr.getCouplings()) {
@@ -77,9 +77,9 @@ FailureOr<MagicDevice> MagicDevice::fromModule(ModuleOp module) {
   if (!attr) {
     return module.emitError() << "module carries no '" << attrName << "' attribute";
   }
-  auto magicAttr = dyn_cast<MagicDeviceAttr>(attr);
+  auto magicAttr = dyn_cast<DeviceAttr>(attr);
   if (!magicAttr) {
-    return module.emitError() << "expected '" << attrName << "' to be a #qcc.magic_device, got " << attr;
+    return module.emitError() << "expected '" << attrName << "' to be a #magic.device, got " << attr;
   }
   return fromAttr(magicAttr);
 }
@@ -89,23 +89,23 @@ FailureOr<MagicDevice> MagicDevice::fromFile(StringRef path, MLIRContext& ctx) {
   if (failed(attr)) {
     return failure();
   }
-  auto magicAttr = dyn_cast<MagicDeviceAttr>(*attr);
+  auto magicAttr = dyn_cast<DeviceAttr>(*attr);
   if (!magicAttr) {
     return emitError(UnknownLoc::get(&ctx))
-           << "expected device file '" << path << "' to describe a #qcc.magic_device, got " << *attr;
+           << "expected device file '" << path << "' to describe a #magic.device, got " << *attr;
   }
   return fromAttr(magicAttr);
 }
 
-MagicDeviceAttr MagicDevice::toAttr(MLIRContext& ctx) const {
+DeviceAttr MagicDevice::toAttr(MLIRContext& ctx) const {
   SmallVector<int64_t> occupancyList(occupancies.begin(), occupancies.end());
-  SmallVector<MagicTrapAttr> trapAttrs;
+  SmallVector<TrapAttr> trapAttrs;
   for (const Trap& trap : traps) {
     const SmallVector<DenseElementsAttr> couplings =
         llvm::map_to_vector(trap.couplings, [&](const CouplingMatrix& matrix) { return matrix.toAttr(ctx); });
-    trapAttrs.push_back(MagicTrapAttr::get(&ctx, trap.capacity, couplings));
+    trapAttrs.push_back(TrapAttr::get(&ctx, trap.capacity, couplings));
   }
-  return MagicDeviceAttr::get(&ctx, deviceName, timeUnit, occupancyList, trapAttrs);
+  return DeviceAttr::get(&ctx, deviceName, timeUnit, occupancyList, trapAttrs);
 }
 
 //===----------------------------------------------------------------------===//

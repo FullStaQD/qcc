@@ -20,10 +20,10 @@ def QccAttachDevice : Pass<"qcc-attach-device", "mlir::ModuleOp"> {
       that carries only that attribute, so attribute aliases work:
 
       ```mlir
-      #trap = #qcc.magic_trap<capacity = 2, couplings = [dense<0.0> : tensor<1x1xf64>,
-                                                         dense<[[0.0, 1.0], [1.0, 0.0]]> : tensor<2x2xf64>]>
-      module attributes {qcc.device = #qcc.magic_device<name = "two-trap", time_unit_ns = 1000,
-                                                        initial_occupancies = [2, 1], traps = [#trap, #trap]>} {}
+      #trap = #magic.trap<capacity = 2, couplings = [dense<0.0> : tensor<1x1xf64>,
+                                                     dense<[[0.0, 1.0], [1.0, 0.0]]> : tensor<2x2xf64>]>
+      module attributes {qcc.device = #magic.device<name = "two-trap", time_unit_ns = 1000,
+                                                    initial_occupancies = [2, 1], traps = [#trap, #trap]>} {}
       ```
 
       Fails if the file cannot be read, carries no `qcc.device` attribute, or if the module already has one.
@@ -33,7 +33,7 @@ def QccAttachDevice : Pass<"qcc-attach-device", "mlir::ModuleOp"> {
     Option<"file", "file", "std::string", /*default=*/"\"\"", "Path of the device file.">
   ];
 
-  let dependentDialects = ["qcc::QccDialect"];
+  let dependentDialects = ["qcc::QccDialect", "qcc::magic::MagicDialect"];
 }
 
 #endif // INCLUDE_QCC_DIALECT_QCC_TRANSFORMS_PASSES_TD_

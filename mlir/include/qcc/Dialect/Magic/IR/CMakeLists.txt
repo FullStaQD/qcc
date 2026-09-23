@@ -3,6 +3,11 @@ mlir_tablegen(MagicDialect.h.inc -gen-dialect-decls -dialect=magic)
 mlir_tablegen(MagicDialect.cpp.inc -gen-dialect-defs -dialect=magic)
 add_public_tablegen_target(QCCMagicDialectIncGen)
 
+set(LLVM_TARGET_DEFINITIONS MagicAttrs.td)
+mlir_tablegen(MagicAttrs.h.inc -gen-attrdef-decls -attrdefs-dialect=magic)
+mlir_tablegen(MagicAttrs.cpp.inc -gen-attrdef-defs -attrdefs-dialect=magic)
+add_public_tablegen_target(QCCMagicAttrsIncGen)
+
 set(LLVM_TARGET_DEFINITIONS MagicTypes.td)
 mlir_tablegen(MagicTypes.h.inc -gen-typedef-decls -typedefs-dialect=magic)
 mlir_tablegen(MagicTypes.cpp.inc -gen-typedef-defs -typedefs-dialect=magic)

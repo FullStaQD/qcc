@@ -22,8 +22,8 @@ using namespace qcc::magic;
 
 namespace {
 
-/// Prints every `!magic.ion_chain` type as an alias `!chain`, `!chain1`, ... (the printer numbers collisions), which
-/// keeps the IR readable: the ops then read like `magic.delay %c {ticks = 10} : !chain2`.
+/// Prints the dialect's types and attributes as aliases, which keeps the IR readable: e.g. every `!magic.ion_chain`
+/// becomes `!chain`, `!chain1`, ..., so the ops read like `magic.delay %c {ticks = 10} : !chain2`.
 struct MagicOpAsmDialectInterface final : OpAsmDialectInterface {
   using OpAsmDialectInterface::OpAsmDialectInterface;
 
@@ -34,11 +34,24 @@ struct MagicOpAsmDialectInterface final : OpAsmDialectInterface {
     }
     return AliasResult::NoAlias;
   }
+
+  AliasResult getAlias(Attribute attr, raw_ostream& os) const override {
+    if (isa<TrapAttr>(attr)) {
+      os << "magic_trap";
+      return AliasResult::OverridableAlias;
+    }
+    if (isa<DeviceAttr>(attr)) {
+      os << "magic_device";
+      return AliasResult::OverridableAlias;
+    }
+    return AliasResult::NoAlias;
+  }
 };
 
 } // namespace
 
 void MagicDialect::initialize() {
+  registerAttributes();
   registerTypes();
 
   addOperations<

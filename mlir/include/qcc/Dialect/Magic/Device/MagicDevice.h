@@ -9,7 +9,7 @@
 
 #pragma once
 
-#include "qcc/Dialect/Qcc/IR/Qcc.h"
+#include "qcc/Dialect/Magic/IR/Magic.h"
 
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -36,7 +36,7 @@ class CouplingMatrix {
 public:
   CouplingMatrix() = default;
 
-  /// From an `n x n` `f64` matrix attribute as carried by `#qcc.magic_trap`.
+  /// From an `n x n` `f64` matrix attribute as carried by `#magic.trap`.
   explicit CouplingMatrix(mlir::DenseElementsAttr matrix);
 
   /// The number of ions this matrix is for.
@@ -55,24 +55,24 @@ private:
 
 /// The facade in front of the device data of a MAGIC device.
 ///
-/// Passes and the exporter talk to this class only. The attribute `#qcc.magic_device` is the IR carrier; other
+/// Passes and the exporter talk to this class only. The attribute `#magic.device` is the IR carrier; other
 /// sources (a QDMI backend, later) become further constructors. A value type, cheap to copy, holding no MLIR context.
 class MagicDevice {
 public:
   /// From the verified attribute. Cannot fail: the attribute verifier already enforces same-length arrays,
   /// occupancy <= capacity, a positive time unit and a complete coupling table.
-  static MagicDevice fromAttr(MagicDeviceAttr attr);
+  static MagicDevice fromAttr(DeviceAttr attr);
 
-  /// Looks up `qcc.device` on the module and checks that it is a `#qcc.magic_device`. Emits a diagnostic at the
+  /// Looks up `qcc.device` on the module and checks that it is a `#magic.device`. Emits a diagnostic at the
   /// module and fails otherwise.
   static mlir::FailureOr<MagicDevice> fromModule(mlir::ModuleOp module);
 
-  /// Parses a device file (see `qcc::parseDeviceFile`) that carries a `#qcc.magic_device`. Emits a diagnostic and
+  /// Parses a device file (see `qcc::parseDeviceFile`) that carries a `#magic.device`. Emits a diagnostic and
   /// fails otherwise.
   static mlir::FailureOr<MagicDevice> fromFile(llvm::StringRef path, mlir::MLIRContext& ctx);
 
   /// Round trip back to the IR carrier.
-  [[nodiscard]] MagicDeviceAttr toAttr(mlir::MLIRContext& ctx) const;
+  [[nodiscard]] DeviceAttr toAttr(mlir::MLIRContext& ctx) const;
 
   //===--------------------------------------------------------------------===//
   // Device data (read-only)

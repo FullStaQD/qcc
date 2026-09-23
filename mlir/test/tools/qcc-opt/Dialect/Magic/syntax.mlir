@@ -14,8 +14,8 @@
 // Type aliases come first, then the attribute aliases of the device used by @main below.
 // CHECK: !magic.ion_chain<0, [0:1, 1:1]>
 // CHECK: !magic.ion_chain<1, [2:1]>
-// CHECK: #magic_trap = #qcc.magic_trap<capacity = 3, couplings = [dense<0.000000e+00> : tensor<1x1xf64>, dense<{{.*}}> : tensor<2x2xf64>, dense<{{.*}}> : tensor<3x3xf64>]>
-// CHECK: #magic_device = #qcc.magic_device<name = "two-trap", time_unit_ns = 1000, initial_occupancies = [2, 1], traps = [#magic_trap, #magic_trap]>
+// CHECK: #magic_trap = #magic.trap<capacity = 3, couplings = [dense<0.000000e+00> : tensor<1x1xf64>, dense<{{.*}}> : tensor<2x2xf64>, dense<{{.*}}> : tensor<3x3xf64>]>
+// CHECK: #magic_device = #magic.device<name = "two-trap", time_unit_ns = 1000, initial_occupancies = [2, 1], traps = [#magic_trap, #magic_trap]>
 
 // CHECK-LABEL: func.func @native_ops
 func.func @native_ops() {
@@ -88,13 +88,13 @@ func.func @ids_not_positions() {
 }
 
 // A whole program: a two-trap device, padding on the idle trap, one shuttle.
-#trap = #qcc.magic_trap<capacity = 3, couplings = [
+#trap = #magic.trap<capacity = 3, couplings = [
   dense<0.0> : tensor<1x1xf64>,
   dense<[[0.0, 297.4], [297.4, 0.0]]> : tensor<2x2xf64>,
   dense<[[0.0, 297.4, 150.0], [297.4, 0.0, 297.4], [150.0, 297.4, 0.0]]> : tensor<3x3xf64>]>
 
 // CHECK: module attributes {qcc.device = #magic_device}
-module attributes {qcc.device = #qcc.magic_device<name = "two-trap", time_unit_ns = 1000, initial_occupancies = [2, 1], traps = [#trap, #trap]>} {
+module attributes {qcc.device = #magic.device<name = "two-trap", time_unit_ns = 1000, initial_occupancies = [2, 1], traps = [#trap, #trap]>} {
   // CHECK: func.func @main() attributes {qcc.entry_point}
   func.func @main() attributes {qcc.entry_point} {
     %a0, %b0 = magic.init : !t0, !t1

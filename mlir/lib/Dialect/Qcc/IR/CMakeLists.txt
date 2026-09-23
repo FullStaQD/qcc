@@ -4,7 +4,6 @@ add_mlir_dialect_library(
   DEPENDS
   QCCQccDialectIncGen
   QCCQccInterfacesIncGen
-  QCCQccAttrsIncGen
   LINK_LIBS
   PRIVATE
   MLIRIR

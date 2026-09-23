@@ -24,8 +24,8 @@ def MagicDialect : Dialect {
         line of ions. The only two-qubit interaction is a permanent ZZ coupling that acts between all *active* ions of
         one trap while the trap waits (`magic.delay`). Everything else is single-ion rotations, toggling ions between
         active and inactive (`magic.recode`), moving ions between traps (`magic.shuttle`) and a final destructive
-        measurement (`magic.mzd`). The device data (occupancies, coupling strengths, time unit) lives in the module
-        attribute `qcc.device` (`#qcc.magic_device`).
+        measurement (`magic.mzd`). The device data (occupancies, coupling strengths, time unit) lives in the dialect's
+        own `#magic.device` attribute, which the module carries as `qcc.device`.
 
         **Chains as values.** The dialect has value semantics: every op consumes its chain operands and produces new
         chain values. The type `!magic.ion_chain<trap, [ion:active, ...]>` records the trap id and, front to back, the
@@ -74,9 +74,12 @@ def MagicDialect : Dialect {
     let cppNamespace = "::qcc::magic";
 
     let useDefaultTypePrinterParser = 1;
-    let useDefaultAttributePrinterParser = 0; // set to 1 once we define attributes of our own.
+    let useDefaultAttributePrinterParser = 1;
 
     let extraClassDeclaration = [{
+        /// Registers the dialect's attributes (implemented next to the attribute definitions).
+        void registerAttributes();
+
         /// Registers the dialect's types (implemented next to the type definitions).
         void registerTypes();
     }];
