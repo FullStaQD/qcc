@@ -9,7 +9,6 @@
 
 #include "qcc/Dialect/Magic/IR/Magic.h"
 
-#include "mlir/IR/Block.h"
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinTypeInterfaces.h"
 #include "mlir/IR/Diagnostics.h"

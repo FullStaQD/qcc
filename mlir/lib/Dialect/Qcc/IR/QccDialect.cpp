@@ -24,7 +24,7 @@
 #include "llvm/ADT/TypeSwitch.h" // IWYU pragma: keep
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/SourceMgr.h"
-#include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/raw_ostream.h" // IWYU pragma: keep
 
 #include <cstdint>
 #include <memory>

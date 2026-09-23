@@ -12,8 +12,8 @@
 #include "mlir/IR/DialectImplementation.h" // IWYU pragma: keep
 #include "mlir/IR/OpImplementation.h"
 
-#include "llvm/ADT/TypeSwitch.h" // IWYU pragma: keep
-#include "llvm/Support/raw_ostream.h"
+#include "llvm/ADT/TypeSwitch.h"      // IWYU pragma: keep
+#include "llvm/Support/raw_ostream.h" // IWYU pragma: keep
 
 using namespace mlir;
 using namespace qcc::magic;

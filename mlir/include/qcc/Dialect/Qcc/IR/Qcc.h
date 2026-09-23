@@ -11,20 +11,20 @@
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/BuiltinAttributes.h"
-#include "mlir/IR/Dialect.h"
+#include "mlir/IR/Dialect.h" // IWYU pragma: keep
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/OpImplementation.h"
-#include "mlir/IR/Operation.h"
+#include "mlir/IR/Operation.h" // IWYU pragma: keep
 #include "mlir/Support/LLVM.h"
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/Support/LogicalResult.h"
+#include "llvm/Support/LogicalResult.h" // IWYU pragma: keep
 
-#include <cstdint>
+#include <cstdint> // IWYU pragma: keep
 
 //===----------------------------------------------------------------------===//
 // Qcc Dialect

@@ -10,21 +10,19 @@
 #pragma once
 
 #include "mlir/Bytecode/BytecodeOpInterface.h" // IWYU pragma: keep
-#include "mlir/IR/Builders.h"
+#include "mlir/IR/Builders.h"                  // IWYU pragma: keep
 #include "mlir/IR/BuiltinAttributes.h"
-#include "mlir/IR/BuiltinTypes.h"
-#include "mlir/IR/Dialect.h"
-#include "mlir/IR/ImplicitLocOpBuilder.h"
+#include "mlir/IR/Dialect.h"              // IWYU pragma: keep
+#include "mlir/IR/ImplicitLocOpBuilder.h" // IWYU pragma: keep
 #include "mlir/IR/OpDefinition.h"
-#include "mlir/IR/OpImplementation.h"
+#include "mlir/IR/OpImplementation.h" // IWYU pragma: keep
 #include "mlir/IR/Operation.h"
-#include "mlir/IR/Types.h"
-#include "mlir/Interfaces/SideEffectInterfaces.h"
-#include "mlir/Support/LLVM.h"
+#include "mlir/IR/Types.h"                        // IWYU pragma: keep
+#include "mlir/Interfaces/SideEffectInterfaces.h" // IWYU pragma: keep
 
-#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/ArrayRef.h" // IWYU pragma: keep
 #include "llvm/ADT/Hashing.h"
-#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/SmallVector.h" // IWYU pragma: keep
 #include "llvm/Support/LogicalResult.h"
 
 #include <cstdint>
@@ -41,7 +39,7 @@
 
 namespace qcc::magic {
 
-/// One entry of an ion chain: an ion (by id) and whether it takes part in the ZZ coupling.
+/// One entry of an ion chain: an ion (by id) and whether it takes part in the ZZ coupling (MAGIC).
 struct IonSlot {
   int64_t ion;
   bool active;
