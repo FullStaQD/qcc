@@ -74,7 +74,7 @@ def Magic_InitOp : Magic_Op<"init"> {
   let hasVerifier = 1;
 }
 
-def Magic_ZxzOp : Magic_SingleIonGateOp<"zxz"> {
+def Magic_ZXZOp : Magic_SingleIonGateOp<"zxz"> {
   let summary = "general single-ion rotation Rz(z2)·Rx(x)·Rz(z1) (not native)";
   let description = [{
         Applies `Rz(z2[k])·Rx(x[k])·Rz(z1[k])` to ion `ions[k]`, `z1` first.
@@ -92,7 +92,7 @@ def Magic_ZxzOp : Magic_SingleIonGateOp<"zxz"> {
                        F64ArrayAttr:$z2);
 }
 
-def Magic_RzOp : Magic_SingleIonGateOp<"rz"> {
+def Magic_RZOp : Magic_SingleIonGateOp<"rz"> {
   let summary = "Z rotation on single ions";
   let description = [{
         Applies `Rz(angles[k])` to ion `ions[k]`. Native, with zero duration.
@@ -108,7 +108,7 @@ def Magic_RzOp : Magic_SingleIonGateOp<"rz"> {
                        F64ArrayAttr:$angles);
 }
 
-def Magic_SymZxzOp : Magic_SingleIonGateOp<"sym_zxz"> {
+def Magic_SymZXZOp : Magic_SingleIonGateOp<"sym_zxz"> {
   let summary = "symmetric single-ion rotation Rz(-z)·Rx(x)·Rz(z)";
   let description = [{
         Applies `Rz(-z[k])·Rx(x[k])·Rz(z[k])` to ion `ions[k]`. Native, with zero duration.
@@ -125,7 +125,7 @@ def Magic_SymZxzOp : Magic_SingleIonGateOp<"sym_zxz"> {
                        F64ArrayAttr:$x);
 }
 
-def Magic_ActiveZzOp : Magic_SameChainOp<"active_zz"> {
+def Magic_ActiveZZOp : Magic_SameChainOp<"active_zz"> {
   let summary = "ZZ interaction between the active ions of a chain (intermediate)";
   let description = [{
         Applies `exp(-i/4 Σ_{i≠j} A_ij Z_i Z_j)` over the *active* ions of the chain in position order, where `A` is
@@ -243,7 +243,7 @@ def Magic_MzdOp : Magic_Op<"mzd"> {
   let hasVerifier = 1;
 }
 
-def Magic_InterTrapZzOp : Magic_Op<"inter_trap_zz", [AllTypesMatch<["a_in", "a_out"]>,
+def Magic_InterTrapZZOp : Magic_Op<"inter_trap_zz", [AllTypesMatch<["a_in", "a_out"]>,
                                                      AllTypesMatch<["b_in", "b_out"]>]> {
   let summary = "rzz between two ions in different traps (intermediate)";
   let description = [{

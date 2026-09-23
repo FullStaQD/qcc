@@ -136,7 +136,7 @@ LogicalResult InitOp::verify() {
 // Single-ion gates
 //===----------------------------------------------------------------------===//
 
-LogicalResult ZxzOp::verify() {
+LogicalResult ZXZOp::verify() {
   if (failed(verifyIonsInChain(*this, getIons(), getChainIn().getType()))) {
     return failure();
   }
@@ -146,14 +146,14 @@ LogicalResult ZxzOp::verify() {
                  succeeded(verifyOneAnglePerIon(*this, "z2", getZ2(), numIons)));
 }
 
-LogicalResult RzOp::verify() {
+LogicalResult RZOp::verify() {
   if (failed(verifyIonsInChain(*this, getIons(), getChainIn().getType()))) {
     return failure();
   }
   return verifyOneAnglePerIon(*this, "angles", getAngles(), getIons().size());
 }
 
-LogicalResult SymZxzOp::verify() {
+LogicalResult SymZXZOp::verify() {
   if (failed(verifyIonsInChain(*this, getIons(), getChainIn().getType()))) {
     return failure();
   }
@@ -163,10 +163,10 @@ LogicalResult SymZxzOp::verify() {
 }
 
 //===----------------------------------------------------------------------===//
-// ActiveZzOp
+// ActiveZZOp
 //===----------------------------------------------------------------------===//
 
-LogicalResult ActiveZzOp::verify() {
+LogicalResult ActiveZZOp::verify() {
   const int64_t numActive = getChainIn().getType().getNumActiveIons();
   const ShapedType type = getAngles().getType();
   if (type.getRank() != 2 || type.getDimSize(0) != numActive || type.getDimSize(1) != numActive) {
@@ -265,10 +265,10 @@ LogicalResult MzdOp::verify() {
 }
 
 //===----------------------------------------------------------------------===//
-// InterTrapZzOp
+// InterTrapZZOp
 //===----------------------------------------------------------------------===//
 
-LogicalResult InterTrapZzOp::verify() {
+LogicalResult InterTrapZZOp::verify() {
   const IonChainType a = getAIn().getType();
   const IonChainType b = getBIn().getType();
 
