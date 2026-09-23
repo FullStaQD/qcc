@@ -21,8 +21,7 @@ def MagicVerify : Pass<"magic-verify", "mlir::ModuleOp"> {
 
       Currently checked:
 
-      - A program creates its chains once: at most one `magic.init` in the module. All traps are created by that one
-        op, which is what makes its cross-trap checks (distinct trap ids, distinct ion ids) cover the whole program.
+      - At most one `magic.init` per function.
 
       TODO: the remaining rules of the dialect description belong here as they are implemented: initial occupancies
       and chain contents against the device, ion capacities, timing balance between sync points, and rejecting the

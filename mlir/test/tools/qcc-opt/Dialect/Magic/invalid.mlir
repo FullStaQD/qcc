@@ -66,6 +66,13 @@ func.func @chain_as_iter_arg(%lb: index, %ub: index, %step: index) {
 
 // -----
 
+module {
+  // expected-error @+1 {{'magic.init' op must be inside a function: a program is one function}}
+  %c0 = magic.init : !magic.ion_chain<0, [0:1]>
+}
+
+// -----
+
 func.func @two_blocks() {
   // expected-error @+1 {{'magic.init' op must be in a single-block region: the dialect has no control flow}}
   %c0 = magic.init : !magic.ion_chain<0, [0:1]>

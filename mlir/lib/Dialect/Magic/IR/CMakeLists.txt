@@ -11,4 +11,5 @@ add_mlir_dialect_library(
   PRIVATE
   MLIRIR
   MLIRSupport
-  MLIRSideEffectInterfaces)
+  MLIRSideEffectInterfaces
+  MLIRFunctionInterfaces)

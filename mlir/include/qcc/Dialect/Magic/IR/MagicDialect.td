@@ -34,8 +34,9 @@ def MagicDialect : Dialect {
         `magic.init` is the sole source of chain values: a chain must never reach an op as a block argument, so the
         affine rule is checked on the results and covers forks through consumers outside the dialect too.
 
-        The dialect also has no control flow: every op sits in a single-block region. That is what the timing model
-        (one straight line of sync points) and the type-level chain tracking assume.
+        The dialect also has no control flow: every op sits in a single-block region inside a function. That is what
+        the timing model (one straight line of sync points) and the type-level chain tracking assume. One function is
+        one program, so a module may hold several.
 
         **Ions vs positions.** Ions carry an id that never changes; `ions [...]` attributes on ops always refer to
         ids, never to positions. The position of an ion in its chain (front = 0) follows from the chain type and

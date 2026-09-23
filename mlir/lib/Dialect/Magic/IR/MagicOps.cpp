@@ -16,6 +16,7 @@
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/Region.h"
 #include "mlir/IR/Value.h"
+#include "mlir/Interfaces/FunctionInterfaces.h"
 
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallSet.h"
@@ -61,10 +62,14 @@ static void printIonList(OpAsmPrinter& printer, Operation* /*op*/, DenseI64Array
 //===----------------------------------------------------------------------===//
 
 LogicalResult qcc::magic::verifyAffineChains(Operation* op) {
+  // A program is one function, so every op lives in one.
+  if (op->getParentOfType<FunctionOpInterface>() == nullptr) {
+    return op->emitOpError() << "must be inside a function: a program is one function";
+  }
+
   // The dialect has no control flow: a program is one straight line of sync points, which is what the timing model
   // and the type-level chain tracking assume. It also makes possible to check affine typing via usage counting.
-  Region* region = op->getParentRegion();
-  if (region != nullptr && !region->hasOneBlock()) {
+  if (!op->getParentRegion()->hasOneBlock()) {
     return op->emitOpError() << "must be in a single-block region: the dialect has no control flow";
   }
 

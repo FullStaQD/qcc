@@ -22,7 +22,8 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 //===----------------------------------------------------------------------===//
 
 // Chain values are affine: every chain result of the op has at most one use, every chain operand comes from a magic
-// op, and the op sits in a single-block region (the dialect has no control flow). Implemented in `Magic.h`.
+// op, and the op sits in a single-block region inside a function (the dialect has no control flow, and a program is
+// one function). Implemented in `Magic.h`.
 def Magic_AffineChains : NativeOpTrait<"AffineChains"> {
   let cppNamespace = "::qcc::magic";
 }
@@ -55,6 +56,8 @@ def Magic_InitOp : Magic_Op<"init"> {
   let description = [{
         Creates the chain value of every trap at program start. There is one result per trap; all ions are active.
         Ion ids are distinct across all results, trap ids are distinct.
+
+        Each function (program) should hold at most one `magic.init`.
 
         Whether the chains agree with the device (occupancies, capacities, identity placement) can be checked by the
         verification pass, not here.
