@@ -51,8 +51,8 @@ def MagicDialect : Dialect {
         `delay`, `recode`, `shuttle`, `mzd`. Intermediate ops, rejected by the final verifier and the exporter:
         `zxz`, `active_zz`, `inter_trap_zz`, `swap`. Every native op except `shuttle` touches exactly one chain.
 
-        Device rules that need the device description (occupancies against capacities, shuttling front to front,
-        timing balance between sync points) are not checked by the op verifiers but by a dedicated verification pass.
+        Device rules that need the device description (occupancies against capacities, timing balance between sync
+        points) are not checked by the op verifiers but by a dedicated verification pass.
 
         Example:
         ```mlir

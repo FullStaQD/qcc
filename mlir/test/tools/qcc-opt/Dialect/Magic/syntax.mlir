@@ -7,9 +7,9 @@
 !t0  = !magic.ion_chain<0, [0:1, 1:1]>
 !t1  = !magic.ion_chain<1, [2:1]>
 !t1i = !magic.ion_chain<1, [2:0]>
-!t0s = !magic.ion_chain<0, [0:1]>
-!t1s = !magic.ion_chain<1, [1:1, 2:1]>
-!t0i = !magic.ion_chain<0, [0:0]>
+!t0s = !magic.ion_chain<0, [1:1]>
+!t1s = !magic.ion_chain<1, [0:1, 2:1]>
+!t0i = !magic.ion_chain<0, [1:0]>
 
 // Type aliases come first, then the attribute aliases of the device used by @main below.
 // CHECK: !magic.ion_chain<0, [0:1, 1:1]>
@@ -111,7 +111,7 @@ module attributes {qcc.device = #qcc.magic_device<name = "two-trap", time_unit_n
     %a4, %b4 = magic.shuttle %a3, %b3 : !t0, !t1 -> !t0s, !t1s
 
     // segment 2: trap 1 works, trap 0 pads
-    %b5 = magic.sym_zxz %b4 ions [1] {z = [0.0], x = [3.1416]} : !t1s
+    %b5 = magic.sym_zxz %b4 ions [0] {z = [0.0], x = [3.1416]} : !t1s
     %b6 = magic.delay %b5 {ticks = 4982} : !t1s
     %a5 = magic.recode %a4 : !t0s -> !t0i
     %a6 = magic.delay %a5 {ticks = 4982} : !t0i

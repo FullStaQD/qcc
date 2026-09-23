@@ -173,6 +173,15 @@ func.func @shuttle_not_to_front() {
 
 // -----
 
+func.func @shuttle_not_from_front() {
+  %a, %b = magic.init : !magic.ion_chain<0, [0:1, 1:1]>, !magic.ion_chain<1, [2:1]>
+  // expected-error @+1 {{'magic.shuttle' op can only shuttle the front ion of the source chain, got ion 1 at position 1 of '!magic.ion_chain<0, [0:1, 1:1]>'}}
+  %a1, %b1 = magic.shuttle %a, %b : !magic.ion_chain<0, [0:1, 1:1]>, !magic.ion_chain<1, [2:1]> -> !magic.ion_chain<0, [0:1]>, !magic.ion_chain<1, [1:1, 2:1]>
+  return
+}
+
+// -----
+
 func.func @shuttle_wrong_source_result() {
   %a, %b = magic.init : !magic.ion_chain<0, [0:1, 1:1]>, !magic.ion_chain<1, [2:1]>
   // expected-error @+1 {{'magic.shuttle' op expected the source to lose exactly ion 0, got '!magic.ion_chain<0, [0:1, 1:1]>' -> '!magic.ion_chain<0, [0:1]>'}}

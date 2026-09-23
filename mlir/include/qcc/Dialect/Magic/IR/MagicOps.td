@@ -191,13 +191,14 @@ def Magic_RecodeOp : Magic_Op<"recode"> {
 }
 
 def Magic_ShuttleOp : Magic_Op<"shuttle"> {
-  let summary = "moves one ion from one trap to the front of another";
+  let summary = "moves the front ion of one trap to the front of another";
   let description = [{
-        Moves exactly one ion out of `from` and inserts it at the front of `to`, activation kept, everything else
+        Moves the front ion of `from` and inserts it at the front of `to`, activation kept, everything else
         unchanged. The two chains belong to different traps. Native, with zero duration; a sync point for the timing.
 
-        Which ion moves follows from the types. The op verifier accepts any position in `from`; that the machine can
-        only shuttle the *front* ion is a device rule checked by the final verification pass.
+        Which ion moves follows from the types. Shuttling is front to front on both sides: the machine can only move
+        the ion at the open end of a chain, and that is an architectural invariant rather than per-device data, so the
+        op verifier enforces it instead of the final verification pass.
 
         Example:
         ```mlir
@@ -248,8 +249,8 @@ def Magic_InterTrapZZOp : Magic_Op<"inter_trap_zz", [AllTypesMatch<["a_in", "a_o
   let summary = "rzz between two ions in different traps (intermediate)";
   let description = [{
         Applies `rzz(angle) = exp(-i angle/2 Z⊗Z)` between ion `ions[0]` of chain `a` and ion `ions[1]` of chain `b`,
-        which belong to different traps. Not native: its lowering shuttles one of the ions over, so it is a sync point
-        in the making.
+        which belong to different traps. Not native: its lowering requires shuttling, so it is a sync point in the
+        making.
 
         Example:
         ```mlir
@@ -273,9 +274,7 @@ def Magic_InterTrapZZOp : Magic_Op<"inter_trap_zz", [AllTypesMatch<["a_in", "a_o
 def Magic_SwapOp : Magic_SameChainOp<"swap"> {
   let summary = "logical swap of two ions of a chain (intermediate)";
   let description = [{
-        Swaps the quantum states of the two ions `ions[0]` and `ions[1]` of the chain. Not native: it is compiled into
-        three `active_zz` with single-ion layers in between. The chain type is unchanged; the ions keep their ids and
-        positions.
+        Swaps the quantum information of the two ions `ions[0]` and `ions[1]` of the chain. Not native.
 
         Example:
         ```mlir

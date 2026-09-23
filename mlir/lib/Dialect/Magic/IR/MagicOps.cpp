@@ -22,7 +22,6 @@
 #include "llvm/ADT/TypeSwitch.h" // IWYU pragma: keep
 
 #include <cstdint>
-#include <iterator>
 
 using namespace mlir;
 using namespace qcc::magic;
@@ -236,13 +235,14 @@ LogicalResult ShuttleOp::verify() {
   if (!fromIn.contains(moved.ion)) {
     return emitOpError() << "ion " << moved.ion << " is not in the source chain " << fromIn;
   }
+  if (moved.ion != fromIn.getSlots().front().ion) {
+    return emitOpError() << "can only shuttle the front ion of the source chain, got ion " << moved.ion
+                         << " at position " << fromIn.getPosition(moved.ion) << " of " << fromIn;
+  }
   if (fromIn.isActive(moved.ion) != moved.active) {
     return emitOpError() << "ion " << moved.ion << " must keep its activation";
   }
-
-  SmallVector<IonSlot> expected(fromIn.getSlots());
-  expected.erase(std::next(expected.begin(), fromIn.getPosition(moved.ion)));
-  if (fromOut.getSlots() != ArrayRef(expected)) {
+  if (fromOut != fromIn.withoutFront()) {
     return emitOpError() << "expected the source to lose exactly ion " << moved.ion << ", got " << fromIn << " -> "
                          << fromOut;
   }
