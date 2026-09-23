@@ -9,6 +9,7 @@
 
 #include "qcc/Conversion/ToHiSEPQ/HiSEPQMachine.h"
 #include "qcc/Conversion/ToHiSEPQ/ToHiSEPQ.h" // IWYU pragma: keep
+#include "qcc/Dialect/Aux_/IR/Aux_.h"
 #include "qcc/Dialect/QVec/IR/QVec.h"
 
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
@@ -27,7 +28,6 @@
 
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/Support/MathExtras.h"
 
 #include <cstdint>
 #include <optional>
@@ -285,6 +285,18 @@ struct MzOpLowering : public OpRewritePattern<MzOp> {
   HiSEPQMachine machine;
 };
 
+/// Erases an `aux` output recording op.
+///
+/// TODO: Lower them properly once HiSEP-Q specifies how a program reports its results.
+template <typename RecordOp> struct RecordOpErasure : public OpRewritePattern<RecordOp> {
+  using OpRewritePattern<RecordOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(RecordOp op, PatternRewriter& rewriter) const override {
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
 } // namespace
 
 namespace qcc {
@@ -302,15 +314,12 @@ protected:
     ModuleOp moduleOp = getOperation();
     auto* ctx = moduleOp.getContext();
 
-    // A VLEN below `64` would make `vscale` a fraction, and anything that is not a power of two is not a VLEN at all.
-    if (minVLen < 64 || !llvm::isPowerOf2_32(minVLen)) {
+    if (!HiSEPQMachine::isSupportedMinVLen(minVLen)) {
       emitError(moduleOp.getLoc()) << "'min-vlen' expects a power of two of at least 64, got " << Twine(minVLen);
       return signalPassFailure();
     }
 
-    // 8 and 16 are the only safe values for QEW for our currently hardcoded set of possible LMUL values (see
-    // HiSEPQMachine).
-    if (qubitElementWidth != 8 && qubitElementWidth != 16) {
+    if (!HiSEPQMachine::isSupportedQubitElementWidth(qubitElementWidth)) {
       emitError(moduleOp.getLoc()) << "'qubit-element-width' expects 8 or 16, got " << Twine(qubitElementWidth);
       return signalPassFailure();
     }
@@ -320,6 +329,7 @@ protected:
     Diagnostics diags;
     RewritePatternSet patterns(ctx);
     patterns.add<SingleOpLowering, PairOpLowering, MzOpLowering>(ctx, &diags, machine);
+    patterns.add<RecordOpErasure<aux::RecordIntOp>, RecordOpErasure<aux::RecordMemRefOp>>(ctx);
 
     if (failed(applyPatternsGreedily(moduleOp, std::move(patterns))) || diags.hadError) {
       signalPassFailure();

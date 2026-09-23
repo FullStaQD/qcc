@@ -19,11 +19,17 @@
 
 namespace qcc {
 
-/// `Target::addLoweringPasses` for the HiSEP-Q target.
-void addLoweringPassesHiSEPQ(mlir::PassManager& pm);
+/// `Target::addLoweringPasses` for the HiSEP-Q target, going through QIR.
+///
+/// TODO: Superseded by `addLoweringPassesHiSEPQ` and slated for removal.
+void addLoweringPassesHiSEPQViaQIR(mlir::PassManager& pm);
+
+/// `Target::addLoweringPasses` for the HiSEP-Q target, going through `qvec`.
+void addLoweringPassesHiSEPQ(mlir::PassManager& pm, const TargetOptions& targetOptions);
 
 /// `Target::emitNative` for the HiSEP-Q target: lowers the QV-intrinsic LLVM
 /// module to RISC-V assembly or an object file. Returns true on failure.
-bool emitNativeHiSEPQ(llvm::Module& module, llvm::raw_pwrite_stream& os, const NativeCodegenOptions& options);
+bool emitNativeHiSEPQ(llvm::Module& module, llvm::raw_pwrite_stream& os, const NativeCodegenOptions& options,
+                      const TargetOptions& targetOptions);
 
 } // namespace qcc

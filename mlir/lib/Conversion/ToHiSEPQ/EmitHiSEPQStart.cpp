@@ -21,8 +21,8 @@
 
 using namespace mlir;
 
-/// Whether `funcOp` carries the `entry_point` passthrough attribute.
-static bool isEntryPointFunc(LLVM::LLVMFuncOp funcOp) {
+/// Whether `funcOp` carries the `entry_point` passthrough attribute (for QIR).
+static bool hasQIREntryPointPassthrough(LLVM::LLVMFuncOp funcOp) {
   auto passthrough = funcOp->getAttrOfType<ArrayAttr>(qcc::passthroughAttrName);
   if (!passthrough) {
     return false;
@@ -33,6 +33,9 @@ static bool isEntryPointFunc(LLVM::LLVMFuncOp funcOp) {
     return strAttr && strAttr.getValue() == qcc::qirEntryPointPassthrough;
   });
 }
+
+/// Whether `funcOp` is marked as an entry point.
+static bool isEntryPointFunc(LLVM::LLVMFuncOp funcOp) { return funcOp->hasAttr(qcc::entryPointAttrName); }
 
 namespace qcc {
 
