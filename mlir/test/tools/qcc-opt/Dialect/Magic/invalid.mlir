@@ -189,16 +189,6 @@ func.func @recode_changes_trap() {
   return
 }
 
-// -----
-
-// Two chains in one trap take two `magic.init` ops: passing a single chain twice trips the affine check first.
-func.func @shuttle_same_trap() {
-  %a = magic.init : !magic.ion_chain<0, [0:1]>
-  %b = magic.init : !magic.ion_chain<0, [1:1]>
-  // expected-error @+1 {{'magic.shuttle' op cannot shuttle within trap 0}}
-  %a1, %b1 = magic.shuttle %a, %b : !magic.ion_chain<0, [0:1]>, !magic.ion_chain<0, [1:1]> -> !magic.ion_chain<0, []>, !magic.ion_chain<0, [0:1, 1:1]>
-  return
-}
 
 // -----
 
@@ -254,16 +244,6 @@ func.func @mzd_result_count() {
   return
 }
 
-// -----
-
-// As above: two `magic.init` ops, since one chain used twice is an affine violation before it is a trap violation.
-func.func @inter_trap_zz_same_trap() {
-  %a = magic.init : !magic.ion_chain<0, [0:1]>
-  %b = magic.init : !magic.ion_chain<0, [1:1]>
-  // expected-error @+1 {{'magic.inter_trap_zz' op chains must belong to different traps, both are trap 0}}
-  %a1, %b1 = magic.inter_trap_zz %a, %b ions [0, 1] {angle = 1.0} : !magic.ion_chain<0, [0:1]>, !magic.ion_chain<0, [1:1]>
-  return
-}
 
 // -----
 

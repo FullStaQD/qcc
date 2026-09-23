@@ -16,6 +16,7 @@
 #include "qcc/Dialect/Aux_/IR/Aux_.h"
 #include "qcc/Dialect/Jasp/IR/Jasp.h"
 #include "qcc/Dialect/Magic/IR/Magic.h"
+#include "qcc/Dialect/Magic/Transforms/Passes.h"
 #include "qcc/Dialect/QVec/IR/QVec.h"
 #include "qcc/Dialect/QVec/Transforms/Passes.h"
 #include "qcc/Dialect/Qcc/IR/Qcc.h"
@@ -117,6 +118,7 @@ int main(int argc, char** argv) {
   qcc::registerConvertQCOToQVec();
   qcc::registerConvertQVecToHiSEPQIntrinsics();
   qcc::registerQVecMerge();
+  qcc::magic::registerMagicVerify();
   qcc::registerQccAttachDevice();
   mlir::registerQCToQCO();
 

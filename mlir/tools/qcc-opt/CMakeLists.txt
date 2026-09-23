@@ -34,6 +34,7 @@ target_link_libraries(
           QCCJaspToQC
           MLIRFuncToLLVM
           MLIRVectorToLLVMPass
+          QCCMagicTransforms
           QCCQVecTransforms
           QCCQccTransforms
           QCCQCOToQVec
