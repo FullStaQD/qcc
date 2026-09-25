@@ -20,7 +20,7 @@
 #include "llvm/ADT/StringRef.h"
 
 #include <cstdint>
-#include <string>
+#include <memory>
 
 namespace qcc::magic {
 
@@ -55,6 +55,9 @@ private:
 
 /// Corresponds to `#magic.device` in IR.
 ///
+/// A value type over shared immutable storage. Copies are cheap. The data is validated once, on construction, and never
+/// changes after.
+///
 /// TODO: construct from QDMI.
 class MagicDevice {
 public:
@@ -75,8 +78,8 @@ public:
   // Device data (read-only)
   //===--------------------------------------------------------------------===//
 
-  [[nodiscard]] llvm::StringRef name() const { return deviceName; }
-  [[nodiscard]] unsigned numTraps() const { return static_cast<unsigned>(traps.size()); }
+  [[nodiscard]] llvm::StringRef name() const;
+  [[nodiscard]] unsigned numTraps() const;
   [[nodiscard]] IonCount capacity(TrapId trap) const;
   /// The number of ions loaded into `trap` at program start.
   [[nodiscard]] IonCount initialOccupancy(TrapId trap) const;
@@ -84,7 +87,7 @@ public:
   [[nodiscard]] IonCount numIons() const;
 
   /// The base unit of `magic.delay` in nanoseconds.
-  [[nodiscard]] int64_t timeUnitNs() const { return timeUnit; }
+  [[nodiscard]] int64_t timeUnitNs() const;
   /// Exact conversion, for the exporter (`delay[<t>us]`).
   [[nodiscard]] double ticksToMicroseconds(Ticks ticks) const;
   /// Rounds to the nearest tick.
@@ -95,17 +98,12 @@ public:
   [[nodiscard]] const CouplingMatrix& coupling(TrapId trap, IonCount n) const;
 
 private:
-  MagicDevice() = default;
+  /// The device data and everything derived from it, shared by all copies.
+  struct Storage;
 
-  struct Trap {
-    IonCount capacity = 0;
-    llvm::SmallVector<CouplingMatrix> couplings; // index n-1: the matrix for n ions present
-  };
+  explicit MagicDevice(std::shared_ptr<const Storage> data);
 
-  std::string deviceName;
-  int64_t timeUnit = 0;
-  llvm::SmallVector<IonCount> occupancies;
-  llvm::SmallVector<Trap> traps;
+  std::shared_ptr<const Storage> storage;
 };
 
 } // namespace qcc::magic

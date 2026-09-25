@@ -25,6 +25,9 @@
 #include <cassert>
 #include <cmath>
 #include <cstdint>
+#include <memory>
+#include <string>
+#include <utility>
 
 using namespace mlir;
 using namespace qcc;
@@ -51,24 +54,46 @@ DenseElementsAttr CouplingMatrix::toAttr(MLIRContext& ctx) const {
 }
 
 //===----------------------------------------------------------------------===//
+// MagicDevice: storage
+//===----------------------------------------------------------------------===//
+
+// One instance per device, shared by every copy of the `MagicDevice` handle, hence the derived `numIons`: it is
+// computed once, with the rest of the data.
+struct MagicDevice::Storage {
+  struct Trap {
+    IonCount capacity = 0;
+    SmallVector<CouplingMatrix> couplings; // index n-1: the matrix for n ions present
+  };
+
+  std::string name;
+  int64_t timeUnitNs = 0;
+  SmallVector<IonCount> occupancies;
+  SmallVector<Trap> traps;
+  IonCount numIons = 0; // the sum of the occupancies
+};
+
+MagicDevice::MagicDevice(std::shared_ptr<const Storage> data) : storage(std::move(data)) {}
+
+//===----------------------------------------------------------------------===//
 // MagicDevice: construction
 //===----------------------------------------------------------------------===//
 
 MagicDevice MagicDevice::fromAttr(DeviceAttr attr) {
-  MagicDevice device;
-  device.deviceName = attr.getName().str();
-  device.timeUnit = attr.getTimeUnitNs();
+  Storage storage;
+  storage.name = attr.getName().str();
+  storage.timeUnitNs = attr.getTimeUnitNs();
   for (const int64_t occupancy : attr.getInitialOccupancies()) {
-    device.occupancies.push_back(static_cast<IonCount>(occupancy));
+    storage.occupancies.push_back(static_cast<IonCount>(occupancy));
+    storage.numIons += static_cast<IonCount>(occupancy);
   }
   for (TrapAttr trapAttr : attr.getTraps()) {
-    Trap& trap = device.traps.emplace_back();
+    Storage::Trap& trap = storage.traps.emplace_back();
     trap.capacity = static_cast<IonCount>(trapAttr.getCapacity());
     for (DenseElementsAttr matrix : trapAttr.getCouplings()) {
       trap.couplings.emplace_back(matrix);
     }
   }
-  return device;
+  return MagicDevice(std::make_shared<const Storage>(std::move(storage)));
 }
 
 FailureOr<MagicDevice> MagicDevice::fromModule(ModuleOp module) {
@@ -98,48 +123,48 @@ FailureOr<MagicDevice> MagicDevice::fromFile(StringRef path, MLIRContext& ctx) {
 }
 
 DeviceAttr MagicDevice::toAttr(MLIRContext& ctx) const {
-  SmallVector<int64_t> occupancyList(occupancies.begin(), occupancies.end());
+  SmallVector<int64_t> occupancyList(storage->occupancies.begin(), storage->occupancies.end());
   SmallVector<TrapAttr> trapAttrs;
-  for (const Trap& trap : traps) {
+  for (const Storage::Trap& trap : storage->traps) {
     const SmallVector<DenseElementsAttr> couplings =
         llvm::map_to_vector(trap.couplings, [&](const CouplingMatrix& matrix) { return matrix.toAttr(ctx); });
     trapAttrs.push_back(TrapAttr::get(&ctx, trap.capacity, couplings));
   }
-  return DeviceAttr::get(&ctx, deviceName, timeUnit, occupancyList, trapAttrs);
+  return DeviceAttr::get(&ctx, storage->name, storage->timeUnitNs, occupancyList, trapAttrs);
 }
 
 //===----------------------------------------------------------------------===//
 // MagicDevice: device data
 //===----------------------------------------------------------------------===//
 
+StringRef MagicDevice::name() const { return storage->name; }
+
+unsigned MagicDevice::numTraps() const { return static_cast<unsigned>(storage->traps.size()); }
+
 IonCount MagicDevice::capacity(TrapId trap) const {
-  assert(trap < traps.size() && "no such trap");
-  return traps[trap].capacity;
+  assert(trap < storage->traps.size() && "no such trap");
+  return storage->traps[trap].capacity;
 }
 
 IonCount MagicDevice::initialOccupancy(TrapId trap) const {
-  assert(trap < occupancies.size() && "no such trap");
-  return occupancies[trap];
+  assert(trap < storage->occupancies.size() && "no such trap");
+  return storage->occupancies[trap];
 }
 
-IonCount MagicDevice::numIons() const {
-  IonCount total = 0;
-  for (const IonCount occupancy : occupancies) {
-    total += occupancy;
-  }
-  return total;
-}
+IonCount MagicDevice::numIons() const { return storage->numIons; }
+
+int64_t MagicDevice::timeUnitNs() const { return storage->timeUnitNs; }
 
 double MagicDevice::ticksToMicroseconds(Ticks ticks) const {
-  return static_cast<double>(ticks) * static_cast<double>(timeUnit) / 1000.0;
+  return static_cast<double>(ticks) * static_cast<double>(storage->timeUnitNs) / 1000.0;
 }
 
 Ticks MagicDevice::microsecondsToTicks(double microseconds) const {
-  return static_cast<Ticks>(std::llround(microseconds * 1000.0 / static_cast<double>(timeUnit)));
+  return static_cast<Ticks>(std::llround(microseconds * 1000.0 / static_cast<double>(storage->timeUnitNs)));
 }
 
 const CouplingMatrix& MagicDevice::coupling(TrapId trap, IonCount n) const {
-  assert(trap < traps.size() && "no such trap");
-  assert(n >= 1 && n <= traps[trap].capacity && "occupancy out of range");
-  return traps[trap].couplings[n - 1];
+  assert(trap < storage->traps.size() && "no such trap");
+  assert(n >= 1 && n <= storage->traps[trap].capacity && "occupancy out of range");
+  return storage->traps[trap].couplings[n - 1];
 }
