@@ -27,45 +27,32 @@ def MagicDialect : Dialect {
         measurement (`magic.mzd`). The device data (occupancies, coupling strengths, time unit) lives in the dialect's
         own `#magic.device` attribute, which the module carries as `qcc.device`.
 
-        **Chains as values.** The dialect has value semantics: every op consumes its chain operands and produces new
-        chain values. The type `!magic.ion_chain<trap, [ion:active, ...]>` records the trap id and, front to back, the
-        ions in the trap together with their activation. Chain values are *affine*: each chain value is used at most
-        once (a fork is a verifier error; an unused chain value is legal and removed by dead-code elimination).
-        `magic.init` is the sole source of chain values: a chain must never reach an op as a block argument, so the
-        affine rule is checked on the results and covers forks through consumers outside the dialect too.
+        **Chains are affine values.** More precisely we impose the following constraints:
 
-        The dialect also has no control flow: every op sits in a single-block region inside a function. That is what
-        the timing model (one straight line of sync points) and the type-level chain tracking assume. One function is
-        one program, so a module may hold several.
+        - each chain value is used at most once
+        - `magic` ops are only allowed inside single-block function-like ops
+        - only `magic` ops are allowed to produce chain values (magic.init` being its only source)
 
-        **Ions vs positions.** Ions carry an id that never changes; `ions [...]` attributes on ops always refer to
-        ids, never to positions. The position of an ion in its chain (front = 0) follows from the chain type and
-        changes only through shuttling. Activation only matters for the global operations `active_zz` and `delay`;
-        single-ion gates act on active and inactive ions alike.
+        **Native vs intermediate ops.** The `Magic_Native` trait marks the native instructions of the hardware; the
+        others are intermediate and are lowered to native ones before export.
 
-        FIXME: shorten most stuff below. Elaborate on sync points.
-
-        **Conventions.** Angles are `f64` radians.
-        - `zxz(z1, x, z2)` is `Rz(z2)·Rx(x)·Rz(z1)`, i.e. `z1` is applied first. The native `sym_zxz(z, x)` is
-          `Rz(-z)·Rx(x)·Rz(z)`. Any `zxz` equals `rz(z1 + z2)` applied after `sym_zxz(z1, x)`.
-        - `active_zz` with matrix `A` is `exp(-i/4 Σ_{i≠j} A_ij Z_i Z_j)` over the active ions in position order, `A`
-          symmetric with zero diagonal, so that `rzz(θ) = exp(-i θ/2 Z⊗Z)` on ions `(i, j)` is `A_ij = A_ji = θ`.
-          `inter_trap_zz {angle = θ}` means `rzz(θ)` between two ions in different traps.
-        - `delay {ticks}` waits for `ticks` times the device's time unit while the coupling acts.
-
-        **Native vs intermediate ops.** The `Magic_Native` trait marks the ops the hardware runs; the others are
-        intermediate and are lowered to native ones before export. Every native op except `shuttle` touches exactly
-        one chain.
-
-        Device rules that need the device description (occupancies against capacities, timing balance between sync
-        points) are not checked by the op verifiers but by a dedicated verification pass.
+        **Sync points.** The `magic.delay` operation is the only *native* operation which takes a certain amount of
+        time. All other *native* operations are instant. Shuttle operations (native) are *sync points*: the traps
+        between it shuttles have to have the same amount of time being passed in a valid program. This is checked by a
+        dedicated pass.
 
         Example:
         ```mlir
-        !t0 = !magic.ion_chain<0, [0:1, 1:1]>
+        // A chain *type* with with ions 3 and 8, both activated.
+        !t0 = !magic.ion_chain<0, [3:1, 8:1]>
+
+        // Initialize a trap (chain).
         %a0 = magic.init : !t0
-        %a1 = magic.sym_zxz %a0 ions [0] {z = [1.5708], x = [1.5708]} : !t0
+        // A gate on ion 3 (within the given trap).
+        %a1 = magic.sym_zxz %a0 ions [3] {z = [1.5708], x = [1.5708]} : !t0
+        // Global ZZ interaction via delay.
         %a2 = magic.delay %a1 {ticks = 2491} : !t0
+        // Measurement comes last.
         %m0, %m1 = magic.mzd %a2 : !t0 -> i1, i1
         ```
     }];
