@@ -52,9 +52,9 @@ def Magic_TrapAttr : Magic_Attr<"Trap", "trap"> {
 def Magic_DeviceAttr : Magic_Attr<"Device", "device", [QCC_DeviceAttrInterface]> {
   let summary = "A MAGIC device: ion traps with a permanent ZZ coupling";
   let description = [{
-        The device description for the MAGIC architecture (trapped ions in one or more traps, coupled by a permanent
-        ZZ interaction). It is the value of the module attribute `qcc.device` and carries what the compiler needs and
-        cannot derive from the program:
+        The device description for the MAGIC architecture (trapped ions in one or more traps, coupled by a permanent ZZ
+        interaction). It is a possible value of the module attribute `qcc.device` and carries what the compiler needs
+        and cannot derive from the program:
 
         - `name`: a human-readable name.
         - `time_unit_ns`: the base unit of a `magic.delay` in nanoseconds; delays are integer multiples of it.
