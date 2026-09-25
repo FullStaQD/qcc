@@ -11,8 +11,8 @@
 #define INCLUDE_QCC_DIALECT_MAGIC_IR_MAGICATTRS_TD_
 
 include "qcc/Dialect/Magic/IR/MagicDialect.td"
-include "qcc/Dialect/Qcc/IR/QccDialect.td"    // `QCC_ArrayRefParameter`.
-include "qcc/Dialect/Qcc/IR/QccInterfaces.td" // `QCC_DeviceAttrInterface`.
+include "qcc/Dialect/Qcc/IR/QccDialect.td"
+include "qcc/Dialect/Qcc/IR/QccInterfaces.td"
 
 include "mlir/IR/AttrTypeBase.td"
 
@@ -33,7 +33,7 @@ def Magic_TrapAttr : Magic_Attr<"Trap", "trap"> {
         that applies when `k+1` ions are present in the trap, active or not. Entry `(i, j)` is the coupling strength
         between the ions at chain positions `i` and `j` (front = 0). The matrices are symmetric with a zero diagonal.
 
-        Example (capacity 2):
+        Example:
         ```mlir
         #magic.trap<capacity = 2, couplings = [dense<0.0> : tensor<1x1xf64>,
                                                dense<[[0.0, 297.4], [297.4, 0.0]]> : tensor<2x2xf64>]>

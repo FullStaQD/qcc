@@ -31,7 +31,7 @@ using Ticks = int64_t;
 
 /// Coupling strengths of one chain of `n` ions: symmetric, zero diagonal, indexed by chain position (front = 0).
 ///
-/// Unit: rad/s (TODO: to be confirmed by the hardware vendor).
+/// Unit: rad/s (TODO: to be confirmed by eleQtron).
 class CouplingMatrix {
 public:
   CouplingMatrix() = default;
@@ -45,7 +45,7 @@ public:
   /// The coupling between the ions at chain positions `i` and `j`.
   [[nodiscard]] double operator()(unsigned i, unsigned j) const;
 
-  /// Round trip to the attribute (an `n x n` `f64` tensor).
+  /// An `n x n` `f64` tensor.
   [[nodiscard]] mlir::DenseElementsAttr toAttr(mlir::MLIRContext& ctx) const;
 
 private:
@@ -53,25 +53,22 @@ private:
   llvm::SmallVector<double> data; // row-major n x n
 };
 
-/// The facade in front of the device data of a MAGIC device.
+/// Corresponds to `#magic.device` in IR.
 ///
-/// Passes and the exporter talk to this class only. The attribute `#magic.device` is the IR carrier; other
-/// sources (a QDMI backend, later) become further constructors. A value type, cheap to copy, holding no MLIR context.
+/// TODO: construct from QDMI.
 class MagicDevice {
 public:
-  /// From the verified attribute. Cannot fail: the attribute verifier already enforces same-length arrays,
-  /// occupancy <= capacity, a positive time unit and a complete coupling table.
+  /// From the `#magic.device` attr. Cannot fail: the attribute verifier already enforces same-length arrays, occupancy
+  /// <= capacity, a positive time unit and a complete coupling table.
   static MagicDevice fromAttr(DeviceAttr attr);
 
-  /// Looks up `qcc.device` on the module and checks that it is a `#magic.device`. Emits a diagnostic at the
-  /// module and fails otherwise.
+  /// Looks up `qcc.device` on the module and checks that it is a `#magic.device`.
   static mlir::FailureOr<MagicDevice> fromModule(mlir::ModuleOp module);
 
-  /// Parses a device file (see `qcc::parseDeviceFile`) that carries a `#magic.device`. Emits a diagnostic and
-  /// fails otherwise.
+  /// Parses a device file (see `qcc::parseDeviceFile`) that carries a `#magic.device`.
   static mlir::FailureOr<MagicDevice> fromFile(llvm::StringRef path, mlir::MLIRContext& ctx);
 
-  /// Round trip back to the IR carrier.
+  /// To `#magic.device`.
   [[nodiscard]] DeviceAttr toAttr(mlir::MLIRContext& ctx) const;
 
   //===--------------------------------------------------------------------===//
@@ -90,7 +87,7 @@ public:
   [[nodiscard]] int64_t timeUnitNs() const { return timeUnit; }
   /// Exact conversion, for the exporter (`delay[<t>us]`).
   [[nodiscard]] double ticksToMicroseconds(Ticks ticks) const;
-  /// Rounds to the nearest tick. Every pass converts through here, so they all round the same way.
+  /// Rounds to the nearest tick.
   [[nodiscard]] Ticks microsecondsToTicks(double microseconds) const;
 
   /// The coupling matrix of `trap` with `n` ions present (active and inactive), `1 <= n <= capacity(trap)`. Callers
