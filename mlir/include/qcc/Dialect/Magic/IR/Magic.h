@@ -9,7 +9,7 @@
 
 #pragma once
 
-#include "qcc/Dialect/Qcc/IR/Qcc.h" // the device attribute implements `qcc::DeviceAttrInterface`.
+#include "qcc/Dialect/Qcc/IR/Qcc.h" // IWYU pragma: keep
 
 #include "mlir/Bytecode/BytecodeOpInterface.h" // IWYU pragma: keep
 #include "mlir/IR/Builders.h"                  // IWYU pragma: keep
@@ -75,6 +75,11 @@ namespace qcc::magic {
 /// Verifies that no chain result of `op` has a second use and that its chain operands come from a magic op. See the
 /// dialect description on affine chain values.
 llvm::LogicalResult verifyAffineChains(mlir::Operation* op);
+
+/// Corresponds to `Magic_Native` in tablegen.
+template <typename ConcreteType>
+class Native // NOLINT(bugprone-crtp-constructor-accessibility)
+    : public mlir::OpTrait::TraitBase<ConcreteType, Native> {};
 
 /// Corresponds to `Magic_AffineChains` in tablegen. An op trait mixin in the style of `mlir::OpTrait`, hence the
 /// public constructor.

@@ -24,8 +24,8 @@ def MagicVerify : Pass<"magic-verify", "mlir::ModuleOp"> {
       - At most one `magic.init` per function.
 
       TODO: the remaining rules of the dialect description belong here as they are implemented: initial occupancies
-      and chain contents against the device, ion capacities, timing balance between sync points, and rejecting the
-      intermediate ops (`zxz`, `active_zz`, `inter_trap_zz`, `swap`) that must not reach the exporter.
+      and chain contents against the device, ion capacities, timing balance between sync points, and rejecting the ops
+      without the `Magic_Native` trait, which must not reach the exporter.
   }];
 
   let dependentDialects = ["qcc::magic::MagicDialect"];

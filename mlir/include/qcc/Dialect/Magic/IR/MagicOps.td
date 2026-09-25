@@ -22,10 +22,15 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 // Magic traits
 //===----------------------------------------------------------------------===//
 
-// Chain values are affine: every chain result of the op has at most one use, every chain operand comes from a magic
-// op, and the op sits in a single-block region inside a function (the dialect has no control flow, and a program is
-// one function). Implemented in `Magic.h`.
+// Chain values are affine: In our case this means at most one use. This works because magic ops are only valid inside
+// single-block regions and all chain values originate from magic ops (not e.g. block arguments).
 def Magic_AffineChains : NativeOpTrait<"AffineChains"> {
+  let cppNamespace = "::qcc::magic";
+}
+
+// The op is native to the MAGIC architecture and may reach the exporter; ops without it are intermediate and have to
+// be lowered first.
+def Magic_Native : NativeOpTrait<"Native"> {
   let cppNamespace = "::qcc::magic";
 }
 
@@ -52,7 +57,7 @@ class Magic_SingleIonGateOp<string mnemonic, list<Trait> traits = []> : Magic_Sa
   let hasVerifier = 1;
 }
 
-def Magic_InitOp : Magic_Op<"init"> {
+def Magic_InitOp : Magic_Op<"init", [Magic_Native]> {
   let summary = "creates the initial chain values";
   let description = [{
         Creates the chain value of every trap at program start. There is one result per trap; all ions are active.
@@ -79,7 +84,7 @@ def Magic_InitOp : Magic_Op<"init"> {
 }
 
 def Magic_ZXZOp : Magic_SingleIonGateOp<"zxz"> {
-  let summary = "general single-ion rotation Rz(z2)·Rx(x)·Rz(z1) (not native)";
+  let summary = "general single-ion rotation Rz(z2)·Rx(x)·Rz(z1)";
   let description = [{
         Applies `Rz(z2[k])·Rx(x[k])·Rz(z1[k])` to ion `ions[k]`, `z1` first.
 
@@ -96,10 +101,10 @@ def Magic_ZXZOp : Magic_SingleIonGateOp<"zxz"> {
                        F64ArrayAttr:$z2);
 }
 
-def Magic_RZOp : Magic_SingleIonGateOp<"rz"> {
+def Magic_RZOp : Magic_SingleIonGateOp<"rz", [Magic_Native]> {
   let summary = "Z rotation on single ions";
   let description = [{
-        Applies `Rz(angles[k])` to ion `ions[k]`. Native, with zero duration.
+        Applies `Rz(angles[k])` to ion `ions[k]`. Zero duration.
 
         Example:
         ```mlir
@@ -112,10 +117,10 @@ def Magic_RZOp : Magic_SingleIonGateOp<"rz"> {
                        F64ArrayAttr:$angles);
 }
 
-def Magic_SymZXZOp : Magic_SingleIonGateOp<"sym_zxz"> {
+def Magic_SymZXZOp : Magic_SingleIonGateOp<"sym_zxz", [Magic_Native]> {
   let summary = "symmetric single-ion rotation Rz(-z)·Rx(x)·Rz(z)";
   let description = [{
-        Applies `Rz(-z[k])·Rx(x[k])·Rz(z[k])` to ion `ions[k]`. Native, with zero duration.
+        Applies `Rz(-z[k])·Rx(x[k])·Rz(z[k])` to ion `ions[k]`. Zero duration.
 
         Example:
         ```mlir
@@ -130,13 +135,13 @@ def Magic_SymZXZOp : Magic_SingleIonGateOp<"sym_zxz"> {
 }
 
 def Magic_ActiveZZOp : Magic_SameChainOp<"active_zz"> {
-  let summary = "ZZ interaction between the active ions of a chain (intermediate)";
+  let summary = "ZZ interaction between the active ions of a chain";
   let description = [{
         Applies `exp(-i/4 Σ_{i≠j} A_ij Z_i Z_j)` over the *active* ions of the chain in position order, where `A` is
         `angles`, a `k x k` matrix for `k` active ions, symmetric with zero diagonal. `rzz(θ)` between the active ions
         at active-positions `i` and `j` is `A_ij = A_ji = θ`.
 
-        Not native: its physical realization through `delay`s depends on the coupling (J) matrix of the device.
+        Its physical realization through `delay`s depends on the coupling (J) matrix of the device.
 
         Example (two active ions):
         ```mlir
@@ -153,11 +158,11 @@ def Magic_ActiveZZOp : Magic_SameChainOp<"active_zz"> {
   let hasVerifier = 1;
 }
 
-def Magic_DelayOp : Magic_SameChainOp<"delay"> {
+def Magic_DelayOp : Magic_SameChainOp<"delay", [Magic_Native]> {
   let summary = "lets the permanent coupling act between the active ions for a while";
   let description = [{
         Waits `ticks` times the device's time unit. During that time the ZZ coupling acts between all active ions of
-        the chain, with strengths given by the device's coupling matrix (J) for the ions present in the trap. Native.
+        the chain, with strengths given by the device's coupling matrix (J) for the ions present in the trap.
 
         Example:
         ```mlir
@@ -173,11 +178,11 @@ def Magic_DelayOp : Magic_SameChainOp<"delay"> {
     }];
 }
 
-def Magic_RecodeOp : Magic_Op<"recode"> {
+def Magic_RecodeOp : Magic_Op<"recode", [Magic_Native]> {
   let summary = "toggles ions between active and inactive";
   let description = [{
         Toggles the activation of one or more ions of the chain. Which ions follows from the types: operand and result
-        hold the same ions in the same order and differ in at least one activation. Native, with zero duration.
+        hold the same ions in the same order and differ in at least one activation. Zero duration.
 
         Example (ion 0 becomes active):
         ```mlir
@@ -194,11 +199,11 @@ def Magic_RecodeOp : Magic_Op<"recode"> {
   let hasVerifier = 1;
 }
 
-def Magic_ShuttleOp : Magic_Op<"shuttle"> {
+def Magic_ShuttleOp : Magic_Op<"shuttle", [Magic_Native]> {
   let summary = "moves the front ion of one trap to the front of another";
   let description = [{
         Moves the front ion of `from` and inserts it at the front of `to`, activation kept, everything else
-        unchanged. The two chains belong to different traps. Native, with zero duration; a sync point for the timing.
+        unchanged. The two chains belong to different traps. Zero duration; a sync point for the timing.
 
         Which ion moves follows from the types. Shuttling is front to front on both sides: the machine can only move
         the ion at the open end of a chain, and that is an architectural invariant rather than per-device data, so the
@@ -227,11 +232,11 @@ def Magic_ShuttleOp : Magic_Op<"shuttle"> {
     }];
 }
 
-def Magic_MZDOp : Magic_Op<"mzd"> {
+def Magic_MZDOp : Magic_Op<"mzd", [Magic_Native]> {
   let summary = "destructively measures every ion of a chain";
   let description = [{
         Measures all ions of the chain in the computational basis and yields one `i1` per ion, in position order. The
-        chain is consumed: measurement happens at the very end of a program. Native.
+        chain is consumed: measurement happens at the very end of a program.
 
         Example:
         ```mlir
@@ -250,11 +255,10 @@ def Magic_MZDOp : Magic_Op<"mzd"> {
 
 def Magic_InterTrapZZOp : Magic_Op<"inter_trap_zz", [AllTypesMatch<["a_in", "a_out"]>,
                                                      AllTypesMatch<["b_in", "b_out"]>]> {
-  let summary = "rzz between two ions in different traps (intermediate)";
+  let summary = "rzz between two ions in different traps";
   let description = [{
         Applies `rzz(angle) = exp(-i angle/2 Z⊗Z)` between ion `ions[0]` of chain `a` and ion `ions[1]` of chain `b`,
-        which belong to different traps. Not native: its lowering requires shuttling, so it is a sync point in the
-        making.
+        which belong to different traps. Its lowering requires shuttling, so it is a sync point in the making.
 
         Example:
         ```mlir
@@ -276,9 +280,9 @@ def Magic_InterTrapZZOp : Magic_Op<"inter_trap_zz", [AllTypesMatch<["a_in", "a_o
 }
 
 def Magic_SwapOp : Magic_SameChainOp<"swap"> {
-  let summary = "logical swap of two ions of a chain (intermediate)";
+  let summary = "logical swap of two ions of a chain";
   let description = [{
-        Swaps the quantum information of the two ions `ions[0]` and `ions[1]` of the chain. Not native.
+        Swaps the quantum information of the two ions `ions[0]` and `ions[1]` of the chain.
 
         Example:
         ```mlir

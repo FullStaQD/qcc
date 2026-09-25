@@ -53,9 +53,9 @@ def MagicDialect : Dialect {
           `inter_trap_zz {angle = θ}` means `rzz(θ)` between two ions in different traps.
         - `delay {ticks}` waits for `ticks` times the device's time unit while the coupling acts.
 
-        **Native vs intermediate ops.** Native ops (the only ones allowed at export): `init`, `sym_zxz`, `rz`,
-        `delay`, `recode`, `shuttle`, `mzd`. Intermediate ops, rejected by the final verifier and the exporter:
-        `zxz`, `active_zz`, `inter_trap_zz`, `swap`. Every native op except `shuttle` touches exactly one chain.
+        **Native vs intermediate ops.** The `Magic_Native` trait marks the ops the hardware runs; the others are
+        intermediate and are lowered to native ones before export. Every native op except `shuttle` touches exactly
+        one chain.
 
         Device rules that need the device description (occupancies against capacities, timing balance between sync
         points) are not checked by the op verifiers but by a dedicated verification pass.
