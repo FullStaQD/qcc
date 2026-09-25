@@ -36,6 +36,7 @@ protected:
       module.emitError() << "option 'file' is required: the path of the device file";
       return signalPassFailure();
     }
+
     if (deviceAttr.isAttrPresent(module)) {
       module.emitError() << "module already carries a '" << QccDialect::DeviceAttrHelper::getNameStr() << "' attribute";
       return signalPassFailure();
