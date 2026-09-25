@@ -1,0 +1,12 @@
+add_mlir_dialect_library(
+  QCCMagicTransforms
+  Verify.cpp
+  DEPENDS
+  QCCMagicTransformsIncGen
+  LINK_LIBS
+  PRIVATE
+  MLIRIR
+  MLIRPass
+  MLIRSupport
+  MLIRFunctionInterfaces
+  QCCMagicDialect)
