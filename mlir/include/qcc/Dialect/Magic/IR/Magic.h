@@ -14,17 +14,11 @@
 #include "mlir/Bytecode/BytecodeOpInterface.h" // IWYU pragma: keep
 #include "mlir/IR/Builders.h"                  // IWYU pragma: keep
 #include "mlir/IR/BuiltinAttributes.h"
-#include "mlir/IR/Dialect.h"              // IWYU pragma: keep
-#include "mlir/IR/ImplicitLocOpBuilder.h" // IWYU pragma: keep
 #include "mlir/IR/OpDefinition.h"
-#include "mlir/IR/OpImplementation.h" // IWYU pragma: keep
 #include "mlir/IR/Operation.h"
-#include "mlir/IR/Types.h"                        // IWYU pragma: keep
 #include "mlir/Interfaces/SideEffectInterfaces.h" // IWYU pragma: keep
 
-#include "llvm/ADT/ArrayRef.h" // IWYU pragma: keep
 #include "llvm/ADT/Hashing.h"
-#include "llvm/ADT/SmallVector.h" // IWYU pragma: keep
 #include "llvm/Support/LogicalResult.h"
 
 #include <cstdint>
