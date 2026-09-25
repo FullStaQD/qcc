@@ -44,30 +44,12 @@
 
 namespace qcc::detail {
 
-/// How one element of a `QCC_ArrayRefParameter` is parsed and printed. Dialect attributes go through the generic field
-/// parser (which accepts aliases, the qualified and the stripped form) and print stripped or as an alias.
-template <typename T> struct ArrayElement {
-  static mlir::FailureOr<T> parse(mlir::AsmParser& parser) { return mlir::FieldParser<T>::parse(parser); }
-  static void print(mlir::AsmPrinter& printer, const T& element) { printer.printStrippedAttrOrType(element); }
-};
-
-/// Builtin elements attributes have no stripped form: `dense<...> : tensor<...>`.
-template <> struct ArrayElement<mlir::DenseElementsAttr> {
-  static mlir::FailureOr<mlir::DenseElementsAttr> parse(mlir::AsmParser& parser) {
-    mlir::DenseElementsAttr element;
-    if (parser.parseAttribute(element)) {
-      return mlir::failure();
-    }
-    return element;
-  }
-  static void print(mlir::AsmPrinter& printer, mlir::DenseElementsAttr element) { printer << element; }
-};
-
-/// Parses `[a, b, c]` for a `QCC_ArrayRefParameter`.
+/// Parses `[a, b, c]` for a `QCC_ArrayRefParameter`. The generic field parser takes an element as an alias, in the
+/// qualified and in the stripped form.
 template <typename T> mlir::FailureOr<llvm::SmallVector<T>> parseArray(mlir::AsmParser& parser) {
   llvm::SmallVector<T> elements;
   auto parseElement = [&]() -> mlir::ParseResult {
-    mlir::FailureOr<T> element = ArrayElement<T>::parse(parser);
+    mlir::FailureOr<T> element = mlir::FieldParser<T>::parse(parser);
     if (mlir::failed(element)) {
       return mlir::failure();
     }
@@ -80,10 +62,10 @@ template <typename T> mlir::FailureOr<llvm::SmallVector<T>> parseArray(mlir::Asm
   return elements;
 }
 
-/// Prints `[a, b, c]` for a `QCC_ArrayRefParameter`.
+/// Prints `[a, b, c]` for a `QCC_ArrayRefParameter`, each element stripped or as an alias.
 template <typename T> void printArray(mlir::AsmPrinter& printer, llvm::ArrayRef<T> elements) {
   printer << "[";
-  llvm::interleaveComma(elements, printer, [&](const T& element) { ArrayElement<T>::print(printer, element); });
+  llvm::interleaveComma(elements, printer, [&](const T& element) { printer.printStrippedAttrOrType(element); });
   printer << "]";
 }
 

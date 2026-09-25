@@ -57,8 +57,8 @@ def QccDialect : Dialect {
 // Shared ODS helpers
 //===----------------------------------------------------------------------===//
 
-// An array parameter that is always printed and parsed with brackets, `[a, b, c]`. The default format drops the
-// brackets in the last struct position, and cannot parse `dense<...> : tensor<...>` literals. See `Qcc.h`.
+// An array parameter that is always printed and parsed with brackets, `[a, b, c]`. The default format only brackets a
+// parameter that is not the last one in a `struct`, which would tie our syntax to the order of the parameters.
 class QCC_ArrayRefParameter<string element, string desc> : ArrayRefParameter<element, desc> {
   let parser = "::qcc::detail::parseArray<" # element # ">($_parser)";
   let printer = "::qcc::detail::printArray($_printer, $_self)";
