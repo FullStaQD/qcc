@@ -1,0 +1,18 @@
+add_mlir_dialect_library(
+  QCCMagicDialect
+  MagicAttrs.cpp
+  MagicDialect.cpp
+  MagicOps.cpp
+  MagicTypes.cpp
+  DEPENDS
+  QCCMagicDialectIncGen
+  QCCMagicAttrsIncGen
+  QCCMagicTypesIncGen
+  QCCMagicOpsIncGen
+  LINK_LIBS
+  PRIVATE
+  MLIRIR
+  MLIRSupport
+  MLIRSideEffectInterfaces
+  MLIRFunctionInterfaces
+  QCCQccDialect)

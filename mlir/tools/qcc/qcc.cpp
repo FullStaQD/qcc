@@ -7,9 +7,12 @@
 //
 // ===----------------------------------------------------------------------===//
 
+#include "qcc/Dialect/Qcc/IR/Qcc.h"
+
 #include "qcc/Compiler/Compiler.h"
 #include "qcc/Dialect/Aux_/IR/Aux_.h"
 #include "qcc/Dialect/Jasp/IR/Jasp.h"
+#include "qcc/Dialect/Magic/IR/Magic.h"
 #include "qcc/Dialect/QVec/IR/QVec.h"
 #include "qcc/Target/TargetRegistry.h"
 
@@ -136,7 +139,7 @@ int main(int argc, char** argv) {
 
   // Our dialects:
   registry.insert<jasp::JaspDialect, mlir::qc::QCDialect, mlir::qco::QCODialect, qcc::aux::AuxDialect,
-                  qcc::qvec::QVecDialect>();
+                  qcc::magic::MagicDialect, qcc::QccDialect, qcc::qvec::QVecDialect>();
 
   // Register the specific interface implementations for the pipeline
   // Note: OneShotBufferize requires these for the "Standard" dialects
