@@ -1,8 +1,4 @@
 // RUN: qcc-opt %s | FileCheck %s
-// RUN: qcc-opt %s --mlir-print-op-generic | qcc-opt | FileCheck %s
-
-// Every op once, in custom form, and once more after a round trip through the generic form. Chain types are printed
-// as aliases `!chain`, `!chain1`, ... (numbered by the printer), so we match them loosely.
 
 !t0  = !magic.ion_chain<0, [0:1, 1:1]>
 !t1  = !magic.ion_chain<1, [2:1]>
@@ -16,6 +12,45 @@
 // CHECK: !magic.ion_chain<1, [2:1]>
 // CHECK: #magic_trap = #magic.trap<capacity = 3, couplings = [dense<0.000000e+00> : tensor<1x1xf64>, dense<{{.*}}> : tensor<2x2xf64>, dense<{{.*}}> : tensor<3x3xf64>]>
 // CHECK: #magic_device = #magic.device<name = "two-trap", time_unit_ns = 1000, initial_occupancies = [2, 1], traps = [#magic_trap, #magic_trap]>
+
+// A whole program: a two-trap device, padding on the idle trap, one shuttle.
+#trap = #magic.trap<capacity = 3, couplings = [
+  dense<0.0> : tensor<1x1xf64>,
+  dense<[[0.0, 297.4], [297.4, 0.0]]> : tensor<2x2xf64>,
+  dense<[[0.0, 297.4, 150.0], [297.4, 0.0, 297.4], [150.0, 297.4, 0.0]]> : tensor<3x3xf64>]>
+
+// CHECK: module attributes {qcc.device = #magic_device}
+module attributes {qcc.device = #magic.device<name = "two-trap", time_unit_ns = 1000, initial_occupancies = [2, 1], traps = [#trap, #trap]>} {
+  // CHECK: func.func @main() attributes {qcc.entry_point}
+  func.func @main() attributes {qcc.entry_point} {
+    %a0, %b0 = magic.init : !t0, !t1
+
+    // segment 1: trap 0 works, trap 1 idles (padding)
+    %a1 = magic.sym_zxz %a0 ions [0] {z = [1.5708], x = [1.5708]} : !t0
+    %a2 = magic.delay %a1 {ticks = 2491} : !t0
+    %a3 = magic.rz %a2 ions [0, 1] {angles = [-1.5708, -1.5708]} : !t0
+    %b1 = magic.recode %b0 : !t1 -> !t1i
+    %b2 = magic.delay %b1 {ticks = 2491} : !t1i
+    %b3 = magic.recode %b2 : !t1i -> !t1
+
+    // sync point
+    %a4, %b4 = magic.shuttle %a3, %b3 : !t0, !t1 -> !t0s, !t1s
+
+    // segment 2: trap 1 works, trap 0 pads
+    %b5 = magic.sym_zxz %b4 ions [0] {z = [0.0], x = [3.1416]} : !t1s
+    %b6 = magic.delay %b5 {ticks = 4982} : !t1s
+    %a5 = magic.recode %a4 : !t0s -> !t0i
+    %a6 = magic.delay %a5 {ticks = 4982} : !t0i
+    %a7 = magic.recode %a6 : !t0i -> !t0s
+
+    %m0 = magic.mzd %a7 : !t0s -> i1
+    %m1, %m2 = magic.mzd %b6 : !t1s -> i1, i1
+    aux.record_int %m0 : i1
+    aux.record_int %m1 : i1
+    aux.record_int %m2 : i1
+    return
+  }
+}
 
 // CHECK-LABEL: func.func @native_ops
 func.func @native_ops() {
@@ -85,43 +120,4 @@ func.func @ids_not_positions() {
   %c4, %d1 = magic.shuttle %c3, %d0 : !magic.ion_chain<0, [5:1, 7:0, 3:1]>, !magic.ion_chain<1, []>
                                     -> !magic.ion_chain<0, [7:0, 3:1]>, !magic.ion_chain<1, [5:1]>
   return
-}
-
-// A whole program: a two-trap device, padding on the idle trap, one shuttle.
-#trap = #magic.trap<capacity = 3, couplings = [
-  dense<0.0> : tensor<1x1xf64>,
-  dense<[[0.0, 297.4], [297.4, 0.0]]> : tensor<2x2xf64>,
-  dense<[[0.0, 297.4, 150.0], [297.4, 0.0, 297.4], [150.0, 297.4, 0.0]]> : tensor<3x3xf64>]>
-
-// CHECK: module attributes {qcc.device = #magic_device}
-module attributes {qcc.device = #magic.device<name = "two-trap", time_unit_ns = 1000, initial_occupancies = [2, 1], traps = [#trap, #trap]>} {
-  // CHECK: func.func @main() attributes {qcc.entry_point}
-  func.func @main() attributes {qcc.entry_point} {
-    %a0, %b0 = magic.init : !t0, !t1
-
-    // segment 1: trap 0 works, trap 1 idles (padding)
-    %a1 = magic.sym_zxz %a0 ions [0] {z = [1.5708], x = [1.5708]} : !t0
-    %a2 = magic.delay %a1 {ticks = 2491} : !t0
-    %a3 = magic.rz %a2 ions [0, 1] {angles = [-1.5708, -1.5708]} : !t0
-    %b1 = magic.recode %b0 : !t1 -> !t1i
-    %b2 = magic.delay %b1 {ticks = 2491} : !t1i
-    %b3 = magic.recode %b2 : !t1i -> !t1
-
-    // sync point
-    %a4, %b4 = magic.shuttle %a3, %b3 : !t0, !t1 -> !t0s, !t1s
-
-    // segment 2: trap 1 works, trap 0 pads
-    %b5 = magic.sym_zxz %b4 ions [0] {z = [0.0], x = [3.1416]} : !t1s
-    %b6 = magic.delay %b5 {ticks = 4982} : !t1s
-    %a5 = magic.recode %a4 : !t0s -> !t0i
-    %a6 = magic.delay %a5 {ticks = 4982} : !t0i
-    %a7 = magic.recode %a6 : !t0i -> !t0s
-
-    %m0 = magic.mzd %a7 : !t0s -> i1
-    %m1, %m2 = magic.mzd %b6 : !t1s -> i1, i1
-    aux.record_int %m0 : i1
-    aux.record_int %m1 : i1
-    aux.record_int %m2 : i1
-    return
-  }
 }

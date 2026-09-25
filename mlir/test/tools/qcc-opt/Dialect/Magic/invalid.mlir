@@ -94,8 +94,7 @@ func.func @fork() {
 
 // -----
 
-// A fork through a consumer outside the dialect: `func.call` carries no trait of ours, so only the result check
-// catches it.
+// Double use through a consumer *outside* the dialect.
 func.func private @sink(%c: !magic.ion_chain<0, [0:1]>)
 
 func.func @fork_through_call() {

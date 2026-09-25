@@ -1,6 +1,6 @@
 // RUN: qcc-opt %s --magic-verify --split-input-file --verify-diagnostics
 
-// One `magic.init` per program, creating the chains of every trap.
+// OK: One `magic.init` per program, creating the chains of every trap.
 func.func @one_init() {
   %a, %b = magic.init : !magic.ion_chain<0, [0:1]>, !magic.ion_chain<1, [1:1]>
   %m0 = magic.mzd %a : !magic.ion_chain<0, [0:1]> -> i1
@@ -22,7 +22,7 @@ func.func @two_inits() {
 
 // -----
 
-// A program is one function, so a module may hold several, each with its own `magic.init`.
+// OK: A program is one function, so a module may hold several, each with its own `magic.init`.
 func.func @program_one() {
   %a = magic.init : !magic.ion_chain<0, [0:1]>
   %m0 = magic.mzd %a : !magic.ion_chain<0, [0:1]> -> i1
@@ -37,7 +37,7 @@ func.func @program_two() {
 
 // -----
 
-// A module without magic code is fine.
+// OK: A module without magic code.
 func.func @no_magic() {
   return
 }
