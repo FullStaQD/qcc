@@ -22,8 +22,8 @@ def QCC_DeviceAttrInterface : AttrInterface<"DeviceAttrInterface"> {
         from the program. The module attribute `qcc.device` accepts any attribute implementing this interface, so the
         driver and the entry-point handling never mention a concrete device kind.
 
-        Concrete devices (e.g. `#magic.device`) expose their data through a C++ facade class rather than through
-        this interface. Add methods here only once a second device kind needs them.
+        Concrete devices (e.g. `#magic.device`) expose their data through a C++ class (e.g. `MagicDevice`) rather than
+        through this interface. Add methods here only once a second device kind needs them.
     }];
   let cppNamespace = "::qcc";
 
