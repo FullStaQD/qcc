@@ -11,7 +11,7 @@
 #include "qcc/Dialect/QVec/Transforms/Angles.h"
 #include "qcc/Dialect/QVec/Transforms/Passes.h" // IWYU pragma: keep
 
-#include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Arith/IR/Arith.h" // IWYU pragma: keep
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/BuiltinTypes.h"
@@ -32,8 +32,8 @@ using namespace qcc::qvec;
 
 namespace {
 
-/// Rewrites one `qvec.pair` of any kind but `rzz` into `rzz` plus single-qubit gates. Every identity below holds up to
-/// a global phase; the single-qubit gates come out as `h`, `s`, `sdg`, `rz` and are `qvec-to-u-zxz`'s business.
+/// Rewrites one `qvec.pair` of any kind into `rzz` plus single-qubit gates. Every identity below holds up to a global
+/// phase.
 struct PairToRZZ final : OpRewritePattern<PairOp> {
   using OpRewritePattern::OpRewritePattern;
 

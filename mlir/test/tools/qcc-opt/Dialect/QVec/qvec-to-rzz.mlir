@@ -1,7 +1,5 @@
 // RUN: qcc-opt %s -qvec-to-rzz --split-input-file | FileCheck %s
 
-// The decompositions below were checked numerically against the pair gates' unitaries (up to a global phase).
-
 // CHECK-LABEL: func.func @cz
 func.func @cz(%as: vector<2x!qco.qubit>, %bs: vector<2x!qco.qubit>) -> (vector<2x!qco.qubit>, vector<2x!qco.qubit>) {
     %a, %b = qvec.pair cz %as, %bs : vector<2x!qco.qubit>
