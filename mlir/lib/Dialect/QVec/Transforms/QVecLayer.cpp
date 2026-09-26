@@ -364,7 +364,7 @@ static LogicalResult collectGates(QubitLaneOpInterface op, SmallVectorImpl<Gate>
         gates.push_back(Gate{.kind = Gate::Kind::Zz, .qubits = qubits, .matrix = *matrix, .op = globalOp});
         return success();
       })
-      .Case([&](MzOp mzOp) -> LogicalResult {
+      .Case([&](MZOp mzOp) -> LogicalResult {
         SmallVector<Qubit> qubits;
         if (failed(resolveQubits(mzOp, mzOp.getQubitsIn(), qubits))) {
           return failure();
@@ -410,7 +410,7 @@ static FailureOr<Program> analyzeFunction(func::FuncOp func) {
   for (Operation* op : program.tail) {
     for (Value operand : op->getOperands()) {
       Operation* producer = operand.getDefiningOp();
-      if (producer != nullptr && !tail.contains(producer) && !isa<MzOp>(producer)) {
+      if (producer != nullptr && !tail.contains(producer) && !isa<MZOp>(producer)) {
         return op->emitOpError() << "depends on a value that qvec-layer does not preserve";
       }
     }
@@ -523,10 +523,10 @@ public:
 
   /// Measures `gate.qubits` and maps the bits of the original `mz` to the new ones in `mapping`.
   void emitMeasurement(const Gate& gate, IRMapping& mapping) {
-    auto mzOp = cast<MzOp>(gate.op);
+    auto mzOp = cast<MZOp>(gate.op);
     Value qs = gather(gate.qubits);
     auto bitsType = VectorType::get({static_cast<int64_t>(gate.qubits.size())}, builder.getI1Type());
-    auto op = MzOp::create(builder, mzOp.getLoc(), qs.getType(), bitsType, qs);
+    auto op = MZOp::create(builder, mzOp.getLoc(), qs.getType(), bitsType, qs);
     mapping.map(mzOp.getBits(), op.getBits());
     for (Qubit qubit : gate.qubits) {
       current.erase(qubit); // Measured: nothing may use it anymore (the analysis checked).

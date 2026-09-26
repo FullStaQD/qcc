@@ -266,11 +266,11 @@ struct PairOpLowering : public OpRewritePattern<PairOp> {
 /// TODO: The QISA specifies no way to read a measurement back, so the classical bits are lost
 /// here. Replace the poison with a real read once `IntrinsicsRISCVXQV.td` gains an intrinsic for
 /// it. Until then a program that branches on a measurement silently gets garbage.
-struct MzOpLowering : public OpRewritePattern<MzOp> {
-  MzOpLowering(MLIRContext* ctx, Diagnostics* diags, HiSEPQMachine machine)
+struct MZOpLowering : public OpRewritePattern<MZOp> {
+  MZOpLowering(MLIRContext* ctx, Diagnostics* diags, HiSEPQMachine machine)
       : OpRewritePattern(ctx), diags(diags), machine(machine) {}
 
-  LogicalResult matchAndRewrite(MzOp op, PatternRewriter& rewriter) const override {
+  LogicalResult matchAndRewrite(MZOp op, PatternRewriter& rewriter) const override {
     auto qubits = resolveQubitVector(op, op.getQubitsIn(), machine, *diags);
     if (!qubits) {
       return failure();
@@ -334,7 +334,7 @@ protected:
 
     Diagnostics diags;
     RewritePatternSet patterns(ctx);
-    patterns.add<SingleOpLowering, PairOpLowering, MzOpLowering>(ctx, &diags, machine);
+    patterns.add<SingleOpLowering, PairOpLowering, MZOpLowering>(ctx, &diags, machine);
     patterns.add<RecordOpErasure<aux::RecordIntOp>, RecordOpErasure<aux::RecordMemRefOp>>(ctx);
 
     if (failed(applyPatternsGreedily(moduleOp, std::move(patterns))) || diags.hadError) {

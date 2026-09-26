@@ -65,7 +65,7 @@ static std::optional<uint32_t> getSecondaryBucketKey(QubitLaneOpInterface op) {
         return static_cast<uint32_t>(pairOp.getGateKind());
       })
       .Case([](GlobalOp) -> std::optional<uint32_t> { return std::nullopt; })
-      .Case([](MzOp) -> std::optional<uint32_t> { return 0U; }) // No gate kind its instances could differ in.
+      .Case([](MZOp) -> std::optional<uint32_t> { return 0U; }) // No gate kind its instances could differ in.
       .Default([](Operation*) -> std::optional<uint32_t> {
         assert(false && "unhandled qvec operation, it stays unmerged");
         return std::nullopt;
@@ -184,9 +184,9 @@ static void mergeGroup(const Group& group) {
           .Case([&](PairOp pairOp) {
             return PairOp::create(builder, loc, pairOp.getGateKind(), operands[0], operands[1]);
           })
-          .Case([&](MzOp) {
+          .Case([&](MZOp) {
             auto bitsType = VectorType::get({group.width}, builder.getI1Type());
-            return MzOp::create(builder, loc, operands[0].getType(), bitsType, operands[0]);
+            return MZOp::create(builder, loc, operands[0].getType(), bitsType, operands[0]);
           });
 
   // Replace uses of members by our newly created merged op.

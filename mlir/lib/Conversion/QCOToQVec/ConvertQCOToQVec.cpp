@@ -221,7 +221,7 @@ struct MeasureLowering final : public OpConversionPattern<qco::MeasureOp> {
     Location loc = op.getLoc();
     Value qubits = buildVector(rewriter, loc, adaptor.getQubitIn());
     auto bitsType = VectorType::get({1}, rewriter.getI1Type());
-    auto mzOp = MzOp::create(rewriter, loc, qubits.getType(), bitsType, qubits);
+    auto mzOp = MZOp::create(rewriter, loc, qubits.getType(), bitsType, qubits);
 
     rewriter.replaceOp(op, ValueRange{
                                vector::ExtractOp::create(rewriter, loc, mzOp.getQubitsOut(), 0),

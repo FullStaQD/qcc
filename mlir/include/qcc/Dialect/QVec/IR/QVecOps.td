@@ -188,7 +188,7 @@ def GlobalOp : QVecOp<"global", [AllTypesMatch<["qubits_in", "qubits_out"]>]> {
     }];
 }
 
-def MzOp : QVecOp<"mz", [AllTypesMatch<["qubits_in", "qubits_out"]>,
+def MZOp : QVecOp<"mz", [AllTypesMatch<["qubits_in", "qubits_out"]>,
                            AllShapesMatch<["qubits_in", "bits"]>]> {
   let summary = "measures a vector of qubits in the computational basis";
   let description = [{
