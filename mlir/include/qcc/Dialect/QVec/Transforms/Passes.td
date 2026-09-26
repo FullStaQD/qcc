@@ -62,19 +62,7 @@ def QVecToRZZ : Pass<"qvec-to-rzz", "mlir::ModuleOp"> {
   let summary = "Decomposes every `qvec.pair` gate into `rzz` and single-qubit gates.";
 
   let description = [{
-      Rewrites every two-qubit gate kind into `pair rzz` plus `single` gates, lane-uniformly and up to a global
-      phase, so that the only entangling gate left is `rzz`:
-
-      - `cz`      = `rz(-pi/2) (x) rz(-pi/2) * rzz(pi/2)`
-      - `cx`      = `h_t * cz * h_t`
-      - `cy`      = `s_t * cx * sdg_t`
-      - `cp(t)`   = `rz_c(t/2) * rz_t(t/2) * rzz(-t/2)`
-      - `iswap`   = `swap * cz * (s (x) s)` with `swap` as three `cx`
-      - `rzz`     stays.
-
-      The single-qubit gates come out as `h`, `s`, `sdg` and `rz`; run `qvec-to-u-zxz` afterwards to turn them into
-      `u_zxz`. Constant angles stay constant (`arith.constant dense<...>`); an SSA angle of `cp` is scaled with
-      `arith.mulf`.
+      Decomposition happens up to global phase.
 
       Example:
 
@@ -106,10 +94,6 @@ def QVecToUZXZ : Pass<"qvec-to-u-zxz", "mlir::ModuleOp"> {
       Rewrites every single-qubit gate kind into the general rotation `u_zxz(z1, x, z2) = Rz(z2) * Rx(x) * Rz(z1)`
       with constant angle vectors, up to a global phase. Diagonal gates (`z`, `s`, `sdg`, `t`, `tdg`) become `rz`
       instead, and `rz` stays `rz`: a scheduler must be able to see that they commute with `rzz` / `zz`.
-
-      - `i` = `u_zxz(0, 0, 0)`, `x` = `u_zxz(0, pi, 0)`, `y` = `u_zxz(-pi/2, pi, pi/2)`, `h` = `u_zxz(pi/2, pi/2, pi/2)`
-      - `rx(t)` = `u_zxz(0, t, 0)`, `ry(t)` = `u_zxz(-pi/2, t, pi/2)`
-      - `z` = `rz(pi)`, `s` = `rz(pi/2)`, `sdg` = `rz(-pi/2)`, `t` = `rz(pi/4)`, `tdg` = `rz(-pi/4)`
 
       Example:
 
@@ -180,8 +164,7 @@ def QVecLayer : Pass<"qvec-layer", "mlir::ModuleOp"> {
       gates on distinct qubits commute; nothing else does. An `rzz` / `zz` joins the latest block such that only
       diagonal gates touch its qubits between that block and the gate; two couplings of the same pair in one block
       *add* their angles. `rz` gates float over blocks and are folded into the neighbouring `u_zxz`; consecutive
-      `u_zxz` on one qubit are fused. The pass is deliberately device-agnostic: layers span all qubits, and since ZZ
-      terms commute a block may be split by trap for free further down.
+      `u_zxz` on one qubit are fused.
 
       Rejected with a diagnostic: functions with more than one block or control flow, qubits not traceable to a
       `qco.static`, non-constant angles, gate kinds other than the ones above, and gates on a qubit after its
