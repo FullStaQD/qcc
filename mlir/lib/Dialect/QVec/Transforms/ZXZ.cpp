@@ -7,7 +7,7 @@
 //
 // ===----------------------------------------------------------------------===//
 
-#include "qcc/Dialect/QVec/Transforms/Zxz.h"
+#include "qcc/Dialect/QVec/Transforms/ZXZ.h"
 
 #include <cmath>
 #include <complex>
@@ -53,11 +53,11 @@ Matrix2x2 qcc::qvec::multiply(const Matrix2x2& lhs, const Matrix2x2& rhs) {
   };
 }
 
-Matrix2x2 qcc::qvec::zxzMatrix(const ZxzAngles& angles) {
+Matrix2x2 qcc::qvec::zxzMatrix(const ZXZAngles& angles) {
   return multiply(rzMatrix(angles.z2), multiply(rxMatrix(angles.x), rzMatrix(angles.z1)));
 }
 
-ZxzAngles qcc::qvec::decomposeZxz(const Matrix2x2& unitary) {
+ZXZAngles qcc::qvec::decomposeZXZ(const Matrix2x2& unitary) {
   // Bring the matrix into SU(2): det(U / sqrt(det U)) = 1. Then U = [[a, b], [-conj(b), conj(a)]] with
   //   a = cos(x/2) e^{-i(z1+z2)/2}   and   b = -i sin(x/2) e^{i(z1-z2)/2}
   // for the ZXZ product, which pins down the angles from the magnitudes and arguments of a and b. The sign ambiguity
@@ -69,7 +69,7 @@ ZxzAngles qcc::qvec::decomposeZxz(const Matrix2x2& unitary) {
 
   constexpr double eps = 1e-12;
   constexpr double pi = std::numbers::pi;
-  ZxzAngles angles;
+  ZXZAngles angles;
   if (std::abs(b) < eps) { // x = 0: a diagonal gate, only z1 + z2 matters.
     angles.z1 = -2.0 * std::arg(a);
   } else if (std::abs(a) < eps) { // x = pi: only z1 - z2 matters.
@@ -86,6 +86,6 @@ ZxzAngles qcc::qvec::decomposeZxz(const Matrix2x2& unitary) {
   return angles;
 }
 
-ZxzAngles qcc::qvec::fuseZxz(const ZxzAngles& first, const ZxzAngles& second) {
-  return decomposeZxz(multiply(zxzMatrix(second), zxzMatrix(first)));
+ZXZAngles qcc::qvec::fuseZXZ(const ZXZAngles& first, const ZXZAngles& second) {
+  return decomposeZXZ(multiply(zxzMatrix(second), zxzMatrix(first)));
 }

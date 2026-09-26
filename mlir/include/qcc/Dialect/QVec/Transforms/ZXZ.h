@@ -17,13 +17,9 @@ namespace qcc::qvec {
 //===----------------------------------------------------------------------===//
 // Single-qubit rotations in ZXZ form
 //===----------------------------------------------------------------------===//
-//
-// The `u_zxz` gate of the dialect and the numerics behind fusing two of them. Conventions: Rz(t) = diag(e^{-it/2},
-// e^{it/2}), Rx(t) = cos(t/2) I - i sin(t/2) X, and a `ZxzAngles{z1, x, z2}` denotes Rz(z2) * Rx(x) * Rz(z1), i.e. z1
-// is applied first. Equality of gates is always up to a global phase.
 
 /// The angles of `u_zxz(z1, x, z2)` = Rz(z2) * Rx(x) * Rz(z1).
-struct ZxzAngles {
+struct ZXZAngles {
   double z1 = 0.0;
   double x = 0.0;
   double z2 = 0.0;
@@ -44,7 +40,7 @@ Matrix2x2 rzMatrix(double theta);
 Matrix2x2 rxMatrix(double theta);
 
 /// Rz(z2) * Rx(x) * Rz(z1).
-Matrix2x2 zxzMatrix(const ZxzAngles& angles);
+Matrix2x2 zxzMatrix(const ZXZAngles& angles);
 
 /// The matrix product `lhs * rhs`, i.e. `rhs` is applied first.
 Matrix2x2 multiply(const Matrix2x2& lhs, const Matrix2x2& rhs);
@@ -53,9 +49,9 @@ Matrix2x2 multiply(const Matrix2x2& lhs, const Matrix2x2& rhs);
 ///
 /// Numerically the x = 0 and x = pi cases are degenerate (only z1 + z2, respectively z1 - z2, is defined); they are
 /// resolved by setting z2 = 0.
-ZxzAngles decomposeZxz(const Matrix2x2& unitary);
+ZXZAngles decomposeZXZ(const Matrix2x2& unitary);
 
 /// The ZXZ angles of the gate that applies `first` and then `second`.
-ZxzAngles fuseZxz(const ZxzAngles& first, const ZxzAngles& second);
+ZXZAngles fuseZXZ(const ZXZAngles& first, const ZXZAngles& second);
 
 } // namespace qcc::qvec

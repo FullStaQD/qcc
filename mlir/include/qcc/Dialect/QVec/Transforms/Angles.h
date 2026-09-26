@@ -24,9 +24,6 @@ namespace qcc::qvec {
 //===----------------------------------------------------------------------===//
 // Angle operands of `qvec` gates
 //===----------------------------------------------------------------------===//
-//
-// Helpers to read and emit the `vector<...xf64>` operands that carry gate angles. Constants are `arith.constant
-// dense<...>`, which is also what the `qvec` passes emit whenever their inputs are constant.
 
 /// The elements (row-major) of `angles` if it is a compile-time constant, nullopt otherwise. Besides `arith.constant`
 /// this looks through `vector.from_elements` and `vector.broadcast` of constant scalars.

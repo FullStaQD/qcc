@@ -10,7 +10,7 @@
 #include "qcc/Dialect/QVec/IR/QVec.h"
 #include "qcc/Dialect/QVec/Transforms/Angles.h"
 #include "qcc/Dialect/QVec/Transforms/Passes.h" // IWYU pragma: keep
-#include "qcc/Dialect/QVec/Transforms/Zxz.h"
+#include "qcc/Dialect/QVec/Transforms/ZXZ.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/IR/Builders.h"
@@ -35,9 +35,9 @@ using namespace mlir;
 using namespace qcc::qvec;
 
 /// The per-lane ZXZ angles of `op` if it is a `u_zxz` or `rz` with constant angles, nullopt otherwise.
-static std::optional<SmallVector<ZxzAngles>> getConstantZxz(SingleOp op) {
+static std::optional<SmallVector<ZXZAngles>> getConstantZXZ(SingleOp op) {
   const auto width = static_cast<size_t>(op.getQubitsIn().getType().getNumElements());
-  SmallVector<ZxzAngles> lanes(width);
+  SmallVector<ZXZAngles> lanes(width);
 
   switch (op.getGateKind()) {
   case SingleGateKind::RZ: {
@@ -58,7 +58,7 @@ static std::optional<SmallVector<ZxzAngles>> getConstantZxz(SingleOp op) {
       return std::nullopt;
     }
     for (size_t lane = 0; lane < width; ++lane) {
-      lanes[lane] = ZxzAngles{.z1 = (*z1)[lane], .x = (*x)[lane], .z2 = (*z2)[lane]};
+      lanes[lane] = ZXZAngles{.z1 = (*z1)[lane], .x = (*x)[lane], .z2 = (*z2)[lane]};
     }
     return lanes;
   }
@@ -70,7 +70,7 @@ static std::optional<SmallVector<ZxzAngles>> getConstantZxz(SingleOp op) {
 namespace {
 
 /// Fuses a `u_zxz` / `rz` into the `u_zxz` / `rz` that feeds it, if that one has no other user.
-struct FuseZxz final : OpRewritePattern<SingleOp> {
+struct FuseZXZ final : OpRewritePattern<SingleOp> {
   using OpRewritePattern::OpRewritePattern;
 
   LogicalResult matchAndRewrite(SingleOp second, PatternRewriter& rewriter) const override {
@@ -78,8 +78,8 @@ struct FuseZxz final : OpRewritePattern<SingleOp> {
     if (!first || !first.getQubitsOut().hasOneUse()) {
       return failure();
     }
-    std::optional<SmallVector<ZxzAngles>> firstLanes = getConstantZxz(first);
-    std::optional<SmallVector<ZxzAngles>> secondLanes = getConstantZxz(second);
+    std::optional<SmallVector<ZXZAngles>> firstLanes = getConstantZXZ(first);
+    std::optional<SmallVector<ZXZAngles>> secondLanes = getConstantZXZ(second);
     if (!firstLanes || !secondLanes) {
       return failure();
     }
@@ -98,7 +98,7 @@ struct FuseZxz final : OpRewritePattern<SingleOp> {
       SmallVector<double> x(width);
       SmallVector<double> z2(width);
       for (size_t lane = 0; lane < width; ++lane) {
-        const ZxzAngles fused = fuseZxz((*firstLanes)[lane], (*secondLanes)[lane]);
+        const ZXZAngles fused = fuseZXZ((*firstLanes)[lane], (*secondLanes)[lane]);
         z1[lane] = fused.z1;
         x[lane] = fused.x;
         z2[lane] = fused.z2;
@@ -124,14 +124,14 @@ namespace qcc {
 
 namespace {
 
-struct QVecFuseZxz final : impl::QVecFuseZxzBase<QVecFuseZxz> {
-  using QVecFuseZxzBase::QVecFuseZxzBase;
+struct QVecFuseZXZ final : impl::QVecFuseZXZBase<QVecFuseZXZ> {
+  using QVecFuseZXZBase::QVecFuseZXZBase;
 
 protected:
   void runOnOperation() override {
     ModuleOp moduleOp = getOperation();
     RewritePatternSet patterns(moduleOp.getContext());
-    patterns.add<FuseZxz>(moduleOp.getContext());
+    patterns.add<FuseZXZ>(moduleOp.getContext());
     if (failed(applyPatternsGreedily(moduleOp, std::move(patterns)))) {
       signalPassFailure();
     }

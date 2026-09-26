@@ -109,7 +109,7 @@ struct ISwapLowering final : public OpConversionPattern<qco::iSWAPOp> {
 };
 
 /// Rewrites `qco.rzz(theta)` into a one-element `qvec.pair rzz(theta)`.
-struct RzzLowering final : public OpConversionPattern<qco::RZZOp> {
+struct RZZLowering final : public OpConversionPattern<qco::RZZOp> {
   using OpConversionPattern::OpConversionPattern;
 
   LogicalResult matchAndRewrite(qco::RZZOp op, OpAdaptor adaptor, ConversionPatternRewriter& rewriter) const override {
@@ -267,7 +267,7 @@ protected:
                  RotationLowering<qco::RYOp, SingleGateKind::RY>,     //
                  RotationLowering<qco::RZOp, SingleGateKind::RZ>,     //
                  RotationLowering<qco::POp, SingleGateKind::RZ>,      //
-                 ISwapLowering, RzzLowering, GPhaseLowering, CtrlLowering, MeasureLowering, SinkLowering>(ctx);
+                 ISwapLowering, RZZLowering, GPhaseLowering, CtrlLowering, MeasureLowering, SinkLowering>(ctx);
 
     if (failed(applyPartialConversion(moduleOp, target, std::move(patterns)))) {
       signalPassFailure();

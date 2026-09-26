@@ -16,7 +16,7 @@
 #include "qcc/Dialect/QVec/IR/QVec.h"
 #include "qcc/Dialect/QVec/Transforms/Angles.h"
 #include "qcc/Dialect/QVec/Transforms/Passes.h" // IWYU pragma: keep
-#include "qcc/Dialect/QVec/Transforms/Zxz.h"
+#include "qcc/Dialect/QVec/Transforms/ZXZ.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -66,7 +66,7 @@ using Qubit = int64_t;
 /// One gate of the input program on static qubits, in the gate set the pass understands.
 struct Gate {
   enum class Kind : uint8_t {
-    Zxz, ///< `single u_zxz` on one lane: `qubits[0]`, `zxz`.
+    ZXZ, ///< `single u_zxz` on one lane: `qubits[0]`, `zxz`.
     Rz,  ///< `single rz` on one lane: `qubits[0]`, `angle`.
     Zz,  ///< `pair rzz` on one lane or `global zz`: the row-major `matrix` over `qubits`.
     Mz,  ///< `mz`: measures `qubits` (lane order), `op` is the `qvec.mz` whose bits the rebuild has to replace.
@@ -74,7 +74,7 @@ struct Gate {
 
   Kind kind;
   SmallVector<Qubit> qubits;
-  ZxzAngles zxz;
+  ZXZAngles zxz;
   double angle = 0.0;
   SmallVector<double> matrix;
   Operation* op = nullptr;
@@ -94,7 +94,7 @@ struct Layer {
 
   Kind kind;
   /// `Sq`: the rotation each qubit receives. Ordered so that the emitted lanes are ordered by qubit.
-  std::map<Qubit, ZxzAngles> rotations;
+  std::map<Qubit, ZXZAngles> rotations;
   /// `Zz`: the angle of each coupled pair `(i, j)` with `i < j`.
   std::map<std::pair<Qubit, Qubit>, double> couplings;
 };
@@ -160,17 +160,17 @@ static Schedule layerGates(ArrayRef<Gate> gates) {
       pending[gate.qubits.front()] += gate.angle;
       break;
 
-    case Gate::Kind::Zxz: {
+    case Gate::Kind::ZXZ: {
       const Qubit qubit = gate.qubits.front();
-      ZxzAngles rotation = gate.zxz;
+      ZXZAngles rotation = gate.zxz;
       if (std::optional<double> angle = takePending(qubit)) {
-        rotation = fuseZxz(ZxzAngles{.z1 = *angle}, rotation);
+        rotation = fuseZXZ(ZXZAngles{.z1 = *angle}, rotation);
       }
 
       int64_t index = lastLayer(qubit);
       if (index >= 0 && isSqIndex(index)) {
-        ZxzAngles& existing = layers[static_cast<size_t>(index)].rotations.at(qubit);
-        existing = fuseZxz(existing, rotation);
+        ZXZAngles& existing = layers[static_cast<size_t>(index)].rotations.at(qubit);
+        existing = fuseZXZ(existing, rotation);
       } else {
         index += 1;
         layerAt(index).rotations.emplace(qubit, rotation);
@@ -232,8 +232,8 @@ static Schedule layerGates(ArrayRef<Gate> gates) {
       schedule.residualRz[qubit] = angle;
       continue;
     }
-    ZxzAngles& existing = layers[static_cast<size_t>(it->second)].rotations.at(qubit);
-    existing = fuseZxz(existing, ZxzAngles{.z1 = angle});
+    ZXZAngles& existing = layers[static_cast<size_t>(it->second)].rotations.at(qubit);
+    existing = fuseZXZ(existing, ZXZAngles{.z1 = angle});
   }
 
   return schedule;
@@ -318,9 +318,9 @@ static LogicalResult collectGates(QubitLaneOpInterface op, SmallVectorImpl<Gate>
           }
           for (auto [qubit, a, b, c] : llvm::zip_equal(qubits, *z1, *x, *z2)) {
             gates.push_back(Gate{
-                .kind = Gate::Kind::Zxz,
+                .kind = Gate::Kind::ZXZ,
                 .qubits = {qubit},
-                .zxz = ZxzAngles{.z1 = a, .x = b, .z2 = c},
+                .zxz = ZXZAngles{.z1 = a, .x = b, .z2 = c},
                 .op = singleOp,
             });
           }

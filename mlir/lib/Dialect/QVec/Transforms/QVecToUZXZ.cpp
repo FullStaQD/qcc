@@ -34,7 +34,7 @@ namespace {
 
 /// Rewrites one `qvec.single` into `u_zxz(z1, x, z2)` = Rz(z2) Rx(x) Rz(z1), or into `rz` if the gate is diagonal.
 /// Every identity below holds up to a global phase.
-struct SingleToUZxz final : OpRewritePattern<SingleOp> {
+struct SingleToUZXZ final : OpRewritePattern<SingleOp> {
   using OpRewritePattern::OpRewritePattern;
 
   LogicalResult matchAndRewrite(SingleOp op, PatternRewriter& rewriter) const override {
@@ -43,7 +43,7 @@ struct SingleToUZxz final : OpRewritePattern<SingleOp> {
     const int64_t width = op.getQubitsIn().getType().getNumElements();
 
     auto splat = [&](double value) { return buildSplatAngleVector(rewriter, loc, width, value); };
-    auto uZxz = [&](Value z1, Value x, Value z2) {
+    auto uZXZ = [&](Value z1, Value x, Value z2) {
       rewriter.replaceOpWithNewOp<SingleOp>(op, SingleGateKind::UZXZ, op.getQubitsIn(), ValueRange{z1, x, z2});
       return success();
     };
@@ -57,17 +57,17 @@ struct SingleToUZxz final : OpRewritePattern<SingleOp> {
     case SingleGateKind::UZXZ:
       return failure(); // Already in the target gate set.
     case SingleGateKind::I:
-      return uZxz(splat(0.0), splat(0.0), splat(0.0));
+      return uZXZ(splat(0.0), splat(0.0), splat(0.0));
     case SingleGateKind::H:
-      return uZxz(splat(pi / 2), splat(pi / 2), splat(pi / 2));
+      return uZXZ(splat(pi / 2), splat(pi / 2), splat(pi / 2));
     case SingleGateKind::X:
-      return uZxz(splat(0.0), splat(pi), splat(0.0));
+      return uZXZ(splat(0.0), splat(pi), splat(0.0));
     case SingleGateKind::Y:
-      return uZxz(splat(-pi / 2), splat(pi), splat(pi / 2));
+      return uZXZ(splat(-pi / 2), splat(pi), splat(pi / 2));
     case SingleGateKind::RX:
-      return uZxz(splat(0.0), op.getParams().front(), splat(0.0));
+      return uZXZ(splat(0.0), op.getParams().front(), splat(0.0));
     case SingleGateKind::RY:
-      return uZxz(splat(-pi / 2), op.getParams().front(), splat(pi / 2));
+      return uZXZ(splat(-pi / 2), op.getParams().front(), splat(pi / 2));
     case SingleGateKind::Z:
       return rz(pi);
     case SingleGateKind::S:
@@ -92,14 +92,14 @@ namespace qcc {
 
 namespace {
 
-struct QVecToUZxz final : impl::QVecToUZxzBase<QVecToUZxz> {
-  using QVecToUZxzBase::QVecToUZxzBase;
+struct QVecToUZXZ final : impl::QVecToUZXZBase<QVecToUZXZ> {
+  using QVecToUZXZBase::QVecToUZXZBase;
 
 protected:
   void runOnOperation() override {
     ModuleOp moduleOp = getOperation();
     RewritePatternSet patterns(moduleOp.getContext());
-    patterns.add<SingleToUZxz>(moduleOp.getContext());
+    patterns.add<SingleToUZXZ>(moduleOp.getContext());
     if (failed(applyPatternsGreedily(moduleOp, std::move(patterns)))) {
       signalPassFailure();
     }

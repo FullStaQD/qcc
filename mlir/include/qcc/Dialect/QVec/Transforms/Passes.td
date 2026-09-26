@@ -58,7 +58,7 @@ def QVecMerge : Pass<"qvec-merge", "mlir::ModuleOp"> {
   ];
 }
 
-def QVecToRzz : Pass<"qvec-to-rzz", "mlir::ModuleOp"> {
+def QVecToRZZ : Pass<"qvec-to-rzz", "mlir::ModuleOp"> {
   let summary = "Decomposes every `qvec.pair` gate into `rzz` and single-qubit gates.";
 
   let description = [{
@@ -99,7 +99,7 @@ def QVecToRzz : Pass<"qvec-to-rzz", "mlir::ModuleOp"> {
   ];
 }
 
-def QVecToUZxz : Pass<"qvec-to-u-zxz", "mlir::ModuleOp"> {
+def QVecToUZXZ : Pass<"qvec-to-u-zxz", "mlir::ModuleOp"> {
   let summary = "Rewrites every `qvec.single` gate into `u_zxz` or `rz`.";
 
   let description = [{
@@ -131,7 +131,7 @@ def QVecToUZxz : Pass<"qvec-to-u-zxz", "mlir::ModuleOp"> {
   ];
 }
 
-def QVecFuseZxz : Pass<"qvec-fuse-zxz", "mlir::ModuleOp"> {
+def QVecFuseZXZ : Pass<"qvec-fuse-zxz", "mlir::ModuleOp"> {
   let summary = "Fuses adjacent `u_zxz` / `rz` gates on the same qubit vector into one `u_zxz`.";
 
   let description = [{

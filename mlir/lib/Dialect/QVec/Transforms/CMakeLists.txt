@@ -1,12 +1,12 @@
 add_mlir_dialect_library(
   QCCQVecTransforms
   Angles.cpp
-  QVecFuseZxz.cpp
+  QVecFuseZXZ.cpp
   QVecLayer.cpp
   QVecMerge.cpp
-  QVecToRzz.cpp
-  QVecToUZxz.cpp
-  Zxz.cpp
+  QVecToRZZ.cpp
+  QVecToUZXZ.cpp
+  ZXZ.cpp
   DEPENDS
   QCCQVecTransformsIncGen
   LINK_LIBS
