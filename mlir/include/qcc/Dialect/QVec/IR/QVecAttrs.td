@@ -29,7 +29,7 @@ class QVec_ArityCases<EnumInfo e, string enumName> {
 def QVec_SingleGateKindAttr : EnumAttr<QVecDialect, QVec_SingleGateKind, "single_gate"> {
   let assemblyFormat = "$value";
   let extraClassDeclaration = [{
-    /// Number of angle parameters a `qvec.single` of `kind` takes. Generated from the enum cases in QVecEnums.td.
+    /// Number of angle parameters a `qvec.single` of `kind` takes.
     static unsigned getNumParams(::qcc::qvec::SingleGateKind kind) {
       switch (kind) {
 }] # QVec_ArityCases<QVec_SingleGateKind, "::qcc::qvec::SingleGateKind">.result # [{
@@ -42,7 +42,7 @@ def QVec_SingleGateKindAttr : EnumAttr<QVecDialect, QVec_SingleGateKind, "single
 def QVec_PairGateKindAttr : EnumAttr<QVecDialect, QVec_PairGateKind, "pair_gate"> {
   let assemblyFormat = "$value";
   let extraClassDeclaration = [{
-    /// Number of angle parameters a `qvec.pair` of `kind` takes. Generated from the enum cases in QVecEnums.td.
+    /// Number of angle parameters a `qvec.pair` of `kind` takes.
     static unsigned getNumParams(::qcc::qvec::PairGateKind kind) {
       switch (kind) {
 }] # QVec_ArityCases<QVec_PairGateKind, "::qcc::qvec::PairGateKind">.result # [{

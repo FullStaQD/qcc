@@ -38,8 +38,7 @@ def SingleOp : QVecOp<"single", [AllTypesMatch<["qubits_in", "qubits_out"]>]> {
 
         Parametrised gates take their angles as vectors that are lane-aligned with the qubit vector: lane `i` is
         rotated by `params[k][i]`. How many parameter vectors a gate kind takes is fixed per kind (see the
-        `SingleGateKind` enum, which also documents what each parameter means); all of them share one type, which is
-        written once after the qubit type.
+        `SingleGateKind` enum).
 
         Example:
         ```mlir
@@ -91,7 +90,7 @@ def PairOp : QVecOp<"pair", [AllTypesMatch<["lhs_in", "rhs_in", "lhs_out", "rhs_
         with a linearly typed qubit. For controlled gates the left operand holds the controls.
 
         Parametrised gates take their angles as vectors that are lane-aligned with the qubit vectors, exactly as
-        `qvec.single` does (see the `PairGateKind` enum for the meaning of the parameters).
+        `qvec.single` does (see also `PairGateKind` enum).
 
         Example:
         ```mlir
@@ -140,17 +139,15 @@ def PairOp : QVecOp<"pair", [AllTypesMatch<["lhs_in", "rhs_in", "lhs_out", "rhs_
 def GlobalOp : QVecOp<"global", [AllTypesMatch<["qubits_in", "qubits_out"]>]> {
   let summary = "gate acting on all qubits of a vector jointly";
   let description = [{
-        Unlike `single` and `pair`, which apply one gate per lane, a `global` gate acts on all lanes of its qubit
-        vector *jointly*: it is one entangling operation over the whole vector, not a batch of independent ones. The
-        gate is parametrised by a square matrix over the lanes.
+        Unlike `single` and `pair`, which apply one gate per lane, a `global` gate acts on all lanes of its qubit vector
+        *jointly*. The gate is parametrised by a square matrix over the lanes.
 
-        The only kind so far is `zz`: with the `n x n` angle matrix `A` it applies
+        For example the `zz` global gate with the `n x n` angle matrix `A` applies
 
-            exp(-i/4 * sum_{i != j} A_ij Z_i Z_j),
+            exp(-i/4 * sum_{i != j} A_ij Z_i Z_j).
 
-        so that an `rzz(theta)` (that is, `exp(-i theta/2 Z (x) Z)`) between lanes `i` and `j` corresponds to
-        `A_ij = A_ji = theta`. `A` must be symmetric with a zero diagonal; the verifier checks this for constant
-        matrices.
+        `A` must be symmetric with a zero diagonal; the verifier checks this for constant matrices. Note that
+        `rzz(theta)` between lanes `i` and `j` corresponds to `A_ij = A_ji = theta`.
 
         Example:
         ```mlir
