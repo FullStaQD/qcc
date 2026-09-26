@@ -19,8 +19,7 @@ include "mlir/IR/EnumAttr.td"
 // Gate kind attributes
 //===----------------------------------------------------------------------===//
 
-// The body of a `switch` over the cases of `e`, one `case` per enumerant returning its `numParams`. Generated from the
-// case list itself, so the arity table can never get out of sync with the enum.
+// The body of a `switch` over the cases of `e`.
 class QVec_ArityCases<EnumInfo e, string enumName> {
   string result = !interleave(!foreach(c, e.enumerants,
       "    case " # enumName # "::" # c.symbol # ": return "
