@@ -43,10 +43,12 @@ struct SingleToUZXZ final : OpRewritePattern<SingleOp> {
     const int64_t width = op.getQubitsIn().getType().getNumElements();
 
     auto splat = [&](double value) { return buildSplatAngleVector(rewriter, loc, width, value); };
+
     auto uZXZ = [&](Value z1, Value x, Value z2) {
       rewriter.replaceOpWithNewOp<SingleOp>(op, SingleGateKind::UZXZ, op.getQubitsIn(), ValueRange{z1, x, z2});
       return success();
     };
+
     auto rz = [&](double theta) {
       rewriter.replaceOpWithNewOp<SingleOp>(op, SingleGateKind::RZ, op.getQubitsIn(), ValueRange{splat(theta)});
       return success();
