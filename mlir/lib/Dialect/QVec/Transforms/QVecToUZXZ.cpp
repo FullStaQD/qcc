@@ -11,7 +11,7 @@
 #include "qcc/Dialect/QVec/Transforms/Angles.h"
 #include "qcc/Dialect/QVec/Transforms/Passes.h" // IWYU pragma: keep
 
-#include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Arith/IR/Arith.h" // IWYU pragma: keep
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/BuiltinTypes.h"
