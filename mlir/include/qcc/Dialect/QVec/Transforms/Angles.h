@@ -32,7 +32,7 @@ std::optional<llvm::SmallVector<double>> getConstantAngles(mlir::Value angles);
 /// Emits `arith.constant dense<values> : vector<Nxf64>`, N = `values.size()`.
 mlir::Value buildAngleVector(mlir::OpBuilder& builder, mlir::Location loc, llvm::ArrayRef<double> values);
 
-/// Emits the splat `arith.constant dense<value> : vector<widthxf64>`.
+/// Emits the splat `arith.constant dense<value> : vector<widthxf64>` from a single `value`.
 mlir::Value buildSplatAngleVector(mlir::OpBuilder& builder, mlir::Location loc, int64_t width, double value);
 
 /// Emits `arith.constant dense<...> : vector<NxNxf64>` from the row-major `values`, N = `width`.

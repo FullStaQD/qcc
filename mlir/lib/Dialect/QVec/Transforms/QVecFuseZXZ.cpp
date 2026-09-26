@@ -12,7 +12,7 @@
 #include "qcc/Dialect/QVec/Transforms/Passes.h" // IWYU pragma: keep
 #include "qcc/Dialect/QVec/Transforms/ZXZ.h"
 
-#include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Arith/IR/Arith.h" // IWYU pragma: keep
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/BuiltinTypes.h"
@@ -27,7 +27,6 @@
 #include "llvm/ADT/SmallVector.h"
 
 #include <cstddef>
-#include <cstdint>
 #include <optional>
 #include <utility>
 
@@ -94,6 +93,9 @@ struct FuseZXZ final : OpRewritePattern<SingleOp> {
       rewriter.replaceOpWithNewOp<SingleOp>(second, SingleGateKind::RZ, first.getQubitsIn(),
                                             ValueRange{buildAngleVector(rewriter, loc, theta)});
     } else {
+      assert(first.getGateKind() == SingleGateKind::RZ || first.getGateKind() == SingleGateKind::UZXZ);
+      assert(second.getGateKind() == SingleGateKind::RZ || second.getGateKind() == SingleGateKind::UZXZ);
+
       SmallVector<double> z1(width);
       SmallVector<double> x(width);
       SmallVector<double> z2(width);
