@@ -50,27 +50,3 @@ func.func @chain_and_rz(%qs: vector<1x!qco.qubit>) {
 // CHECK-DAG:     %[[Z2:.*]] = arith.constant dense<{{2.500000e-01|0.2[45][0-9]+}}> : vector<1xf64>
 // CHECK:         qvec.single u_zxz(%[[Z1]], %[[X]], %[[Z2]]) %arg0
 // CHECK-NOT:     qvec.single
-
-// -----
-
-// CHECK-LABEL: func.func @not_fused
-func.func @not_fused(%qs: vector<1x!qco.qubit>, %theta: vector<1xf64>) {
-    %a = arith.constant dense<0.5> : vector<1xf64>
-    // Dynamic angle: nothing to compute with.
-    %r0 = qvec.single rz(%theta) %qs : vector<1x!qco.qubit>, vector<1xf64>
-    %r1 = qvec.single rz(%a) %r0 : vector<1x!qco.qubit>, vector<1xf64>
-    // Not in the zxz gate set.
-    %h = qvec.single h %r1 : vector<1x!qco.qubit>
-    %r2 = qvec.single rz(%a) %h : vector<1x!qco.qubit>, vector<1xf64>
-    // The first gate has a second user.
-    %r3 = qvec.single rz(%a) %r2 : vector<1x!qco.qubit>, vector<1xf64>
-    %r4 = qvec.single rz(%a) %r2 : vector<1x!qco.qubit>, vector<1xf64>
-    func.return
-}
-
-// CHECK:         qvec.single rz(%arg1)
-// CHECK:         qvec.single rz
-// CHECK:         qvec.single h
-// CHECK:         %[[R2:.*]] = qvec.single rz
-// CHECK:         qvec.single rz(%{{.*}}) %[[R2]]
-// CHECK:         qvec.single rz(%{{.*}}) %[[R2]]

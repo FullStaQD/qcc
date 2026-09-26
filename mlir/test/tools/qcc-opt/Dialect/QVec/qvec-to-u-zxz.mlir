@@ -1,7 +1,5 @@
 // RUN: qcc-opt %s -qvec-to-u-zxz --split-input-file | FileCheck %s
 
-// The angles below were checked numerically against the gates' unitaries (up to a global phase).
-
 // CHECK-LABEL: func.func @non_diagonal
 func.func @non_diagonal(%qs: vector<2x!qco.qubit>) -> vector<2x!qco.qubit> {
     %h = qvec.single h %qs : vector<2x!qco.qubit>
