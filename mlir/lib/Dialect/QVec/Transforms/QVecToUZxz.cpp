@@ -44,39 +44,39 @@ struct SingleToUZxz final : OpRewritePattern<SingleOp> {
 
     auto splat = [&](double value) { return buildSplatAngleVector(rewriter, loc, width, value); };
     auto uZxz = [&](Value z1, Value x, Value z2) {
-      rewriter.replaceOpWithNewOp<SingleOp>(op, SingleGate::UZXZ, op.getQubitsIn(), ValueRange{z1, x, z2});
+      rewriter.replaceOpWithNewOp<SingleOp>(op, SingleGateKind::UZXZ, op.getQubitsIn(), ValueRange{z1, x, z2});
       return success();
     };
     auto rz = [&](double theta) {
-      rewriter.replaceOpWithNewOp<SingleOp>(op, SingleGate::RZ, op.getQubitsIn(), ValueRange{splat(theta)});
+      rewriter.replaceOpWithNewOp<SingleOp>(op, SingleGateKind::RZ, op.getQubitsIn(), ValueRange{splat(theta)});
       return success();
     };
 
     switch (op.getGateKind()) {
-    case SingleGate::RZ:
-    case SingleGate::UZXZ:
+    case SingleGateKind::RZ:
+    case SingleGateKind::UZXZ:
       return failure(); // Already in the target gate set.
-    case SingleGate::I:
+    case SingleGateKind::I:
       return uZxz(splat(0.0), splat(0.0), splat(0.0));
-    case SingleGate::H:
+    case SingleGateKind::H:
       return uZxz(splat(pi / 2), splat(pi / 2), splat(pi / 2));
-    case SingleGate::X:
+    case SingleGateKind::X:
       return uZxz(splat(0.0), splat(pi), splat(0.0));
-    case SingleGate::Y:
+    case SingleGateKind::Y:
       return uZxz(splat(-pi / 2), splat(pi), splat(pi / 2));
-    case SingleGate::RX:
+    case SingleGateKind::RX:
       return uZxz(splat(0.0), op.getParams().front(), splat(0.0));
-    case SingleGate::RY:
+    case SingleGateKind::RY:
       return uZxz(splat(-pi / 2), op.getParams().front(), splat(pi / 2));
-    case SingleGate::Z:
+    case SingleGateKind::Z:
       return rz(pi);
-    case SingleGate::S:
+    case SingleGateKind::S:
       return rz(pi / 2);
-    case SingleGate::Sdg:
+    case SingleGateKind::Sdg:
       return rz(-pi / 2);
-    case SingleGate::T:
+    case SingleGateKind::T:
       return rz(pi / 4);
-    case SingleGate::Tdg:
+    case SingleGateKind::Tdg:
       return rz(-pi / 4);
     }
     llvm_unreachable("unknown single-qubit gate kind");

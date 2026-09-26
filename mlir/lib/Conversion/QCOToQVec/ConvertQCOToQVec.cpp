@@ -42,7 +42,7 @@ static vector::FromElementsOp buildVector(OpBuilder& builder, Location loc, Valu
 }
 
 /// Replaces `op` by a one-element `qvec.single` of kind `gate` on `qubit`, with the optional angle `theta`.
-static void replaceWithSingle(ConversionPatternRewriter& rewriter, Operation* op, SingleGate gate, Value qubit,
+static void replaceWithSingle(ConversionPatternRewriter& rewriter, Operation* op, SingleGateKind gate, Value qubit,
                               Value theta = {}) {
   Location loc = op->getLoc();
   Value qubits = buildVector(rewriter, loc, qubit);
@@ -55,7 +55,7 @@ static void replaceWithSingle(ConversionPatternRewriter& rewriter, Operation* op
 }
 
 /// Replaces `op` by a one-element `qvec.pair` of kind `gate` on `lhs`, `rhs`, with the optional angle `theta`.
-static void replaceWithPair(ConversionPatternRewriter& rewriter, Operation* op, PairGate gate, Value lhs, Value rhs,
+static void replaceWithPair(ConversionPatternRewriter& rewriter, Operation* op, PairGateKind gate, Value lhs, Value rhs,
                             Value theta = {}) {
   Location loc = op->getLoc();
   Value lhsVector = buildVector(rewriter, loc, lhs);
@@ -74,7 +74,8 @@ static void replaceWithPair(ConversionPatternRewriter& rewriter, Operation* op, 
 namespace {
 
 /// Rewrites a parameter-free single-qubit `qco` gate into a one-element `qvec.single`.
-template <typename SourceOp, SingleGate gate> struct SingleGateLowering final : public OpConversionPattern<SourceOp> {
+template <typename SourceOp, SingleGateKind gate>
+struct SingleGateLowering final : public OpConversionPattern<SourceOp> {
   using OpConversionPattern<SourceOp>::OpConversionPattern;
   using OpAdaptor = SourceOp::Adaptor;
 
@@ -86,7 +87,7 @@ template <typename SourceOp, SingleGate gate> struct SingleGateLowering final : 
 
 /// Rewrites a one-angle single-qubit `qco` gate into a one-element `qvec.single`. `qco.p(theta)` becomes `rz(theta)`,
 /// which is the same gate up to a global phase.
-template <typename SourceOp, SingleGate gate> struct RotationLowering final : public OpConversionPattern<SourceOp> {
+template <typename SourceOp, SingleGateKind gate> struct RotationLowering final : public OpConversionPattern<SourceOp> {
   using OpConversionPattern<SourceOp>::OpConversionPattern;
   using OpAdaptor = SourceOp::Adaptor;
 
@@ -102,7 +103,7 @@ struct ISwapLowering final : public OpConversionPattern<qco::iSWAPOp> {
 
   LogicalResult matchAndRewrite(qco::iSWAPOp op, OpAdaptor adaptor,
                                 ConversionPatternRewriter& rewriter) const override {
-    replaceWithPair(rewriter, op, PairGate::iSWAP, adaptor.getQubit0In(), adaptor.getQubit1In());
+    replaceWithPair(rewriter, op, PairGateKind::iSWAP, adaptor.getQubit0In(), adaptor.getQubit1In());
     return success();
   }
 };
@@ -112,7 +113,7 @@ struct RzzLowering final : public OpConversionPattern<qco::RZZOp> {
   using OpConversionPattern::OpConversionPattern;
 
   LogicalResult matchAndRewrite(qco::RZZOp op, OpAdaptor adaptor, ConversionPatternRewriter& rewriter) const override {
-    replaceWithPair(rewriter, op, PairGate::RZZ, adaptor.getQubit0In(), adaptor.getQubit1In(), adaptor.getTheta());
+    replaceWithPair(rewriter, op, PairGateKind::RZZ, adaptor.getQubit0In(), adaptor.getQubit1In(), adaptor.getTheta());
     return success();
   }
 };
@@ -171,7 +172,7 @@ struct CtrlLowering final : public OpConversionPattern<qco::CtrlOp> {
         return failure();
       }
       // The angle is a classical value captured from outside the region, so it is safe to use here.
-      replaceWithSingle(rewriter, op, SingleGate::RZ, control, gphaseOp.getTheta());
+      replaceWithSingle(rewriter, op, SingleGateKind::RZ, control, gphaseOp.getTheta());
       return success();
     }
 
@@ -181,19 +182,19 @@ struct CtrlLowering final : public OpConversionPattern<qco::CtrlOp> {
     Value target = adaptor.getTargetsIn().front();
     return TypeSwitch<Operation*, LogicalResult>(bodyOp)
         .Case([&](qco::XOp) {
-          replaceWithPair(rewriter, op, PairGate::CX, control, target);
+          replaceWithPair(rewriter, op, PairGateKind::CX, control, target);
           return success();
         })
         .Case([&](qco::YOp) {
-          replaceWithPair(rewriter, op, PairGate::CY, control, target);
+          replaceWithPair(rewriter, op, PairGateKind::CY, control, target);
           return success();
         })
         .Case([&](qco::ZOp) {
-          replaceWithPair(rewriter, op, PairGate::CZ, control, target);
+          replaceWithPair(rewriter, op, PairGateKind::CZ, control, target);
           return success();
         })
         .Case([&](qco::POp pOp) {
-          replaceWithPair(rewriter, op, PairGate::CP, control, target, pOp.getTheta());
+          replaceWithPair(rewriter, op, PairGateKind::CP, control, target, pOp.getTheta());
           return success();
         })
         .Default([](Operation*) { return failure(); });
@@ -253,19 +254,19 @@ protected:
     target.addLegalOp<qco::StaticOp>(); // still needed as qubit source
 
     RewritePatternSet patterns(ctx);
-    patterns.add<SingleGateLowering<qco::IdOp, SingleGate::I>,    //
-                 SingleGateLowering<qco::HOp, SingleGate::H>,     //
-                 SingleGateLowering<qco::XOp, SingleGate::X>,     //
-                 SingleGateLowering<qco::YOp, SingleGate::Y>,     //
-                 SingleGateLowering<qco::ZOp, SingleGate::Z>,     //
-                 SingleGateLowering<qco::SOp, SingleGate::S>,     //
-                 SingleGateLowering<qco::SdgOp, SingleGate::Sdg>, //
-                 SingleGateLowering<qco::TOp, SingleGate::T>,     //
-                 SingleGateLowering<qco::TdgOp, SingleGate::Tdg>, //
-                 RotationLowering<qco::RXOp, SingleGate::RX>,     //
-                 RotationLowering<qco::RYOp, SingleGate::RY>,     //
-                 RotationLowering<qco::RZOp, SingleGate::RZ>,     //
-                 RotationLowering<qco::POp, SingleGate::RZ>,      //
+    patterns.add<SingleGateLowering<qco::IdOp, SingleGateKind::I>,    //
+                 SingleGateLowering<qco::HOp, SingleGateKind::H>,     //
+                 SingleGateLowering<qco::XOp, SingleGateKind::X>,     //
+                 SingleGateLowering<qco::YOp, SingleGateKind::Y>,     //
+                 SingleGateLowering<qco::ZOp, SingleGateKind::Z>,     //
+                 SingleGateLowering<qco::SOp, SingleGateKind::S>,     //
+                 SingleGateLowering<qco::SdgOp, SingleGateKind::Sdg>, //
+                 SingleGateLowering<qco::TOp, SingleGateKind::T>,     //
+                 SingleGateLowering<qco::TdgOp, SingleGateKind::Tdg>, //
+                 RotationLowering<qco::RXOp, SingleGateKind::RX>,     //
+                 RotationLowering<qco::RYOp, SingleGateKind::RY>,     //
+                 RotationLowering<qco::RZOp, SingleGateKind::RZ>,     //
+                 RotationLowering<qco::POp, SingleGateKind::RZ>,      //
                  ISwapLowering, RzzLowering, GPhaseLowering, CtrlLowering, MeasureLowering, SinkLowering>(ctx);
 
     if (failed(applyPartialConversion(moduleOp, target, std::move(patterns)))) {

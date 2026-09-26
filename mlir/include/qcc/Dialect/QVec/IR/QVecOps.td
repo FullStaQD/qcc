@@ -38,7 +38,7 @@ def SingleOp : QVecOp<"single", [AllTypesMatch<["qubits_in", "qubits_out"]>]> {
 
         Parametrised gates take their angles as vectors that are lane-aligned with the qubit vector: lane `i` is
         rotated by `params[k][i]`. How many parameter vectors a gate kind takes is fixed per kind (see the
-        `SingleGate` enum, which also documents what each parameter means); all of them share one type, which is
+        `SingleGateKind` enum, which also documents what each parameter means); all of them share one type, which is
         written once after the qubit type.
 
         Example:
@@ -49,7 +49,7 @@ def SingleOp : QVecOp<"single", [AllTypesMatch<["qubits_in", "qubits_out"]>]> {
         ```
     }];
 
-  let arguments = (ins QVec_SingleGateAttr:$gate_kind,
+  let arguments = (ins QVec_SingleGateKindAttr:$gate_kind,
                        QVec_QubitVector:$qubits_in,
                        Variadic<QVec_AngleVector>:$params);
   let results = (outs QVec_QubitVector:$qubits_out);
@@ -60,7 +60,7 @@ def SingleOp : QVecOp<"single", [AllTypesMatch<["qubits_in", "qubits_out"]>]> {
     }];
 
   let builders = [
-    OpBuilder<(ins "::qcc::qvec::SingleGate":$gateKind, "::mlir::Value":$qubitsIn,
+    OpBuilder<(ins "::qcc::qvec::SingleGateKind":$gateKind, "::mlir::Value":$qubitsIn,
                    CArg<"::mlir::ValueRange", "{}">:$params), [{
       build($_builder, $_state, qubitsIn.getType(), gateKind, qubitsIn, params);
     }]>
@@ -91,7 +91,7 @@ def PairOp : QVecOp<"pair", [AllTypesMatch<["lhs_in", "rhs_in", "lhs_out", "rhs_
         with a linearly typed qubit. For controlled gates the left operand holds the controls.
 
         Parametrised gates take their angles as vectors that are lane-aligned with the qubit vectors, exactly as
-        `qvec.single` does (see the `PairGate` enum for the meaning of the parameters).
+        `qvec.single` does (see the `PairGateKind` enum for the meaning of the parameters).
 
         Example:
         ```mlir
@@ -100,7 +100,7 @@ def PairOp : QVecOp<"pair", [AllTypesMatch<["lhs_in", "rhs_in", "lhs_out", "rhs_
         ```
     }];
 
-  let arguments = (ins QVec_PairGateAttr:$gate_kind,
+  let arguments = (ins QVec_PairGateKindAttr:$gate_kind,
                        QVec_QubitVector:$lhs_in,
                        QVec_QubitVector:$rhs_in,
                        Variadic<QVec_AngleVector>:$params);
@@ -113,7 +113,7 @@ def PairOp : QVecOp<"pair", [AllTypesMatch<["lhs_in", "rhs_in", "lhs_out", "rhs_
     }];
 
   let builders = [
-    OpBuilder<(ins "::qcc::qvec::PairGate":$gateKind, "::mlir::Value":$lhsIn, "::mlir::Value":$rhsIn,
+    OpBuilder<(ins "::qcc::qvec::PairGateKind":$gateKind, "::mlir::Value":$lhsIn, "::mlir::Value":$rhsIn,
                    CArg<"::mlir::ValueRange", "{}">:$params), [{
       build($_builder, $_state, lhsIn.getType(), rhsIn.getType(), gateKind, lhsIn, rhsIn, params);
     }]>
@@ -158,7 +158,7 @@ def GlobalOp : QVecOp<"global", [AllTypesMatch<["qubits_in", "qubits_out"]>]> {
         ```
     }];
 
-  let arguments = (ins QVec_GlobalGateAttr:$gate_kind,
+  let arguments = (ins QVec_GlobalGateKindAttr:$gate_kind,
                        QVec_QubitVector:$qubits_in,
                        QVec_AngleMatrix:$angles);
   let results = (outs QVec_QubitVector:$qubits_out);
@@ -168,7 +168,7 @@ def GlobalOp : QVecOp<"global", [AllTypesMatch<["qubits_in", "qubits_out"]>]> {
     }];
 
   let builders = [
-    OpBuilder<(ins "::qcc::qvec::GlobalGate":$gateKind, "::mlir::Value":$qubitsIn, "::mlir::Value":$angles), [{
+    OpBuilder<(ins "::qcc::qvec::GlobalGateKind":$gateKind, "::mlir::Value":$qubitsIn, "::mlir::Value":$angles), [{
       build($_builder, $_state, qubitsIn.getType(), gateKind, qubitsIn, angles);
     }]>
   ];

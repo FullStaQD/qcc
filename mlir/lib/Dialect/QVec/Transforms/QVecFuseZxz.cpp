@@ -40,7 +40,7 @@ static std::optional<SmallVector<ZxzAngles>> getConstantZxz(SingleOp op) {
   SmallVector<ZxzAngles> lanes(width);
 
   switch (op.getGateKind()) {
-  case SingleGate::RZ: {
+  case SingleGateKind::RZ: {
     std::optional<SmallVector<double>> theta = getConstantAngles(op.getParams().front());
     if (!theta) {
       return std::nullopt;
@@ -50,7 +50,7 @@ static std::optional<SmallVector<ZxzAngles>> getConstantZxz(SingleOp op) {
     }
     return lanes;
   }
-  case SingleGate::UZXZ: {
+  case SingleGateKind::UZXZ: {
     std::optional<SmallVector<double>> z1 = getConstantAngles(op.getParams()[zxz::z1]);
     std::optional<SmallVector<double>> x = getConstantAngles(op.getParams()[zxz::x]);
     std::optional<SmallVector<double>> z2 = getConstantAngles(op.getParams()[zxz::z2]);
@@ -86,12 +86,12 @@ struct FuseZxz final : OpRewritePattern<SingleOp> {
 
     Location loc = second.getLoc();
     const size_t width = firstLanes->size();
-    if (first.getGateKind() == SingleGate::RZ && second.getGateKind() == SingleGate::RZ) {
+    if (first.getGateKind() == SingleGateKind::RZ && second.getGateKind() == SingleGateKind::RZ) {
       SmallVector<double> theta(width);
       for (size_t lane = 0; lane < width; ++lane) {
         theta[lane] = normalizeAngle((*firstLanes)[lane].z1 + (*secondLanes)[lane].z1);
       }
-      rewriter.replaceOpWithNewOp<SingleOp>(second, SingleGate::RZ, first.getQubitsIn(),
+      rewriter.replaceOpWithNewOp<SingleOp>(second, SingleGateKind::RZ, first.getQubitsIn(),
                                             ValueRange{buildAngleVector(rewriter, loc, theta)});
     } else {
       SmallVector<double> z1(width);
@@ -103,7 +103,7 @@ struct FuseZxz final : OpRewritePattern<SingleOp> {
         x[lane] = fused.x;
         z2[lane] = fused.z2;
       }
-      rewriter.replaceOpWithNewOp<SingleOp>(second, SingleGate::UZXZ, first.getQubitsIn(),
+      rewriter.replaceOpWithNewOp<SingleOp>(second, SingleGateKind::UZXZ, first.getQubitsIn(),
                                             ValueRange{
                                                 buildAngleVector(rewriter, loc, z1),
                                                 buildAngleVector(rewriter, loc, x),

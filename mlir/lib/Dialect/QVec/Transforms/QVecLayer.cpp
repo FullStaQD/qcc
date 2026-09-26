@@ -299,7 +299,7 @@ static LogicalResult collectGates(QubitLaneOpInterface op, SmallVectorImpl<Gate>
           return failure();
         }
         switch (singleOp.getGateKind()) {
-        case SingleGate::RZ: {
+        case SingleGateKind::RZ: {
           FailureOr<SmallVector<double>> theta = resolveAngles(singleOp, singleOp.getParams().front());
           if (failed(theta)) {
             return failure();
@@ -309,7 +309,7 @@ static LogicalResult collectGates(QubitLaneOpInterface op, SmallVectorImpl<Gate>
           }
           return success();
         }
-        case SingleGate::UZXZ: {
+        case SingleGateKind::UZXZ: {
           FailureOr<SmallVector<double>> z1 = resolveAngles(singleOp, singleOp.getParams()[zxz::z1]);
           FailureOr<SmallVector<double>> x = resolveAngles(singleOp, singleOp.getParams()[zxz::x]);
           FailureOr<SmallVector<double>> z2 = resolveAngles(singleOp, singleOp.getParams()[zxz::z2]);
@@ -327,13 +327,13 @@ static LogicalResult collectGates(QubitLaneOpInterface op, SmallVectorImpl<Gate>
           return success();
         }
         default:
-          return singleOp.emitOpError() << "gate '" << stringifySingleGate(singleOp.getGateKind())
+          return singleOp.emitOpError() << "gate '" << stringifySingleGateKind(singleOp.getGateKind())
                                         << "' is not in the layered gate set (rz, u_zxz); run qvec-to-u-zxz first";
         }
       })
       .Case([&](PairOp pairOp) -> LogicalResult {
-        if (pairOp.getGateKind() != PairGate::RZZ) {
-          return pairOp.emitOpError() << "gate '" << stringifyPairGate(pairOp.getGateKind())
+        if (pairOp.getGateKind() != PairGateKind::RZZ) {
+          return pairOp.emitOpError() << "gate '" << stringifyPairGateKind(pairOp.getGateKind())
                                       << "' is not in the layered gate set (rzz); run qvec-to-rzz first";
         }
         SmallVector<Qubit> lhs;
@@ -473,7 +473,7 @@ public:
         z2.push_back(rotation.z2);
       }
       Value qs = gather(qubits);
-      auto op = SingleOp::create(builder, loc, SingleGate::UZXZ, qs,
+      auto op = SingleOp::create(builder, loc, SingleGateKind::UZXZ, qs,
                                  ValueRange{
                                      buildAngleVector(builder, loc, z1),
                                      buildAngleVector(builder, loc, x),
@@ -501,7 +501,7 @@ public:
       matrix[(j * n) + i] = angle;
     }
     Value qs = gather(qubits);
-    auto op = GlobalOp::create(builder, loc, GlobalGate::ZZ, qs,
+    auto op = GlobalOp::create(builder, loc, GlobalGateKind::ZZ, qs,
                                buildAngleMatrix(builder, loc, static_cast<int64_t>(n), matrix));
     scatter(op.getQubitsOut(), qubits);
   }
@@ -517,7 +517,7 @@ public:
       theta.push_back(normalizeAngle(angle));
     }
     Value qs = gather(qubits);
-    auto op = SingleOp::create(builder, loc, SingleGate::RZ, qs, ValueRange{buildAngleVector(builder, loc, theta)});
+    auto op = SingleOp::create(builder, loc, SingleGateKind::RZ, qs, ValueRange{buildAngleVector(builder, loc, theta)});
     scatter(op.getQubitsOut(), qubits);
   }
 

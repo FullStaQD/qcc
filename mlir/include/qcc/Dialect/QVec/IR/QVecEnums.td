@@ -23,7 +23,7 @@ class QVec_GateCase<string sym, int val, string str, int arity> : I32EnumCase<sy
   int numParams = arity;
 }
 
-def QVec_SingleGate : I32Enum<"SingleGate", "single-qubit gate kind", [
+def QVec_SingleGateKind : I32Enum<"SingleGateKind", "single-qubit gate kind", [
     // C++ name, id, IR name, num params
     QVec_GateCase<"I", 0, "i", 0>,
     QVec_GateCase<"H", 1, "h", 0>,
@@ -42,7 +42,7 @@ def QVec_SingleGate : I32Enum<"SingleGate", "single-qubit gate kind", [
   let cppNamespace = "::qcc::qvec";
 }
 
-def QVec_PairGate : I32Enum<"PairGate", "two-qubit gate kind", [
+def QVec_PairGateKind : I32Enum<"PairGateKind", "two-qubit gate kind", [
     // C++ name, id, IR name, num params
     QVec_GateCase<"CX", 0, "cx", 0>,
     QVec_GateCase<"CY", 1, "cy", 0>,
@@ -56,7 +56,7 @@ def QVec_PairGate : I32Enum<"PairGate", "two-qubit gate kind", [
 
 // Global gates act on all lanes of a qubit vector jointly. Their parameters are not lane-aligned vectors but a matrix
 // over the lanes (see `qvec.global`), so they carry no arity here.
-def QVec_GlobalGate : I32Enum<"GlobalGate", "global gate kind", [
+def QVec_GlobalGateKind : I32Enum<"GlobalGateKind", "global gate kind", [
     // C++ name, id, IR name
     I32EnumCase<"ZZ", 0, "zz">,
 ]> {

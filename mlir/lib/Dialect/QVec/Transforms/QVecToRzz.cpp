@@ -42,10 +42,10 @@ struct PairToRzz final : OpRewritePattern<PairOp> {
     Location loc = op.getLoc();
     const int64_t width = op.getLhsIn().getType().getNumElements();
 
-    auto single = [&](SingleGate kind, Value qubits, Value theta = {}) -> Value {
+    auto single = [&](SingleGateKind kind, Value qubits, Value theta = {}) -> Value {
       return SingleOp::create(rewriter, loc, kind, qubits, theta ? ValueRange{theta} : ValueRange{}).getQubitsOut();
     };
-    auto pair = [&](PairGate kind, Value first, Value second, Value theta = {}) -> std::pair<Value, Value> {
+    auto pair = [&](PairGateKind kind, Value first, Value second, Value theta = {}) -> std::pair<Value, Value> {
       auto pairOp = PairOp::create(rewriter, loc, kind, first, second, theta ? ValueRange{theta} : ValueRange{});
       return {pairOp.getLhsOut(), pairOp.getRhsOut()};
     };
@@ -54,47 +54,47 @@ struct PairToRzz final : OpRewritePattern<PairOp> {
     Value lhs = op.getLhsIn();
     Value rhs = op.getRhsIn();
     switch (op.getGateKind()) {
-    case PairGate::RZZ:
+    case PairGateKind::RZZ:
       return failure(); // Already there.
-    case PairGate::CZ: {
+    case PairGateKind::CZ: {
       // cz = (rz(-pi/2) (x) rz(-pi/2)) * rzz(pi/2)
-      std::tie(lhs, rhs) = pair(PairGate::RZZ, lhs, rhs, splat(pi / 2));
+      std::tie(lhs, rhs) = pair(PairGateKind::RZZ, lhs, rhs, splat(pi / 2));
       Value minusQuarter = splat(-pi / 2);
-      lhs = single(SingleGate::RZ, lhs, minusQuarter);
-      rhs = single(SingleGate::RZ, rhs, minusQuarter);
+      lhs = single(SingleGateKind::RZ, lhs, minusQuarter);
+      rhs = single(SingleGateKind::RZ, rhs, minusQuarter);
       break;
     }
-    case PairGate::CX: {
+    case PairGateKind::CX: {
       // cx = h_t * cz * h_t
-      rhs = single(SingleGate::H, rhs);
-      std::tie(lhs, rhs) = pair(PairGate::CZ, lhs, rhs);
-      rhs = single(SingleGate::H, rhs);
+      rhs = single(SingleGateKind::H, rhs);
+      std::tie(lhs, rhs) = pair(PairGateKind::CZ, lhs, rhs);
+      rhs = single(SingleGateKind::H, rhs);
       break;
     }
-    case PairGate::CY: {
+    case PairGateKind::CY: {
       // cy = s_t * cx * sdg_t
-      rhs = single(SingleGate::Sdg, rhs);
-      std::tie(lhs, rhs) = pair(PairGate::CX, lhs, rhs);
-      rhs = single(SingleGate::S, rhs);
+      rhs = single(SingleGateKind::Sdg, rhs);
+      std::tie(lhs, rhs) = pair(PairGateKind::CX, lhs, rhs);
+      rhs = single(SingleGateKind::S, rhs);
       break;
     }
-    case PairGate::CP: {
+    case PairGateKind::CP: {
       // cp(t) = (rz(t/2) (x) rz(t/2)) * rzz(-t/2)
       Value theta = op.getParams().front();
-      std::tie(lhs, rhs) = pair(PairGate::RZZ, lhs, rhs, scaleAngles(rewriter, loc, theta, -0.5));
+      std::tie(lhs, rhs) = pair(PairGateKind::RZZ, lhs, rhs, scaleAngles(rewriter, loc, theta, -0.5));
       Value half = scaleAngles(rewriter, loc, theta, 0.5);
-      lhs = single(SingleGate::RZ, lhs, half);
-      rhs = single(SingleGate::RZ, rhs, half);
+      lhs = single(SingleGateKind::RZ, lhs, half);
+      rhs = single(SingleGateKind::RZ, rhs, half);
       break;
     }
-    case PairGate::iSWAP: {
+    case PairGateKind::iSWAP: {
       // iswap = swap * cz * (s (x) s), with swap = cx(a, b) * cx(b, a) * cx(a, b)
-      lhs = single(SingleGate::S, lhs);
-      rhs = single(SingleGate::S, rhs);
-      std::tie(lhs, rhs) = pair(PairGate::CZ, lhs, rhs);
-      std::tie(lhs, rhs) = pair(PairGate::CX, lhs, rhs);
-      std::tie(rhs, lhs) = pair(PairGate::CX, rhs, lhs);
-      std::tie(lhs, rhs) = pair(PairGate::CX, lhs, rhs);
+      lhs = single(SingleGateKind::S, lhs);
+      rhs = single(SingleGateKind::S, rhs);
+      std::tie(lhs, rhs) = pair(PairGateKind::CZ, lhs, rhs);
+      std::tie(lhs, rhs) = pair(PairGateKind::CX, lhs, rhs);
+      std::tie(rhs, lhs) = pair(PairGateKind::CX, rhs, lhs);
+      std::tie(lhs, rhs) = pair(PairGateKind::CX, lhs, rhs);
       break;
     }
     }

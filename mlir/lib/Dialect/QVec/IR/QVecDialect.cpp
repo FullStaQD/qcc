@@ -92,12 +92,12 @@ static LogicalResult verifyGateParams(Operation* op, StringRef kind, unsigned ex
 }
 
 LogicalResult SingleOp::verify() {
-  return verifyGateParams(*this, stringifySingleGate(getGateKind()), SingleGateAttr::getNumParams(getGateKind()),
-                          getQubitsIn().getType(), getParams());
+  return verifyGateParams(*this, stringifySingleGateKind(getGateKind()),
+                          SingleGateKindAttr::getNumParams(getGateKind()), getQubitsIn().getType(), getParams());
 }
 
 LogicalResult PairOp::verify() {
-  return verifyGateParams(*this, stringifyPairGate(getGateKind()), PairGateAttr::getNumParams(getGateKind()),
+  return verifyGateParams(*this, stringifyPairGateKind(getGateKind()), PairGateKindAttr::getNumParams(getGateKind()),
                           getLhsIn().getType(), getParams());
 }
 

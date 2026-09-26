@@ -136,38 +136,38 @@ static std::optional<ResolvedQubits> resolveQubitVector(Operation* op, TypedValu
 }
 
 /// Returns the intrinsic implementing `gate`, or an empty ref if there is none.
-static StringRef getSingleGateIntrinsic(SingleGate gate) {
+static StringRef getSingleGateIntrinsic(SingleGateKind gate) {
   switch (gate) {
-  case SingleGate::H:
+  case SingleGateKind::H:
     return "llvm.riscv.qv.h";
-  case SingleGate::X:
+  case SingleGateKind::X:
     return "llvm.riscv.qv.x";
-  case SingleGate::I:
-  case SingleGate::Y:
-  case SingleGate::Z:
-  case SingleGate::S:
-  case SingleGate::Sdg:
-  case SingleGate::T:
-  case SingleGate::Tdg:
-  case SingleGate::RX:
-  case SingleGate::RY:
-  case SingleGate::RZ:
-  case SingleGate::UZXZ:
+  case SingleGateKind::I:
+  case SingleGateKind::Y:
+  case SingleGateKind::Z:
+  case SingleGateKind::S:
+  case SingleGateKind::Sdg:
+  case SingleGateKind::T:
+  case SingleGateKind::Tdg:
+  case SingleGateKind::RX:
+  case SingleGateKind::RY:
+  case SingleGateKind::RZ:
+  case SingleGateKind::UZXZ:
     return {};
   }
   return {};
 }
 
 /// Returns the intrinsic implementing `gate`, or an empty ref if there is none.
-static StringRef getPairGateIntrinsic(PairGate gate) {
+static StringRef getPairGateIntrinsic(PairGateKind gate) {
   switch (gate) {
-  case PairGate::CX:
+  case PairGateKind::CX:
     return "llvm.riscv.qv.cx";
-  case PairGate::CY:
-  case PairGate::CZ:
-  case PairGate::iSWAP:
-  case PairGate::RZZ:
-  case PairGate::CP:
+  case PairGateKind::CY:
+  case PairGateKind::CZ:
+  case PairGateKind::iSWAP:
+  case PairGateKind::RZZ:
+  case PairGateKind::CP:
     return {};
   }
   return {};
@@ -202,7 +202,7 @@ struct SingleOpLowering : public OpRewritePattern<SingleOp> {
   LogicalResult matchAndRewrite(SingleOp op, PatternRewriter& rewriter) const override {
     StringRef intrinsic = getSingleGateIntrinsic(op.getGateKind());
     if (intrinsic.empty()) {
-      return diags->report(op, "gate '" + stringifySingleGate(op.getGateKind()) + "' has no HiSEP-Q intrinsic");
+      return diags->report(op, "gate '" + stringifySingleGateKind(op.getGateKind()) + "' has no HiSEP-Q intrinsic");
     }
 
     auto qubits = resolveQubitVector(op, op.getQubitsIn(), machine, *diags);
@@ -233,7 +233,7 @@ struct PairOpLowering : public OpRewritePattern<PairOp> {
   LogicalResult matchAndRewrite(PairOp op, PatternRewriter& rewriter) const override {
     StringRef intrinsic = getPairGateIntrinsic(op.getGateKind());
     if (intrinsic.empty()) {
-      return diags->report(op, "gate '" + stringifyPairGate(op.getGateKind()) + "' has no HiSEP-Q intrinsic");
+      return diags->report(op, "gate '" + stringifyPairGateKind(op.getGateKind()) + "' has no HiSEP-Q intrinsic");
     }
 
     auto lhs = resolveQubitVector(op, op.getLhsIn(), machine, *diags);
