@@ -26,11 +26,11 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 // quantum-unaware passes. Note that e.g. a `Pure` measurement would allow some passes to hoist them out of control-flow
 // or alternatively sink into control-flow (see code motion) under circumstances were this is not consistent with the
 // intended semantics.
-class QVecOp<string mnemonic, list<Trait> traits = []>
-    : Op<QVecDialect, mnemonic,
+class QVec_Op<string mnemonic, list<Trait> traits = []>
+    : Op<QVec_Dialect, mnemonic,
          !listconcat(traits, [MemoryEffects<[MemRead, MemWrite]>, QVec_QubitLaneOpInterface])>;
 
-def SingleOp : QVecOp<"single", [AllTypesMatch<["qubits_in", "qubits_out"]>]> {
+def QVec_SingleOp : QVec_Op<"single", [AllTypesMatch<["qubits_in", "qubits_out"]>]> {
   let summary = "single-qubit gate across a vector of qubits";
   let description = [{
         A `single` applies the same gate over all qubits referenced in its operand vector. Each element of the vector
@@ -83,7 +83,7 @@ def SingleOp : QVecOp<"single", [AllTypesMatch<["qubits_in", "qubits_out"]>]> {
     }];
 }
 
-def PairOp : QVecOp<"pair", [AllTypesMatch<["lhs_in", "rhs_in", "lhs_out", "rhs_out"]>]> {
+def QVec_PairOp : QVec_Op<"pair", [AllTypesMatch<["lhs_in", "rhs_in", "lhs_out", "rhs_out"]>]> {
   let summary = "two-qubit gate across two vectors of qubits";
   let description = [{
         Applies a two-qubit gate to each pair of qubits `lhs[i]` and `rhs[i]`. All qubits must be distinct, consistent
@@ -136,7 +136,7 @@ def PairOp : QVecOp<"pair", [AllTypesMatch<["lhs_in", "rhs_in", "lhs_out", "rhs_
     }];
 }
 
-def GlobalOp : QVecOp<"global", [AllTypesMatch<["qubits_in", "qubits_out"]>]> {
+def QVec_GlobalOp : QVec_Op<"global", [AllTypesMatch<["qubits_in", "qubits_out"]>]> {
   let summary = "gate acting on all qubits of a vector jointly";
   let description = [{
         Unlike `single` and `pair`, which apply one gate per lane, a `global` gate acts on all lanes of its qubit vector
@@ -188,8 +188,8 @@ def GlobalOp : QVecOp<"global", [AllTypesMatch<["qubits_in", "qubits_out"]>]> {
     }];
 }
 
-def MZOp : QVecOp<"mz", [AllTypesMatch<["qubits_in", "qubits_out"]>,
-                           AllShapesMatch<["qubits_in", "bits"]>]> {
+def QVec_MZOp : QVec_Op<"mz", [AllTypesMatch<["qubits_in", "qubits_out"]>,
+                               AllShapesMatch<["qubits_in", "bits"]>]> {
   let summary = "measures a vector of qubits in the computational basis";
   let description = [{
         Measures every element of `qubits_in` in the computational (Z) basis, collapsing their state,

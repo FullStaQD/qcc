@@ -17,7 +17,7 @@ include "mlir/IR/AttrTypeBase.td"
 // QVec dialect
 //===----------------------------------------------------------------------===//
 
-def QVecDialect : Dialect {
+def QVec_Dialect : Dialect {
     let summary = "Vector-shaped quantum instructions.";
     let description = [{
         Some quantum ISAs apply one gate across every active element of a vector register, so that a whole batch of

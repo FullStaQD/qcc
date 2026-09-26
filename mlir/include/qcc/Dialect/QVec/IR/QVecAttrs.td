@@ -26,7 +26,7 @@ class QVec_ArityCases<EnumInfo e, string enumName> {
         # !cast<string>(!cast<QVec_GateCase>(c).numParams) # ";"), "\n");
 }
 
-def QVec_SingleGateKindAttr : EnumAttr<QVecDialect, QVec_SingleGateKind, "single_gate"> {
+def QVec_SingleGateKindAttr : EnumAttr<QVec_Dialect, QVec_SingleGateKind, "single_gate"> {
   let assemblyFormat = "$value";
   let extraClassDeclaration = [{
     /// Number of angle parameters a `qvec.single` of `kind` takes.
@@ -39,7 +39,7 @@ def QVec_SingleGateKindAttr : EnumAttr<QVecDialect, QVec_SingleGateKind, "single
   }];
 }
 
-def QVec_PairGateKindAttr : EnumAttr<QVecDialect, QVec_PairGateKind, "pair_gate"> {
+def QVec_PairGateKindAttr : EnumAttr<QVec_Dialect, QVec_PairGateKind, "pair_gate"> {
   let assemblyFormat = "$value";
   let extraClassDeclaration = [{
     /// Number of angle parameters a `qvec.pair` of `kind` takes.
@@ -52,7 +52,7 @@ def QVec_PairGateKindAttr : EnumAttr<QVecDialect, QVec_PairGateKind, "pair_gate"
   }];
 }
 
-def QVec_GlobalGateKindAttr : EnumAttr<QVecDialect, QVec_GlobalGateKind, "global_gate"> {
+def QVec_GlobalGateKindAttr : EnumAttr<QVec_Dialect, QVec_GlobalGateKind, "global_gate"> {
   let assemblyFormat = "$value";
 }
 

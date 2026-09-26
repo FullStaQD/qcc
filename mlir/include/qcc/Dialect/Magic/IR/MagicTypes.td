@@ -18,7 +18,7 @@ include "mlir/IR/AttrTypeBase.td"
 // Magic types
 //===----------------------------------------------------------------------===//
 
-class Magic_Type<string name, string typeMnemonic, list<Trait> traits = []> : TypeDef<MagicDialect, name, traits> {
+class Magic_Type<string name, string typeMnemonic, list<Trait> traits = []> : TypeDef<Magic_Dialect, name, traits> {
   let mnemonic = typeMnemonic;
 }
 

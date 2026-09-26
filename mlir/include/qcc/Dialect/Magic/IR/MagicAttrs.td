@@ -20,7 +20,7 @@ include "mlir/IR/AttrTypeBase.td"
 // MAGIC device attributes
 //===----------------------------------------------------------------------===//
 
-class Magic_Attr<string name, string attrMnemonic, list<Trait> traits = []> : AttrDef<MagicDialect, name, traits> {
+class Magic_Attr<string name, string attrMnemonic, list<Trait> traits = []> : AttrDef<Magic_Dialect, name, traits> {
   let mnemonic = attrMnemonic;
 }
 
