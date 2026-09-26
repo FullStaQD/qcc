@@ -136,32 +136,38 @@ static std::optional<ResolvedQubits> resolveQubitVector(Operation* op, TypedValu
 }
 
 /// Returns the intrinsic implementing `gate`, or an empty ref if there is none.
-static StringRef getSingleGateIntrinsic(SingleGate gate) {
+static StringRef getSingleGateIntrinsic(SingleGateKind gate) {
   switch (gate) {
-  case SingleGate::H:
+  case SingleGateKind::H:
     return "llvm.riscv.qv.h";
-  case SingleGate::X:
+  case SingleGateKind::X:
     return "llvm.riscv.qv.x";
-  case SingleGate::I:
-  case SingleGate::Y:
-  case SingleGate::Z:
-  case SingleGate::S:
-  case SingleGate::Sdg:
-  case SingleGate::T:
-  case SingleGate::Tdg:
+  case SingleGateKind::I:
+  case SingleGateKind::Y:
+  case SingleGateKind::Z:
+  case SingleGateKind::S:
+  case SingleGateKind::Sdg:
+  case SingleGateKind::T:
+  case SingleGateKind::Tdg:
+  case SingleGateKind::RX:
+  case SingleGateKind::RY:
+  case SingleGateKind::RZ:
+  case SingleGateKind::UZXZ:
     return {};
   }
   return {};
 }
 
 /// Returns the intrinsic implementing `gate`, or an empty ref if there is none.
-static StringRef getPairGateIntrinsic(PairGate gate) {
+static StringRef getPairGateIntrinsic(PairGateKind gate) {
   switch (gate) {
-  case PairGate::CX:
+  case PairGateKind::CX:
     return "llvm.riscv.qv.cx";
-  case PairGate::CY:
-  case PairGate::CZ:
-  case PairGate::iSWAP:
+  case PairGateKind::CY:
+  case PairGateKind::CZ:
+  case PairGateKind::iSWAP:
+  case PairGateKind::RZZ:
+  case PairGateKind::CP:
     return {};
   }
   return {};
@@ -196,7 +202,7 @@ struct SingleOpLowering : public OpRewritePattern<SingleOp> {
   LogicalResult matchAndRewrite(SingleOp op, PatternRewriter& rewriter) const override {
     StringRef intrinsic = getSingleGateIntrinsic(op.getGateKind());
     if (intrinsic.empty()) {
-      return diags->report(op, "gate '" + stringifySingleGate(op.getGateKind()) + "' has no HiSEP-Q intrinsic");
+      return diags->report(op, "gate '" + stringifySingleGateKind(op.getGateKind()) + "' has no HiSEP-Q intrinsic");
     }
 
     auto qubits = resolveQubitVector(op, op.getQubitsIn(), machine, *diags);
@@ -227,7 +233,7 @@ struct PairOpLowering : public OpRewritePattern<PairOp> {
   LogicalResult matchAndRewrite(PairOp op, PatternRewriter& rewriter) const override {
     StringRef intrinsic = getPairGateIntrinsic(op.getGateKind());
     if (intrinsic.empty()) {
-      return diags->report(op, "gate '" + stringifyPairGate(op.getGateKind()) + "' has no HiSEP-Q intrinsic");
+      return diags->report(op, "gate '" + stringifyPairGateKind(op.getGateKind()) + "' has no HiSEP-Q intrinsic");
     }
 
     auto lhs = resolveQubitVector(op, op.getLhsIn(), machine, *diags);
@@ -260,11 +266,11 @@ struct PairOpLowering : public OpRewritePattern<PairOp> {
 /// TODO: The QISA specifies no way to read a measurement back, so the classical bits are lost
 /// here. Replace the poison with a real read once `IntrinsicsRISCVXQV.td` gains an intrinsic for
 /// it. Until then a program that branches on a measurement silently gets garbage.
-struct MzOpLowering : public OpRewritePattern<MzOp> {
-  MzOpLowering(MLIRContext* ctx, Diagnostics* diags, HiSEPQMachine machine)
+struct MZOpLowering : public OpRewritePattern<MZOp> {
+  MZOpLowering(MLIRContext* ctx, Diagnostics* diags, HiSEPQMachine machine)
       : OpRewritePattern(ctx), diags(diags), machine(machine) {}
 
-  LogicalResult matchAndRewrite(MzOp op, PatternRewriter& rewriter) const override {
+  LogicalResult matchAndRewrite(MZOp op, PatternRewriter& rewriter) const override {
     auto qubits = resolveQubitVector(op, op.getQubitsIn(), machine, *diags);
     if (!qubits) {
       return failure();
@@ -328,7 +334,7 @@ protected:
 
     Diagnostics diags;
     RewritePatternSet patterns(ctx);
-    patterns.add<SingleOpLowering, PairOpLowering, MzOpLowering>(ctx, &diags, machine);
+    patterns.add<SingleOpLowering, PairOpLowering, MZOpLowering>(ctx, &diags, machine);
     patterns.add<RecordOpErasure<aux::RecordIntOp>, RecordOpErasure<aux::RecordMemRefOp>>(ctx);
 
     if (failed(applyPatternsGreedily(moduleOp, std::move(patterns))) || diags.hadError) {

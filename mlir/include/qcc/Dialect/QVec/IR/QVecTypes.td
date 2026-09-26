@@ -32,4 +32,10 @@ def QVec_QubitVector : FixedVectorOfRankAndType<[1], [QVec_AnyQubit]>;
 // `vector<Nxi1>` - non-scalable vector of classical bits, one per qubit.
 def QVec_BitVector : FixedVectorOfRankAndType<[1], [I1]>;
 
+// `vector<Nxf64>` - one angle (radians) per lane of a qubit vector.
+def QVec_AngleVector : FixedVectorOfRankAndType<[1], [F64]>;
+
+// `vector<NxNxf64>` - one angle (radians) per pair of lanes of a qubit vector.
+def QVec_AngleMatrix : FixedVectorOfRankAndType<[2], [F64]>;
+
 #endif // INCLUDE_QCC_DIALECT_QVEC_IR_QVECTYPES_TD_

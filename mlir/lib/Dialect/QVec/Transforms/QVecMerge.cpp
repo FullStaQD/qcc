@@ -45,20 +45,31 @@ static int64_t getVectorLength(QubitLaneOpInterface op) { return op.getQubitResu
 /// qubit lanes are disjoint. BucketKey = (operation name, secondary bucket key).
 using BucketKey = std::pair<OperationName, uint32_t>;
 
-/// Get the second component of the `BucketKey`.
+/// Get the second component of the `BucketKey`, or nullopt for an operation this pass never merges.
 ///
-/// Returning nullopt at runtime is considered a bug, hence the assert in the impl. We still emit a null-opt to avoid
-/// correctness mistakes during production run. Returning a nullopt just means a possibly missed merge opportunity.
+/// TODO(#141): Parametrised `single` / `pair` are left alone for now, because merging them means concatenating
+/// their angle vectors (trivial for constants, a `vector.shuffle` / `vector.from_elements` for SSA vectors). Disjoint
+/// `global zz` blocks could merge by direct sum of their (constant) matrices. Both belong to the merge rewrite.
 static std::optional<uint32_t> getSecondaryBucketKey(QubitLaneOpInterface op) {
-  const std::optional<uint32_t> secondaryKey =
-      TypeSwitch<Operation*, std::optional<uint32_t>>(op)
-          .Case([](SingleOp singleOp) { return static_cast<uint32_t>(singleOp.getGateKind()); })
-          .Case([](PairOp pairOp) { return static_cast<uint32_t>(pairOp.getGateKind()); })
-          .Case([](MzOp) { return 0U; }) // A measurement has no gate kind its instances could differ in.
-          .Default([](Operation*) { return std::nullopt; });
-
-  assert(secondaryKey && "unhandled qvec operation, it stays unmerged");
-  return secondaryKey;
+  return TypeSwitch<Operation*, std::optional<uint32_t>>(op)
+      .Case([](SingleOp singleOp) -> std::optional<uint32_t> {
+        if (!singleOp.getParams().empty()) {
+          return std::nullopt;
+        }
+        return static_cast<uint32_t>(singleOp.getGateKind());
+      })
+      .Case([](PairOp pairOp) -> std::optional<uint32_t> {
+        if (!pairOp.getParams().empty()) {
+          return std::nullopt;
+        }
+        return static_cast<uint32_t>(pairOp.getGateKind());
+      })
+      .Case([](GlobalOp) -> std::optional<uint32_t> { return std::nullopt; })
+      .Case([](MZOp) -> std::optional<uint32_t> { return 0U; }) // No gate kind its instances could differ in.
+      .Default([](Operation*) -> std::optional<uint32_t> {
+        assert(false && "unhandled qvec operation, it stays unmerged");
+        return std::nullopt;
+      });
 }
 
 //===----------------------------------------------------------------------===//
@@ -168,15 +179,14 @@ static void mergeGroup(const Group& group) {
   Operation* merged =
       TypeSwitch<Operation*, Operation*>(firstOp)
           .Case([&](SingleOp singleOp) {
-            return SingleOp::create(builder, loc, operands[0].getType(), singleOp.getGateKind(), operands[0]);
+            return SingleOp::create(builder, loc, singleOp.getGateKind(), operands[0]); // parameter-free, see bucketing
           })
           .Case([&](PairOp pairOp) {
-            return PairOp::create(builder, loc, operands[0].getType(), operands[1].getType(), pairOp.getGateKind(),
-                                  operands[0], operands[1]);
+            return PairOp::create(builder, loc, pairOp.getGateKind(), operands[0], operands[1]);
           })
-          .Case([&](MzOp) {
+          .Case([&](MZOp) {
             auto bitsType = VectorType::get({group.width}, builder.getI1Type());
-            return MzOp::create(builder, loc, operands[0].getType(), bitsType, operands[0]);
+            return MZOp::create(builder, loc, operands[0].getType(), bitsType, operands[0]);
           });
 
   // Replace uses of members by our newly created merged op.

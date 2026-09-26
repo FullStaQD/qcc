@@ -13,6 +13,8 @@
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/DialectImplementation.h" // IWYU pragma: keep
+#include "mlir/IR/Matchers.h"
+#include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/Value.h"
 
@@ -36,8 +38,98 @@ using namespace qcc::qvec;
 #define GET_ATTRDEF_CLASSES
 #include "qcc/Dialect/QVec/IR/QVecAttrs.cpp.inc"
 
+//===----------------------------------------------------------------------===//
+// Custom assembly: `: <qubit vector type>[, <angle vector type>]`
+//===----------------------------------------------------------------------===//
+
+/// Parses the type part of a `single` / `pair`: the qubit vector type, then, iff the gate has parameters, a comma and
+/// one type shared by all of them.
+static ParseResult parseGateTypes(OpAsmParser& parser, Type& qubitsType, SmallVectorImpl<Type>& paramTypes,
+                                  ArrayRef<OpAsmParser::UnresolvedOperand> params) {
+  if (parser.parseType(qubitsType)) {
+    return failure();
+  }
+  if (params.empty()) {
+    return success();
+  }
+  Type paramType;
+  if (parser.parseComma() || parser.parseType(paramType)) {
+    return failure();
+  }
+  paramTypes.assign(params.size(), paramType);
+  return success();
+}
+
+static void printGateTypes(OpAsmPrinter& printer, Operation* /*op*/, Type qubitsType, TypeRange paramTypes,
+                           OperandRange /*params*/) {
+  printer << qubitsType;
+  if (!paramTypes.empty()) {
+    printer << ", " << paramTypes.front(); // The verifier guarantees they are all equal.
+  }
+}
+
 #define GET_OP_CLASSES
 #include "qcc/Dialect/QVec/IR/QVecOps.cpp.inc"
+
+//===----------------------------------------------------------------------===//
+// Verifiers
+//===----------------------------------------------------------------------===//
+
+/// Checks that `op` carries `expected` parameter vectors, each shaped like its qubit vector `qubitsType`.
+static LogicalResult verifyGateParams(Operation* op, StringRef kind, unsigned expected, VectorType qubitsType,
+                                      OperandRange params) {
+  if (params.size() != expected) {
+    return op->emitOpError() << "gate '" << kind << "' takes " << expected << " parameter(s), got " << params.size();
+  }
+  for (Value param : params) {
+    auto paramType = cast<VectorType>(param.getType());
+    if (paramType.getShape() != qubitsType.getShape()) {
+      return op->emitOpError() << "parameter type " << paramType << " does not match the shape of the qubit vector "
+                               << qubitsType;
+    }
+  }
+  return success();
+}
+
+LogicalResult SingleOp::verify() {
+  return verifyGateParams(*this, stringifySingleGateKind(getGateKind()),
+                          SingleGateKindAttr::getNumParams(getGateKind()), getQubitsIn().getType(), getParams());
+}
+
+LogicalResult PairOp::verify() {
+  return verifyGateParams(*this, stringifyPairGateKind(getGateKind()), PairGateKindAttr::getNumParams(getGateKind()),
+                          getLhsIn().getType(), getParams());
+}
+
+LogicalResult GlobalOp::verify() {
+  const int64_t numQubits = getQubitsIn().getType().getNumElements();
+  VectorType anglesType = getAngles().getType();
+  if (anglesType.getShape() != ArrayRef<int64_t>{numQubits, numQubits}) {
+    return emitOpError() << "angle matrix " << anglesType << " must be " << numQubits << "x" << numQubits
+                         << " to match the qubit vector";
+  }
+
+  // Only a constant matrix can be inspected; SSA matrices are the responsibility of whoever produces them.
+  DenseFPElementsAttr angles;
+  if (!matchPattern(getAngles(), m_Constant(&angles))) {
+    return success();
+  }
+  auto values = angles.getValues<double>();
+  auto at = [&](int64_t i, int64_t j) { return values[static_cast<size_t>((i * numQubits) + j)]; };
+  for (int64_t i = 0; i < numQubits; ++i) {
+    if (at(i, i) != 0.0) {
+      return emitOpError() << "angle matrix must have a zero diagonal, entry (" << i << ", " << i << ") is "
+                           << at(i, i);
+    }
+    for (int64_t j = 0; j < i; ++j) {
+      if (at(i, j) != at(j, i)) {
+        return emitOpError() << "angle matrix must be symmetric, entries (" << i << ", " << j << ") and (" << j << ", "
+                             << i << ") differ";
+      }
+    }
+  }
+  return success();
+}
 
 void QVecDialect::initialize() {
   addTypes<>();

@@ -19,11 +19,40 @@ include "mlir/IR/EnumAttr.td"
 // Gate kind attributes
 //===----------------------------------------------------------------------===//
 
-def QVec_SingleGateAttr : EnumAttr<QVecDialect, QVec_SingleGate, "single_gate"> {
-  let assemblyFormat = "$value";
+// The body of a `switch` over the cases of `e`.
+class QVec_ArityCases<EnumInfo e, string enumName> {
+  string result = !interleave(!foreach(c, e.enumerants,
+      "    case " # enumName # "::" # c.symbol # ": return "
+        # !cast<string>(!cast<QVec_GateCase>(c).numParams) # ";"), "\n");
 }
 
-def QVec_PairGateAttr : EnumAttr<QVecDialect, QVec_PairGate, "pair_gate"> {
+def QVec_SingleGateKindAttr : EnumAttr<QVec_Dialect, QVec_SingleGateKind, "single_gate"> {
+  let assemblyFormat = "$value";
+  let extraClassDeclaration = [{
+    /// Number of angle parameters a `qvec.single` of `kind` takes.
+    static unsigned getNumParams(::qcc::qvec::SingleGateKind kind) {
+      switch (kind) {
+}] # QVec_ArityCases<QVec_SingleGateKind, "::qcc::qvec::SingleGateKind">.result # [{
+      }
+      llvm_unreachable("unknown single-qubit gate kind");
+    }
+  }];
+}
+
+def QVec_PairGateKindAttr : EnumAttr<QVec_Dialect, QVec_PairGateKind, "pair_gate"> {
+  let assemblyFormat = "$value";
+  let extraClassDeclaration = [{
+    /// Number of angle parameters a `qvec.pair` of `kind` takes.
+    static unsigned getNumParams(::qcc::qvec::PairGateKind kind) {
+      switch (kind) {
+}] # QVec_ArityCases<QVec_PairGateKind, "::qcc::qvec::PairGateKind">.result # [{
+      }
+      llvm_unreachable("unknown two-qubit gate kind");
+    }
+  }];
+}
+
+def QVec_GlobalGateKindAttr : EnumAttr<QVec_Dialect, QVec_GlobalGateKind, "global_gate"> {
   let assemblyFormat = "$value";
 }
 

@@ -19,23 +19,22 @@ def ConvertQCOToQVec : Pass<"convert-qco-to-qvec", "mlir::ModuleOp"> {
       Every gate gets wrapped between `vector.from_elements` and `vector.extract` ops. For example
 
       ```mlir
-      %q1 = qco.h %q0 : !qco.qubit -> !qco.qubit
+      %q1 = qco.rz(%theta) %q0 : !qco.qubit -> !qco.qubit
       ```
 
       becomes
 
       ```mlir
       %qs = vector.from_elements %q0 : vector<1x!qco.qubit>
-      %hs = qvec.single h %qs : vector<1x!qco.qubit>
-      %q1 = vector.extract %hs[0] : !qco.qubit from vector<1x!qco.qubit>
+      %ts = vector.from_elements %theta : vector<1xf64>
+      %rs = qvec.single rz(%ts) %qs : vector<1x!qco.qubit>, vector<1xf64>
+      %q1 = vector.extract %rs[0] : !qco.qubit from vector<1x!qco.qubit>
       ```
 
       Similar for pairs and measurements.
 
-      `qco.static` is kept as the source of qubits, and `qco.sink` is erased. Gates that cannot be
-      legalized make the pass fail. Note that legality here is the `qvec` gate set, not any one
-      machine's: a gate this pass accepts may still be rejected further down by a target that cannot
-      execute it.
+      Gates which cannot be translated 1:1 are decomposed if possible. Gates that cannot be legalized make the pass
+      fail. `qco.static` is kept as the source of qubits, and `qco.sink` is erased.
    }];
 
   let dependentDialects = [

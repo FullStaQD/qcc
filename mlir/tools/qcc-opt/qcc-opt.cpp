@@ -118,6 +118,10 @@ int main(int argc, char** argv) {
   qcc::registerConvertQCOToQVec();
   qcc::registerConvertQVecToHiSEPQIntrinsics();
   qcc::registerQVecMerge();
+  qcc::registerQVecToRZZ();
+  qcc::registerQVecToUZXZ();
+  qcc::registerQVecFuseZXZ();
+  qcc::registerQVecLayer();
   qcc::magic::registerMagicVerify();
   qcc::registerQccAttachDevice();
   mlir::registerQCToQCO();

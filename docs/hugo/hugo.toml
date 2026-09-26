@@ -5,3 +5,8 @@ title = "qcc docs"
 # web server involved.
 relativeURLs = true
 uglyURLs = true
+
+# mlir-tblgen emits the attribute tables as raw HTML (a `<details>` block per attribute, which a markdown
+# table cell cannot hold), so goldmark has to pass HTML through instead of dropping it.
+[markup.goldmark.renderer]
+unsafe = true
