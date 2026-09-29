@@ -32,30 +32,94 @@
 #include "llvm/IR/Module.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/CodeGen.h"
-#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
 #include "llvm/TargetParser/Triple.h"
 
+#include <algorithm>
+#include <array>
 #include <memory>
 #include <optional>
 #include <string>
 
 namespace qcc {
 
-/// Max qubits per QV instruction
-static unsigned maxVectorizationFactor(const TargetOptions& targetOptions) {
-  using hisepq::HiSEPQMachine;
-  if (!HiSEPQMachine::isSupportedMinVLen(targetOptions.minVLen) ||
-      !HiSEPQMachine::isSupportedQubitElementWidth(targetOptions.qubitElementWidth)) {
-    // TODO: that this branch is possible means the function has a design flaw. Returning "unlimited" here is plainly
-    // wrong.
-    return 0;
-  }
+// clang-format off
+static constexpr auto hisepqFeatureTable = std::to_array<Feature>({
+    {"zvl64b", "Minimum vector length 64 bits"},
+    {"zvl128b", "Minimum vector length 128 bits"},
+    {"zvl256b", "Minimum vector length 256 bits"},
+    {"zvl512b", "Minimum vector length 512 bits"},
+    {"zvl1024b", "Minimum vector length 1024 bits"},
+    {"zvl2048b", "Minimum vector length 2048 bits"},
+    {"zvl4096b", "Minimum vector length 4096 bits"},
+    {"zvl8192b", "Minimum vector length 8192 bits"},
+    {"zvl16384b", "Minimum vector length 16384 bits"},
+    {"zvl32768b", "Minimum vector length 32768 bits"},
+    {"zvl65536b", "Minimum vector length 65536 bits"},
+});
+// clang-format on
+const llvm::ArrayRef<Feature> hisepqFeatures = hisepqFeatureTable;
 
-  return HiSEPQMachine(targetOptions.minVLen, targetOptions.qubitElementWidth).maxQubits();
+// TODO: Add CPUs for concrete HiSEP-Q builds, e.g. one with a VLEN of 128 and 16 qubit control lines.
+static constexpr auto genericFeatures = std::to_array<llvm::StringRef>({"zvl64b"});
+static constexpr auto hisepqCpuTable = std::to_array<Cpu>({
+    {.name = "generic",
+     .description = "The smallest machine every HiSEP-Q build provides",
+     .features = genericFeatures},
+});
+const llvm::ArrayRef<Cpu> hisepqCpus = hisepqCpuTable;
+
+/// QEW: the ISA reads qubit indices as 8 bits.
+static constexpr unsigned qubitElementWidth = 8;
+
+/// Parses `N` out of a feature name of the form `<prefix><N><suffix>`.
+static std::optional<unsigned> boundOf(llvm::StringRef name, llvm::StringRef prefix, llvm::StringRef suffix) {
+  unsigned value = 0;
+  if (!name.consume_front(prefix) || !name.consume_back(suffix) || name.getAsInteger(10, value)) {
+    return std::nullopt;
+  }
+  return value;
+}
+
+/// Applies `features` in order, as LLVM does for `zvl<N>b`, and returns the largest `<prefix><N><suffix>` enabled.
+static std::optional<unsigned> lowerBoundFor(llvm::ArrayRef<FeatureFlag> features, llvm::StringRef prefix,
+                                             llvm::StringRef suffix) {
+  std::optional<unsigned> bound;
+  for (const FeatureFlag& feature : features) {
+    const std::optional<unsigned> value = boundOf(feature.name, prefix, suffix);
+    if (!value) {
+      continue;
+    }
+    if (feature.enable) {
+      bound = std::max(bound.value_or(0), *value);
+      continue;
+    }
+    if (!bound || *bound < *value) {
+      continue;
+    }
+    // Disabling `value` disables every larger bound too, leaving the largest known one below it.
+    bound.reset();
+    for (const Feature& known : hisepqFeatureTable) {
+      const std::optional<unsigned> knownValue = boundOf(known.name, prefix, suffix);
+      if (knownValue && *knownValue < *value) {
+        bound = std::max(bound.value_or(0), *knownValue);
+      }
+    }
+  }
+  return bound;
+}
+
+/// The machine `features` describe; reports an error and returns nullopt if a bound has no feature enabled.
+static std::optional<hisepq::HiSEPQMachine> machineFor(llvm::ArrayRef<FeatureFlag> features) {
+  const std::optional<unsigned> minVLen = lowerBoundFor(features, "zvl", "b");
+  if (!minVLen) {
+    llvm::errs() << "error: -mcpu and -mattr leave no 'zvl<N>b' feature enabled\n";
+    return std::nullopt;
+  }
+  return hisepq::HiSEPQMachine(*minVLen, qubitElementWidth);
 }
 
 void addLoweringPassesHiSEPQViaQIR(mlir::PassManager& pm) {
@@ -64,18 +128,23 @@ void addLoweringPassesHiSEPQViaQIR(mlir::PassManager& pm) {
   pm.addPass(qcc::createEmitHiSEPQStart());
 }
 
-void addLoweringPassesHiSEPQ(mlir::PassManager& pm, const TargetOptions& targetOptions) {
+mlir::LogicalResult addLoweringPassesHiSEPQ(mlir::PassManager& pm, llvm::ArrayRef<FeatureFlag> features) {
+  const std::optional<hisepq::HiSEPQMachine> machine = machineFor(features);
+  if (!machine) {
+    return mlir::failure();
+  }
+
   // qc -> qco -> qvec -> QV intrinsics
   pm.addPass(mlir::createQCToQCO());
   pm.addPass(qcc::createConvertQCOToQVec());
 
   QVecMergeOptions mergeOptions;
-  mergeOptions.maxVF = maxVectorizationFactor(targetOptions);
+  mergeOptions.maxVF = machine->maxQubits();
   pm.addPass(qcc::createQVecMerge(mergeOptions));
 
   ConvertQVecToHiSEPQIntrinsicsOptions intrinsicsOptions;
-  intrinsicsOptions.minVLen = targetOptions.minVLen;
-  intrinsicsOptions.qubitElementWidth = targetOptions.qubitElementWidth;
+  intrinsicsOptions.minVLen = machine->getMinVLen();
+  intrinsicsOptions.qubitElementWidth = machine->getQubitElementWidth();
   pm.addPass(qcc::createConvertQVecToHiSEPQIntrinsics(intrinsicsOptions));
 
   // Classical remainder to LLVM
@@ -90,10 +159,11 @@ void addLoweringPassesHiSEPQ(mlir::PassManager& pm, const TargetOptions& targetO
   // cleanup
   pm.addPass(mlir::createCanonicalizerPass());
   pm.addPass(mlir::createCSEPass());
+  return mlir::success();
 }
 
 bool emitNativeHiSEPQ(llvm::Module& module, llvm::raw_pwrite_stream& os, const NativeCodegenOptions& options,
-                      const TargetOptions& targetOptions) {
+                      llvm::ArrayRef<FeatureFlag> features) {
   // HiSEP-Q QISA is encoded as the experimental "xqv" RISC-V vector extension,
   // provided by the HiSEP-Q LLVM fork.
   LLVMInitializeRISCVTargetInfo();
@@ -102,7 +172,11 @@ bool emitNativeHiSEPQ(llvm::Module& module, llvm::raw_pwrite_stream& os, const N
   LLVMInitializeRISCVAsmPrinter();
   LLVMInitializeRISCVAsmParser();
 
-  const std::string attrsStr = "+experimental-xqv,+zvl" + std::to_string(targetOptions.minVLen) + "b";
+  const std::optional<hisepq::HiSEPQMachine> machine = machineFor(features);
+  if (!machine) {
+    return true;
+  }
+  const std::string attrsStr = "+experimental-xqv,+zvl" + std::to_string(machine->getMinVLen()) + "b";
   llvm::Triple triple(llvm::Triple::normalize("riscv32-unknown-unknown"));
 
   std::string errorStr;

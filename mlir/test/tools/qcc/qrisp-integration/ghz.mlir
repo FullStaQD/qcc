@@ -3,7 +3,7 @@
 // RUN: qir-runner --file %t.ll -s 5 | FileCheck %s --check-prefix=CHECK-SIM
 
 // The same program taken all the way to HiSEP-Q QISA, in builds that have that target.
-// RUN: %if hisepq %{ qcc --target=hisepq --min-vlen=64 --qubit-element-width=8 --compile-to=native %s | FileCheck %s --check-prefix=CHECK-QISA %}
+// RUN: %if hisepq %{ qcc --target=hisepq --compile-to=native %s | FileCheck %s --check-prefix=CHECK-QISA %}
 
 // GENERATED FROM QRISP VERSION 0.9.6
 

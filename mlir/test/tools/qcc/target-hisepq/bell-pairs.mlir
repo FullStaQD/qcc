@@ -1,5 +1,5 @@
-// RUN: qcc --target=hisepq --min-vlen=128 --qubit-element-width=8 --compile-to=mlir %s | FileCheck %s
-// RUN: qcc --target=hisepq --min-vlen=128 --qubit-element-width=8 --compile-to=native %s | FileCheck %s --check-prefix=CHECK-ASM
+// RUN: qcc --target=hisepq -mattr=+zvl128b --compile-to=mlir %s | FileCheck %s
+// RUN: qcc --target=hisepq -mattr=+zvl128b --compile-to=native %s | FileCheck %s --check-prefix=CHECK-ASM
 
 // An end-to-end test for what routing HiSEP-Q through `qvec` buys: eight Bell pairs, written out one gate at a time
 // the way a frontend emits them, arrive as three QV instructions.

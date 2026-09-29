@@ -28,9 +28,9 @@ static void addLoweringQrisp(mlir::PassManager& pm);
 
 namespace qcc {
 
-void buildPipeline(mlir::PassManager& pm, const Target* target, const TargetOptions& targetOptions) {
+mlir::LogicalResult buildPipeline(mlir::PassManager& pm, const Target* target, llvm::ArrayRef<FeatureFlag> features) {
   addLoweringQrisp(pm);
-  target->addLoweringPasses(pm, targetOptions);
+  return target->addLoweringPasses(pm, features);
 }
 
 } // namespace qcc
