@@ -10,6 +10,7 @@
 #include "qcc/Dialect/QVec/IR/QVec.h"
 
 #include "mlir/Dialect/QCO/IR/QCOOps.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/DialectImplementation.h" // IWYU pragma: keep
@@ -117,11 +118,46 @@ static bool carriesQubits(Type type) {
   return isa<qco::QubitType>(shapedType ? shapedType.getElementType() : type);
 }
 
+static QubitStep stepBack(QubitRef qubit);
+
+static bool isDefinedInside(Value value, Operation* op) {
+  Operation* owner = value.getParentRegion()->getParentOp();
+  return owner == op || op->isProperAncestor(owner);
+}
+
+/// Traces `qubit` back to its value before `ifOp`, or nullopt if that fails.
+static std::optional<QubitRef> traceOutOf(QubitRef qubit, scf::IfOp ifOp) {
+  while (isDefinedInside(qubit.value, ifOp)) {
+    const QubitStep step = stepBack(qubit);
+    if (step.getKind() != QubitStep::Kind::Stepped) {
+      return std::nullopt;
+    }
+    qubit = step.getQubit();
+  }
+  return qubit;
+}
+
+/// Steps back from an `scf.if` result to the qubit both branches trace back to.
+static QubitStep stepBackIfResult(scf::IfOp ifOp, OpResult result) {
+  const unsigned resultNumber = result.getResultNumber();
+  std::optional<QubitRef> thenQubit = traceOutOf(QubitRef{.value = ifOp.thenYield().getOperand(resultNumber)}, ifOp);
+  std::optional<QubitRef> elseQubit = traceOutOf(QubitRef{.value = ifOp.elseYield().getOperand(resultNumber)}, ifOp);
+
+  if (!thenQubit || !elseQubit || thenQubit->value != elseQubit->value || thenQubit->index != elseQubit->index) {
+    return QubitStep(QubitStep::Kind::Unknown);
+  }
+  return QubitStep(*thenQubit);
+}
+
 /// Traces the scalar qubit `element` one step back.
 static QubitStep stepBackElement(Value element) {
   Operation* definingOp = element.getDefiningOp();
   if (definingOp == nullptr) {
     return QubitStep(QubitStep::Kind::Origin); // A block argument.
+  }
+
+  if (auto ifOp = dyn_cast<scf::IfOp>(definingOp)) {
+    return stepBackIfResult(ifOp, cast<OpResult>(element));
   }
 
   // The element may be read out of another qubit vector, in which case the walk continues there.
@@ -202,31 +238,4 @@ qco::StaticOp qcc::qvec::getStaticOpAncestor(TypedValue<VectorType> qubits, int6
     assert(step.getKind() == QubitStep::Kind::Stepped && "unexpected QubitStep::Kind");
     qubit = step.getQubit();
   }
-}
-
-bool qcc::qvec::collectQubitProducers(TypedValue<VectorType> qubits, SmallPtrSetImpl<Operation*>& producers) {
-  bool complete = true;
-
-  for (int64_t index = 0, numElements = qubits.getType().getNumElements(); index < numElements; ++index) {
-    // Every step moves strictly towards a definition, so the walk terminates.
-    for (QubitRef qubit{.value = qubits, .index = index};;) {
-      if (auto producer = dyn_cast_if_present<QubitLaneOpInterface>(qubit.value.getDefiningOp())) {
-        producers.insert(producer);
-        break;
-      }
-
-      const QubitStep step = stepBack(qubit);
-      if (step.getKind() == QubitStep::Kind::Unknown) {
-        complete = false;
-        break;
-      }
-      if (step.getKind() == QubitStep::Kind::Origin) {
-        break;
-      }
-      assert(step.getKind() == QubitStep::Kind::Stepped && "unexpected QubitStep::Kind");
-      qubit = step.getQubit();
-    }
-  }
-
-  return complete;
 }

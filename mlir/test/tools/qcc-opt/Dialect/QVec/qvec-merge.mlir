@@ -229,3 +229,81 @@ func.func @wide_member_slice_is_one_op() {
 // CHECK:         %[[S1:.*]] = vector.extract_strided_slice %[[H]] {offsets = [2], sizes = [2], strides = [1]}
 // CHECK:         qvec.single x %[[S0]] : vector<2x!qco.qubit>
 // CHECK:         qvec.single y %[[S1]] : vector<2x!qco.qubit>
+
+// -----
+
+// CHECK-LABEL: func.func @no_merge_across_if
+func.func @no_merge_across_if(%cond: i1) {
+    %q0 = qco.static 0 : !qco.qubit
+    %q1 = qco.static 1 : !qco.qubit
+
+    %v1 = vector.from_elements %q1 : vector<1x!qco.qubit>
+    %h1 = qvec.single h %v1 : vector<1x!qco.qubit>
+
+    %q0_after = scf.if %cond -> (!qco.qubit) {
+      %v0 = vector.from_elements %q0 : vector<1x!qco.qubit>
+      %x0 = qvec.single x %v0 : vector<1x!qco.qubit>
+      %e0 = vector.extract %x0[0] : !qco.qubit from vector<1x!qco.qubit>
+      scf.yield %e0 : !qco.qubit
+    } else {
+      scf.yield %q0 : !qco.qubit
+    }
+
+    %v0_after = vector.from_elements %q0_after : vector<1x!qco.qubit>
+    %h0 = qvec.single h %v0_after : vector<1x!qco.qubit>
+
+    func.return
+}
+
+// CHECK:         qvec.single h %{{.*}} : vector<1x!qco.qubit>
+// CHECK:         scf.if
+// CHECK:           qvec.single x
+// CHECK:         }
+// CHECK:         qvec.single h %{{.*}} : vector<1x!qco.qubit>
+
+// -----
+
+// CHECK-LABEL: func.func @merge_behind_ifs
+func.func @merge_behind_ifs() {
+    %q0 = qco.static 0 : !qco.qubit
+    %q1 = qco.static 1 : !qco.qubit
+    %q2 = qco.static 2 : !qco.qubit
+
+    %v0 = vector.from_elements %q0 : vector<1x!qco.qubit>
+    %h0 = qvec.single h %v0 : vector<1x!qco.qubit>
+    %e0 = vector.extract %h0[0] : !qco.qubit from vector<1x!qco.qubit>
+
+    %v2 = vector.from_elements %q2 : vector<1x!qco.qubit>
+    %m2, %bits = qvec.mz %v2 : vector<1x!qco.qubit> -> vector<1xi1>
+    %cond = vector.extract %bits[0] : i1 from vector<1xi1>
+
+    %a0 = scf.if %cond -> (!qco.qubit) {
+      %w0 = vector.from_elements %e0 : vector<1x!qco.qubit>
+      %x0 = qvec.single x %w0 : vector<1x!qco.qubit>
+      %f0 = vector.extract %x0[0] : !qco.qubit from vector<1x!qco.qubit>
+      scf.yield %f0 : !qco.qubit
+    } else {
+      scf.yield %e0 : !qco.qubit
+    }
+    %a1 = scf.if %cond -> (!qco.qubit) {
+      %w1 = vector.from_elements %q1 : vector<1x!qco.qubit>
+      %x1 = qvec.single x %w1 : vector<1x!qco.qubit>
+      %f1 = vector.extract %x1[0] : !qco.qubit from vector<1x!qco.qubit>
+      scf.yield %f1 : !qco.qubit
+    } else {
+      scf.yield %q1 : !qco.qubit
+    }
+
+    %u0 = vector.from_elements %a0 : vector<1x!qco.qubit>
+    %y0 = qvec.single y %u0 : vector<1x!qco.qubit>
+    %u1 = vector.from_elements %a1 : vector<1x!qco.qubit>
+    %y1 = qvec.single y %u1 : vector<1x!qco.qubit>
+
+    func.return
+}
+
+// CHECK:         %[[A0:.*]] = scf.if
+// CHECK:         %[[A1:.*]] = scf.if
+// CHECK:         %[[V:.*]] = vector.from_elements %[[A0]], %[[A1]] : vector<2x!qco.qubit>
+// CHECK:         qvec.single y %[[V]] : vector<2x!qco.qubit>
+// CHECK-NOT:     qvec.single y
