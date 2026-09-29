@@ -42,8 +42,7 @@ using namespace qcc::qvec;
 // Custom assembly: `: <qubit vector type>[, <angle vector type>]`
 //===----------------------------------------------------------------------===//
 
-/// Parses the type part of a `single` / `pair`: the qubit vector type, then, iff the gate has parameters, a comma and
-/// one type shared by all of them.
+/// Parses the type part of a `single` / `pair` (custom assembly).
 static ParseResult parseGateTypes(OpAsmParser& parser, Type& qubitsType, SmallVectorImpl<Type>& paramTypes,
                                   ArrayRef<OpAsmParser::UnresolvedOperand> params) {
   if (parser.parseType(qubitsType)) {
@@ -60,6 +59,7 @@ static ParseResult parseGateTypes(OpAsmParser& parser, Type& qubitsType, SmallVe
   return success();
 }
 
+/// Prints the type of a `single` / `pair` (custom assembly).
 static void printGateTypes(OpAsmPrinter& printer, Operation* /*op*/, Type qubitsType, TypeRange paramTypes,
                            OperandRange /*params*/) {
   printer << qubitsType;
@@ -75,11 +75,12 @@ static void printGateTypes(OpAsmPrinter& printer, Operation* /*op*/, Type qubits
 // Verifiers
 //===----------------------------------------------------------------------===//
 
-/// Checks that `op` carries `expected` parameter vectors, each shaped like its qubit vector `qubitsType`.
-static LogicalResult verifyGateParams(Operation* op, StringRef kind, unsigned expected, VectorType qubitsType,
+/// Verify gate parameters for `single` and `pair` ops.
+static LogicalResult verifyGateParams(Operation* op, StringRef kind, unsigned expectedNumParams, VectorType qubitsType,
                                       OperandRange params) {
-  if (params.size() != expected) {
-    return op->emitOpError() << "gate '" << kind << "' takes " << expected << " parameter(s), got " << params.size();
+  if (params.size() != expectedNumParams) {
+    return op->emitOpError() << "gate '" << kind << "' takes " << expectedNumParams << " parameter(s), got "
+                             << params.size();
   }
   for (Value param : params) {
     auto paramType = cast<VectorType>(param.getType());
@@ -109,11 +110,12 @@ LogicalResult GlobalOp::verify() {
                          << " to match the qubit vector";
   }
 
-  // Only a constant matrix can be inspected; SSA matrices are the responsibility of whoever produces them.
+  // Only a constant matrix can be further checked.
   DenseFPElementsAttr angles;
   if (!matchPattern(getAngles(), m_Constant(&angles))) {
     return success();
   }
+
   auto values = angles.getValues<double>();
   auto at = [&](int64_t i, int64_t j) { return values[static_cast<size_t>((i * numQubits) + j)]; };
   for (int64_t i = 0; i < numQubits; ++i) {
