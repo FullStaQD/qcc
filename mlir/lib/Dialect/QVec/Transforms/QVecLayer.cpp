@@ -65,9 +65,9 @@ using Qubit = int64_t;
 struct Gate {
   enum class Kind : uint8_t {
     ZXZ, ///< `single u_zxz` on one lane: `qubits[0]`, `zxz`.
-    Rz,  ///< `single rz` on one lane: `qubits[0]`, `angle`.
-    Zz,  ///< `pair rzz` on one lane or `global zz`: the row-major `matrix` over `qubits`.
-    Mz,  ///< `mz`: measures `qubits` (lane order), `op` is the `qvec.mz` whose bits the rebuild has to replace.
+    RZ,  ///< `single rz` on one lane: `qubits[0]`, `angle`.
+    ZZ,  ///< `pair rzz` on one lane or `global zz`: the row-major `matrix` over `qubits`.
+    MZ,  ///< `mz`: measures `qubits` (lane order), `op` is the `qvec.mz` whose bits the rebuild has to replace.
   };
 
   Kind kind;
@@ -78,12 +78,12 @@ struct Gate {
   Operation* op = nullptr;
 };
 
-/// One layer of the schedule. Layers strictly alternate between the two kinds, starting with `Sq` (which may be
+/// One layer of the schedule. Layers strictly alternate between the two kinds, starting with `SQ` (which may be
 /// empty if the program opens with a coupling).
 struct Layer {
   enum class Kind : uint8_t {
-    Sq, ///< A `single u_zxz` over the qubits in `rotations`.
-    Zz, ///< A `global zz` over the qubits appearing in `couplings`.
+    SQ, ///< A `single u_zxz` over the qubits in `rotations`.
+    ZZ, ///< A `global zz` over the qubits appearing in `couplings`.
   };
 
   explicit Layer(Kind kind) : kind(kind) {}
@@ -91,9 +91,9 @@ struct Layer {
   [[nodiscard]] bool empty() const { return rotations.empty() && couplings.empty(); }
 
   Kind kind;
-  /// `Sq`: the rotation each qubit receives. Ordered so that the emitted lanes are ordered by qubit.
+  /// `SQ`: the rotation each qubit receives. Ordered so that the emitted lanes are ordered by qubit.
   std::map<Qubit, ZXZAngles> rotations;
-  /// `Zz`: the angle of each coupled pair `(i, j)` with `i < j`.
+  /// `ZZ`: the angle of each coupled pair `(i, j)` with `i < j`.
   std::map<std::pair<Qubit, Qubit>, double> couplings;
 };
 
@@ -138,7 +138,7 @@ static Schedule layerGates(ArrayRef<Gate> gates) {
   auto isSqIndex = [](int64_t index) { return index % 2 == 0; };
   auto layerAt = [&](int64_t index) -> Layer& {
     while (std::cmp_less_equal(layers.size(), index)) {
-      layers.emplace_back(isSqIndex(static_cast<int64_t>(layers.size())) ? Layer::Kind::Sq : Layer::Kind::Zz);
+      layers.emplace_back(isSqIndex(static_cast<int64_t>(layers.size())) ? Layer::Kind::SQ : Layer::Kind::ZZ);
     }
     return layers[static_cast<size_t>(index)];
   };
@@ -154,7 +154,7 @@ static Schedule layerGates(ArrayRef<Gate> gates) {
 
   for (const Gate& gate : gates) {
     switch (gate.kind) {
-    case Gate::Kind::Rz:
+    case Gate::Kind::RZ:
       pending[gate.qubits.front()] += gate.angle;
       break;
 
@@ -178,7 +178,7 @@ static Schedule layerGates(ArrayRef<Gate> gates) {
       break;
     }
 
-    case Gate::Kind::Zz: {
+    case Gate::Kind::ZZ: {
       const size_t n = gate.qubits.size();
       auto at = [&](size_t i, size_t j) { return gate.matrix[(i * n) + j]; };
 
@@ -219,7 +219,7 @@ static Schedule layerGates(ArrayRef<Gate> gates) {
       break;
     }
 
-    case Gate::Kind::Mz:
+    case Gate::Kind::MZ:
       break;
     }
   }
@@ -303,7 +303,7 @@ static LogicalResult collectGates(QubitLaneOpInterface op, SmallVectorImpl<Gate>
             return failure();
           }
           for (auto [qubit, angle] : llvm::zip_equal(qubits, *theta)) {
-            gates.push_back(Gate{.kind = Gate::Kind::Rz, .qubits = {qubit}, .angle = angle, .op = singleOp});
+            gates.push_back(Gate{.kind = Gate::Kind::RZ, .qubits = {qubit}, .angle = angle, .op = singleOp});
           }
           return success();
         }
@@ -346,7 +346,7 @@ static LogicalResult collectGates(QubitLaneOpInterface op, SmallVectorImpl<Gate>
         }
         for (auto [a, b, angle] : llvm::zip_equal(lhs, rhs, *theta)) {
           gates.push_back(
-              Gate{.kind = Gate::Kind::Zz, .qubits = {a, b}, .matrix = {0.0, angle, angle, 0.0}, .op = pairOp});
+              Gate{.kind = Gate::Kind::ZZ, .qubits = {a, b}, .matrix = {0.0, angle, angle, 0.0}, .op = pairOp});
         }
         return success();
       })
@@ -359,7 +359,7 @@ static LogicalResult collectGates(QubitLaneOpInterface op, SmallVectorImpl<Gate>
         if (failed(matrix)) {
           return failure();
         }
-        gates.push_back(Gate{.kind = Gate::Kind::Zz, .qubits = qubits, .matrix = *matrix, .op = globalOp});
+        gates.push_back(Gate{.kind = Gate::Kind::ZZ, .qubits = qubits, .matrix = *matrix, .op = globalOp});
         return success();
       })
       .Case([&](MZOp mzOp) -> LogicalResult {
@@ -367,7 +367,7 @@ static LogicalResult collectGates(QubitLaneOpInterface op, SmallVectorImpl<Gate>
         if (failed(resolveQubits(mzOp, mzOp.getQubitsIn(), qubits))) {
           return failure();
         }
-        gates.push_back(Gate{.kind = Gate::Kind::Mz, .qubits = qubits, .op = mzOp});
+        gates.push_back(Gate{.kind = Gate::Kind::MZ, .qubits = qubits, .op = mzOp});
         return success();
       })
       .Default([](Operation* other) { return other->emitOpError() << "is not supported by qvec-layer"; });
@@ -428,7 +428,7 @@ static FailureOr<Program> analyzeFunction(func::FuncOp func) {
       }
       seen.insert(qubit);
     }
-    if (gate.kind == Gate::Kind::Mz) {
+    if (gate.kind == Gate::Kind::MZ) {
       measured.insert_range(gate.qubits);
     }
   }
@@ -459,7 +459,7 @@ public:
   }
 
   void emitLayer(const Layer& layer) {
-    if (layer.kind == Layer::Kind::Sq) {
+    if (layer.kind == Layer::Kind::SQ) {
       SmallVector<Qubit> qubits;
       SmallVector<double> z1;
       SmallVector<double> x;
@@ -576,7 +576,7 @@ static void rebuildFunction(func::FuncOp func, const Program& program, const Sch
   }
   body.emitResidualRz(schedule.residualRz);
   for (const Gate& gate : program.gates) {
-    if (gate.kind == Gate::Kind::Mz) {
+    if (gate.kind == Gate::Kind::MZ) {
       body.emitMeasurement(gate, mapping);
     }
   }
