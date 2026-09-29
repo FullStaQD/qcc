@@ -5,6 +5,7 @@
 // It describes no machine either, and says so rather than ignoring the features:
 // RUN: not qcc --target=qir -mattr=+zvl128b %s 2>&1 | FileCheck %s --check-prefix=CHECK-ERR-MATTR
 // RUN: not qcc --target=qir -mcpu=hisepq %s 2>&1 | FileCheck %s --check-prefix=CHECK-ERR-MCPU
+// RUN: not qcc --target=qir -mqcl=5 %s 2>&1 | FileCheck %s --check-prefix=CHECK-ERR-MQCL
 
 func.func @main() attributes { qcc.entry_point } {
     return
@@ -17,3 +18,4 @@ func.func @main() attributes { qcc.entry_point } {
 // CHECK-ERR-NATIVE: error: native output is not supported for --target=qir
 // CHECK-ERR-MATTR: error: unknown feature '+zvl128b' for --target=qir
 // CHECK-ERR-MCPU: error: unknown CPU 'hisepq' for --target=qir
+// CHECK-ERR-MQCL: error: -mqcl is not supported for --target=qir

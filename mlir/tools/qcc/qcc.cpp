@@ -42,6 +42,7 @@
 #include "mlir/Target/LLVMIR/Export.h"
 #include "mlir/Tools/mlir-opt/MlirOptMain.h"
 
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/IR/LLVMContext.h"
@@ -52,7 +53,11 @@
 #include "llvm/Support/SystemUtils.h"
 #include "llvm/Support/ToolOutputFile.h"
 
+#include <algorithm>
+#include <cstddef>
 #include <cstdint>
+#include <string>
+#include <utility>
 
 namespace cl = llvm::cl;
 
@@ -62,6 +67,44 @@ namespace {
 /// The stage to compile to and emit.
 enum class Stage : uint8_t { Mlir, LlvmIr, Native, CustomMagic };
 } // namespace
+
+/// Returns `text` with its first number replaced by `placeholder`, and that number (empty if there is none).
+static std::pair<std::string, std::string> abstractFirstNumber(llvm::StringRef text, llvm::StringRef placeholder) {
+  const size_t begin = text.find_first_of("0123456789");
+  if (begin == llvm::StringRef::npos) {
+    return {text.str(), ""};
+  }
+  const size_t end = std::min(text.find_first_not_of("0123456789", begin), text.size());
+  return {(text.take_front(begin) + placeholder + text.drop_front(end)).str(), text.slice(begin, end).str()};
+}
+
+/// Prints `features`. A feature whose name and description contain the same number, like `zvl64b`, is printed in its
+/// general form, `zvl<N>b`, with the supported values of N. Consecutive features of the same form share that line.
+static void printFeatures(llvm::ArrayRef<qcc::Feature> features) {
+  size_t first = 0;
+  while (first < features.size()) {
+    const auto [name, value] = abstractFirstNumber(features[first].name, "<N>");
+    const auto [description, descriptionValue] = abstractFirstNumber(features[first].description, "N");
+    llvm::SmallVector<std::string> values{value};
+    size_t last = first + 1;
+    while (!value.empty() && value == descriptionValue && last < features.size()) {
+      const auto [nextName, nextValue] = abstractFirstNumber(features[last].name, "<N>");
+      const auto [nextDescription, nextDescriptionValue] = abstractFirstNumber(features[last].description, "N");
+      if (nextName != name || nextDescription != description || nextValue != nextDescriptionValue) {
+        break;
+      }
+      values.push_back(nextValue);
+      ++last;
+    }
+
+    if (value.empty() || value != descriptionValue) {
+      llvm::outs() << "    -mattr=+" << features[first].name << " - " << features[first].description << "\n";
+    } else {
+      llvm::outs() << "    -mattr=+" << name << " - " << description << " (N = " << llvm::join(values, ", ") << ")\n";
+    }
+    first = last;
+  }
+}
 
 /// Prints the targets compiled into this build.
 static void printTargets() {
@@ -73,11 +116,12 @@ static void printTargets() {
       if (!cpu.features.empty()) {
         llvm::outs() << " (-mattr=+" << llvm::join(cpu.features, ",+") << ")";
       }
+      if (cpu.numQubitControlLines != 0) {
+        llvm::outs() << " (-mqcl=" << cpu.numQubitControlLines << ")";
+      }
       llvm::outs() << (cpu.name == "generic" ? " [default]\n" : "\n");
     }
-    for (const qcc::Feature& feature : backend.features) {
-      llvm::outs() << "    -mattr=+" << feature.name << " - " << feature.description << "\n";
-    }
+    printFeatures(backend.features);
   }
 }
 
@@ -119,6 +163,12 @@ int main(int argc, char** argv) {
                                   cl::value_desc("name"), cl::cat(qccCategory));
   const cl::opt<std::string> mattr("mattr", cl::desc("Target features, comma-separated (see --list-targets)"),
                                    cl::value_desc("+feature,-feature,..."), cl::cat(qccCategory));
+  cl::opt<unsigned> mqcl("mqcl",
+                         cl::desc("Number of qubit control lines the machine drives (default: the CPU's, see "
+                                  "--list-targets)"),
+                         cl::value_desc("N"), cl::cat(qccCategory));
+  const cl::alias mqclAlias("mqubit-control-lines", cl::desc("Alias for -mqcl"), cl::aliasopt(mqcl),
+                            cl::cat(qccCategory));
   const cl::opt<Stage> compileTo(
       "compile-to", cl::desc("Stage to lower to and emit"), cl::init(Stage::LlvmIr),
       cl::values(clEnumValN(Stage::Mlir, "mlir", "MLIR after all lowering"),
@@ -200,10 +250,22 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  const mlir::FailureOr<llvm::SmallVector<qcc::FeatureFlag>> features = qcc::parseFeatures(*target, mcpu, mattr);
+  const qcc::Cpu* cpu = qcc::lookupCpu(*target, mcpu);
+  if (cpu == nullptr) {
+    llvm::errs() << "error: unknown CPU '" << mcpu << "' for --target=" << targetName << "\n";
+    return 1;
+  }
+
+  const mlir::FailureOr<llvm::SmallVector<qcc::FeatureFlag>> features = qcc::parseFeatures(*target, *cpu, mattr);
   if (mlir::failed(features)) {
     return 1;
   }
+
+  if (mqcl.getNumOccurrences() > 0 && cpu->numQubitControlLines == 0) {
+    llvm::errs() << "error: -mqcl is not supported for --target=" << targetName << "\n";
+    return 1;
+  }
+  const unsigned numQubitControlLines = mqcl.getNumOccurrences() > 0 ? mqcl : cpu->numQubitControlLines;
 
   mlir::DialectRegistry registry;
 
@@ -253,7 +315,7 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  if (mlir::failed(qcc::buildPipeline(pm, target, *features, quantumDevice, deviceDescription))) {
+  if (mlir::failed(qcc::buildPipeline(pm, target, *features, numQubitControlLines, quantumDevice, deviceDescription))) {
     return 1;
   }
 
@@ -305,8 +367,8 @@ int main(int argc, char** argv) {
       return 1;
     }
     const qcc::NativeCodegenOptions codegenOptions{.binary = binary};
-    if (target->emitNative(*llvmModule, static_cast<llvm::raw_pwrite_stream&>(outFile->os()), codegenOptions,
-                           *features)) {
+    if (target->emitNative(*llvmModule, static_cast<llvm::raw_pwrite_stream&>(outFile->os()), codegenOptions, *features,
+                           numQubitControlLines)) {
       return 1;
     }
     break;

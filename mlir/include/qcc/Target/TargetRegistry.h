@@ -52,6 +52,8 @@ struct Cpu {
   llvm::StringRef name;
   llvm::StringRef description;
   llvm::ArrayRef<llvm::StringRef> features;
+  /// Qubit control lines the processor drives unless `-mqcl` overrides it; 0 if the target has none.
+  unsigned numQubitControlLines = 0;
 };
 
 /// Describes a compilation target selectable via `qcc --target=<name>`.
@@ -64,12 +66,15 @@ struct Target {
   llvm::ArrayRef<Feature> features;
   /// The processors this target accepts in `-mcpu`; `generic` is the default and must exist.
   llvm::ArrayRef<Cpu> cpus;
-  /// Assembles the lowering pipeline for this target and the given features; fails if they describe no machine.
-  std::function<mlir::LogicalResult(mlir::PassManager&, llvm::ArrayRef<FeatureFlag> features)> addLoweringPasses;
+  /// Assembles the lowering pipeline for this target, the features and the number of qubit control lines; fails if
+  /// they describe no machine.
+  std::function<mlir::LogicalResult(mlir::PassManager&, llvm::ArrayRef<FeatureFlag> features,
+                                    unsigned numQubitControlLines)>
+      addLoweringPasses;
   /// Emits native code for an already-lowered, LLVM-translated module. Null when
   /// the target has no native backend (e.g. QIR). Returns true on failure.
   std::function<bool(llvm::Module&, llvm::raw_pwrite_stream&, const NativeCodegenOptions&,
-                     llvm::ArrayRef<FeatureFlag> features)>
+                     llvm::ArrayRef<FeatureFlag> features, unsigned numQubitControlLines)>
       emitNative;
   /// Whether the lowering ends in the LLVM dialect.
   bool lowersToLLVM = false;
@@ -78,8 +83,11 @@ struct Target {
 /// A (pseudo) target for when we have no control hardware (QISA) to target.
 inline constexpr llvm::StringLiteral noTargetName = "none";
 
-/// The features `mcpu` enables, followed by `mattr` (`+<name>,-<name>,...`); fails on names unknown to `target`.
-mlir::FailureOr<llvm::SmallVector<FeatureFlag>> parseFeatures(const Target& target, llvm::StringRef mcpu,
+/// Looks up a CPU of `target` by its name (as expected by `-mcpu`), or returns nullptr if `target` has none such.
+const Cpu* lookupCpu(const Target& target, llvm::StringRef name);
+
+/// The features `cpu` enables, followed by `mattr` (`+<name>,-<name>,...`); fails on names unknown to `target`.
+mlir::FailureOr<llvm::SmallVector<FeatureFlag>> parseFeatures(const Target& target, const Cpu& cpu,
                                                               llvm::StringRef mattr);
 
 /// Returns the targets compiled into this build.

@@ -31,11 +31,12 @@ extern const llvm::ArrayRef<Feature> hisepqFeatures;
 extern const llvm::ArrayRef<Cpu> hisepqCpus;
 
 /// `Target::addLoweringPasses` for the HiSEP-Q target, going through `qvec`.
-mlir::LogicalResult addLoweringPassesHiSEPQ(mlir::PassManager& pm, llvm::ArrayRef<FeatureFlag> features);
+mlir::LogicalResult addLoweringPassesHiSEPQ(mlir::PassManager& pm, llvm::ArrayRef<FeatureFlag> features,
+                                            unsigned numQubitControlLines);
 
 /// `Target::emitNative` for the HiSEP-Q target: lowers the QV-intrinsic LLVM
 /// module to RISC-V assembly or an object file. Returns true on failure.
 bool emitNativeHiSEPQ(llvm::Module& module, llvm::raw_pwrite_stream& os, const NativeCodegenOptions& options,
-                      llvm::ArrayRef<FeatureFlag> features);
+                      llvm::ArrayRef<FeatureFlag> features, unsigned numQubitControlLines);
 
 } // namespace qcc

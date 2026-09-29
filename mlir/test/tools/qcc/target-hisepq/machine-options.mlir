@@ -2,6 +2,7 @@
 // RUN: qcc --target=hisepq -mcpu=generic --compile-to=mlir %s | FileCheck %s --check-prefix=CHECK-DEFAULT
 // RUN: qcc --target=hisepq -mattr=+zvl128b --compile-to=mlir %s | FileCheck %s --check-prefix=CHECK-VLEN128
 // RUN: qcc --target=hisepq -mattr=+zvl512b --compile-to=mlir %s | FileCheck %s --check-prefix=CHECK-VLEN512
+// RUN: qcc --target=hisepq -mattr=+xqve16 -mqcl=257 --compile-to=mlir %s | FileCheck %s --check-prefix=CHECK-QEW16
 
 // As in LLVM: a bare name enables, the largest bound wins, and `-zvl<N>b` also drops every larger one.
 // RUN: qcc --target=hisepq -mattr=zvl512b --compile-to=mlir %s | FileCheck %s --check-prefix=CHECK-VLEN512
@@ -50,6 +51,9 @@ func.func @main() attributes { qcc.entry_point } {
 // CHECK-DEFAULT:  llvm.call_intrinsic "llvm.riscv.qv.h"(%{{.*}}) : (vector<[8]xi8>, i32, i32, i32) -> ()
 // CHECK-VLEN128:  llvm.call_intrinsic "llvm.riscv.qv.h"(%{{.*}}) : (vector<[4]xi8>, i32, i32, i32) -> ()
 // CHECK-VLEN512:  llvm.call_intrinsic "llvm.riscv.qv.h"(%{{.*}}) : (vector<[2]xi8>, i32, i32, i32) -> ()
+// CHECK-QEW16:    llvm.call_intrinsic "llvm.riscv.qv.h"(%{{.*}}) : (vector<[8]xi16>, i32, i32, i32) -> ()
+
+// TODO: QEW 16 gets this far but not past instruction selection: the LLVM fork doesn't cover i16 element types.
 
 // CHECK-ASM: .attribute 5, "{{.*}}_zvl512b{{.*}}_xqv0p1"
 

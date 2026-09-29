@@ -27,33 +27,44 @@ namespace qcc::hisepq {
 ///
 /// Constructor args:
 /// - `minVLen`: Known lower bound on VLEN (see RVV spec).
-/// - `qubitElementWidth` (aka QEW): How many bits to encode a qubit. Corresponds to SEW (see RVV spec).
+/// - `numQubitControlLines`: How many qubit control lines the machine drives, i.e. valid qubit indices are
+///   `[0, numQubitControlLines)`.
 ///
-/// Both parameters are assumed to be validated by caller. See the constructor's asserts for precise requirements.
+/// QEW (bits per qubit index, i.e. SEW) is the narrowest supported width addressing all `numQubitControlLines` lines.
+///
+/// All parameters are assumed to be validated by caller. See the constructor's asserts for precise requirements.
 class HiSEPQMachine {
 public:
-  HiSEPQMachine(unsigned minVLen, unsigned qubitElementWidth);
+  HiSEPQMachine(unsigned minVLen, unsigned numQubitControlLines);
 
   /// Whether `minVLen` is a VLEN this class can model. Anything that is not a power of two is not a VLEN at all, and
   /// below `rvvBitsPerBlock` `vscale` would become a fraction.
   static bool isSupportedMinVLen(unsigned minVLen);
 
-  /// Whether `qubitElementWidth` is a QEW this class can model, i.e. one that every supported LMUL holds at least one
-  /// element of.
-  static bool isSupportedQubitElementWidth(unsigned qubitElementWidth);
+  /// Whether some supported QEW addresses `numQubitControlLines`.
+  static bool isSupportedNumQubitControlLines(unsigned numQubitControlLines);
+
+  /// The most qubit control lines this class can model.
+  static unsigned maxNumQubitControlLines();
+
+  /// The most qubit control lines QEW-bit indices address.
+  static unsigned maxNumQubitControlLinesFor(unsigned qubitElementWidth);
 
   /// Guaranteed lower bound on VLEN (number of bits).
   [[nodiscard]] unsigned getMinVLen() const { return minVLen; }
 
-  /// QEW (number of bits).
+  /// QEW (number of bits), derived from the number of qubit control lines.
   [[nodiscard]] unsigned getQubitElementWidth() const { return qubitElementWidth; }
 
-  /// The largest qubit count the QV instructions can address, i.e. what the widest supported register group holds:
+  /// The largest qubit count one QV instruction can address, i.e. what the widest supported register group holds:
   /// `maxLMUL * minVLen / QEW`.
   [[nodiscard]] unsigned maxQubits() const;
 
-  /// The highest qubit index QEW can represent, i.e. `2^QEW - 1`.
-  [[nodiscard]] uint64_t maxQubitIndex() const;
+  /// Number of qubit control lines the machine drives.
+  [[nodiscard]] unsigned getNumQubitControlLines() const { return numQubitControlLines; }
+
+  /// The highest qubit index the machine accepts.
+  [[nodiscard]] uint64_t maxQubitIndex() const { return numQubitControlLines - 1; }
 
   /// The narrowest scalable vector type that carries `numQubits` qubit indices. Or nullopt if capacity is exceeded.
   [[nodiscard]] std::optional<mlir::VectorType> qubitVectorType(mlir::MLIRContext* ctx, unsigned numQubits) const;
@@ -80,8 +91,15 @@ private:
   /// NOTE: Could become a pass option in the future.
   static constexpr std::array<unsigned, 6> supportedLMul8 = {2, 4, 8, 16, 32, 64};
 
+  /// The QEWs every LMUL in `supportedLMul8` holds at least one element of, narrowest first.
+  static constexpr std::array<unsigned, 2> supportedQubitElementWidths = {8, 16};
+
+  /// The narrowest supported QEW addressing `numQubitControlLines`.
+  static unsigned qubitElementWidthFor(unsigned numQubitControlLines);
+
   unsigned minVLen;
   unsigned qubitElementWidth; // aka QEW
+  unsigned numQubitControlLines;
 };
 
 } // namespace qcc::hisepq

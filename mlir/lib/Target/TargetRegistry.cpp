@@ -35,7 +35,7 @@ llvm::ArrayRef<Target> getTargets() {
        .description = "QIR (LLVM-based) target",
        .cpus = qirCpus,
        .addLoweringPasses =
-           [](mlir::PassManager& pm, llvm::ArrayRef<FeatureFlag> /*features*/) {
+           [](mlir::PassManager& pm, llvm::ArrayRef<FeatureFlag> /*features*/, unsigned /*numQubitControlLines*/) {
              addLoweringPassesQIR(pm);
              return mlir::success();
            },
@@ -45,18 +45,22 @@ llvm::ArrayRef<Target> getTargets() {
        .description = "HiSEP-Q QISA target (RISC-V based)",
        .features = hisepqFeatures,
        .cpus = hisepqCpus,
-       .addLoweringPasses = [](mlir::PassManager& pm,
-                               llvm::ArrayRef<FeatureFlag> features) { return addLoweringPassesHiSEPQ(pm, features); },
+       .addLoweringPasses =
+           [](mlir::PassManager& pm, llvm::ArrayRef<FeatureFlag> features, unsigned numQubitControlLines) {
+             return addLoweringPassesHiSEPQ(pm, features, numQubitControlLines);
+           },
        .emitNative =
            [](llvm::Module& module, llvm::raw_pwrite_stream& os, const NativeCodegenOptions& options,
-              llvm::ArrayRef<FeatureFlag> features) { return emitNativeHiSEPQ(module, os, options, features); },
+              llvm::ArrayRef<FeatureFlag> features, unsigned numQubitControlLines) {
+             return emitNativeHiSEPQ(module, os, options, features, numQubitControlLines);
+           },
        .lowersToLLVM = true},
 #endif
       {.name = noTargetName,
        .description = "No QISA: no lowering for control electronics and no code generation",
        .cpus = noTargetCpus,
-       .addLoweringPasses = [](mlir::PassManager& /*pm*/,
-                               llvm::ArrayRef<FeatureFlag> /*features*/) { return mlir::success(); }},
+       .addLoweringPasses = [](mlir::PassManager& /*pm*/, llvm::ArrayRef<FeatureFlag> /*features*/,
+                               unsigned /*numQubitControlLines*/) { return mlir::success(); }},
   };
 
   return targets;
@@ -71,16 +75,15 @@ const Target* lookupTarget(llvm::StringRef name) {
   return nullptr;
 }
 
-mlir::FailureOr<llvm::SmallVector<FeatureFlag>> parseFeatures(const Target& target, llvm::StringRef mcpu,
-                                                              llvm::StringRef mattr) {
-  const Cpu* cpu = llvm::find_if(target.cpus, [&](const Cpu& candidate) { return candidate.name == mcpu; });
-  if (cpu == target.cpus.end()) {
-    llvm::errs() << "error: unknown CPU '" << mcpu << "' for --target=" << target.name << "\n";
-    return mlir::failure();
-  }
+const Cpu* lookupCpu(const Target& target, llvm::StringRef name) {
+  const Cpu* cpu = llvm::find_if(target.cpus, [&](const Cpu& candidate) { return candidate.name == name; });
+  return cpu == target.cpus.end() ? nullptr : cpu;
+}
 
+mlir::FailureOr<llvm::SmallVector<FeatureFlag>> parseFeatures(const Target& target, const Cpu& cpu,
+                                                              llvm::StringRef mattr) {
   llvm::SmallVector<FeatureFlag> flags;
-  for (const llvm::StringRef name : cpu->features) {
+  for (const llvm::StringRef name : cpu.features) {
     flags.push_back({.name = name, .enable = true});
   }
 
