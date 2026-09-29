@@ -82,8 +82,8 @@ struct Gate {
 /// empty if the program opens with a coupling).
 struct Layer {
   enum class Kind : uint8_t {
-    SQ, ///< A `single u_zxz` over the qubits in `rotations`.
-    ZZ, ///< A `global zz` over the qubits appearing in `couplings`.
+    SQ, ///< A `single u_zxz` over the qubits in `sq`.
+    ZZ, ///< A `global zz` over the qubits appearing in `zz`.
   };
 
   explicit Layer(Kind kind) : kind(kind) {}
