@@ -24,9 +24,11 @@
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Pass/Pass.h" // IWYU pragma: keep
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include "mlir/Transforms/RegionUtils.h"
 
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/TypeSwitch.h"
 
@@ -114,7 +116,7 @@ static bool makeAvailableBefore(Value value, Operation* before) {
 
 namespace {
 
-/// The operations supposed to be merged into one, plus what the admission test needs.
+/// The operations supposed to be merged into one, plus what the admission conditions need.
 struct Group {
   SmallVector<QubitLaneOpInterface> members;
   /// Total number of qubits per operand lane, i.e. the VF the merged operation would have.
@@ -212,75 +214,60 @@ static void mergeGroup(const Group& group) {
 /// so let us explain how it works. For clarity we skip minor details, which are addressed by comments in the
 /// implementation.
 ///
-/// *Producers:* The *producers* of a `qvec` op are all the `qvec` ops immediately involved in creating its qubit
-/// operands.
+/// *Layering:* Every `qvec` op and every op with regions (e.g. `scf.if`) is assigned an integer layer: one more than
+/// the highest layer it depends on through its operands, including values used inside its regions. Other ops only pass
+/// on the highest layer of their operands. An op depending on no layered op (e.g. the first `qvec` op in the block)
+/// gets layer `0`. Classical operands count as well, e.g. the measurement result an `scf.if` condition is computed
+/// from.
 ///
-/// *Layering:* Every `qvec` op is assigned an integer layer: `layer(op) = 1 + max{layer(producer)}` over all producers
-/// of `op`. An op without producers (e.g. the first `qvec` op in the block) gets layer `0`.
+/// Ops in the same layer never depend on each other through SSA values, which makes them merge candidates. Whether a
+/// merge is legal is decided by the conditions under *Grouping*, all of which are required.
 ///
-/// IMPORTANT: We cannot always determine all producers (incomplete producers), for example because unknown ops "block"
-/// the way. Any pipeline this pass runs in is urged to avoid that scenario, as we optimize under the assumption of
-/// complete producers. An underestimated layer propagates downstream: an op whose own producers are complete still gets
-/// a wrong layer if any op upstream of it has incomplete ones.
-///
-/// If no `qvec` op has incomplete producers, it is easy to see that all `qvec` ops in the same layer operate on
-/// disjoint qubits. Hence two gates of the same type can in principle always be merged. In general we cannot rely on
-/// that, so we add extra checks for correctness.
-///
-/// *Bucketing:* Next we build a multi-map from `(layer, bucket key)` to `qvec` ops, with one entry per `qvec` op with
-/// complete producers. The details of the bucket key do not matter, only that ops with an equal bucket key can in
-/// principle be merged if their qubit operands are disjoint and nothing in the IR stands in the way (simplest case:
-/// they are consecutive, no other op in between). Ops sharing a `(layer, bucket key)` form a bucket, and only ops
-/// within one bucket are considered for merging.
+/// *Bucketing:* Next we build a multi-map from `(layer, bucket key)` to `qvec` ops, with one entry per `qvec` op. The
+/// details of the bucket key do not matter, only that ops with an equal bucket key can in principle be merged if their
+/// qubit operands are disjoint and nothing in the IR stands in the way (simplest case: they are consecutive, no other
+/// op in between). Ops sharing a `(layer, bucket key)` form a bucket, and only ops within one bucket are considered for
+/// merging.
 ///
 /// *Sorting:* In the next step (grouping) we process the buckets in ascending order of layer. This makes sense because
 /// merging within a layer typically unblocks merge opportunities in a follow-up layer (layers are in general
 /// interleaved in the IR).
 ///
 /// *Grouping:* Within each bucket we form groups of `qvec` operations (meant to be merged in the end). A group is a
-/// list of `qvec` operations ordered as in the IR. Before a candidate is added to a group, the following tests have to
-/// pass:
+/// list of `qvec` operations ordered as in the IR. Before a candidate is added to a group, the following conditions
+/// have to hold:
 ///
 /// 1. The enlarged group still respects `limitVF` once merged.
-/// 2. All qubits of the candidate can be traced back to static ops.
-/// 3. All new qubits are disjoint from the ones the group already operates on (a safety net against incomplete
-///    producers).
+/// 2. All qubits of the candidate can be traced back to static ops, which condition 3 compares.
+/// 3. All new qubits are disjoint from the ones the group already operates on. Layering cannot ensure this when a qubit
+///    value is used more than once, which the pass does not rule out.
 /// 4. The qubit operands of the candidate are already defined before the first member, or can be hoisted "easily"
-///    (which is then done, and kept even if another operand fails this test). See `makeAvailableBefore` for details.
+///    (which is then done, and kept even if another operand violates this condition). See `makeAvailableBefore` for
+///    details. The merged op takes the first member's place, and layers say nothing about where operands are defined.
 ///
-/// *Merging:* The members of a group are merged as soon as one of the tests fails (the candidate is then not added) or
-/// the bucket is exhausted. If the bucket is not exhausted, the failing candidate itself opens the next group - unless
-/// it can never be a member at all, i.e. it failed test 2, or fails test 1 on its own.
+/// *Merging:* The members of a group are merged as soon as one of the conditions does not hold (the candidate is then
+/// not added) or the bucket is exhausted. If the bucket is not exhausted, the failing candidate itself opens the next
+/// group - unless it can never be a member at all, i.e. it violates condition 2, or condition 1 on its own.
 static void mergeOpsInBlock(Block& block, int64_t limitVF) {
-  // Layering. layer(op) = 1 + max(layer(op_pred) for all predecessors op_pred of op).
-  DenseMap<Operation*, unsigned> layers;
+  // The lowest layer a user of the op's results can get. Values defined outside the block map to 0.
+  DenseMap<Operation*, unsigned> userLayers;
+  auto userLayerOf = [&](Value value) { return userLayers.lookup(value.getDefiningOp()); };
+
   llvm::MapVector<std::pair<unsigned, BucketKey>, SmallVector<QubitLaneOpInterface>> buckets;
   for (Operation& op : block) {
-    auto laneOp = dyn_cast<QubitLaneOpInterface>(&op);
-    if (!laneOp) {
-      continue;
-    }
-
-    SmallPtrSet<Operation*, 4> producers;
-    bool allProducersKnown = true;
-    for (auto operand : laneOp.getQubitOperands()) {
-      allProducersKnown &= collectQubitProducers(operand, producers);
-    }
-
     unsigned layer = 0;
-    for (Operation* producer : producers) {
-      auto it = layers.find(producer);
-      if (it != layers.end()) {
-        layer = std::max(layer, it->second + 1);
-      }
+    for (Value operand : op.getOperands()) {
+      layer = std::max(layer, userLayerOf(operand));
+    }
+    SetVector<Value> captures;
+    getUsedValuesDefinedAbove(op.getRegions(), captures);
+    for (Value capture : captures) {
+      layer = std::max(layer, userLayerOf(capture));
     }
 
-    // An operation we cannot bucket still takes part in the layering, so that its consumers end up in a later layer.
-    layers[laneOp] = layer;
-
-    // If a producer is missing the layer might have a higher value than what we assigned. We do not bucket the op in
-    // this case (meaning it does not participate in merging) to avoid mistakes.
-    if (!allProducersKnown) {
+    auto laneOp = dyn_cast<QubitLaneOpInterface>(&op);
+    userLayers[&op] = laneOp || op.getNumRegions() != 0 ? layer + 1 : layer;
+    if (!laneOp) {
       continue;
     }
 
@@ -313,7 +300,7 @@ static void mergeOpsInBlock(Block& block, int64_t limitVF) {
         continue;
       }
 
-      // The group tests (or empty).
+      // The group conditions (or empty).
       const bool emptyOrFits =
           group.members.empty() ||
           (group.width + width <= limitVF &&

@@ -202,7 +202,6 @@ builtin.module @jasp_module {
   }
 }
 
-// TODO: Emit the transversal CNOT as one `qv.cx`; `qvec-merge` misses it as its pairs sit at different depths.
 // CHECK-LABEL: main:
 // CHECK:         qv.h
 // CHECK-NOT:     qv.h
