@@ -40,17 +40,17 @@ Matrix2x2 qcc::qvec::rxMatrix(double theta) {
   };
 }
 
-Matrix2x2 qcc::qvec::multiply(const Matrix2x2& lhs, const Matrix2x2& rhs) {
+Matrix2x2 qcc::qvec::operator*(const Matrix2x2& lhs, const Matrix2x2& rhs) {
   return {
-      (lhs[0] * rhs[0]) + (lhs[1] * rhs[2]), //
-      (lhs[0] * rhs[1]) + (lhs[1] * rhs[3]), //
-      (lhs[2] * rhs[0]) + (lhs[3] * rhs[2]), //
-      (lhs[2] * rhs[1]) + (lhs[3] * rhs[3])  //
+      (lhs(0, 0) * rhs(0, 0)) + (lhs(0, 1) * rhs(1, 0)), //
+      (lhs(0, 0) * rhs(0, 1)) + (lhs(0, 1) * rhs(1, 1)), //
+      (lhs(1, 0) * rhs(0, 0)) + (lhs(1, 1) * rhs(1, 0)), //
+      (lhs(1, 0) * rhs(0, 1)) + (lhs(1, 1) * rhs(1, 1))  //
   };
 }
 
 Matrix2x2 qcc::qvec::zxzMatrix(const ZXZAngles& angles) {
-  return multiply(rzMatrix(angles.z2), multiply(rxMatrix(angles.x), rzMatrix(angles.z1)));
+  return rzMatrix(angles.z2) * rxMatrix(angles.x) * rzMatrix(angles.z1);
 }
 
 ZXZAngles qcc::qvec::decomposeZXZ(const Matrix2x2& unitary) {
@@ -58,10 +58,10 @@ ZXZAngles qcc::qvec::decomposeZXZ(const Matrix2x2& unitary) {
   //   a = cos(x/2) e^{-i(z1+z2)/2}   and   b = -i sin(x/2) e^{i(z1-z2)/2}
   // for the ZXZ product, which pins down the angles from the magnitudes and arguments of a and b. The sign ambiguity
   // of the square root is a global phase.
-  const Complex det = (unitary[0] * unitary[3]) - (unitary[1] * unitary[2]);
+  const Complex det = (unitary(0, 0) * unitary(1, 1)) - (unitary(0, 1) * unitary(1, 0));
   const Complex scale = 1.0 / std::sqrt(det);
-  const Complex a = unitary[0] * scale;
-  const Complex b = unitary[1] * scale;
+  const Complex a = unitary(0, 0) * scale;
+  const Complex b = unitary(0, 1) * scale;
 
   constexpr double eps = 1e-12;
   constexpr double pi = std::numbers::pi;
@@ -83,5 +83,5 @@ ZXZAngles qcc::qvec::decomposeZXZ(const Matrix2x2& unitary) {
 }
 
 ZXZAngles qcc::qvec::fuseZXZ(const ZXZAngles& first, const ZXZAngles& second) {
-  return decomposeZXZ(multiply(zxzMatrix(second), zxzMatrix(first)));
+  return decomposeZXZ(zxzMatrix(second) * zxzMatrix(first));
 }

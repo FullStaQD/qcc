@@ -10,6 +10,7 @@
 #pragma once
 
 #include <array>
+#include <cassert>
 #include <complex>
 
 namespace qcc::qvec {
@@ -27,8 +28,21 @@ struct ZXZAngles {
 
 using Complex = std::complex<double>;
 
-/// A 2x2 complex matrix in row-major order.
-using Matrix2x2 = std::array<Complex, 4>;
+/// A 2x2 complex matrix.
+class Matrix2x2 {
+public:
+  /// The elements in row-major order: `m00 m01` over `m10 m11`.
+  constexpr Matrix2x2(Complex m00, Complex m01, Complex m10, Complex m11) : elements{m00, m01, m10, m11} {}
+
+  /// Access a matrix element.
+  constexpr Complex operator()(unsigned row, unsigned col) const {
+    assert(row < 2 && col < 2 && "index out of bounds");
+    return elements[(2 * row) + col];
+  }
+
+private:
+  std::array<Complex, 4> elements;
+};
 
 /// Wraps `angle` into (-pi, pi].
 double normalizeAngle(double angle);
@@ -43,7 +57,7 @@ Matrix2x2 rxMatrix(double theta);
 Matrix2x2 zxzMatrix(const ZXZAngles& angles);
 
 /// The matrix product `lhs * rhs`, i.e. `rhs` is applied first.
-Matrix2x2 multiply(const Matrix2x2& lhs, const Matrix2x2& rhs);
+Matrix2x2 operator*(const Matrix2x2& lhs, const Matrix2x2& rhs);
 
 /// The ZXZ angles of `unitary`, up to a global phase, each wrapped into (-pi, pi]. `unitary` must be unitary.
 ///
