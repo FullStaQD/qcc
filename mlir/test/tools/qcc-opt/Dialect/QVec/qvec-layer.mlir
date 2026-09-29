@@ -1,10 +1,6 @@
 // RUN: qcc-opt %s -qvec-layer --split-input-file | FileCheck %s
 
-// The rebuilt bodies were also checked numerically against the inputs (unitaries equal up to a global phase); the
-// checks here pin the layer structure. Rotation angles produced by fusion may carry rounding noise, so only the
-// exactly representable ones are checked to the digit.
-
-// A Bell pair after qvec-to-rzz / qvec-to-u-zxz: h q0; h q1; rzz(pi/2); rz(-pi/2) both; h q1.
+// A Bell pair after decomposition into rzz and u_zxz: h q0; h q1; rzz(pi/2); rz(-pi/2) both; h q1.
 // CHECK-LABEL: func.func @bell
 func.func @bell() {
     %q0 = qco.static 0 : !qco.qubit
