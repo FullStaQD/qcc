@@ -1,5 +1,4 @@
-// RUN: qcc --target=hisepq --min-vlen=64 --qubit-element-width=16 --compile-to=mlir %s | FileCheck %s
-
+// RUN: qcc --target=hisepq -mattr=+qcl128 --compile-to=mlir %s | FileCheck %s
 
 func.func @main() attributes { qcc.entry_point } {
     %q0 = qc.static 0 : !qc.qubit
@@ -42,6 +41,38 @@ func.func @main() attributes { qcc.entry_point } {
     %q37 = qc.static 37 : !qc.qubit
     %q38 = qc.static 38 : !qc.qubit
     %q39 = qc.static 39 : !qc.qubit
+    %q40 = qc.static 40 : !qc.qubit
+    %q41 = qc.static 41 : !qc.qubit
+    %q42 = qc.static 42 : !qc.qubit
+    %q43 = qc.static 43 : !qc.qubit
+    %q44 = qc.static 44 : !qc.qubit
+    %q45 = qc.static 45 : !qc.qubit
+    %q46 = qc.static 46 : !qc.qubit
+    %q47 = qc.static 47 : !qc.qubit
+    %q48 = qc.static 48 : !qc.qubit
+    %q49 = qc.static 49 : !qc.qubit
+    %q50 = qc.static 50 : !qc.qubit
+    %q51 = qc.static 51 : !qc.qubit
+    %q52 = qc.static 52 : !qc.qubit
+    %q53 = qc.static 53 : !qc.qubit
+    %q54 = qc.static 54 : !qc.qubit
+    %q55 = qc.static 55 : !qc.qubit
+    %q56 = qc.static 56 : !qc.qubit
+    %q57 = qc.static 57 : !qc.qubit
+    %q58 = qc.static 58 : !qc.qubit
+    %q59 = qc.static 59 : !qc.qubit
+    %q60 = qc.static 60 : !qc.qubit
+    %q61 = qc.static 61 : !qc.qubit
+    %q62 = qc.static 62 : !qc.qubit
+    %q63 = qc.static 63 : !qc.qubit
+    %q64 = qc.static 64 : !qc.qubit
+    %q65 = qc.static 65 : !qc.qubit
+    %q66 = qc.static 66 : !qc.qubit
+    %q67 = qc.static 67 : !qc.qubit
+    %q68 = qc.static 68 : !qc.qubit
+    %q69 = qc.static 69 : !qc.qubit
+    %q70 = qc.static 70 : !qc.qubit
+    %q71 = qc.static 71 : !qc.qubit
 
     qc.h %q0 : !qc.qubit
     qc.h %q1 : !qc.qubit
@@ -83,11 +114,43 @@ func.func @main() attributes { qcc.entry_point } {
     qc.h %q37 : !qc.qubit
     qc.h %q38 : !qc.qubit
     qc.h %q39 : !qc.qubit
+    qc.h %q40 : !qc.qubit
+    qc.h %q41 : !qc.qubit
+    qc.h %q42 : !qc.qubit
+    qc.h %q43 : !qc.qubit
+    qc.h %q44 : !qc.qubit
+    qc.h %q45 : !qc.qubit
+    qc.h %q46 : !qc.qubit
+    qc.h %q47 : !qc.qubit
+    qc.h %q48 : !qc.qubit
+    qc.h %q49 : !qc.qubit
+    qc.h %q50 : !qc.qubit
+    qc.h %q51 : !qc.qubit
+    qc.h %q52 : !qc.qubit
+    qc.h %q53 : !qc.qubit
+    qc.h %q54 : !qc.qubit
+    qc.h %q55 : !qc.qubit
+    qc.h %q56 : !qc.qubit
+    qc.h %q57 : !qc.qubit
+    qc.h %q58 : !qc.qubit
+    qc.h %q59 : !qc.qubit
+    qc.h %q60 : !qc.qubit
+    qc.h %q61 : !qc.qubit
+    qc.h %q62 : !qc.qubit
+    qc.h %q63 : !qc.qubit
+    qc.h %q64 : !qc.qubit
+    qc.h %q65 : !qc.qubit
+    qc.h %q66 : !qc.qubit
+    qc.h %q67 : !qc.qubit
+    qc.h %q68 : !qc.qubit
+    qc.h %q69 : !qc.qubit
+    qc.h %q70 : !qc.qubit
+    qc.h %q71 : !qc.qubit
 
     return
 }
 
-// Two instructions instead: a full one and the remainder.
-// CHECK:      llvm.call_intrinsic "llvm.riscv.qv.h"(%{{.*}}) : (vector<[32]xi16>, i32, i32, i32) -> ()
-// CHECK:      llvm.call_intrinsic "llvm.riscv.qv.h"(%{{.*}}) : (vector<[8]xi16>, i32, i32, i32) -> ()
+// A full instruction at the cap, then the remainder.
+// CHECK:      llvm.call_intrinsic "llvm.riscv.qv.h"(%{{.*}}) : (vector<[64]xi8>, i32, i32, i32) -> ()
+// CHECK:      llvm.call_intrinsic "llvm.riscv.qv.h"(%{{.*}}) : (vector<[8]xi8>, i32, i32, i32) -> ()
 // CHECK-NOT:  llvm.call_intrinsic
