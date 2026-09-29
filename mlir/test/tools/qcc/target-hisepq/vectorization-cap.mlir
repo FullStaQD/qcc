@@ -1,4 +1,4 @@
-// RUN: qcc --target=hisepq --compile-to=mlir %s | FileCheck %s
+// RUN: qcc --target=hisepq -mattr=+qcl128 --compile-to=mlir %s | FileCheck %s
 
 func.func @main() attributes { qcc.entry_point } {
     %q0 = qc.static 0 : !qc.qubit

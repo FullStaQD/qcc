@@ -1,20 +1,20 @@
 // DEFINE: %{vlen} = 128
-// DEFINE: %{qew} = 8
+// DEFINE: %{lines} = 16
 // DEFINE: %{prefix} = CHECK-VLEN128
 
 // DEFINE: %{run} = qcc-opt %s --split-input-file \
-// DEFINE:     -convert-qvec-to-hisepq-intrinsics="min-vlen=%{vlen} qubit-element-width=%{qew}" \
+// DEFINE:     -convert-qvec-to-hisepq-intrinsics="min-vlen=%{vlen} num-qubit-control-lines=%{lines}" \
 // DEFINE:   | FileCheck %s --check-prefix=%{prefix}
 
 // RUN: %{run}
 
 // REDEFINE: %{vlen} = 64
-// REDEFINE: %{qew} = 8
+// REDEFINE: %{lines} = 16
 // REDEFINE: %{prefix} = CHECK-VLEN64
 // RUN: %{run}
 
 // REDEFINE: %{vlen} = 128
-// REDEFINE: %{qew} = 16
+// REDEFINE: %{lines} = 512
 // REDEFINE: %{prefix} = CHECK-QEW16
 // RUN: %{run}
 
@@ -22,7 +22,7 @@
 // machines, so the two derivations are visible side by side:
 //
 //   - a wider VLEN raises `vscale`, so the same qubits fit in a narrower LMUL, and
-//   - a wider QEW makes each index take more of the register, so they need a wider one.
+//   - more control lines than 8 bits address force a wider QEW, so each index takes more of the register.
 //
 // The type is `vector<[N]xi{QEW}>` with `N = LMUL * 64 / QEW`, holding `vscale * N` elements.
 

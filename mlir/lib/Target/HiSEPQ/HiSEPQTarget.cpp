@@ -46,6 +46,7 @@
 
 namespace qcc {
 
+// `qcl<N>` stops at 256, all that 8-bit qubit indices address.
 // clang-format off
 static constexpr auto hisepqFeatureTable = std::to_array<Feature>({
     {"zvl64b", "Minimum vector length 64 bits"},
@@ -59,21 +60,24 @@ static constexpr auto hisepqFeatureTable = std::to_array<Feature>({
     {"zvl16384b", "Minimum vector length 16384 bits"},
     {"zvl32768b", "Minimum vector length 32768 bits"},
     {"zvl65536b", "Minimum vector length 65536 bits"},
+    {"qcl8", "Minimum qubit control lines 8"},
+    {"qcl16", "Minimum qubit control lines 16"},
+    {"qcl32", "Minimum qubit control lines 32"},
+    {"qcl64", "Minimum qubit control lines 64"},
+    {"qcl128", "Minimum qubit control lines 128"},
+    {"qcl256", "Minimum qubit control lines 256"},
 });
 // clang-format on
 const llvm::ArrayRef<Feature> hisepqFeatures = hisepqFeatureTable;
 
 // TODO: Add CPUs for concrete HiSEP-Q builds, e.g. one with a VLEN of 128 and 16 qubit control lines.
-static constexpr auto genericFeatures = std::to_array<llvm::StringRef>({"zvl64b"});
+static constexpr auto genericFeatures = std::to_array<llvm::StringRef>({"zvl64b", "qcl8"});
 static constexpr auto hisepqCpuTable = std::to_array<Cpu>({
     {.name = "generic",
      .description = "The smallest machine every HiSEP-Q build provides",
      .features = genericFeatures},
 });
 const llvm::ArrayRef<Cpu> hisepqCpus = hisepqCpuTable;
-
-/// QEW: the ISA reads qubit indices as 8 bits.
-static constexpr unsigned qubitElementWidth = 8;
 
 /// Parses `N` out of a feature name of the form `<prefix><N><suffix>`.
 static std::optional<unsigned> boundOf(llvm::StringRef name, llvm::StringRef prefix, llvm::StringRef suffix) {
@@ -115,11 +119,12 @@ static std::optional<unsigned> lowerBoundFor(llvm::ArrayRef<FeatureFlag> feature
 /// The machine `features` describe; reports an error and returns nullopt if a bound has no feature enabled.
 static std::optional<hisepq::HiSEPQMachine> machineFor(llvm::ArrayRef<FeatureFlag> features) {
   const std::optional<unsigned> minVLen = lowerBoundFor(features, "zvl", "b");
-  if (!minVLen) {
-    llvm::errs() << "error: -mcpu and -mattr leave no 'zvl<N>b' feature enabled\n";
+  const std::optional<unsigned> numQubitControlLines = lowerBoundFor(features, "qcl", "");
+  if (!minVLen || !numQubitControlLines) {
+    llvm::errs() << "error: -mcpu and -mattr leave no '" << (minVLen ? "qcl<N>" : "zvl<N>b") << "' feature enabled\n";
     return std::nullopt;
   }
-  return hisepq::HiSEPQMachine(*minVLen, qubitElementWidth);
+  return hisepq::HiSEPQMachine(*minVLen, *numQubitControlLines);
 }
 
 void addLoweringPassesHiSEPQViaQIR(mlir::PassManager& pm) {
@@ -144,7 +149,7 @@ mlir::LogicalResult addLoweringPassesHiSEPQ(mlir::PassManager& pm, llvm::ArrayRe
 
   ConvertQVecToHiSEPQIntrinsicsOptions intrinsicsOptions;
   intrinsicsOptions.minVLen = machine->getMinVLen();
-  intrinsicsOptions.qubitElementWidth = machine->getQubitElementWidth();
+  intrinsicsOptions.numQubitControlLines = machine->getNumQubitControlLines();
   pm.addPass(qcc::createConvertQVecToHiSEPQIntrinsics(intrinsicsOptions));
 
   // Classical remainder to LLVM

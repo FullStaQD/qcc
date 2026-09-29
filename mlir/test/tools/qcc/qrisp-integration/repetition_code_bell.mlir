@@ -2,7 +2,7 @@
 // RUN: FileCheck %s --check-prefix=CHECK-QIR < %t.ll
 // RUN: qir-runner --file %t.ll -s 4 | FileCheck %s --check-prefix=CHECK-SIM
 
-// RUN: %if hisepq %{ qcc --target=hisepq --compile-to=native %s | FileCheck %s --check-prefix=CHECK-QISA %}
+// RUN: %if hisepq %{ qcc --target=hisepq -mattr=+qcl16 --compile-to=native %s | FileCheck %s --check-prefix=CHECK-QISA %}
 
 // GENERATED FROM QRISP VERSION 0.9.6
 
