@@ -243,7 +243,6 @@ builtin.module @jasp_module {
 // CHECK-SIM-NEXT: OUTPUT INT 3
 // CHECK-SIM-NEXT: OUTPUT INT 2
 
-// TODO: Emit the transversal CNOT as one `qv.cx`; `qvec-merge` misses it as its pairs sit at different depths.
 // CHECK-QISA-LABEL: main:
 // CHECK-QISA:         qv.h
 // CHECK-QISA-NOT:     qv.h

@@ -239,30 +239,3 @@ qco::StaticOp qcc::qvec::getStaticOpAncestor(TypedValue<VectorType> qubits, int6
     qubit = step.getQubit();
   }
 }
-
-bool qcc::qvec::collectQubitProducers(TypedValue<VectorType> qubits, SmallPtrSetImpl<Operation*>& producers) {
-  bool complete = true;
-
-  for (int64_t index = 0, numElements = qubits.getType().getNumElements(); index < numElements; ++index) {
-    // Every step moves strictly towards a definition, so the walk terminates.
-    for (QubitRef qubit{.value = qubits, .index = index};;) {
-      if (auto producer = dyn_cast_if_present<QubitLaneOpInterface>(qubit.value.getDefiningOp())) {
-        producers.insert(producer);
-        break;
-      }
-
-      const QubitStep step = stepBack(qubit);
-      if (step.getKind() == QubitStep::Kind::Unknown) {
-        complete = false;
-        break;
-      }
-      if (step.getKind() == QubitStep::Kind::Origin) {
-        break;
-      }
-      assert(step.getKind() == QubitStep::Kind::Stepped && "unexpected QubitStep::Kind");
-      qubit = step.getQubit();
-    }
-  }
-
-  return complete;
-}
