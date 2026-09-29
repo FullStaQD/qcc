@@ -2,5 +2,9 @@
 // RUN: %if hisepq %{ qcc --list-targets | FileCheck %s --check-prefix=CHECK-LIST-HISEPQ %}
 
 // CHECK-LIST: qir
+// CHECK-LIST-NEXT: -mcpu=generic - {{.*}} [default]
 // CHECK-LIST: none
 // CHECK-LIST-HISEPQ: hisepq
+// CHECK-LIST-HISEPQ-NEXT: -mcpu=generic - {{.*}} (-mattr=+zvl64b) [default]
+// CHECK-LIST-HISEPQ: -mattr=+zvl128b
+// CHECK-LIST-HISEPQ-NOT: qew

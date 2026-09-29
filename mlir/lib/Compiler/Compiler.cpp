@@ -32,8 +32,8 @@ static void addLoweringQrisp(mlir::PassManager& pm);
 
 namespace qcc {
 
-void buildPipeline(mlir::PassManager& pm, const Target* target, const TargetOptions& targetOptions,
-                   const QuantumDeviceKind* quantumDevice, llvm::StringRef deviceDescription) {
+mlir::LogicalResult buildPipeline(mlir::PassManager& pm, const Target* target, llvm::ArrayRef<FeatureFlag> features,
+                                  const QuantumDeviceKind* quantumDevice, llvm::StringRef deviceDescription) {
   if (!deviceDescription.empty()) {
     QccAttachDeviceOptions attachOptions;
     attachOptions.file = deviceDescription.str();
@@ -41,7 +41,7 @@ void buildPipeline(mlir::PassManager& pm, const Target* target, const TargetOpti
   }
   addLoweringQrisp(pm);
   quantumDevice->addLoweringPasses(pm);
-  target->addLoweringPasses(pm, targetOptions);
+  return target->addLoweringPasses(pm, features);
 }
 
 } // namespace qcc

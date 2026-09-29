@@ -42,6 +42,7 @@
 #include "mlir/Target/LLVMIR/Export.h"
 #include "mlir/Tools/mlir-opt/MlirOptMain.h"
 
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
@@ -67,6 +68,16 @@ static void printTargets() {
   llvm::outs() << "Available targets for --target:\n";
   for (const qcc::Target& backend : qcc::getTargets()) {
     llvm::outs() << "  " << backend.name << " - " << backend.description << "\n";
+    for (const qcc::Cpu& cpu : backend.cpus) {
+      llvm::outs() << "    -mcpu=" << cpu.name << " - " << cpu.description;
+      if (!cpu.features.empty()) {
+        llvm::outs() << " (-mattr=+" << llvm::join(cpu.features, ",+") << ")";
+      }
+      llvm::outs() << (cpu.name == "generic" ? " [default]\n" : "\n");
+    }
+    for (const qcc::Feature& feature : backend.features) {
+      llvm::outs() << "    -mattr=+" << feature.name << " - " << feature.description << "\n";
+    }
   }
 }
 
@@ -104,13 +115,10 @@ int main(int argc, char** argv) {
       cl::desc("Device file that describes the quantum device (requires --quantum-device). Not needed if the input "
                "module already carries a 'qcc.device' attribute"),
       cl::value_desc("filename"), cl::cat(qccCategory));
-  const cl::opt<unsigned> minVLen("min-vlen",
-                                  cl::desc("Guaranteed lower bound on VLEN in bits; a power of two, at least 64 "
-                                           "(--target=hisepq only)"),
-                                  cl::init(qcc::TargetOptions{}.minVLen), cl::value_desc("bits"), cl::cat(qccCategory));
-  const cl::opt<unsigned> qubitElementWidth(
-      "qubit-element-width", cl::desc("Number of bits one qubit index occupies, aka QEW (--target=hisepq only)"),
-      cl::init(qcc::TargetOptions{}.qubitElementWidth), cl::value_desc("bits"), cl::cat(qccCategory));
+  const cl::opt<std::string> mcpu("mcpu", cl::desc("Target CPU (see --list-targets)"), cl::init("generic"),
+                                  cl::value_desc("name"), cl::cat(qccCategory));
+  const cl::opt<std::string> mattr("mattr", cl::desc("Target features, comma-separated (see --list-targets)"),
+                                   cl::value_desc("+feature,-feature,..."), cl::cat(qccCategory));
   const cl::opt<Stage> compileTo(
       "compile-to", cl::desc("Stage to lower to and emit"), cl::init(Stage::LlvmIr),
       cl::values(clEnumValN(Stage::Mlir, "mlir", "MLIR after all lowering"),
@@ -192,17 +200,10 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  if (!target->usesMachineOptions) {
-    for (const cl::Option* option :
-         {&static_cast<const cl::Option&>(minVLen), &static_cast<const cl::Option&>(qubitElementWidth)}) {
-      if (option->getNumOccurrences() > 0) {
-        llvm::errs() << "error: --" << option->ArgStr << " is not supported for --target=" << targetName << "\n";
-        return 1;
-      }
-    }
+  const mlir::FailureOr<llvm::SmallVector<qcc::FeatureFlag>> features = qcc::parseFeatures(*target, mcpu, mattr);
+  if (mlir::failed(features)) {
+    return 1;
   }
-
-  const qcc::TargetOptions targetOptions{.minVLen = minVLen, .qubitElementWidth = qubitElementWidth};
 
   mlir::DialectRegistry registry;
 
@@ -252,7 +253,9 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  qcc::buildPipeline(pm, target, targetOptions, quantumDevice, deviceDescription);
+  if (mlir::failed(qcc::buildPipeline(pm, target, *features, quantumDevice, deviceDescription))) {
+    return 1;
+  }
 
   if (mlir::failed(pm.run(*module))) {
     return 1;
@@ -303,7 +306,7 @@ int main(int argc, char** argv) {
     }
     const qcc::NativeCodegenOptions codegenOptions{.binary = binary};
     if (target->emitNative(*llvmModule, static_cast<llvm::raw_pwrite_stream&>(outFile->os()), codegenOptions,
-                           targetOptions)) {
+                           *features)) {
       return 1;
     }
     break;
