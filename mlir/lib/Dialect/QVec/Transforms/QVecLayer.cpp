@@ -88,13 +88,14 @@ struct Layer {
 
   explicit Layer(Kind kind) : kind(kind) {}
 
-  [[nodiscard]] bool empty() const { return rotations.empty() && couplings.empty(); }
+  [[nodiscard]] bool empty() const { return sq.empty() && zz.empty(); }
 
+  /// kind determines which of the two maps `sq` vs `zz` is non-empty (the other one must be empty).
   Kind kind;
   /// `SQ`: the rotation each qubit receives. Ordered so that the emitted lanes are ordered by qubit.
-  std::map<Qubit, ZXZAngles> rotations;
+  std::map<Qubit, ZXZAngles> sq;
   /// `ZZ`: the angle of each coupled pair `(i, j)` with `i < j`.
-  std::map<std::pair<Qubit, Qubit>, double> couplings;
+  std::map<std::pair<Qubit, Qubit>, double> zz;
 };
 
 /// What the core hands to the builder.
@@ -163,18 +164,18 @@ static Schedule layerGates(ArrayRef<Gate> gates) {
 
     case Gate::Kind::ZXZ: {
       const Qubit qubit = gate.qubits.front();
-      ZXZAngles rotation = gate.zxz;
+      ZXZAngles zxz = gate.zxz;
       if (std::optional<double> angle = takePending(qubit)) {
-        rotation = fuseZXZ(ZXZAngles{.z1 = *angle}, rotation);
+        zxz = fuseZXZ(ZXZAngles{.z1 = *angle}, zxz);
       }
 
       int64_t index = lastLayer(qubit);
       if (index >= 0 && isSQIndex(index)) {
-        ZXZAngles& existing = layers[static_cast<size_t>(index)].rotations.at(qubit);
-        existing = fuseZXZ(existing, rotation);
+        ZXZAngles& existing = layers[static_cast<size_t>(index)].sq.at(qubit);
+        existing = fuseZXZ(existing, zxz);
       } else {
         index += 1;
-        layerAt(index).rotations.emplace(qubit, rotation);
+        layerAt(index).sq.emplace(qubit, zxz);
       }
       last[qubit] = index;
       lastSQ[qubit] = index;
@@ -212,7 +213,7 @@ static Schedule layerGates(ArrayRef<Gate> gates) {
         for (size_t j = i + 1; j < n; ++j) {
           if (at(i, j) != 0.0) {
             const auto key = std::minmax(gate.qubits[i], gate.qubits[j]);
-            layer.couplings[key] += at(i, j);
+            layer.zz[key] += at(i, j);
           }
         }
       }
@@ -233,7 +234,7 @@ static Schedule layerGates(ArrayRef<Gate> gates) {
       schedule.residualRZ[qubit] = angle;
       continue;
     }
-    ZXZAngles& existing = layers[static_cast<size_t>(it->second)].rotations.at(qubit);
+    ZXZAngles& existing = layers[static_cast<size_t>(it->second)].sq.at(qubit);
     existing = fuseZXZ(existing, ZXZAngles{.z1 = angle});
   }
 
@@ -463,12 +464,12 @@ public:
 
   void emitLayer(const Layer& layer) {
     if (layer.kind == Layer::Kind::SQ) {
-      assert(layer.couplings.empty() && "an SQ layer holds rotations only");
+      assert(layer.zz.empty() && "an SQ layer holds rotations only");
       SmallVector<Qubit> qubits;
       SmallVector<double> z1;
       SmallVector<double> x;
       SmallVector<double> z2;
-      for (const auto& [qubit, rotation] : layer.rotations) {
+      for (const auto& [qubit, rotation] : layer.sq) {
         qubits.push_back(qubit);
         z1.push_back(rotation.z1);
         x.push_back(rotation.x);
@@ -485,9 +486,9 @@ public:
       return;
     }
 
-    assert(layer.rotations.empty() && "a ZZ layer holds couplings only");
+    assert(layer.sq.empty() && "a ZZ layer holds couplings only");
     SmallVector<Qubit> qubits;
-    for (const auto& [pair, angle] : layer.couplings) {
+    for (const auto& [pair, angle] : layer.zz) {
       qubits.push_back(pair.first);
       qubits.push_back(pair.second);
     }
@@ -497,7 +498,7 @@ public:
     const size_t n = qubits.size();
     SmallVector<double> matrix(n * n, 0.0);
     auto position = [&](Qubit qubit) { return static_cast<size_t>(llvm::lower_bound(qubits, qubit) - qubits.begin()); };
-    for (const auto& [pair, angle] : layer.couplings) {
+    for (const auto& [pair, angle] : layer.zz) {
       const size_t i = position(pair.first);
       const size_t j = position(pair.second);
       matrix[(i * n) + j] = angle;
