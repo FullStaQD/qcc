@@ -9,6 +9,7 @@
 
 #include "qcc/Dialect/Aux_/IR/Aux_.h"
 #include "qcc/Dialect/Jasp/IR/Jasp.h"
+#include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEP.h"
 #include "qcc/Dialect/QVec/IR/QVec.h"
 
 #include "mlir/Dialect/QC/IR/QCDialect.h"
@@ -25,7 +26,7 @@ int main(int argc, char** argv) {
 
   // Register our custom project dialects.
   registry.insert<jasp::JaspDialect, mlir::qc::QCDialect, mlir::qco::QCODialect, qcc::aux::AuxDialect,
-                  qcc::qvec::QVecDialect>();
+                  qcc::qvec::QVecDialect, qcc::prelimhlep::PrelimHLEPDialect>();
 
   return mlir::succeeded(mlir::MlirLspServerMain(argc, argv, registry)) ? 0 : 1;
 }
