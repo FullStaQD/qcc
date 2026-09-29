@@ -1,5 +1,7 @@
 // RUN: qcc-opt %s -qvec-layer --split-input-file --verify-diagnostics
 
+// Every case below is well-formed IR that `qvec-layer` declines to handle.
+
 func.func @dynamic_angle(%theta: vector<1xf64>) {
     %q0 = qco.static 0 : !qco.qubit
     %v0 = vector.from_elements %q0 : vector<1x!qco.qubit>
@@ -67,6 +69,18 @@ func.func @gate_after_measurement() {
 
 // -----
 
+func.func @acts_twice_on_qubit() {
+    %q0 = qco.static 0 : !qco.qubit
+    %theta = arith.constant dense<0.5> : vector<1xf64>
+    %v0 = vector.from_elements %q0 : vector<1x!qco.qubit>
+    %v1 = vector.from_elements %q0 : vector<1x!qco.qubit>
+    // expected-error @+1 {{'qvec.pair' op acts twice on qubit 0}}
+    %a, %b = qvec.pair rzz(%theta) %v0, %v1 : vector<1x!qco.qubit>, vector<1xf64>
+    func.return
+}
+
+// -----
+
 func.func @control_flow(%flag: i1) {
     %q0 = qco.static 0 : !qco.qubit
     %theta = arith.constant dense<0.5> : vector<1xf64>
@@ -76,5 +90,18 @@ func.func @control_flow(%flag: i1) {
     scf.if %flag {
       scf.yield
     }
+    func.return
+}
+
+// -----
+
+// expected-error @+1 {{'func.func' op qvec-layer expects a single-block function}}
+func.func @multi_block() {
+    %q0 = qco.static 0 : !qco.qubit
+    %theta = arith.constant dense<0.5> : vector<1xf64>
+    %v0 = vector.from_elements %q0 : vector<1x!qco.qubit>
+    %v1 = qvec.single rz(%theta) %v0 : vector<1x!qco.qubit>, vector<1xf64>
+    cf.br ^exit
+  ^exit:
     func.return
 }
