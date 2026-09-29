@@ -26,10 +26,8 @@ double qcc::qvec::normalizeAngle(double angle) {
 
 Matrix2x2 qcc::qvec::rzMatrix(double theta) {
   return {
-      std::polar(1.0, -theta / 2),
-      Complex{0.0}, //
-      Complex{0.0},
-      std::polar(1.0, theta / 2),
+      std::polar(1.0, -theta / 2), Complex{0.0}, //
+      Complex{0.0}, std::polar(1.0, theta / 2)   //
   };
 }
 
@@ -37,19 +35,17 @@ Matrix2x2 qcc::qvec::rxMatrix(double theta) {
   const Complex diag{std::cos(theta / 2), 0.0};
   const Complex offDiag{0.0, -std::sin(theta / 2)};
   return {
-      diag,
-      offDiag, //
-      offDiag,
-      diag,
+      diag, offDiag, //
+      offDiag, diag  //
   };
 }
 
 Matrix2x2 qcc::qvec::multiply(const Matrix2x2& lhs, const Matrix2x2& rhs) {
   return {
-      (lhs[0] * rhs[0]) + (lhs[1] * rhs[2]),
+      (lhs[0] * rhs[0]) + (lhs[1] * rhs[2]), //
       (lhs[0] * rhs[1]) + (lhs[1] * rhs[3]), //
-      (lhs[2] * rhs[0]) + (lhs[3] * rhs[2]),
-      (lhs[2] * rhs[1]) + (lhs[3] * rhs[3]),
+      (lhs[2] * rhs[0]) + (lhs[3] * rhs[2]), //
+      (lhs[2] * rhs[1]) + (lhs[3] * rhs[3])  //
   };
 }
 
