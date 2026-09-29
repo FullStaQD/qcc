@@ -66,6 +66,7 @@ func.func @merge_across_rz_not_across_x() {
     %v1 = vector.from_elements %q1 : vector<1x!qco.qubit>
     %v2 = vector.from_elements %q2 : vector<1x!qco.qubit>
 
+    // The first two rzz become one global zz, the last rzz a second one.
     %v0a, %v1a = qvec.pair rzz(%a) %v0, %v1 : vector<1x!qco.qubit>, vector<1xf64>
     %v1b = qvec.single rz(%b) %v1a : vector<1x!qco.qubit>, vector<1xf64>       // diagonal: does not split the block
     %v1c, %v2c = qvec.pair rzz(%b) %v1b, %v2 : vector<1x!qco.qubit>, vector<1xf64>
@@ -94,8 +95,8 @@ func.func @merge_across_rz_not_across_x() {
 
 // -----
 
-// CHECK-LABEL: func.func @same_pair_adds_up
-func.func @same_pair_adds_up() {
+// CHECK-LABEL: func.func @rzz_absorbed_by_zz
+func.func @rzz_absorbed_by_zz() {
     %q0 = qco.static 0 : !qco.qubit
     %q1 = qco.static 1 : !qco.qubit
     %q2 = qco.static 2 : !qco.qubit

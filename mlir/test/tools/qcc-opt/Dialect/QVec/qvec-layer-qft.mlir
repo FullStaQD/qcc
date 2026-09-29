@@ -1,9 +1,8 @@
 // RUN: qcc-opt %s -qc-to-qco -convert-qco-to-qvec -qvec-to-rzz -qvec-to-u-zxz -qvec-fuse-zxz -qvec-layer | FileCheck %s
 
-// End to end through the QVec passes: a 4-qubit QFT (without the final swaps) written in QC with `ctrl { p }`. The
-// layered result was also checked numerically against the input's unitary. Expected structure: the Hadamard on q0,
-// then alternating: a zz block coupling the current qubit to all later ones, and the next Hadamard (with the cp
-// phases folded in), four blocks in total, one qubit fewer each time; then every qubit is measured and recorded.
+// End to end through the QVec passes: a 4-qubit QFT (without the final swaps) written in QC. Expected structure:
+// the Hadamard on q0, then alternating: a zz block coupling the current qubit to all later ones, and the next Hadamard
+// (with the cp phases folded in).
 
 func.func @main() attributes { qcc.entry_point } {
   %pi2 = arith.constant 1.5707963267948966 : f64
