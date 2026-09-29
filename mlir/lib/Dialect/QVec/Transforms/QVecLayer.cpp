@@ -101,7 +101,7 @@ struct Layer {
 struct Schedule {
   SmallVector<Layer> layers;
   /// Diagonal rotations that never met a `u_zxz` on their qubit; emitted as one `single rz` after the layers.
-  std::map<Qubit, double> residualRz;
+  std::map<Qubit, double> residualRZ;
 };
 
 } // namespace
@@ -112,18 +112,18 @@ struct Schedule {
 
 /// Greedily schedules `gates` (in program order) into alternating layers.
 ///
-/// Per qubit the core tracks `last[q]`, the index of the latest layer with a gate on `q`, `lastSq[q]`, the latest
-/// `Sq` layer with a rotation on `q`, and `pending[q]`, an `rz` angle seen but not yet placed. Rules:
+/// Per qubit the core tracks `last[q]`, the index of the latest layer with a gate on `q`, `lastSQ[q]`, the latest
+/// `SQ` layer with a rotation on `q`, and `pending[q]`, an `rz` angle seen but not yet placed. Rules:
 ///
 /// - `rz`: only accumulates in `pending`. Being diagonal it commutes with every ZZ block, so it floats until the next
 ///   `u_zxz` on its qubit absorbs it, or the end is reached.
-/// - `u_zxz`: first absorbs `pending`. If the latest layer on `q` is an `Sq` layer the two rotations fuse (nothing
-///   touches `q` in between); otherwise it goes into the first `Sq` layer after `last[q]`.
+/// - `u_zxz`: first absorbs `pending`. If the latest layer on `q` is an `SQ` layer the two rotations fuse (nothing
+///   touches `q` in between); otherwise it goes into the first `SQ` layer after `last[q]`.
 /// - `zz`: goes into the earliest ZZ layer after the latest layer on any of its qubits, which is the latest ZZ block
 ///   such that only diagonal gates touch the block's qubits between it and the gate. Angles of a pair already coupled
 ///   in that block add up.
-/// - At the end, every `pending` rotation is folded into `lastSq[q]` if there is one (only diagonal gates on `q`
-///   follow it, so it commutes back); the rest becomes `residualRz`.
+/// - At the end, every `pending` rotation is folded into `lastSQ[q]` if there is one (only diagonal gates on `q`
+///   follow it, so it commutes back); the rest becomes `residualRZ`.
 ///
 /// Measurements do not take part: the analysis guarantees that nothing follows a measurement on its qubit, so all of
 /// them go after the last layer.
@@ -131,17 +131,20 @@ static Schedule layerGates(ArrayRef<Gate> gates) {
   Schedule schedule;
   SmallVector<Layer>& layers = schedule.layers;
   DenseMap<Qubit, int64_t> last;
-  DenseMap<Qubit, int64_t> lastSq;
+  DenseMap<Qubit, int64_t> lastSQ;
   DenseMap<Qubit, double> pending;
 
   auto lastLayer = [&](Qubit qubit) { return last.lookup_or(qubit, -1); };
-  auto isSqIndex = [](int64_t index) { return index % 2 == 0; };
+
+  auto isSQIndex = [](int64_t index) { return index % 2 == 0; };
+
   auto layerAt = [&](int64_t index) -> Layer& {
     while (std::cmp_less_equal(layers.size(), index)) {
-      layers.emplace_back(isSqIndex(static_cast<int64_t>(layers.size())) ? Layer::Kind::SQ : Layer::Kind::ZZ);
+      layers.emplace_back(isSQIndex(static_cast<int64_t>(layers.size())) ? Layer::Kind::SQ : Layer::Kind::ZZ);
     }
     return layers[static_cast<size_t>(index)];
   };
+
   auto takePending = [&](Qubit qubit) -> std::optional<double> {
     auto it = pending.find(qubit);
     if (it == pending.end()) {
@@ -166,7 +169,7 @@ static Schedule layerGates(ArrayRef<Gate> gates) {
       }
 
       int64_t index = lastLayer(qubit);
-      if (index >= 0 && isSqIndex(index)) {
+      if (index >= 0 && isSQIndex(index)) {
         ZXZAngles& existing = layers[static_cast<size_t>(index)].rotations.at(qubit);
         existing = fuseZXZ(existing, rotation);
       } else {
@@ -174,7 +177,7 @@ static Schedule layerGates(ArrayRef<Gate> gates) {
         layerAt(index).rotations.emplace(qubit, rotation);
       }
       last[qubit] = index;
-      lastSq[qubit] = index;
+      lastSQ[qubit] = index;
       break;
     }
 
@@ -201,7 +204,7 @@ static Schedule layerGates(ArrayRef<Gate> gates) {
       int64_t index = latest + 1;
       if (latest < 0) {
         index = 1;
-      } else if (!isSqIndex(latest)) {
+      } else if (!isSQIndex(latest)) {
         index = latest;
       }
       Layer& layer = layerAt(index);
@@ -225,9 +228,9 @@ static Schedule layerGates(ArrayRef<Gate> gates) {
   }
 
   for (const auto& [qubit, angle] : pending) {
-    auto it = lastSq.find(qubit);
-    if (it == lastSq.end()) {
-      schedule.residualRz[qubit] = angle;
+    auto it = lastSQ.find(qubit);
+    if (it == lastSQ.end()) {
+      schedule.residualRZ[qubit] = angle;
       continue;
     }
     ZXZAngles& existing = layers[static_cast<size_t>(it->second)].rotations.at(qubit);
@@ -460,6 +463,7 @@ public:
 
   void emitLayer(const Layer& layer) {
     if (layer.kind == Layer::Kind::SQ) {
+      assert(layer.couplings.empty() && "an SQ layer holds rotations only");
       SmallVector<Qubit> qubits;
       SmallVector<double> z1;
       SmallVector<double> x;
@@ -481,6 +485,7 @@ public:
       return;
     }
 
+    assert(layer.rotations.empty() && "a ZZ layer holds couplings only");
     SmallVector<Qubit> qubits;
     for (const auto& [pair, angle] : layer.couplings) {
       qubits.push_back(pair.first);
@@ -504,7 +509,7 @@ public:
     scatter(op.getQubitsOut(), qubits);
   }
 
-  void emitResidualRz(const std::map<Qubit, double>& residual) {
+  void emitResidualRZ(const std::map<Qubit, double>& residual) {
     if (residual.empty()) {
       return;
     }
@@ -574,7 +579,7 @@ static void rebuildFunction(func::FuncOp func, const Program& program, const Sch
       body.emitLayer(layer);
     }
   }
-  body.emitResidualRz(schedule.residualRz);
+  body.emitResidualRZ(schedule.residualRZ);
   for (const Gate& gate : program.gates) {
     if (gate.kind == Gate::Kind::MZ) {
       body.emitMeasurement(gate, mapping);
