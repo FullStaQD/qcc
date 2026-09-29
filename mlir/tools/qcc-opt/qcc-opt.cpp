@@ -10,14 +10,17 @@
 #include "qcc/Conversion/AffineRaise/AffineRaise.h"
 #include "qcc/Conversion/Aux_/AuxOutputRecording.h"
 #include "qcc/Conversion/JaspToQC/JaspToQC.h"
+#include "qcc/Conversion/PrelimHLEPToQCO/PrelimHLEPToQCO.h"
 #include "qcc/Conversion/QCOToQVec/QCOToQVec.h"
 #include "qcc/Conversion/ToHiSEPQ/ToHiSEPQ.h"
 #include "qcc/Conversion/ToQIR/ToQIR.h"
 #include "qcc/Dialect/Aux_/IR/Aux_.h"
+#include "qcc/Dialect/HLEPGate/IR/HLEPGate.h"
 #include "qcc/Dialect/Jasp/IR/Jasp.h"
 #include "qcc/Dialect/Magic/IR/Magic.h"
 #include "qcc/Dialect/Magic/Transforms/Passes.h"
 #include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEP.h"
+#include "qcc/Dialect/PrelimHLEP/Transforms/Passes.h"
 #include "qcc/Dialect/QVec/IR/QVec.h"
 #include "qcc/Dialect/QVec/Transforms/Passes.h"
 #include "qcc/Dialect/Qcc/IR/Qcc.h"
@@ -85,7 +88,8 @@ int main(int argc, char** argv) {
     qcc::magic::MagicDialect,
     qcc::QccDialect,
     qcc::qvec::QVecDialect,
-    qcc::prelimhlep::PrelimHLEPDialect
+    qcc::prelimhlep::PrelimHLEPDialect,
+    qcc::hlepgate::HLEPGateDialect
       // clang-format on
       >();
 
@@ -130,6 +134,8 @@ int main(int argc, char** argv) {
   qcc::magic::registerMagicVerify();
   qcc::registerQccAttachDevice();
   mlir::registerQCToQCO();
+  qcc::registerPrelimHLEPToQCO();
+  qcc::registerPrelimHLEPLinToGates();
 
   // Extension registration
   mlir::arith::registerBufferizableOpInterfaceExternalModels(registry);
