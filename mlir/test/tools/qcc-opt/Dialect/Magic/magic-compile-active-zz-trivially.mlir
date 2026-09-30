@@ -7,7 +7,8 @@
 // CHECK-LABEL: func.func @pair
 func.func @pair() {
   %c0 = magic.init : !magic.ion_chain<0, [0:1, 1:1]>
-  %c1 = magic.active_zz %c0 {angles = dense<[[0.0, 1.5707963267948966], [1.5707963267948966, 0.0]]> : tensor<2x2xf64>} : !magic.ion_chain<0, [0:1, 1:1]>
+  %c1 = magic.active_zz %c0 {angles = dense<[[0.0, 1.5707963267948966],
+                                             [1.5707963267948966, 0.0]]> : tensor<2x2xf64>} : !magic.ion_chain<0, [0:1, 1:1]>
   %m0, %m1 = magic.mzd %c1 : !magic.ion_chain<0, [0:1, 1:1]> -> i1, i1
   return
 }
@@ -18,12 +19,13 @@ func.func @pair() {
 
 // -----
 
-// Three active ions, two pairs, one per sequence in row-major order. The pair (0, 2) sits at the outer positions
-// (J = 0.5) and has a negative angle: ion 0 is conjugated with X.
+// Three active ions, two couplings with different strengths. X flip to account for the sign.
 // CHECK-LABEL: func.func @three_ions
 func.func @three_ions() {
   %c0 = magic.init : !magic.ion_chain<1, [0:1, 2:1, 3:1]>
-  %c1 = magic.active_zz %c0 {angles = dense<[[0.0, 1.5707963267948966, -1.5707963267948966], [1.5707963267948966, 0.0, 0.0], [-1.5707963267948966, 0.0, 0.0]]> : tensor<3x3xf64>} : !magic.ion_chain<1, [0:1, 2:1, 3:1]>
+  %c1 = magic.active_zz %c0 {angles = dense<[[0.0, 1.5707963267948966, -1.5707963267948966],
+                                             [1.5707963267948966, 0.0, 0.0],
+                                             [-1.5707963267948966, 0.0, 0.0]]> : tensor<3x3xf64>} : !magic.ion_chain<1, [0:1, 2:1, 3:1]>
   %m0, %m1, %m2 = magic.mzd %c1 : !magic.ion_chain<1, [0:1, 2:1, 3:1]> -> i1, i1, i1
   return
 }
@@ -41,13 +43,13 @@ func.func @three_ions() {
 
 // -----
 
-// An inactive ion counts for the choice of J (three ions present) but is not coupled: the pair sits at the outer
-// positions, J = 0.5, t = (pi/2) / 1 s.
+// An inactive ion counts for the choice of J (three ions present) but is not coupled.
 // CHECK-LABEL: func.func @inactive_ion
 func.func @inactive_ion() {
   %c = magic.init : !magic.ion_chain<0, [0:1, 1:1, 2:1]>
   %c0 = magic.recode %c : !magic.ion_chain<0, [0:1, 1:1, 2:1]> -> !magic.ion_chain<0, [0:1, 1:0, 2:1]>
-  %c1 = magic.active_zz %c0 {angles = dense<[[0.0, 1.5707963267948966], [1.5707963267948966, 0.0]]> : tensor<2x2xf64>} : !magic.ion_chain<0, [0:1, 1:0, 2:1]>
+  %c1 = magic.active_zz %c0 {angles = dense<[[0.0, 1.5707963267948966],
+                                             [1.5707963267948966, 0.0]]> : tensor<2x2xf64>} : !magic.ion_chain<0, [0:1, 1:0, 2:1]>
   %m0, %m1, %m2 = magic.mzd %c1 : !magic.ion_chain<0, [0:1, 1:0, 2:1]> -> i1, i1, i1
   return
 }

@@ -1,7 +1,5 @@
 // RUN: qcc-opt %s --canonicalize --split-input-file | FileCheck %s
 
-// Every test records its measurements: without a user, the whole program is dead code.
-
 !c = !magic.ion_chain<0, [0:1, 1:1, 2:1]>
 !c0 = !magic.ion_chain<0, [0:0, 1:1, 2:1]>
 !c01 = !magic.ion_chain<0, [0:0, 1:0, 2:1]>
@@ -73,7 +71,7 @@ func.func @rz_merge() {
 
 !c = !magic.ion_chain<0, [0:1, 1:1, 2:1]>
 
-// Zero angles are dropped, and an rz without angles is gone.
+// Zero angles are dropped.
 // CHECK-LABEL: func.func @rz_zero
 func.func @rz_zero() {
   %c0 = magic.init : !c
