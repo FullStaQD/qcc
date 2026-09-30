@@ -18,7 +18,7 @@ include "mlir/IR/OpBase.td" // the dialect doc generator needs `Op`, even for a 
 // Qcc dialect
 //===----------------------------------------------------------------------===//
 
-def QccDialect : Dialect {
+def Qcc_Dialect : Dialect {
     let summary = "Project-wide metadata: e.g. device description and the entry point marker.";
     let description = [{
         The `qcc` dialect owns the metadata that is meaningful across all quantum dialects of this project.

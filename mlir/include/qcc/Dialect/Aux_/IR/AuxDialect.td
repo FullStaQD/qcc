@@ -17,7 +17,7 @@ include "mlir/IR/AttrTypeBase.td"
 // Aux dialect
 //===----------------------------------------------------------------------===//
 
-def AuxDialect : Dialect {
+def Aux_Dialect : Dialect {
     let summary = "Auxiliary dialect to contain workarounds.";
     let description = [{
         The purpose of the dialect is to enable us moving forward if some

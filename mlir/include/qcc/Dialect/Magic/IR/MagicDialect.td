@@ -17,7 +17,7 @@ include "mlir/IR/AttrTypeBase.td"
 // Magic dialect
 //===----------------------------------------------------------------------===//
 
-def MagicDialect : Dialect {
+def Magic_Dialect : Dialect {
     let summary = "Programs for the MAGIC architecture: ion chains in traps coupled by a permanent ZZ interaction.";
     let description = [{
         The MAGIC (Magnetic Gradient Induced Coupling) architecture consists of ion traps ("chains"), each holding a

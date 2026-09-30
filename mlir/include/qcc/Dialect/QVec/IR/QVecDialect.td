@@ -17,7 +17,7 @@ include "mlir/IR/AttrTypeBase.td"
 // QVec dialect
 //===----------------------------------------------------------------------===//
 
-def QVecDialect : Dialect {
+def QVec_Dialect : Dialect {
     let summary = "Vector-shaped quantum instructions.";
     let description = [{
         Some quantum ISAs apply one gate across every active element of a vector register, so that a whole batch of
@@ -25,6 +25,9 @@ def QVecDialect : Dialect {
         way. This parallels the upstream `vector` dialect, and in fact we use the builtin `vector` type.
 
         The dialect has **value semantics** to ease optimization passes.
+
+        The dialect does not model a global phase: gates are equal if they agree up to a global phase, and a lowering
+        into `qvec` may drop one (e.g. `qco.gphase` at the top level).
 
         Example:
         ```mlir

@@ -41,7 +41,7 @@ def Magic_Native : NativeOpTrait<"Native"> {
 // All ops are free of memory effects, but deliberately not `Pure`: the chain values are affine, so folding or
 // hoisting must never duplicate them.
 class Magic_Op<string mnemonic, list<Trait> traits = []>
-    : Op<MagicDialect, mnemonic, !listconcat(traits, [NoMemoryEffect, Magic_AffineChains])>;
+    : Op<Magic_Dialect, mnemonic, !listconcat(traits, [NoMemoryEffect, Magic_AffineChains])>;
 
 // An op that transforms one chain in place: the chain type does not change.
 class Magic_SameChainOp<string mnemonic, list<Trait> traits = []>
