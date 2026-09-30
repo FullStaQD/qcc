@@ -16,6 +16,7 @@
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/Operation.h"
+#include "mlir/IR/PatternMatch.h"                 // IWYU pragma: keep
 #include "mlir/Interfaces/SideEffectInterfaces.h" // IWYU pragma: keep
 
 #include "llvm/ADT/Hashing.h"

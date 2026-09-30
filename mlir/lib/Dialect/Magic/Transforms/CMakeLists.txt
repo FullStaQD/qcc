@@ -1,5 +1,11 @@
 add_mlir_dialect_library(
   QCCMagicTransforms
+  CompileActiveZZTrivially.cpp
+  CompileSwap.cpp
+  FinalizeZXZ.cpp
+  PadTiming.cpp
+  ShuttleInterTrapZZ.cpp
+  Timing.cpp
   Verify.cpp
   DEPENDS
   QCCMagicTransformsIncGen
@@ -9,4 +15,7 @@ add_mlir_dialect_library(
   MLIRPass
   MLIRSupport
   MLIRFunctionInterfaces
-  QCCMagicDialect)
+  QCCAuxDialect
+  QCCMagicDevice
+  QCCMagicDialect
+  QCCQVecTransforms)

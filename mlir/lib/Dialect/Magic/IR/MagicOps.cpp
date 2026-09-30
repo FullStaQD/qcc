@@ -11,19 +11,26 @@
 
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinTypeInterfaces.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Diagnostics.h"
+#include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/Operation.h"
+#include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Region.h"
 #include "mlir/IR/Value.h"
 #include "mlir/Interfaces/FunctionInterfaces.h"
 
+#include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/TypeSwitch.h" // IWYU pragma: keep
 
+#include <cassert>
+#include <cmath>
 #include <cstdint>
+#include <numbers>
 
 using namespace mlir;
 using namespace qcc::magic;
@@ -173,9 +180,71 @@ LogicalResult SymZXZOp::verify() {
                  succeeded(verifyOneAnglePerIon(*this, "x", getX(), numIons)));
 }
 
+/// Wraps `angle` into (-pi, pi]. Shifting by 2 pi only changes the global phase of a rotation.
+static double normalizeAngle(double angle) {
+  const double wrapped = std::remainder(angle, 2.0 * std::numbers::pi);
+  return wrapped <= -std::numbers::pi ? wrapped + (2.0 * std::numbers::pi) : wrapped;
+}
+
+LogicalResult RZOp::canonicalize(RZOp op, PatternRewriter& rewriter) {
+  // Per ion the sum of the angles of this op and, if it directly follows one, the preceding `rz`. Chain values are
+  // affine, so the preceding op has no other user.
+  llvm::MapVector<int64_t, double> angles;
+  auto previous = op.getChainIn().getDefiningOp<RZOp>();
+  for (RZOp rz : {previous, op}) {
+    if (!rz) {
+      continue;
+    }
+    for (auto [ion, angle] : llvm::zip_equal(rz.getIons(), rz.getAngles().getAsValueRange<FloatAttr>())) {
+      angles[ion] += angle.convertToDouble();
+    }
+  }
+
+  SmallVector<int64_t> ions;
+  SmallVector<double> sums;
+  for (auto [ion, angle] : angles) {
+    const double normalized = normalizeAngle(angle);
+    if (normalized != 0.0) {
+      ions.push_back(ion);
+      sums.push_back(normalized);
+    }
+  }
+
+  Value chainIn = previous ? previous.getChainIn() : op.getChainIn();
+  if (ions.empty()) {
+    rewriter.replaceOp(op, chainIn);
+  } else if (previous || ions.size() != op.getIons().size()) {
+    rewriter.replaceOpWithNewOp<RZOp>(op, op.getType(), chainIn, ions, rewriter.getF64ArrayAttr(sums));
+  } else {
+    return failure();
+  }
+  if (previous) {
+    rewriter.eraseOp(previous);
+  }
+  return success();
+}
+
 //===----------------------------------------------------------------------===//
 // ActiveZZOp
 //===----------------------------------------------------------------------===//
+
+void ActiveZZOp::build(OpBuilder& builder, OperationState& state, Value chain, int64_t ionA, int64_t ionB,
+                       double angle) {
+  auto type = cast<IonChainType>(chain.getType());
+  const SmallVector<int64_t> active = type.getActiveIons();
+  const auto size = static_cast<int64_t>(active.size());
+  const auto* itA = llvm::find(active, ionA);
+  const auto* itB = llvm::find(active, ionB);
+  assert(itA != active.end() && itB != active.end() && ionA != ionB && "expected two distinct active ions");
+  const int64_t a = itA - active.begin();
+  const int64_t b = itB - active.begin();
+
+  SmallVector<double> matrix(static_cast<size_t>(size * size), 0.0);
+  matrix[(a * size) + b] = angle;
+  matrix[(b * size) + a] = angle;
+  auto matrixType = RankedTensorType::get({size, size}, Float64Type::get(builder.getContext()));
+  build(builder, state, type, chain, DenseElementsAttr::get(matrixType, ArrayRef(matrix)));
+}
 
 LogicalResult ActiveZZOp::verify() {
   const int64_t numActive = getChainIn().getType().getNumActiveIons();
@@ -200,8 +269,39 @@ LogicalResult ActiveZZOp::verify() {
 }
 
 //===----------------------------------------------------------------------===//
+// DelayOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult DelayOp::fold(FoldAdaptor /*adaptor*/) {
+  if (getTicks() == 0) {
+    return getChainIn();
+  }
+  return {};
+}
+
+//===----------------------------------------------------------------------===//
 // RecodeOp
 //===----------------------------------------------------------------------===//
+
+void RecodeOp::build(OpBuilder& builder, OperationState& state, Value chain, ArrayRef<int64_t> ions) {
+  build(builder, state, cast<IonChainType>(chain.getType()).withToggled(ions), chain);
+}
+
+LogicalResult RecodeOp::canonicalize(RecodeOp op, PatternRewriter& rewriter) {
+  // Chain values are affine, so the preceding recode has no other user.
+  auto previous = op.getChainIn().getDefiningOp<RecodeOp>();
+  if (!previous) {
+    return failure();
+  }
+  Value chainIn = previous.getChainIn();
+  if (chainIn.getType() == op.getType()) {
+    rewriter.replaceOp(op, chainIn);
+  } else {
+    rewriter.replaceOpWithNewOp<RecodeOp>(op, op.getType(), chainIn);
+  }
+  rewriter.eraseOp(previous);
+  return success();
+}
 
 LogicalResult RecodeOp::verify() {
   const IonChainType in = getChainIn().getType();
@@ -222,6 +322,13 @@ LogicalResult RecodeOp::verify() {
 //===----------------------------------------------------------------------===//
 // ShuttleOp
 //===----------------------------------------------------------------------===//
+
+void ShuttleOp::build(OpBuilder& builder, OperationState& state, Value from, Value to) {
+  auto fromType = cast<IonChainType>(from.getType());
+  auto toType = cast<IonChainType>(to.getType());
+  const IonSlot front = fromType.getSlots().front();
+  build(builder, state, fromType.withoutFront(), toType.withFront(front.ion, front.active), from, to);
+}
 
 LogicalResult ShuttleOp::verify() {
   const IonChainType fromIn = getFromIn().getType();

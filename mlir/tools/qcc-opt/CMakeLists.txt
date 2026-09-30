@@ -38,6 +38,7 @@ target_link_libraries(
           QCCQVecTransforms
           QCCQccTransforms
           QCCQCOToQVec
+          QCCQVecToMagic
           QCCToHiSEPQ
           QCCToQIR
           QCCAuxOutputRecording

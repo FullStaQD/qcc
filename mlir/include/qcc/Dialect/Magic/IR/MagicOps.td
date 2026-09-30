@@ -65,8 +65,8 @@ def Magic_InitOp : Magic_Op<"init", [Magic_Native]> {
 
         Each function (program) should hold at most one `magic.init`.
 
-        Whether the chains agree with the device (occupancies, capacities, identity placement) can be checked by the
-        verification pass, not here.
+        Whether the chains agree with the device (occupancies, capacities, identity placement) is checked by the
+        `magic-verify` pass, not here.
 
         Example:
         ```mlir
@@ -115,6 +115,9 @@ def Magic_RZOp : Magic_SingleIonGateOp<"rz", [Magic_Native]> {
   let arguments = (ins Magic_IonChainType:$chain_in,
                        DenseI64ArrayAttr:$ions,
                        F64ArrayAttr:$angles);
+
+  // Merges two consecutive `rz`, drops zero angles.
+  let hasCanonicalizeMethod = 1;
 }
 
 def Magic_SymZXZOp : Magic_SingleIonGateOp<"sym_zxz", [Magic_Native]> {
@@ -156,6 +159,11 @@ def Magic_ActiveZZOp : Magic_SameChainOp<"active_zz"> {
         $chain_in attr-dict `:` type($chain_in)
     }];
   let hasVerifier = 1;
+
+  let builders = [
+    // `rzz(angle)` between the ions `ionA` and `ionB` (ids) of `chain`, both active; every other entry is zero.
+    OpBuilder<(ins "::mlir::Value":$chain, "int64_t":$ionA, "int64_t":$ionB, "double":$angle)>
+  ];
 }
 
 def Magic_DelayOp : Magic_SameChainOp<"delay", [Magic_Native]> {
@@ -176,6 +184,9 @@ def Magic_DelayOp : Magic_SameChainOp<"delay", [Magic_Native]> {
   let assemblyFormat = [{
         $chain_in attr-dict `:` type($chain_in)
     }];
+
+  // A delay of zero ticks is a no-op.
+  let hasFolder = 1;
 }
 
 def Magic_RecodeOp : Magic_Op<"recode", [Magic_Native]> {
@@ -197,6 +208,14 @@ def Magic_RecodeOp : Magic_Op<"recode", [Magic_Native]> {
         $chain_in attr-dict `:` type($chain_in) `->` type($chain_out)
     }];
   let hasVerifier = 1;
+
+  // Two consecutive recodes become one, or none if they toggle the same ions.
+  let hasCanonicalizeMethod = 1;
+
+  let builders = [
+    // Toggles the activation of the ions `ions` (ids) of `chain`.
+    OpBuilder<(ins "::mlir::Value":$chain, "::llvm::ArrayRef<int64_t>":$ions)>
+  ];
 }
 
 def Magic_ShuttleOp : Magic_Op<"shuttle", [Magic_Native]> {
@@ -225,6 +244,11 @@ def Magic_ShuttleOp : Magic_Op<"shuttle", [Magic_Native]> {
         $from_in `,` $to_in attr-dict `:` type($from_in) `,` type($to_in) `->` type($from_out) `,` type($to_out)
     }];
   let hasVerifier = 1;
+
+  let builders = [
+    // Moves the front ion of `from` to the front of `to`; the result types follow.
+    OpBuilder<(ins "::mlir::Value":$from, "::mlir::Value":$to)>
+  ];
 
   let extraClassDeclaration = [{
         /// The id of the ion that moves.
