@@ -12,16 +12,13 @@
 #include "mlir/Dialect/QCO/IR/QCODialect.h" // IWYU pragma: keep
 #include "mlir/Dialect/QCO/IR/QCOOps.h"
 #include "mlir/IR/BuiltinTypes.h"
+#include "mlir/IR/Types.h"
+#include "mlir/IR/Value.h"
 
 #include "llvm/ADT/SmallPtrSet.h"
 
 #include <cassert>
 #include <cstdint>
-#include <mlir/IR/Value.h>
-
-namespace mlir {
-class Value;
-} // namespace mlir
 
 //===----------------------------------------------------------------------===//
 // QVec Dialect
@@ -49,6 +46,13 @@ inline bool isQubitVector(mlir::Type type) {
   auto vectorType = mlir::dyn_cast<mlir::VectorType>(type);
   return vectorType && mlir::isa<mlir::qco::QubitType>(vectorType.getElementType());
 }
+
+/// Positions of the three parameters of `qvec.single u_zxz(z1, x, z2)` = Rz(z2) * Rx(x) * Rz(z1), z1 applied first.
+namespace zxz {
+inline constexpr unsigned z1 = 0;
+inline constexpr unsigned x = 1;
+inline constexpr unsigned z2 = 2;
+} // namespace zxz
 
 } // namespace qcc::qvec
 

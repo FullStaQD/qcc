@@ -30,7 +30,8 @@ llvm_config.with_system_environment(["HOME", "INCLUDE", "LIB", "TMP", "TEMP"])
 llvm_config.use_default_substitutions()
 
 # excludes: A list of directories and filenames to exclude from the testsuite.
-config.excludes = []
+# `Inputs` directories hold files that tests read (e.g. device files), not tests.
+config.excludes = ["Inputs"]
 
 # Gate HiSEP-Q target tests: only available when qcc was built with the HiSEP-Q
 # target (QCC_ENABLE_HISEPQ). Tests opt in via `REQUIRES: hisepq` (or exclude

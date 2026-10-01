@@ -18,9 +18,9 @@ include "AuxDialect.td"
 // Aux operations
 //===----------------------------------------------------------------------===//
 
-class AuxOp<string mnemonic, list<Trait> traits = []> : Op<AuxDialect, mnemonic, traits>;
+class Aux_Op<string mnemonic, list<Trait> traits = []> : Op<Aux_Dialect, mnemonic, traits>;
 
-def RecordIntOp : AuxOp<"record_int"> {
+def Aux_RecordIntOp : Aux_Op<"record_int"> {
   let summary = "Records an integer.";
 
   let description = [{
@@ -51,7 +51,7 @@ def RecordIntOp : AuxOp<"record_int"> {
     let assemblyFormat = "$value attr-dict `:` type($value)";
 }
 
-def RecordMemRefOp : AuxOp<"record_memref"> {
+def Aux_RecordMemRefOp : Aux_Op<"record_memref"> {
   let summary = "Records a memory reference.";
 
   let description = [{

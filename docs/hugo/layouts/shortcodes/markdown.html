@@ -1,0 +1,7 @@
+{{- /* mlir-tblgen wraps attribute descriptions in `{{% markdown %}}` when it is
+run with `-allow-hugo-specific-features` (see AddQCCDoc.cmake). They sit inside
+the raw HTML `
+<table>
+  ` of the attribute list, where goldmark does not process markdown, so render
+  the inner content here. */ -}} {{- .Inner | markdownify -}}
+</table>

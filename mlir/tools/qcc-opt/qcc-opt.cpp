@@ -15,9 +15,13 @@
 #include "qcc/Conversion/ToQIR/ToQIR.h"
 #include "qcc/Dialect/Aux_/IR/Aux_.h"
 #include "qcc/Dialect/Jasp/IR/Jasp.h"
+#include "qcc/Dialect/Magic/IR/Magic.h"
+#include "qcc/Dialect/Magic/Transforms/Passes.h"
 #include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEP.h"
 #include "qcc/Dialect/QVec/IR/QVec.h"
 #include "qcc/Dialect/QVec/Transforms/Passes.h"
+#include "qcc/Dialect/Qcc/IR/Qcc.h"
+#include "qcc/Dialect/Qcc/Transforms/Passes.h"
 
 #include "mlir/Conversion/ArithToLLVM/ArithToLLVM.h"
 #include "mlir/Conversion/FuncToLLVM/ConvertFuncToLLVM.h"
@@ -78,6 +82,8 @@ int main(int argc, char** argv) {
     mlir::qc::QCDialect,
     mlir::qco::QCODialect,
     qcc::aux::AuxDialect,
+    qcc::magic::MagicDialect,
+    qcc::QccDialect,
     qcc::qvec::QVecDialect,
     qcc::prelimhlep::PrelimHLEPDialect
       // clang-format on
@@ -117,6 +123,12 @@ int main(int argc, char** argv) {
   qcc::registerConvertQCOToQVec();
   qcc::registerConvertQVecToHiSEPQIntrinsics();
   qcc::registerQVecMerge();
+  qcc::registerQVecToRZZ();
+  qcc::registerQVecToUZXZ();
+  qcc::registerQVecFuseZXZ();
+  qcc::registerQVecLayer();
+  qcc::magic::registerMagicVerify();
+  qcc::registerQccAttachDevice();
   mlir::registerQCToQCO();
 
   // Extension registration
