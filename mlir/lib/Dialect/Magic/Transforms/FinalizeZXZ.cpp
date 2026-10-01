@@ -43,7 +43,10 @@ static SmallVector<double> toDoubles(ArrayAttr angles) {
 
 namespace {
 
-/// Walks one block in order and carries the Z rotation that is still to be applied, per ion, to the right.
+/// Walks one block in order and carries the pending Z rotations forward (per ion).
+///
+/// The rules below are operator products: in `a * b` the right factor `b` acts first. The leading `rz` of a result
+/// is what stays pending.
 class Finalizer {
 public:
   void run(Block& block) {
@@ -66,7 +69,7 @@ public:
   }
 
 private:
-  /// zxz(z1, x, z2) after rz(r) = rz(z1 + r + z2) after sym_zxz(z1 + r, x).
+  /// zxz(z1, x, z2) * rz(r) becomes rz(z1 + r + z2) * sym_zxz(z1 + r, x).
   void finalize(ZXZOp zxz) {
     SmallVector<double> z;
     SmallVector<double> x;
@@ -83,7 +86,7 @@ private:
     zxz.erase();
   }
 
-  /// sym_zxz(z, x) after rz(r) = rz(r) after sym_zxz(z + r, x): the rotation stays pending.
+  /// sym_zxz(z, x) * rz(r) becomes rz(r) * sym_zxz(z + r, x).
   void absorb(SymZXZOp sym) {
     SmallVector<double> z;
     for (auto [ion, angle] : llvm::zip_equal(sym.getIons(), toDoubles(sym.getZ()))) {
@@ -92,6 +95,7 @@ private:
     sym.setZAttr(OpBuilder(sym).getF64ArrayAttr(z));
   }
 
+  /// rz(a) * rz(r) becomes rz(a + r).
   void collect(RZOp rz) {
     for (auto [ion, angle] : llvm::zip_equal(rz.getIons(), toDoubles(rz.getAngles()))) {
       pending[ion] += angle;
@@ -100,8 +104,8 @@ private:
     rz.erase();
   }
 
-  /// Applies what is pending on the chains `op` consumes, right before it: `op` is not a magic op the rotations can
-  /// pass.
+  /// op * rz(r) stays as it is, for an `op` the rotation cannot pass: rz(r) is emitted in front of it on the chains it
+  /// consumes and nothing stays pending.
   void flush(Operation* op) {
     OpBuilder builder(op);
     for (OpOperand& operand : op->getOpOperands()) {
@@ -134,7 +138,6 @@ struct MagicFinalizeZXZ final : impl::MagicFinalizeZXZBase<MagicFinalizeZXZ> {
 
 protected:
   void runOnOperation() override {
-    // The magic ops of a program sit directly in the single block of its function (op verifier).
     func::FuncOp func = getOperation();
     if (!func.isExternal()) {
       Finalizer().run(func.front());

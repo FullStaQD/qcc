@@ -68,7 +68,7 @@ def MagicFinalizeZXZ : Pass<"magic-finalize-zxz", "mlir::func::FuncOp"> {
 
   let description = [{
       Every `zxz(z1, x, z2)` is rewritten as `sym_zxz(z = z1, x)` followed by `rz(z1 + z2)`. Every residual or
-      pre-existing `rz` is commuted to the right: through ops which trivially commute with it, through `shuttle` (it
+      pre-existing `rz` is commuted to the end: through ops which trivially commute with it or through `shuttle` (it
       travels with its ion). When it hits a `zxz` / `sym_zxz` on the same ion the pattern is replaced by something where
       the `rz` comes later so that it can continue its journey towards the end. What arrives at `mzd` is dropped. Angles
       are normalised to (-pi, pi].
