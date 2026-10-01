@@ -1,5 +1,8 @@
 // RUN: qcc-opt %s | FileCheck %s
 
+// A test of more complicated prelimhlep IR, containing the building blocks and implementation of Grover's algorithm on 4 qubits.
+
+// Prepares 4 qubits in the |0000> state.
 func.func @zero_register_4(%_ : !prelimhlep.unit) -> !prelimhlep.lin<i4> attributes { prelimhlep.halo = #prelimhlep.halo } {
     %out_register = prelimhlep.lin (
     ) -> (!prelimhlep.lin<i4>) {
@@ -65,6 +68,10 @@ func.func @hadamard(%in_qubit: !prelimhlep.lin<i1>) -> !prelimhlep.lin<i1> attri
 // outputs, with the index captured, i.e. classical. Each index yields a single
 // world, in which qubit %i is moved to the end. The bit arithmetic is done in
 // i64, so that shifting by i + 1 stays below the bit width.
+//
+// TODO: this may become an op for convenience. We leave it as a function here
+// to demonstrate that `prelimhlep.lin` can work with the ordinary register and tensor types
+// and ops out-of-the-box, with proven linearity constraints and well-defined semantics.
 func.func @extract_4(%register : !prelimhlep.lin<i4>, %i : index) -> (!prelimhlep.lin<i3>, !prelimhlep.lin<i1>) attributes { prelimhlep.halo = #prelimhlep.halo } {
     %rest, %qubit = prelimhlep.lin (
         %bits : i4 from %register : !prelimhlep.lin<i4>
