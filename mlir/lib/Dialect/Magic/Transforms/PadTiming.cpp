@@ -73,7 +73,6 @@ struct MagicPadTiming final : impl::MagicPadTimingBase<MagicPadTiming> {
 
 protected:
   void runOnOperation() override {
-    // The magic ops of a program sit directly in the single block of its function (op verifier).
     func::FuncOp func = getOperation();
     if (!func.isExternal()) {
       padBlock(func.front());

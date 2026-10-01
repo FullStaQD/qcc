@@ -34,14 +34,17 @@ void forEachShuttleSync(Block& block, function_ref<void(ShuttleOp, Ticks, Ticks)
       clocks[delay.getChainIn().getType().getTrap()] += static_cast<Ticks>(delay.getTicks());
       continue;
     }
+
     auto shuttle = dyn_cast<ShuttleOp>(op);
     if (!shuttle) {
       continue;
     }
+
     const int64_t from = shuttle.getFromIn().getType().getTrap();
     const int64_t to = shuttle.getToIn().getType().getTrap();
     const Ticks fromTicks = clocks.lookup(from);
     const Ticks toTicks = clocks.lookup(to);
+
     callback(shuttle, fromTicks, toTicks);
     clocks[from] = clocks[to] = std::max(fromTicks, toTicks);
   }
