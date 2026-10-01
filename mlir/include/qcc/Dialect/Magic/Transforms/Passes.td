@@ -33,12 +33,12 @@ def MagicShuttleInterTrapZZ : Pass<"magic-shuttle-inter-trap-zz", "mlir::ModuleO
 }
 
 def MagicCompileSwap : Pass<"magic-compile-swap", "mlir::ModuleOp"> {
-  let summary = "Lowers `magic.swap` to three `active_zz` with single-ion gates in between.";
+  let summary = "Decomposes `magic.swap` to three `active_zz` with single-ion gates in between.";
 
   let description = [{
-      `swap(a, b)` becomes three CNOTs `cx(a, b) cx(b, a) cx(a, b)`, each as `h` on the target, `cz`, `h` on the
-      target, where `cz = active_zz(pi/2 on the pair)` followed by `rz(-pi/2)` on both ions and `h` is
-      `zxz(pi/2, pi/2, pi/2)`. Exact up to a global phase. Both ions must be active.
+      `swap(a, b)` becomes three CNOTs which are then further decomposed into `active_zz` and single qubit gates. If
+      some of the two participating ions are not already active a recode sandwich is applied to the whole decomposition
+      in order to enable the `active_zz` ops.
   }];
 
   let dependentDialects = ["qcc::magic::MagicDialect"];

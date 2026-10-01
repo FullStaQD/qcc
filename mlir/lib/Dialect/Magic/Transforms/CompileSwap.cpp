@@ -16,9 +16,11 @@
 #include "mlir/Pass/Pass.h" // IWYU pragma: keep
 #include "mlir/Support/LLVM.h"
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 
 #include <cstdint>
+#include <iterator>
 #include <numbers>
 
 using namespace mlir;
@@ -30,18 +32,21 @@ namespace qcc::magic {
 
 constexpr double halfPi = std::numbers::pi / 2.0;
 
-/// Replaces `op` by `cx(a, b) cx(b, a) cx(a, b)`, up to a global phase.
-static LogicalResult compileSwap(SwapOp op) {
+static void compileSwap(SwapOp op) {
   const IonChainType type = op.getChainIn().getType();
   const int64_t ionA = op.getIons()[0];
   const int64_t ionB = op.getIons()[1];
-  if (!type.isActive(ionA) || !type.isActive(ionB)) {
-    return op.emitOpError() << "expects both ions to be active";
-  }
 
   OpBuilder builder(op);
   const Location loc = op.getLoc();
   Value chain = op.getChainIn();
+
+  // The coupling needs both ions active: an inactive one is switched on for the sequence and off again afterwards.
+  SmallVector<int64_t> inactive;
+  llvm::copy_if(op.getIons(), std::back_inserter(inactive), [&](int64_t ion) { return !type.isActive(ion); });
+  if (!inactive.empty()) {
+    chain = RecodeOp::create(builder, loc, chain, inactive);
+  }
 
   // h = Rz(pi/2) Rx(pi/2) Rz(pi/2) up to a global phase.
   auto hadamard = [&](int64_t ion) { chain = ZXZOp::create(builder, loc, chain, {ion}, {halfPi}, {halfPi}, {halfPi}); };
@@ -63,9 +68,12 @@ static LogicalResult compileSwap(SwapOp op) {
   cx(ionB, ionA);
   cx(ionA, ionB);
 
+  if (!inactive.empty()) {
+    chain = RecodeOp::create(builder, loc, chain, inactive);
+  }
+
   op.getChainOut().replaceAllUsesWith(chain);
   op.erase();
-  return success();
 }
 
 namespace {
@@ -78,9 +86,7 @@ protected:
     SmallVector<SwapOp> ops;
     getOperation().walk([&](SwapOp op) { ops.push_back(op); });
     for (SwapOp op : ops) {
-      if (failed(compileSwap(op))) {
-        return signalPassFailure();
-      }
+      compileSwap(op);
     }
   }
 };

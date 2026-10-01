@@ -1,7 +1,5 @@
-// RUN: qcc-opt %s --magic-compile-swap | FileCheck %s
+// RUN: qcc-opt %s --magic-compile-swap --split-input-file | FileCheck %s
 
-// swap(1, 2) = cx(1, 2) cx(2, 1) cx(1, 2), each cx(c, t) = h(t) cz h(t) with cz = rzz(pi/2) rz(-pi/2) rz(-pi/2) and
-// h = zxz(pi/2, pi/2, pi/2), all up to a global phase. Ion 0 is not involved.
 // CHECK-LABEL: func.func @swap
 func.func @swap() {
   %c0 = magic.init : !magic.ion_chain<0, [0:1, 1:1, 2:1]>
@@ -24,3 +22,27 @@ func.func @swap() {
 // CHECK-NEXT: %[[C11:.*]] = magic.rz %[[C10]] ions [1, 2]
 // CHECK-NEXT: %[[C12:.*]] = magic.zxz %[[C11]] ions [2]
 // CHECK-NEXT: magic.mzd %[[C12]]
+
+// -----
+
+!c = !magic.ion_chain<0, [0:1, 1:1, 2:1]>
+!ci = !magic.ion_chain<0, [0:1, 1:0, 2:1]>
+
+// An inactive ion of the pair is switched on for the sequence and off again afterwards.
+// CHECK:       !chain = !magic.ion_chain<0, [0:1, 1:1, 2:1]>
+// CHECK:       !chain1 = !magic.ion_chain<0, [0:1, 1:0, 2:1]>
+// CHECK-LABEL: func.func @swap_inactive
+func.func @swap_inactive() {
+  %c0 = magic.init : !c
+  %c1 = magic.recode %c0 : !c -> !ci
+  %c2 = magic.swap %c1 ions [1, 2] : !ci
+  %m0, %m1, %m2 = magic.mzd %c2 : !ci -> i1, i1, i1
+  return
+}
+
+// CHECK:      %[[C1:.*]] = magic.recode %{{.*}} : !chain -> !chain1
+// CHECK-NEXT: %[[C2:.*]] = magic.recode %[[C1]] : !chain1 -> !chain
+// CHECK-NEXT: magic.zxz %[[C2]] ions [2] {{.*}} : !chain
+// CHECK-NOT:  magic.recode
+// CHECK:      %[[C3:.*]] = magic.recode %{{.*}} : !chain -> !chain1
+// CHECK-NEXT: magic.mzd %[[C3]] : !chain1
