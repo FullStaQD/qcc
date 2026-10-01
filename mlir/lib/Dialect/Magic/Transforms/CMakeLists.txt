@@ -14,7 +14,7 @@ add_mlir_dialect_library(
   MLIRIR
   MLIRPass
   MLIRSupport
-  MLIRFunctionInterfaces
+  MLIRFuncDialect
   QCCAuxDialect
   QCCMagicDevice
   QCCMagicDialect

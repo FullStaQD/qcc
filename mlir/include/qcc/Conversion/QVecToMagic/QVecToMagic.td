@@ -9,7 +9,7 @@
 
 include "mlir/Pass/PassBase.td"
 
-def ConvertQVecToMagic : Pass<"convert-qvec-to-magic", "mlir::ModuleOp"> {
+def ConvertQVecToMagic : Pass<"convert-qvec-to-magic", "mlir::func::FuncOp"> {
   let summary = "Converts layered QVec programs to magic IR for the device in `qcc.device`.";
 
   let description = [{

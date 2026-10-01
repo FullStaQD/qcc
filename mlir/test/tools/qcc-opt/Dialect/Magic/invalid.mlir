@@ -125,11 +125,11 @@ func.func @chain_as_function_argument(%c: !magic.ion_chain<0, [0:1]>) {
 
 // -----
 
-// The chain enters the loop body as an iteration argument, which the single-block rule alone does not catch.
-func.func @chain_as_iter_arg(%lb: index, %ub: index, %step: index) {
+// A magic op sits directly in the function body, not in the region of another op.
+func.func @nested_in_loop(%lb: index, %ub: index, %step: index) {
   %c0 = magic.init : !magic.ion_chain<0, [0:1]>
   %r = scf.for %i = %lb to %ub step %step iter_args(%c = %c0) -> (!magic.ion_chain<0, [0:1]>) {
-    // expected-error @+1 {{'magic.rz' op chain operand #0 must be produced by a magic op, not a block argument}}
+    // expected-error @+1 {{'magic.rz' op must be directly inside a 'func.func': a program is one function}}
     %c1 = magic.rz %c ions [0] {angles = [1.0]} : !magic.ion_chain<0, [0:1]>
     scf.yield %c1 : !magic.ion_chain<0, [0:1]>
   }
@@ -139,7 +139,7 @@ func.func @chain_as_iter_arg(%lb: index, %ub: index, %step: index) {
 // -----
 
 module {
-  // expected-error @+1 {{'magic.init' op must be inside a function: a program is one function}}
+  // expected-error @+1 {{'magic.init' op must be directly inside a 'func.func': a program is one function}}
   %c0 = magic.init : !magic.ion_chain<0, [0:1]>
 }
 

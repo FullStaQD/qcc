@@ -9,6 +9,7 @@
 
 #include "qcc/Dialect/Magic/IR/Magic.h"
 
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinTypeInterfaces.h"
 #include "mlir/IR/BuiltinTypes.h"
@@ -19,7 +20,6 @@
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Region.h"
 #include "mlir/IR/Value.h"
-#include "mlir/Interfaces/FunctionInterfaces.h"
 
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/STLExtras.h"
@@ -72,9 +72,9 @@ static void printIonList(OpAsmPrinter& printer, Operation* /*op*/, DenseI64Array
 //===----------------------------------------------------------------------===//
 
 LogicalResult qcc::magic::verifyAffineChains(Operation* op) {
-  // A program is one function, so every op lives in one.
-  if (op->getParentOfType<FunctionOpInterface>() == nullptr) {
-    return op->emitOpError() << "must be inside a function: a program is one function";
+  // A program is one function, and its ops sit directly in the function body.
+  if (!isa_and_present<func::FuncOp>(op->getParentOp())) {
+    return op->emitOpError() << "must be directly inside a 'func.func': a program is one function";
   }
 
   // The dialect has no control flow: a program is one straight line of sync points, which is what the timing model

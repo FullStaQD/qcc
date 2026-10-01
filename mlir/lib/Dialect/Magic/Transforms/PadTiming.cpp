@@ -12,6 +12,7 @@
 #include "qcc/Dialect/Magic/Transforms/Passes.h" // IWYU pragma: keep
 #include "qcc/Dialect/Magic/Transforms/Timing.h"
 
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/Block.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Operation.h"
@@ -19,7 +20,6 @@
 #include "mlir/Pass/Pass.h" // IWYU pragma: keep
 #include "mlir/Support/LLVM.h"
 
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 
 #include <cstdint>
@@ -83,15 +83,10 @@ struct MagicPadTiming final : impl::MagicPadTimingBase<MagicPadTiming> {
 
 protected:
   void runOnOperation() override {
-    // Magic ops live in single-block regions (op verifier), and a chain never leaves its block.
-    SmallVector<Block*> blocks;
-    getOperation().walk([&](Block* block) {
-      if (llvm::any_of(*block, [](Operation& op) { return isa<InitOp>(op); })) {
-        blocks.push_back(block);
-      }
-    });
-    for (Block* block : blocks) {
-      padBlock(*block);
+    // The magic ops of a program sit directly in the single block of its function (op verifier).
+    func::FuncOp func = getOperation();
+    if (!func.isExternal()) {
+      padBlock(func.front());
     }
   }
 };

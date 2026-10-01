@@ -13,12 +13,11 @@
 #include "qcc/Dialect/Magic/Transforms/Passes.h" // IWYU pragma: keep
 #include "qcc/Dialect/Magic/Transforms/Timing.h"
 
-#include "mlir/IR/BuiltinOps.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/Value.h"
 #include "mlir/IR/Visitors.h"
-#include "mlir/Interfaces/FunctionInterfaces.h"
 #include "mlir/Pass/Pass.h" // IWYU pragma: keep
 #include "mlir/Support/LLVM.h"
 
@@ -40,7 +39,7 @@ namespace {
 /// Checks one program (function) against the device. Emits a diagnostic for every violation.
 class ProgramVerifier {
 public:
-  ProgramVerifier(FunctionOpInterface function, MagicDevice device) : function(function), device(std::move(device)) {}
+  ProgramVerifier(func::FuncOp function, MagicDevice device) : function(function), device(std::move(device)) {}
 
   LogicalResult verify() {
     function.walk([&](Operation* op) { verifyOp(op); });
@@ -184,7 +183,7 @@ private:
     }
   }
 
-  FunctionOpInterface function;
+  func::FuncOp function;
   MagicDevice device;
   InitOp firstInit;
   bool valid = true;
@@ -195,30 +194,17 @@ struct MagicVerify final : impl::MagicVerifyBase<MagicVerify> {
 
 protected:
   void runOnOperation() override {
-    // A program is one function. The op verifier guarantees that every magic op is inside a function, so walking the
-    // functions reaches them all.
-    SmallVector<FunctionOpInterface> programs;
-    getOperation().walk([&](FunctionOpInterface function) {
-      const WalkResult result = function.walk([](Operation* op) {
-        return isa_and_present<MagicDialect>(op->getDialect()) ? WalkResult::interrupt() : WalkResult::advance();
-      });
-      if (result.wasInterrupted()) {
-        programs.push_back(function);
-      }
+    // A program is one function. Functions without magic ops are none of our business and need no device.
+    func::FuncOp function = getOperation();
+    const WalkResult result = function.walk([](Operation* op) {
+      return isa_and_present<MagicDialect>(op->getDialect()) ? WalkResult::interrupt() : WalkResult::advance();
     });
-    if (programs.empty()) {
+    if (!result.wasInterrupted()) {
       return;
     }
 
-    const FailureOr<MagicDevice> device = MagicDevice::fromModule(getOperation());
-    if (failed(device)) {
-      return signalPassFailure();
-    }
-    bool valid = true;
-    for (FunctionOpInterface program : programs) {
-      valid &= succeeded(ProgramVerifier(program, *device).verify());
-    }
-    if (!valid) {
+    const FailureOr<MagicDevice> device = MagicDevice::fromParentModule(function);
+    if (failed(device) || failed(ProgramVerifier(function, *device).verify())) {
       return signalPassFailure();
     }
   }

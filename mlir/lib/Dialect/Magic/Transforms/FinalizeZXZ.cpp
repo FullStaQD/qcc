@@ -11,6 +11,7 @@
 #include "qcc/Dialect/Magic/Transforms/Passes.h" // IWYU pragma: keep
 #include "qcc/Dialect/QVec/Transforms/ZXZ.h"
 
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/Block.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinAttributes.h"
@@ -133,15 +134,10 @@ struct MagicFinalizeZXZ final : impl::MagicFinalizeZXZBase<MagicFinalizeZXZ> {
 
 protected:
   void runOnOperation() override {
-    // Magic ops live in single-block regions (op verifier), and a chain never leaves its block.
-    SmallVector<Block*> blocks;
-    getOperation().walk([&](Block* block) {
-      if (llvm::any_of(*block, [](Operation& op) { return isa_and_present<MagicDialect>(op.getDialect()); })) {
-        blocks.push_back(block);
-      }
-    });
-    for (Block* block : blocks) {
-      Finalizer().run(*block);
+    // The magic ops of a program sit directly in the single block of its function (op verifier).
+    func::FuncOp func = getOperation();
+    if (!func.isExternal()) {
+      Finalizer().run(func.front());
     }
   }
 };

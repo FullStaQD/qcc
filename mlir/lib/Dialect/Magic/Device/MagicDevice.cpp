@@ -109,6 +109,14 @@ FailureOr<MagicDevice> MagicDevice::fromModule(ModuleOp module) {
   return fromAttr(magicAttr);
 }
 
+FailureOr<MagicDevice> MagicDevice::fromParentModule(Operation* op) {
+  auto module = op->getParentOfType<ModuleOp>();
+  if (!module) {
+    return op->emitError() << "is not inside a module, which would carry the device";
+  }
+  return fromModule(module);
+}
+
 FailureOr<MagicDevice> MagicDevice::fromFile(StringRef path, MLIRContext& ctx) {
   const FailureOr<Attribute> attr = parseDeviceFile(path, ctx);
   if (failed(attr)) {

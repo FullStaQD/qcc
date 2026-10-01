@@ -27,7 +27,6 @@
 #include "mlir/IR/Block.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinAttributes.h"
-#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Location.h"
 #include "mlir/IR/Operation.h"
@@ -457,27 +456,18 @@ struct ConvertQVecToMagic final : impl::ConvertQVecToMagicBase<ConvertQVecToMagi
 
 protected:
   void runOnOperation() override {
-    SmallVector<func::FuncOp> funcs;
-    getOperation().walk([&](func::FuncOp func) {
-      const WalkResult result = func.walk([](Operation* op) {
-        return isa_and_present<qvec::QVecDialect>(op->getDialect()) ? WalkResult::interrupt() : WalkResult::advance();
-      });
-      if (result.wasInterrupted()) {
-        funcs.push_back(func);
-      }
+    // Functions without qvec ops are none of our business and need no device.
+    func::FuncOp func = getOperation();
+    const WalkResult result = func.walk([](Operation* op) {
+      return isa_and_present<qvec::QVecDialect>(op->getDialect()) ? WalkResult::interrupt() : WalkResult::advance();
     });
-    if (funcs.empty()) {
+    if (!result.wasInterrupted()) {
       return;
     }
 
-    const FailureOr<MagicDevice> device = MagicDevice::fromModule(getOperation());
-    if (failed(device)) {
+    const FailureOr<MagicDevice> device = MagicDevice::fromParentModule(func);
+    if (failed(device) || failed(FunctionConverter(func, *device).run())) {
       return signalPassFailure();
-    }
-    for (func::FuncOp func : funcs) {
-      if (failed(FunctionConverter(func, *device).run())) {
-        return signalPassFailure();
-      }
     }
   }
 };

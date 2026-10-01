@@ -12,7 +12,7 @@
 
 include "mlir/Pass/PassBase.td"
 
-def MagicShuttleInterTrapZZ : Pass<"magic-shuttle-inter-trap-zz", "mlir::ModuleOp"> {
+def MagicShuttleInterTrapZZ : Pass<"magic-shuttle-inter-trap-zz", "mlir::func::FuncOp"> {
   let summary = "Lowers `magic.inter_trap_zz` to shuttles around an `active_zz` in one trap.";
 
   let description = [{
@@ -32,7 +32,7 @@ def MagicShuttleInterTrapZZ : Pass<"magic-shuttle-inter-trap-zz", "mlir::ModuleO
   let dependentDialects = ["qcc::magic::MagicDialect"];
 }
 
-def MagicCompileSwap : Pass<"magic-compile-swap", "mlir::ModuleOp"> {
+def MagicCompileSwap : Pass<"magic-compile-swap", "mlir::func::FuncOp"> {
   let summary = "Decomposes `magic.swap` to three `active_zz` with single-ion gates in between.";
 
   let description = [{
@@ -44,7 +44,7 @@ def MagicCompileSwap : Pass<"magic-compile-swap", "mlir::ModuleOp"> {
   let dependentDialects = ["qcc::magic::MagicDialect"];
 }
 
-def MagicCompileActiveZZTrivially : Pass<"magic-compile-active-zz-trivially", "mlir::ModuleOp"> {
+def MagicCompileActiveZZTrivially : Pass<"magic-compile-active-zz-trivially", "mlir::func::FuncOp"> {
   let summary = "Lowers every `magic.active_zz` pair by pair to recodes and delays.";
 
   let description = [{
@@ -63,7 +63,7 @@ def MagicCompileActiveZZTrivially : Pass<"magic-compile-active-zz-trivially", "m
   let dependentDialects = ["qcc::magic::MagicDialect"];
 }
 
-def MagicFinalizeZXZ : Pass<"magic-finalize-zxz", "mlir::ModuleOp"> {
+def MagicFinalizeZXZ : Pass<"magic-finalize-zxz", "mlir::func::FuncOp"> {
   let summary = "Rewrites `magic.zxz` into native `sym_zxz` and pushes the residual Z rotations into the measurement.";
 
   let description = [{
@@ -80,7 +80,7 @@ def MagicFinalizeZXZ : Pass<"magic-finalize-zxz", "mlir::ModuleOp"> {
   let dependentDialects = ["qcc::magic::MagicDialect"];
 }
 
-def MagicPadTiming : Pass<"magic-pad-timing", "mlir::ModuleOp"> {
+def MagicPadTiming : Pass<"magic-pad-timing", "mlir::func::FuncOp"> {
   let summary = "Balances the delays of all traps between sync points.";
 
   let description = [{
@@ -93,12 +93,12 @@ def MagicPadTiming : Pass<"magic-pad-timing", "mlir::ModuleOp"> {
   let dependentDialects = ["qcc::magic::MagicDialect"];
 }
 
-def MagicVerify : Pass<"magic-verify", "mlir::ModuleOp"> {
+def MagicVerify : Pass<"magic-verify", "mlir::func::FuncOp"> {
   let summary = "Checks the magic rules that no single op can check.";
 
   let description = [{
       The op verifiers check what is true of an op in isolation. This pass holds the rest: the whole-program rules
-      and the rules that need the device description in `qcc.device` (required if the module holds magic ops). A
+      and the rules that need the device description in `qcc.device` (required if the function holds magic ops). A
       program that passes is ready for export:
 
       - At most one `magic.init` per function; its chains match the device: the initial occupancies, ion ids

@@ -22,8 +22,8 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 // Magic traits
 //===----------------------------------------------------------------------===//
 
-// Chain values are affine: In our case this means at most one use. This works because magic ops are only valid inside
-// single-block regions and all chain values originate from magic ops (not e.g. block arguments).
+// Chain values are affine: In our case this means at most one use. This works because magic ops are only valid
+// directly inside a single-block `func.func` and all chain values originate from magic ops (not e.g. block arguments).
 def Magic_AffineChains : NativeOpTrait<"AffineChains"> {
   let cppNamespace = "::qcc::magic";
 }

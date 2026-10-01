@@ -68,6 +68,9 @@ public:
   /// Looks up `qcc.device` on the module and checks that it is a `#magic.device`.
   static mlir::FailureOr<MagicDevice> fromModule(mlir::ModuleOp module);
 
+  /// Like `fromModule`, for the module that encloses `op`.
+  static mlir::FailureOr<MagicDevice> fromParentModule(mlir::Operation* op);
+
   /// Parses a device file (see `qcc::parseDeviceFile`) that carries a `#magic.device`.
   static mlir::FailureOr<MagicDevice> fromFile(llvm::StringRef path, mlir::MLIRContext& ctx);
 

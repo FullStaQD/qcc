@@ -30,7 +30,7 @@ def Magic_Dialect : Dialect {
         **Chains are affine values.** More precisely we impose the following constraints:
 
         - each chain value is used at most once
-        - `magic` ops are only allowed inside single-block function-like ops
+        - `magic` ops are only allowed directly inside a `func.func` with a single block
         - only `magic` ops are allowed to produce chain values (magic.init` being its only source)
 
         **Native vs intermediate ops.** The `Magic_Native` trait marks the native instructions of the hardware; the
