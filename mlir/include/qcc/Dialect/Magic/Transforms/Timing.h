@@ -22,14 +22,13 @@ namespace qcc::magic {
 // Trap clocks
 //===----------------------------------------------------------------------===//
 
-/// Every trap has its own clock: the ticks of the `magic.delay`s on its chain since the program start. A
-/// `magic.shuttle` is a sync point for its two traps, which must have spent the same time when it happens. Nothing
-/// else relates the clocks of two traps.
+/// Walks `block` in order and calls `callback` for every shuttle whose two traps are not in sync, with the clocks of
+/// its source and its destination trap.
 ///
-/// Walks `block` in order and calls `callback` for every shuttle with the clocks of its source and its destination
-/// trap. Both traps continue at the later of the two clocks, so the callback may pad the trap that is behind (in
-/// front of the shuttle) or report it.
-void forEachShuttleSync(mlir::Block& block,
-                        llvm::function_ref<void(ShuttleOp shuttle, Ticks fromTicks, Ticks toTicks)> callback);
+/// The walk goes on as if the imbalance had been padded away: both traps continue at the later of the two clocks.
+/// So every imbalance is seen once and not again at the next shuttle, and the callback either pads the trap that is
+/// behind (in front of the shuttle) or reports it.
+void forEachUnbalancedShuttle(mlir::Block& block,
+                              llvm::function_ref<void(ShuttleOp shuttle, Ticks fromTicks, Ticks toTicks)> callback);
 
 } // namespace qcc::magic

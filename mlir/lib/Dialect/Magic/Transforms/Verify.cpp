@@ -167,10 +167,7 @@ private:
 
   /// The two traps of every shuttle have spent the same time.
   void verifyTiming() {
-    forEachShuttleSync(function.front(), [&](ShuttleOp shuttle, Ticks fromTicks, Ticks toTicks) {
-      if (fromTicks == toTicks) {
-        return;
-      }
+    forEachUnbalancedShuttle(function.front(), [&](ShuttleOp shuttle, Ticks fromTicks, Ticks toTicks) {
       shuttle.emitOpError() << "has unbalanced timing: trap " << shuttle.getFromIn().getType().getTrap()
                             << " has spent " << fromTicks << " ticks, but trap "
                             << shuttle.getToIn().getType().getTrap() << " " << toTicks

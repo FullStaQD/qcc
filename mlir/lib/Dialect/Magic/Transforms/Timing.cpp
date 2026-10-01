@@ -26,7 +26,7 @@ using namespace mlir;
 
 namespace qcc::magic {
 
-void forEachShuttleSync(Block& block, function_ref<void(ShuttleOp, Ticks, Ticks)> callback) {
+void forEachUnbalancedShuttle(Block& block, function_ref<void(ShuttleOp, Ticks, Ticks)> callback) {
   // Per trap (id) the ticks spent so far.
   llvm::DenseMap<int64_t, Ticks> clocks;
   for (Operation& op : block) {
@@ -45,7 +45,12 @@ void forEachShuttleSync(Block& block, function_ref<void(ShuttleOp, Ticks, Ticks)
     const Ticks fromTicks = clocks.lookup(from);
     const Ticks toTicks = clocks.lookup(to);
 
+    if (fromTicks == toTicks) {
+      continue;
+    }
+
     callback(shuttle, fromTicks, toTicks);
+    // As if the trap that is behind had been padded.
     clocks[from] = clocks[to] = std::max(fromTicks, toTicks);
   }
 }

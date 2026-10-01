@@ -32,35 +32,34 @@ namespace qcc::magic {
 #define GEN_PASS_DEF_MAGICPADTIMING
 #include "qcc/Dialect/Magic/Transforms/Passes.h.inc"
 
-/// Lets `chain` idle for `ticks`: every active ion inactive, one delay, the activations back. Inserted at the
-/// builder's insertion point; the uses of `chain` move to the padded value.
 static void pad(OpBuilder& builder, Value chain, Ticks ticks) {
   const Location loc = chain.getLoc();
   const SmallVector<int64_t> active = cast<IonChainType>(chain.getType()).getActiveIons();
 
   Value padded = chain;
   Operation* first = nullptr;
+
   if (!active.empty()) {
     first = RecodeOp::create(builder, loc, padded, active);
     padded = first->getResult(0);
   }
+
   auto delay = DelayOp::create(builder, loc, padded.getType(), padded, builder.getI64IntegerAttr(ticks));
   if (first == nullptr) {
     first = delay;
   }
+
   padded = delay;
   if (!active.empty()) {
     padded = RecodeOp::create(builder, loc, padded, active);
   }
+
   chain.replaceAllUsesExcept(padded, first);
 }
 
 static void padBlock(Block& block) {
-  forEachShuttleSync(block, [](ShuttleOp shuttle, Ticks fromTicks, Ticks toTicks) {
-    if (fromTicks == toTicks) {
-      return;
-    }
-    // The trap that is behind waits right before the shuttle.
+  forEachUnbalancedShuttle(block, [](ShuttleOp shuttle, Ticks fromTicks, Ticks toTicks) {
+    // The trap that is faster waits right before the shuttle.
     OpBuilder builder(shuttle);
     pad(builder, fromTicks < toTicks ? shuttle.getFromIn() : shuttle.getToIn(), std::abs(toTicks - fromTicks));
   });
