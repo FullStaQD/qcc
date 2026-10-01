@@ -29,6 +29,9 @@ inline llvm::hash_code hash_value(const PauliFactor& factor) { return llvm::hash
 /// Paired with `hash_value`/`operator==` overloads (rather than storing a
 /// bare `double`, for which LLVM's hashing utilities have no built-in
 /// support) so it can be used as an `AttrDef` array parameter element.
+///
+/// TODO: We likely want to have fixed-point types instead of doubles
+/// here anyways, so this might be deprecated. A bit of a hack now.
 struct HamiltonianTermHeader {
   double coefficient;
   int64_t size;
@@ -42,7 +45,7 @@ inline llvm::hash_code hash_value(const HamiltonianTermHeader& header) {
   return llvm::hash_combine(llvm::bit_cast<uint64_t>(header.coefficient), header.size);
 }
 
-/// The hidden world index that the partial linearization of a program is a
+/// The hidden world that the partial linearization of a program is a
 /// family over. Measurements read and write it (see PrelimHLEPEffects.td).
 struct WorldResource : mlir::SideEffects::Resource::Base<WorldResource> {
   [[nodiscard]] llvm::StringRef getName() const final { return "prelimhlep::World"; }
@@ -52,6 +55,8 @@ struct WorldResource : mlir::SideEffects::Resource::Base<WorldResource> {
 /// The quantum state that linear values are allocated in and freed from.
 /// Addressable, since its effects are attached to the linear values, which
 /// act as handles into it.
+///
+/// TODO: Understand the side-effect implications of this better.
 struct QuantumStateResource : mlir::SideEffects::Resource::Base<QuantumStateResource> {
   [[nodiscard]] llvm::StringRef getName() const final { return "prelimhlep::QuantumState"; }
 };

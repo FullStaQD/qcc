@@ -12,9 +12,6 @@ include "PrelimHLEPEffects.td"
 //===----------------------------------------------------------------------===//
 // PrelimHLEP operations
 //
-// See mlir/docs/Dialects/PrelimHLEP.md, section "Core Attributes and Ops"
-// for the semantics these ops stub out.
-//
 // Side effects follow PrelimHLEPEffects.td: ops with a single world that
 // neither create nor destroy linear values are `Pure`; `lin` computes its
 // effects from its body.
@@ -24,20 +21,20 @@ class PrelimHLEPOp<string mnemonic, list<Trait> traits = []> :
         Op<PrelimHLEPDialect, mnemonic, traits>;
 
 def ScaleOp : PrelimHLEPOp<"scale", [Pure]> {
-    let summary = "Scales all fibres of a haloed value by a complex factor.";
+    let summary = "Scales the linear fibres of a value by a complex factor.";
     let description = [{
         Within `LinearHalo`-attributed functions, homogeneously scales every
         fibre of a value by a complex factor.
 
-        **IR Realization:**
-        `prelim_hlep.scale %factor, %t : (complex<f64>, T) -> T`
+        Example:
+        `prelimhlep.scale %factor, %t : (complex<f64>, T) -> T`
 
         The verifier checks that the op is nested (directly or indirectly)
-        within a `prelim_hlep.halo`-attributed function, and that the
+        within a `prelimhlep.halo`-attributed function, and that the
         operand and result types match.
 
-        TODO: consider canonicalizing into `prelim_hlep.add_phase`.
-        TODO: consider deprecating this in favor of `prelim_hlep.add_phase`.
+        TODO: consider canonicalizing into `prelimhlep.add_phase`.
+        TODO: consider deprecating this in favor of `prelimhlep.add_phase`.
     }];
 
     let arguments = (ins Complex<F64>:$factor, AnyType:$input);
@@ -48,16 +45,16 @@ def ScaleOp : PrelimHLEPOp<"scale", [Pure]> {
 }
 
 def AddPhaseOp : PrelimHLEPOp<"add_phase", [Pure]> {
-    let summary = "Scales a haloed value by exp(i*alpha), a purely imaginary exponent.";
+    let summary = "Scales the linear fibres of a value by exp(i*alpha), a purely imaginary exponent.";
     let description = [{
-        Shorthand for `prelim_hlep.scale` by `exp(i * alpha)` for a real
+        Shorthand for `prelimhlep.scale` by `exp(i * alpha)` for real
         `alpha`.
 
-        **IR Realization:**
-        `prelim_hlep.add_phase %alpha, %t : (f64, T) -> T`
+        Example:
+        `prelimhlep.add_phase %alpha, %t : (f64, T) -> T`
 
         The verifier checks that the op is nested (directly or indirectly)
-        within a `prelim_hlep.halo`-attributed function, and that the
+        within a `prelimhlep.halo`-attributed function, and that the
         operand and result types match.
 
         TODO: consider allowing other types for angles.
@@ -74,16 +71,15 @@ def LinOp : PrelimHLEPOp<"lin", [SingleBlock, RecursiveMemoryEffects, Recursivel
                                   DeclareOpInterfaceMethods<MemoryEffectsOpInterface>]> {
     let summary = "Partial linearization of a function between product types.";
     let description = [{
-        Implements partial linearization (always on the left tensor
-        factor(s)): the `delinearizedOperands` (of `!prelim_hlep.lin<T>`
-        type) are delinearized into region block arguments of type `T`. The
-        region is not isolated from above, so any other (captured) values
-        needed by the body -- the right tensor factor(s) -- are simply
+        Implements partial linearization: the `delinearizedOperands`
+        (of `!prelimhlep.lin<T>` type) are delinearized into region block
+        arguments of type `T` (the "base type"). The region is not isolated from above, so any
+        other (captured) values needed by the body are simply
         referenced directly from the enclosing scope, without being listed
         as explicit operands. The region body computes the results, which
-        are `prelim_hlep.output`-ed and re-linearized on exit.
+        are `prelimhlep.output`-ed and re-linearized on exit.
 
-        **IR Realization:**
+        Example:
         ```mlir
         %out_lin, %out_auxiliary = prelimhlep.lin (
             %in_delinearized : i1 from %in_lin : !prelimhlep.lin<i1>, ...
@@ -93,28 +89,35 @@ def LinOp : PrelimHLEPOp<"lin", [SingleBlock, RecursiveMemoryEffects, Recursivel
             prelimhlep.output (%out_delinearized : i1) carrying (%out_aux : i1)
         }
         ```
-        Each binding's block argument type and the element type of its
-        source operand's `!prelim_hlep.lin<...>` type are independently
-        parsed and are only related by `LinOp`'s verifier, not the grammar
-        itself.
+        Each binding's block argument type and the base type of its
+        source operand's `!prelimhlep.lin<...>` type are independently
+        parsed and are related by `LinOp`'s verifier.
 
         The verifier checks that the op is nested (directly or indirectly)
-        within a `prelim_hlep.halo`-attributed function; that the body
-        block's argument types match the `delinearizedOperands` element
-        types; and that the op's result types are the re-linearization of
-        the `prelim_hlep.output` terminator's delinearized results, followed
+        within a `prelimhlep.halo`-attributed function, that the
+        block's argument types match the `delinearizedOperands` base
+        types, and that the op's result types are the re-linearization of
+        the `prelimhlep.output` terminator's delinearized results, followed
         by its auxiliary results unchanged.
 
-        Side effects are computed from the op: the effects of the body
-        (nested measurements in particular), plus
+        In the example above this means the verifier type-checks:
+        - `%in_delinearized` is of type `i1` (the base type of
+          `%in_lin`'s `!prelimhlep.lin<i1>` type),
+        - `%out_delinearized` is of type `i1` (the base type of
+          `%out_lin`'s `!prelimhlep.lin<i1>` type),
+        - `%out_aux` is of type `i1` (the same as `%out_auxiliary`'s type).
+
+        Side effects are computed from the op: the effects of the body, plus
         - a read and a write of the world resource if a classical
-          `carrying` result may depend on a delinearized value (the op is a
-          measurement with several worlds),
+          `carrying` result may depend on a delinearized value (the op involves
+          a measurement),
         - an allocation of the linear results if the op consumes no linear
           value (neither delinearized nor captured), and
         - a free of the consumed linear values if the op has no linear
           results.
         Otherwise, e.g. for an X gate, the op is `Pure`.
+
+        TODO: The side effects are preliminary and need to be better understood.
     }];
 
     let arguments = (ins Variadic<LinType>:$delinearizedOperands);
@@ -125,24 +128,23 @@ def LinOp : PrelimHLEPOp<"lin", [SingleBlock, RecursiveMemoryEffects, Recursivel
 }
 
 def OutputOp : PrelimHLEPOp<"output", [Pure, Terminator, AttrSizedOperandSegments, HasParent<"LinOp">]> {
-    let summary = "Terminates the body region of a `prelim_hlep.lin` op.";
+    let summary = "Terminates the body region of a `prelimhlep.lin` op.";
     let description = [{
-        Yields the (still delinearized) results of a `prelim_hlep.lin`
+        Yields the (still delinearized) results of a `prelimhlep.lin`
         region, which are re-linearized on exit, plus any purely classical
         auxiliary results (e.g. measurement outcomes) that are not
         linearized.
 
-        **IR Realization:**
-        `prelim_hlep.output (%out_delinearized : T, ...) carrying (%out_aux : T, ...)`
-
-        Each operand's type is written inline next to it, rather than in a
-        trailing type list. The `carrying (...)` group is omitted entirely
-        when there are no auxiliary results.
+        Example:
+        `prelimhlep.output (%out_delinearized : T, ...) carrying (%out_aux : T, ...)`
 
         The verifier checks that the op is nested (directly or indirectly)
-        within a `prelim_hlep.halo`-attributed function. (Operand
-        types/count are checked against the enclosing `prelim_hlep.lin`'s
+        within a `prelimhlep.halo`-attributed function. (Operand
+        types/count are checked against the enclosing `prelimhlep.lin`'s
         results by `LinOp`'s verifier.)
+
+        FIXME: verifier should only check nesting within a `prelimhlep.lin` op, not within a `prelimhlep.halo`-attributed function.
+        This should be done by a `HasParent<"LinOp">` trait. Double-check and remove verifier.
     }];
 
     let arguments = (ins Variadic<AnyType>:$delinearizedResults,
@@ -155,21 +157,23 @@ def ExpOp : PrelimHLEPOp<"exp", [Pure]> {
     let summary = "Exponential map: applies exp(-i * angle * hamiltonian) to a purely quantum value.";
     let description = [{
         Obtains a unitary operator from a Lie algebra element (given as a
-        `prelim_hlep.hamiltonian` attribute, a Pauli-product-basis element of
+        `prelimhlep.hamiltonian` attribute, a Pauli-product-basis element of
         u(2^n)) and a real angle, and applies it. Only available for purely
-        quantum types (i.e. `!prelim_hlep.lin<i<n>>`).
+        quantum types (i.e. `!prelimhlep.lin<i<n>>`).
 
-        **IR Realization:**
+        Example:
         ```mlir
-        %out_state = prelim_hlep.exp %param hamiltonian<1, X[0] + Y[0]> %in_state :
-            (f64, !prelim_hlep.lin<i1>) -> !prelim_hlep.lin<i1>
+        %out_state = prelimhlep.exp %param hamiltonian<1, X[0] + Y[0]> %in_state :
+            (f64, !prelimhlep.lin<i1>) -> !prelimhlep.lin<i1>
         ```
 
         The verifier checks that the hamiltonian's qubit count matches the
         operand/result type's bit width, and that operand and result types
-        match and are purely-quantum `!prelim_hlep.lin<i<n>>` types.
+        match and are purely-quantum `!prelimhlep.lin<i<n>>` types.
 
         TODO: double-check the sign convention for the exponent
+        TODO: consider allowing other types for angles.
+        TODO: consider allowing other types for input and result (e.g. `!prelimhlep.lin<!prelimhlep.x<n>>`).
     }];
 
     let arguments = (ins F64:$angle, HamiltonianAttr:$hamiltonian, AnyType:$input);
@@ -182,19 +186,19 @@ def ExpOp : PrelimHLEPOp<"exp", [Pure]> {
 def BaseChangeOp : PrelimHLEPOp<"base_change", [Pure]> {
     let summary = "Distinguished isomorphism between the Z-, X-, and Y-basis linearizations of the same space.";
     let description = [{
-        Converts between `!prelim_hlep.lin<i<n>>`, `!prelim_hlep.lin<!prelim_hlep.x<n>>`,
-        and `!prelim_hlep.lin<!prelim_hlep.y<n>>`, which are the same vector
+        Converts between `!prelimhlep.lin<i<n>>`, `!prelimhlep.lin<!prelimhlep.x<n>>`,
+        and `!prelimhlep.lin<!prelimhlep.y<n>>`, which are the same vector
         space equipped with different distinguished bases.
 
-        **IR Realization:**
+        Example:
         ```mlir
-        %qubit_in_x_basis = prelim_hlep.base_change %qubit_in_z_basis :
-            !prelim_hlep.lin<i1> -> !prelim_hlep.lin<!prelim_hlep.x<1>>
+        %qubit_in_x_basis = prelimhlep.base_change %qubit_in_z_basis :
+            !prelimhlep.lin<i1> -> !prelimhlep.lin<!prelimhlep.x<1>>
         ```
 
         The verifier checks that the op is nested (directly or indirectly)
-        within a `prelim_hlep.halo`-attributed function, and that operand
-        and result types are `!prelim_hlep.lin<...>` over `i<n>`/`x<n>`/
+        within a `prelimhlep.halo`-attributed function, and that operand
+        and result types are `!prelimhlep.lin<...>` over `i<n>`/`x<n>`/
         `y<n>` of matching `n`.
     }];
 
@@ -208,14 +212,14 @@ def BaseChangeOp : PrelimHLEPOp<"base_change", [Pure]> {
 def ConstantOp : PrelimHLEPOp<"constant"> {
     let summary = "A literal value of a linearized X- or Y-basis type.";
     let description = [{
-        Constructs a constant term of `!prelim_hlep.lin<!prelim_hlep.x<n>>`
-        or `!prelim_hlep.lin<!prelim_hlep.y<n>>` from a string of basis
+        Constructs a constant term of `!prelimhlep.lin<!prelimhlep.x<n>>`
+        or `!prelimhlep.lin<!prelimhlep.y<n>>` from a string of basis
         symbols (`+`/`-` for X, `->`/`<-` for Y).
 
-        **IR Realization:**
+        Example:
         ```mlir
-        %xxx = prelim_hlep.constant "++-" : !prelim_hlep.lin<!prelim_hlep.x<3>>
-        %yyy = prelim_hlep.constant "><>" : !prelim_hlep.lin<!prelim_hlep.y<3>>
+        %xxx = prelimhlep.constant "++-" : !prelimhlep.lin<!prelimhlep.x<3>>
+        %yyy = prelimhlep.constant "><>" : !prelimhlep.lin<!prelimhlep.y<3>>
         ```
 
         The verifier checks that `value` consists only of valid basis
@@ -225,6 +229,7 @@ def ConstantOp : PrelimHLEPOp<"constant"> {
         The op allocates its result rather than being `Pure`: two constants
         must never be merged into one linear value with two uses. For the
         same reason, it is not `ConstantLike`.
+        TODO: Understand this side-effect issue better.
 
         TODO: consider defining a custom attribute instead of a string.
     }];
@@ -237,13 +242,12 @@ def ConstantOp : PrelimHLEPOp<"constant"> {
 }
 
 def UnitValueOp : PrelimHLEPOp<"unit_value", [Pure]> {
-    let summary = "Constructs the unique value of !prelim_hlep.unit.";
+    let summary = "Constructs the unique value of !prelimhlep.unit.";
     let description = [{
-        Creates a `!prelim_hlep.unit` value, e.g. to pass into a
-        `LinearHalo` function called from a classical (non-haloed) context.
+        Creates a `!prelimhlep.unit` value.
 
-        **IR Realization:**
-        `%halo = prelim_hlep.unit_value : !prelim_hlep.unit`
+        Example:
+        `%phase = prelimhlep.unit_value : !prelimhlep.unit`
     }];
 
     let arguments = (ins);

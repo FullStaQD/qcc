@@ -8,9 +8,6 @@ include "PrelimHLEPDialect.td"
 
 //===----------------------------------------------------------------------===//
 // PrelimHLEP types
-//
-// See mlir/docs/Dialects/PrelimHLEP.md, section "Type System" and "Core
-// Attributes and Ops" for the formal semantics these types stub out.
 //===----------------------------------------------------------------------===//
 
 class PrelimHLEPType<string name, string typeMnemonic>
@@ -34,20 +31,11 @@ def LinType : PrelimHLEPType<"Lin", "lin"> {
 }
 
 def UnitType : PrelimHLEPType<"Unit", "unit"> {
-    let summary = "The tensor unit of the linear product, opaque to generic optimizations.";
+    let summary = "In linear context, the tensor unit of the linear product.";
     let description = [{
-        `!prelim_hlep.unit` represents the fiber bundle
-
-            [ C ]
-            [ | ]
-            [ * ]
-
-        i.e. a 1-dimensional Hilbert space over the singleton classical
-        label. Its unique term is a complex phase. Unlike the builtin
-        `none` type, values of this type must not be treated as carrying no
-        information by generic (dialect-agnostic) optimizations, since that
-        phase can become an observable relative phase once combined with
-        other haloed or quantum values.
+        Semantically identical to `none` type, but safe against accidental deletion
+        from function signatures.
+        Classical unit in classical context, linear unit in linear context.
 
         `LinearHalo`-attributed functions must take/return this type instead
         of having zero arguments/results.

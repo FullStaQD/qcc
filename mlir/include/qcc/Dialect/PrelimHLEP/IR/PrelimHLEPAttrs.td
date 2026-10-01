@@ -24,26 +24,21 @@ def HaloAttr : PrelimHLEPAttr<"Halo", "halo"> {
         classical types are implicitly treated as carrying a linear halo and every
         non-purely-classical value must have exactly one use.
 
-        **IR Realization:**
-        `func.func @my_func() -> ... attributes { prelim_hlep.halo }`
+        Example:
+        `func.func @my_func() -> ... attributes { prelimhlep.halo }`
 
-        TODO: `prelim_hlep.halo` could be printed as a bare marker in the
+        TODO: `prelimhlep.halo` could be printed as a bare marker in the
         attribute dictionary, which is the builtin pretty-printing shorthand
         for `UnitAttr`. Decide whether `HaloAttr` should stay a distinct
         (empty) attribute for future extension/verification, or whether
         usages should just be a builtin `UnitAttr` under the
-        `prelim_hlep.halo` key.
+        `prelimhlep.halo` key.
 
         `PrelimHLEPDialect::verifyOperationAttribute` (see
         PrelimHLEPDialect.cpp) hooks into the verifier of *any* operation
         this attribute is attached to and currently only checks that the
         op is function-like (`FunctionOpInterface`) with a non-empty
-        argument and result list, as a placeholder for the rule that a
-        halo'ed function does not have zero arguments.
-
-        TODO: full halo semantics (single-use of non-classical values via
-        control flow analysis, treating classical types as implicitly
-        haloed, etc.) is not implemented yet.
+        argument and result list.
     }];
 }
 
@@ -51,22 +46,17 @@ def HamiltonianAttr : PrelimHLEPAttr<"Hamiltonian", "hamiltonian"> {
     let summary = "A Lie algebra element of u(2^n) in the Pauli-product basis.";
     let description = [{
         Represents an element of u(2^n), given in the basis of n-fold Pauli
-        products, for use as the generator argument of `prelim_hlep.exp`.
+        products, for use as the generator argument of `prelimhlep.exp`.
 
-        **IR Realization:**
+        Example:
         ```mlir
-        #operator = prelim_hlep.hamiltonian<3, X[0] * Y[2] + 1.5 * Z[1]>
+        #operator = prelimhlep.hamiltonian<3, X[0] * Y[2] + 1.5 * Z[1]>
         ```
-        denoting sigma_X (x) id (x) sigma_Y + 1.5 * id (x) sigma_Z (x) id in u(2^3).
 
         A term with a coefficient of 1 may omit the `coefficient *` prefix, as
         in the `X[0] * Y[2]` term above. A term's factors may name each qubit
         (in `[0, qubitCount)`) at most once; qubits it does not name are
-        implicitly the identity. Terms are stored internally as a flattened
-        `termHeaders`/`factors` pair (grouping `factors` into per-term runs,
-        one per `termHeaders` entry) rather than as nested arrays, to keep
-        attribute storage allocation trivial; use `getTerms()` to recover the
-        structured `Term` list.
+        implicitly the identity.
 
         The verifier checks that `qubitCount` is positive, that every
         factor's qubit index is in range and unique within its term, that no
@@ -76,6 +66,8 @@ def HamiltonianAttr : PrelimHLEPAttr<"Hamiltonian", "hamiltonian"> {
         TODO: consider canonicalization to merge terms that differ only by
         the order qubits were declared once operator-level canonicalization
         exists.
+
+        TODO: Perhaps allow zero-qubit terms. (Global Phase.)
     }];
 
     let parameters = (ins
