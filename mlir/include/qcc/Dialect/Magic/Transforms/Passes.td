@@ -48,16 +48,16 @@ def MagicCompileActiveZZTrivially : Pass<"magic-compile-active-zz-trivially", "m
   let summary = "Lowers every `magic.active_zz` pair by pair to recodes and delays.";
 
   let description = [{
-      For every nonzero entry `A_ij` (`i < j`, row-major order) of an `active_zz`:
+      For every nonzero entry `A_ij` (`i < j`, row-major order) of an `active_zz` synthesize the corresponding RZZ gate
+      in a straightforward way:
 
-      1. `recode` every other active ion inactive,
-      2. if `A_ij < 0`: `sym_zxz(z = 0, x = pi)` on ion `i` (conjugating with X flips the sign of `Z_i Z_j`),
+      1. `recode` to ensure only the two relevant ions are active,
+      2. if `A_ij < 0`: Do an X-flip on ion `i` (`sym_zxz(z = 0, x = pi)`)
       3. `delay` for `t = |A_ij| / (2 J_ij)` seconds, rounded to the nearest tick of the device's time unit,
-      4. the `sym_zxz` again if `A_ij < 0`, and the `recode` back.
+      4. Do the X-flip again if it was needed in step 2 and recode back.
 
       `J` is the device's coupling matrix for the number of ions present in the trap (active and inactive), indexed by
-      the chain positions of the pair; its unit is taken to be rad/s. An `active_zz` without nonzero entries is
-      erased.
+      the chain positions of the pair; its unit is taken to be rad/s.
 
       TODO: the factor 2 follows the assumed delay convention `Delay(t) = exp(-i t/2 Σ_{i≠j} J_ij Z_i Z_j)` over the
       active ions, i.e. a pair angle of `2 J_ij t`. Confirm the convention and the unit of `J` with the hardware
