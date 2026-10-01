@@ -1,8 +1,5 @@
 // RUN: qcc-opt %s --split-input-file --verify-diagnostics
 
-// Tests for the operand/result type verifiers of `scale`, `add_phase`,
-// `base_change`, `constant`, and `exp` (see PrelimHLEPDialect.cpp).
-
 func.func private @scale_mismatched_types(%factor: complex<f64>, %t: !prelimhlep.lin<i1>) -> !prelimhlep.lin<i2>
     attributes { prelimhlep.halo = #prelimhlep.halo } {
     // expected-error @below {{expected result type ('!prelimhlep.lin<i2>') to match input type ('!prelimhlep.lin<i1>')}}

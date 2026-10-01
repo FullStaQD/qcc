@@ -1,8 +1,6 @@
 // RUN: qcc-opt %s --split-input-file --verify-diagnostics
 
-// Ops that are only legal within a `prelim_hlep.halo`-attributed function:
-// scale, add_phase, lin, output, base_change. See
-// PrelimHLEPDialect.cpp:verifyWithinHaloedFunction.
+// Ops that are only legal within a `prelim_hlep.halo`-attributed function.
 
 func.func @scale_outside_halo(%factor: complex<f64>, %t: !prelimhlep.lin<i1>) -> !prelimhlep.lin<i1> {
     // expected-error @below {{expected to be nested within a 'prelimhlep.halo'-attributed function}}

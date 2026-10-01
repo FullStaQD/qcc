@@ -1,10 +1,6 @@
 // RUN: qcc-opt %s --split-input-file --verify-diagnostics
 
-// Tests for the `#prelimhlep.hamiltonian` attribute's own verifier (see
-// HamiltonianAttr.cpp), independent of any op it's attached to. (The
-// "at least one term" check is not exercised here: the grammar itself
-// requires a term after the leading `qubitCount,`, so it is unreachable
-// from this textual syntax and only guards non-textual construction.)
+// Tests for the `#prelimhlep.hamiltonian` attribute's verifier.
 
 func.func private @hamiltonian_nonpositive_qubit_count() attributes {
     // expected-error @below {{expected a positive qubit count, got 0}}

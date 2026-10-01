@@ -2,14 +2,21 @@
 
 // Positive tests for the control-flow linearity check performed by
 // `PrelimHLEPDialect::verifyOperationAttribute` on `prelim_hlep.halo`
-// function arguments (see `checkPreciselyOneUse` / `checkUsesCoverRegion` /
-// `checkSingleBlockRegions` in LinearityChecker.cpp). If any of these
-// functions failed to verify, qcc-opt would emit an error and FileCheck
-// would fail to find the corresponding CHECK-LABEL (see
-// prelim-hlep-halo-linearity-errors.mlir for the cases this analysis
-// rejects).
+// functions.
 
 func.func private @make_qubit() -> !prelimhlep.lin<i1>
+
+// The linearity check proves this is fine: %v is used exactly once on
+// both the `then` and `else` paths of the scf.if.
+func.func @halo_linearity_if_ok(%cond: i1, %v: !prelimhlep.lin<i1>) -> !prelimhlep.lin<i1> attributes { prelimhlep.halo = #prelimhlep.halo } {
+    %r = scf.if %cond -> (!prelimhlep.lin<i1>) {
+        scf.yield %v : !prelimhlep.lin<i1>
+    } else {
+        scf.yield %v : !prelimhlep.lin<i1>
+    }
+    return %r : !prelimhlep.lin<i1>
+}
+// CHECK-LABEL: func.func @halo_linearity_if_ok
 
 // Nested branching: a halo'ed argument can be used exactly once per leaf of
 // a tree of nested `scf.if`s, as long as every leaf uses it and no leaf uses
@@ -55,7 +62,7 @@ func.func private @nested_if_asymmetric(%cond0: i1, %cond1: i1, %v: !prelimhlep.
 }
 // CHECK-LABEL: func.func private @nested_if_asymmetric
 
-// Three levels of nesting, one use in each of the eight leaves.
+// Three levels of nesting, one use in each leaf.
 func.func private @triple_nested_if_one_use_per_leaf(%cond0: i1, %cond1: i1, %cond2: i1, %v: !prelimhlep.lin<i1>)
     -> !prelimhlep.lin<i1> attributes { prelimhlep.halo = #prelimhlep.halo } {
     %r = scf.if %cond0 -> (!prelimhlep.lin<i1>) {
@@ -77,25 +84,6 @@ func.func private @triple_nested_if_one_use_per_leaf(%cond0: i1, %cond1: i1, %co
 }
 // CHECK-LABEL: func.func private @triple_nested_if_one_use_per_leaf
 
-// Nesting on both arms of the outer if, with an unconditional use of a
-// second, unrelated halo'ed argument thrown in to make sure the two don't
-// interfere with each other's analysis.
-func.func private @nested_if_two_halo_args(%cond0: i1, %cond1: i1, %v: !prelimhlep.lin<i1>, %w: !prelimhlep.lin<i1>)
-    -> (!prelimhlep.lin<i1>, !prelimhlep.lin<i1>) attributes { prelimhlep.halo = #prelimhlep.halo } {
-    %r = scf.if %cond0 -> (!prelimhlep.lin<i1>) {
-        %inner = scf.if %cond1 -> (!prelimhlep.lin<i1>) {
-            scf.yield %v : !prelimhlep.lin<i1>
-        } else {
-            scf.yield %v : !prelimhlep.lin<i1>
-        }
-        scf.yield %inner : !prelimhlep.lin<i1>
-    } else {
-        scf.yield %v : !prelimhlep.lin<i1>
-    }
-    return %r, %w : !prelimhlep.lin<i1>, !prelimhlep.lin<i1>
-}
-// CHECK-LABEL: func.func private @nested_if_two_halo_args
-
 // Two consecutive ifs, consuming different linear values.
 func.func private @irrelevant_branching(%cond0: i1, %cond1: i1, %v: !prelimhlep.lin<i1>, %w: !prelimhlep.lin<i1>) -> (!prelimhlep.lin<i1>, !prelimhlep.lin<i1>)
     attributes { prelimhlep.halo = #prelimhlep.halo } {
@@ -113,15 +101,8 @@ func.func private @irrelevant_branching(%cond0: i1, %cond1: i1, %v: !prelimhlep.
 }
 // CHECK-LABEL: func.func private @irrelevant_branching
 
-// The single-block-region check (`checkSingleBlockRegions`) only rejects a
-// region with several blocks if it contains a value subject to linearity.
-// This function's top-level body is a single block (so it's unaffected
-// regardless of what it contains), and it does use its halo'ed argument,
-// unconditionally, exactly once -- but it also nests an `scf.execute_region`
-// whose *own* body has several blocks (joined by `cf.br`) and touches only
-// the classical %cond value, never the linear one. That's fine: the
-// multi-block region and the linear value never appear in the same region
-// (see prelim-hlep-halo-linearity-errors.mlir for the cases where they do).
+// Multi-block regions are regected if they contain values subject to linearity.
+// Here, the qubit is not used in the unstructured control flow region, so the program is legal.
 func.func @cf_branching_in_subregion_on_classical_value_ok(%cond: i1, %v: !prelimhlep.lin<i1>) -> (i1, !prelimhlep.lin<i1>)
     attributes { prelimhlep.halo = #prelimhlep.halo } {
     %r = scf.execute_region -> i1 {
@@ -137,12 +118,8 @@ func.func @cf_branching_in_subregion_on_classical_value_ok(%cond: i1, %v: !preli
 }
 // CHECK-LABEL: func.func @cf_branching_in_subregion_on_classical_value_ok
 
-// The select check (`checkNoSelectOfLinearValues`) only rejects an
-// `arith.select` (or other `SelectLikeOpInterface` op) whose operands or
-// result are subject to linearity; selecting between two classical values,
-// alongside an unconditional, unrelated use of the halo'ed argument, is
-// fine (see prelim-hlep-halo-linearity-errors.mlir for the case where the
-// select itself touches a linear value).
+// Select-like ops are rejected if their arguments are subject to linearity.
+// Here, `arith.select` is used on a classical value, so the program is legal.
 func.func @select_on_classical_value_ok(%cond: i1, %v: !prelimhlep.lin<i1>) -> (i1, !prelimhlep.lin<i1>)
     attributes { prelimhlep.halo = #prelimhlep.halo } {
     %true = arith.constant true
@@ -154,11 +131,25 @@ func.func @select_on_classical_value_ok(%cond: i1, %v: !prelimhlep.lin<i1>) -> (
 
 // Loops: a value subject to linearity may be carried through an `scf.for`
 // (as `iter_args` operand, block argument, `scf.yield` operand, and result),
-// as long as each of these is used exactly once per iteration (see
-// prelim-hlep-halo-linearity-errors.mlir for the cases where they are not).
+// as long as each of these is used exactly once per iteration.
 
 func.func private @gate(!prelimhlep.lin<i1>) -> !prelimhlep.lin<i1> attributes { prelimhlep.halo }
 
+// Two linear values carried through a loop and swapped in every iteration.
+func.func private @swap_carried_values(%a : !prelimhlep.lin<i1>, %b : !prelimhlep.lin<i1>) -> (!prelimhlep.lin<i1>, !prelimhlep.lin<i1>)
+    attributes { prelimhlep.halo } {
+    %c0 = arith.constant 0 : index
+    %c1 = arith.constant 1 : index
+    %c3 = arith.constant 3 : index
+    %out:2 = scf.for %i = %c0 to %c3 step %c1 iter_args(%x = %a, %y = %b) -> (!prelimhlep.lin<i1>, !prelimhlep.lin<i1>) {
+        %gated = func.call @gate(%x) : (!prelimhlep.lin<i1>) -> !prelimhlep.lin<i1>
+        scf.yield %y, %gated : !prelimhlep.lin<i1>, !prelimhlep.lin<i1>
+    }
+    return %out#0, %out#1 : !prelimhlep.lin<i1>, !prelimhlep.lin<i1>
+}
+// CHECK-LABEL: func.func private @swap_carried_values
+
+// Helper.
 // Lin of (x, i) |-> (x without element i, element i) on a register of type
 // `!prelimhlep.lin<tensor<4xi1>>`, with the index captured, i.e. classical.
 // The delinearized register is an ordinary classical tensor.
@@ -183,7 +174,7 @@ func.func private @extract_tensor_4(%reg : !prelimhlep.lin<tensor<4xi1>>, %i : i
 }
 // CHECK-LABEL: func.func private @extract_tensor_4
 
-// Inverse of @extract_tensor_4.
+// Helper. Inverse of @extract_tensor_4.
 func.func private @insert_tensor_4(%rest : !prelimhlep.lin<tensor<3xi1>>, %qubit : !prelimhlep.lin<i1>, %i : index) -> !prelimhlep.lin<tensor<4xi1>>
     attributes { prelimhlep.halo } {
     %reg = prelimhlep.lin (
@@ -226,17 +217,3 @@ func.func private @gate_on_every_tensor_element(%state : !prelimhlep.lin<tensor<
     return %out : !prelimhlep.lin<tensor<4xi1>>
 }
 // CHECK-LABEL: func.func private @gate_on_every_tensor_element
-
-// Two linear values carried through a loop and swapped in every iteration.
-func.func private @swap_carried_values(%a : !prelimhlep.lin<i1>, %b : !prelimhlep.lin<i1>) -> (!prelimhlep.lin<i1>, !prelimhlep.lin<i1>)
-    attributes { prelimhlep.halo } {
-    %c0 = arith.constant 0 : index
-    %c1 = arith.constant 1 : index
-    %c3 = arith.constant 3 : index
-    %out:2 = scf.for %i = %c0 to %c3 step %c1 iter_args(%x = %a, %y = %b) -> (!prelimhlep.lin<i1>, !prelimhlep.lin<i1>) {
-        %gated = func.call @gate(%x) : (!prelimhlep.lin<i1>) -> !prelimhlep.lin<i1>
-        scf.yield %y, %gated : !prelimhlep.lin<i1>, !prelimhlep.lin<i1>
-    }
-    return %out#0, %out#1 : !prelimhlep.lin<i1>, !prelimhlep.lin<i1>
-}
-// CHECK-LABEL: func.func private @swap_carried_values

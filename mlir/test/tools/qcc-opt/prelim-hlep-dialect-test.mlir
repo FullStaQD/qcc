@@ -1,7 +1,6 @@
 // RUN: qcc-opt %s | FileCheck %s
 
-// Round-trip smoke test for the (stub) PrelimHLEP dialect ops/types/attrs.
-// See mlir/docs/Dialects/PrelimHLEP.md for the semantics these stub out.
+// Round-trip smoke test for the PrelimHLEP dialect ops/types/attrs.
 
 func.func @scale(%factor: complex<f64>, %t: !prelimhlep.lin<i1>) -> !prelimhlep.lin<i1> attributes { prelimhlep.halo = #prelimhlep.halo } {
     %0 = prelimhlep.scale %factor, %t : (complex<f64>, !prelimhlep.lin<i1>) -> !prelimhlep.lin<i1>
@@ -83,29 +82,17 @@ func.func @lin_op_with_auxiliary_result(%q: !prelimhlep.lin<i1>) -> i1 attribute
 // CHECK: prelimhlep.lin (%{{.*}} : i1 from %{{.*}} : !prelimhlep.lin<i1>) -> (i1)
 // CHECK: prelimhlep.output () carrying (%{{.*}} : i1)
 
-func.func @lin_op_no_operands(%halo: !prelimhlep.unit) -> (i1, !prelimhlep.unit) attributes { prelimhlep.halo = #prelimhlep.halo } {
+func.func @lin_op_no_operands(%phase: !prelimhlep.unit) -> (i1, !prelimhlep.unit) attributes { prelimhlep.halo = #prelimhlep.halo } {
     %0 = prelimhlep.lin () -> (i1) {
         %v = arith.constant true
         prelimhlep.output () carrying (%v : i1)
     }
-    return %0, %halo : i1, !prelimhlep.unit
+    return %0, %phase : i1, !prelimhlep.unit
 }
 // CHECK-LABEL: func.func @lin_op_no_operands
 // CHECK: prelimhlep.lin () -> (i1)
 // CHECK: prelimhlep.output () carrying (%{{.*}} : i1)
 
-// The halo linearity check proves this is fine: %v is used exactly once on
-// both the `then` and `else` paths of the scf.if.
-func.func @halo_linearity_if_ok(%cond: i1, %v: !prelimhlep.lin<i1>) -> !prelimhlep.lin<i1> attributes { prelimhlep.halo = #prelimhlep.halo } {
-    %r = scf.if %cond -> (!prelimhlep.lin<i1>) {
-        scf.yield %v : !prelimhlep.lin<i1>
-    } else {
-        scf.yield %v : !prelimhlep.lin<i1>
-    }
-    return %r : !prelimhlep.lin<i1>
-}
-// CHECK-LABEL: func.func @halo_linearity_if_ok
-
-func.func private @haloed(%halo: !prelimhlep.unit) -> !prelimhlep.unit attributes { prelimhlep.halo = #prelimhlep.halo }
+func.func private @haloed(%phase: !prelimhlep.unit) -> !prelimhlep.unit attributes { prelimhlep.halo = #prelimhlep.halo }
 // CHECK-LABEL: func.func private @haloed
 // CHECK-SAME: prelimhlep.halo
