@@ -79,27 +79,33 @@ UseCounts addOneUse(UseCounts counts) {
   return static_cast<UseCounts>(result);
 }
 
+/// Finds a block terminator in `branchOp`'s regions that does not implement
+/// `RegionBranchTerminatorOpInterface`, or returns nullptr if there is none.
+/// Without that interface, the control-flow successors of the region are
+/// unknown, so the coverage analysis cannot reason about the op.
+Operation* findUnsupportedTerminator(Operation* branchOp) {
+  for (Region& region : branchOp->getRegions()) {
+    for (Block& block : region) {
+      if (!block.empty() && !isa<RegionBranchTerminatorOpInterface>(block.back())) {
+        return &block.back();
+      }
+    }
+  }
+  return nullptr;
+}
+
 /// Appends the control-flow successors of `region` -- another region of the
 /// same op, or the parent op itself -- to `successors`.
 ///
-/// This is `RegionBranchOpInterface::getSuccessorRegions(Region&, ...)` plus
-/// the convention that a block whose terminator does not implement
-/// `RegionBranchTerminatorOpInterface` (`scf.yield`, for instance) returns to
-/// the parent op. That convention is what upstream's own region-graph
-/// traversals assume.
-/// TODO: Consider upstreaming this convention to `RegionBranchOpInterface` itself,
-/// or implement `RegionBranchTerminatorOpInterface` on `scf.yield`.
+/// Requires every block terminator in `region` to implement
+/// `RegionBranchTerminatorOpInterface` (see `findUnsupportedTerminator`).
 void getRegionSuccessors(RegionBranchOpInterface branchOp, Region* region,
                          SmallVectorImpl<RegionSuccessor>& successors) {
   for (Block& block : *region) {
     if (block.empty()) {
       continue;
     }
-    auto terminator = dyn_cast<RegionBranchTerminatorOpInterface>(block.back());
-    if (!terminator) {
-      successors.emplace_back(branchOp.getOperation());
-      continue;
-    }
+    auto terminator = cast<RegionBranchTerminatorOpInterface>(block.back());
     branchOp.getSuccessorRegions(RegionBranchPoint(terminator), successors);
   }
 }
@@ -112,6 +118,16 @@ void getRegionSuccessors(RegionBranchOpInterface branchOp, Region* region,
 LogicalResult checkBranchCoverage(const Twine& description, Operation* branchOp,
                                   ArrayRef<std::pair<OpOperand*, Region*>> branchUses) {
   auto regionBranchOp = cast<RegionBranchOpInterface>(branchOp);
+
+  if (Operation* terminator = findUnsupportedTerminator(branchOp)) {
+    auto diag = branchOp->emitError()
+                << description
+                << " is subject to linearity, but is used inside an operation whose control flow cannot be analyzed, "
+                   "because one of its region terminators does not implement 'RegionBranchTerminatorOpInterface'";
+    diag.attachNote(terminator->getLoc()) << "unsupported terminator";
+    attachUseNotes(diag, llvm::to_vector(llvm::make_first_range(branchUses)));
+    return diag;
+  }
 
   // Mapping Regions -> uses, for the regions that have any. A vector (rather
   // than a map) keeps the diagnostics below deterministically ordered, and it
@@ -334,6 +350,14 @@ LogicalResult checkPreciselyOneUse(Value value, const Twine& description) {
     return getDefiningAnchorOp(value)->emitError() << description << " is subject to linearity, but is never used";
   }
 
+  // TODO: Uses nested in a region of an op that does not implement
+  // `RegionBranchOpInterface` (e.g. `affine.parallel`, `linalg.generic`) are
+  // invisible to both checks below and are counted as plain direct uses, even
+  // though such a region may execute any number of times. Reject them (or
+  // otherwise handle them) instead.
+
+  /// We check for loops first because it's cheap and gives a clear diagnostic.
+  /// The general check below would also reject loops.
   Region* defRegion = getDefiningRegion(value);
   for (OpOperand* use : uses) {
     if (mayExecuteRepeatedly(use->getOwner(), defRegion)) {
