@@ -1,9 +1,9 @@
 // RUN: qcc-opt %s --qcc-attach-device=file=%S/../Qcc/Inputs/device-2x3.mlir --magic-compile-active-zz-trivially --split-input-file | FileCheck %s
 
 // The device: time unit 1 us; J = 1.0 rad/s for two ions; for three ions 1.0 between neighbours, 0.5 for the outer
-// pair. The tick counts pin the assumed delay convention t = |angle| / (2 J): a change of it shows up here.
+// pair. The tick counts pin the assumed delay convention t = |angle| / |J|: a change of it shows up here.
 
-// Two active ions, rzz(pi/2): t = (pi/2) / 2 s = 785398 us. No other ion to switch off.
+// Two active ions, rzz(pi/2): t = pi/2 s = 1570796 us. No other ion to switch off.
 // CHECK-LABEL: func.func @pair
 func.func @pair() {
   %c0 = magic.init : !magic.ion_chain<0, [0:1, 1:1]>
@@ -14,7 +14,7 @@ func.func @pair() {
 }
 
 // CHECK:      %[[C0:.*]] = magic.init
-// CHECK-NEXT: %[[C1:.*]] = magic.delay %[[C0]] {ticks = 785398 : i64} : !chain
+// CHECK-NEXT: %[[C1:.*]] = magic.delay %[[C0]] {ticks = 1570796 : i64} : !chain
 // CHECK-NEXT: magic.mzd %[[C1]]
 
 // -----
@@ -32,11 +32,11 @@ func.func @three_ions() {
 
 // CHECK:      %[[C0:.*]] = magic.init : !chain
 // CHECK-NEXT: %[[C1:.*]] = magic.recode %[[C0]] : !chain -> !chain1
-// CHECK-NEXT: %[[C2:.*]] = magic.delay %[[C1]] {ticks = 785398 : i64} : !chain1
+// CHECK-NEXT: %[[C2:.*]] = magic.delay %[[C1]] {ticks = 1570796 : i64} : !chain1
 // CHECK-NEXT: %[[C3:.*]] = magic.recode %[[C2]] : !chain1 -> !chain
 // CHECK-NEXT: %[[C4:.*]] = magic.recode %[[C3]] : !chain -> !chain2
 // CHECK-NEXT: %[[C5:.*]] = magic.sym_zxz %[[C4]] ions [0] {x = [3.1415926535897931], z = [0.000000e+00]} : !chain2
-// CHECK-NEXT: %[[C6:.*]] = magic.delay %[[C5]] {ticks = 1570796 : i64} : !chain2
+// CHECK-NEXT: %[[C6:.*]] = magic.delay %[[C5]] {ticks = 3141593 : i64} : !chain2
 // CHECK-NEXT: %[[C7:.*]] = magic.sym_zxz %[[C6]] ions [0] {x = [3.1415926535897931], z = [0.000000e+00]} : !chain2
 // CHECK-NEXT: %[[C8:.*]] = magic.recode %[[C7]] : !chain2 -> !chain
 // CHECK-NEXT: magic.mzd %[[C8]]
@@ -55,7 +55,7 @@ func.func @inactive_ion() {
 }
 
 // CHECK:      %[[C0:.*]] = magic.recode
-// CHECK-NEXT: %[[C1:.*]] = magic.delay %[[C0]] {ticks = 1570796 : i64} : !chain1
+// CHECK-NEXT: %[[C1:.*]] = magic.delay %[[C0]] {ticks = 3141593 : i64} : !chain1
 // CHECK-NEXT: magic.mzd %[[C1]]
 
 // -----

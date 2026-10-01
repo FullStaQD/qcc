@@ -31,7 +31,7 @@ using Ticks = int64_t;
 
 /// Coupling strengths of one chain of `n` ions: symmetric, zero diagonal, indexed by chain position (front = 0).
 ///
-/// Unit: rad/s (TODO: to be confirmed by eleQtron).
+/// Unit: rad/s, see `magic.delay` for how the coupling acts (TODO: both to be confirmed by eleQtron).
 class CouplingMatrix {
 public:
   CouplingMatrix() = default;

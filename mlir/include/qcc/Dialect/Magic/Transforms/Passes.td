@@ -52,16 +52,12 @@ def MagicCompileActiveZZTrivially : Pass<"magic-compile-active-zz-trivially", "m
       in a straightforward way:
 
       1. `recode` to ensure only the two relevant ions are active,
-      2. if `A_ij < 0`: Do an X-flip on ion `i` (`sym_zxz(z = 0, x = pi)`)
-      3. `delay` for `t = |A_ij| / (2 J_ij)` seconds, rounded to the nearest tick of the device's time unit,
+      2. if `A_ij` and `J_ij` differ in sign: Do an X-flip on ion `i` (`sym_zxz(z = 0, x = pi)`)
+      3. `delay` for `t = |A_ij| / |J_ij|` seconds, rounded to the nearest tick of the device's time unit,
       4. Do the X-flip again if it was needed in step 2 and recode back.
 
       `J` is the device's coupling matrix for the number of ions present in the trap (active and inactive), indexed by
-      the chain positions of the pair; its unit is taken to be rad/s.
-
-      TODO: the factor 2 follows the assumed delay convention `Delay(t) = exp(-i t/2 Σ_{i≠j} J_ij Z_i Z_j)` over the
-      active ions, i.e. a pair angle of `2 J_ij t`. Confirm the convention and the unit of `J` with the hardware
-      vendor.
+      the chain positions of the pair.
   }];
 
   let dependentDialects = ["qcc::magic::MagicDialect"];

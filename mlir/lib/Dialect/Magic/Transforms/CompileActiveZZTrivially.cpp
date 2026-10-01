@@ -84,9 +84,9 @@ static LogicalResult compileTrivially(ActiveZZOp op, const MagicDevice& device) 
         chain = RecodeOp::create(builder, loc, chain, others);
       }
 
-      // Delay(t) = exp(-i t/2 Σ_{i≠j} J_ij Z_i Z_j) gives the pair the angle 2 J t: t = |angle| / (2 |J|) seconds.
+      // A delay of t seconds is an `active_zz` with angles t*J.
       const bool negative = (angle < 0.0) != (coupling < 0.0);
-      const double seconds = std::abs(angle) / (2.0 * std::abs(coupling));
+      const double seconds = std::abs(angle) / std::abs(coupling);
       if (negative) {
         flip(ionA);
       }
