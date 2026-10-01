@@ -51,8 +51,8 @@ SmallVector<HamiltonianAttr::Term> HamiltonianAttr::getTerms() const {
 // Parses `qubitCount `,` term (`+` term)*`, where
 // `term ::= (float `*`)? pauli-factor (`*` pauli-factor)*` and
 // `pauli-factor ::= (`X`|`Y`|`Z`) `[` qubit `]`.
-Attribute HamiltonianAttr::parse(AsmParser& parser, Type) {
-  int64_t qubitCount;
+Attribute HamiltonianAttr::parse(AsmParser& parser, Type /*unused*/) {
+  int64_t qubitCount = 0;
   if (parser.parseLess() || parser.parseInteger(qubitCount) || parser.parseComma()) {
     return {};
   }
@@ -61,7 +61,7 @@ Attribute HamiltonianAttr::parse(AsmParser& parser, Type) {
   SmallVector<PauliFactor> factors;
 
   auto parseFactor = [&](PauliKind kind) -> ParseResult {
-    int64_t qubit;
+    int64_t qubit = 0;
     if (parser.parseLSquare() || parser.parseInteger(qubit) || parser.parseRSquare()) {
       return failure();
     }

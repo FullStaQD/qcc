@@ -10,9 +10,6 @@ using namespace qcc::prelimhlep;
 
 namespace {
 
-// Forward declarations of the diagnostics helpers defined at the bottom of
-// this file. They cannot live in a header: this file is textually included
-// into `PrelimHLEPDialect.cpp` and everything in it has internal linkage.
 std::string describeLinearValue(FunctionOpInterface funcOp, Value value);
 Location getRegionLoc(Region* region);
 void attachUseNotes(InFlightDiagnostic& diag, ArrayRef<OpOperand*> uses);
@@ -89,8 +86,9 @@ UseCounts addOneUse(UseCounts counts) {
 /// the convention that a block whose terminator does not implement
 /// `RegionBranchTerminatorOpInterface` (`scf.yield`, for instance) returns to
 /// the parent op. That convention is what upstream's own region-graph
-/// traversals assume, and erring towards *more* edges is the safe direction
-/// here: extra edges can only make the check below reject more.
+/// traversals assume.
+/// TODO: Consider upstreaming this convention to `RegionBranchOpInterface` itself,
+/// or implement `RegionBranchTerminatorOpInterface` on `scf.yield`.
 void getRegionSuccessors(RegionBranchOpInterface branchOp, Region* region,
                          SmallVectorImpl<RegionSuccessor>& successors) {
   for (Block& block : *region) {
@@ -147,8 +145,7 @@ LogicalResult checkBranchCoverage(const Twine& description, Operation* branchOp,
 
   // Forward propagation over the region successor graph. `incoming` maps a
   // region to the counts control flow may have accumulated when *entering* it;
-  // `exitCounts` collects the counts of the paths leaving the op. The masks
-  // only ever grow, so the fixpoint is reached in bounded time.
+  // `exitCounts` collects the counts of the paths leaving the op.
   DenseMap<Region*, UseCounts> incoming;
   SmallVector<Region*> visitOrder; // Deterministic order for the diagnostics.
   SmallVector<Region*> worklist;
@@ -165,6 +162,7 @@ LogicalResult checkBranchCoverage(const Twine& description, Operation* branchOp,
       visitOrder.push_back(target);
     }
     if ((targetCounts | counts) == targetCounts) {
+      // Current uses do not add information to the target's counts, so no need to propagate further.
       return;
     }
     targetCounts = static_cast<UseCounts>(targetCounts | counts);

@@ -24,9 +24,7 @@ using namespace qcc::prelimhlep;
 #include "LinearityChecker.cpp"
 
 /// Checks that `op` is nested (directly or indirectly) within a
-/// `prelim_hlep.halo`-attributed function: walks up ancestor operations, and
-/// requires that the first one implementing `FunctionOpInterface` carries
-/// the halo attribute.
+/// `prelim_hlep.halo`-attributed function.
 static LogicalResult verifyWithinHaloedFunction(Operation* op) {
   std::string haloAttrName = (PrelimHLEPDialect::getDialectNamespace() + "." + HaloAttr::getMnemonic()).str();
 
@@ -38,8 +36,6 @@ static LogicalResult verifyWithinHaloedFunction(Operation* op) {
   return success();
 }
 
-/// Checks that `op`'s single input/result pair (named accordingly in
-/// diagnostics) have identical types.
 static LogicalResult verifyInputResultTypesMatch(Operation* op, Type inputType, Type resultType) {
   if (inputType != resultType) {
     return op->emitOpError("expected result type (") << resultType << ") to match input type (" << inputType << ")";
@@ -61,9 +57,7 @@ LogicalResult AddPhaseOp::verify() {
   return verifyInputResultTypesMatch(getOperation(), getInput().getType(), getResult().getType());
 }
 
-/// Returns the "size" `n` of a basis element type -- the bit width of `iN`,
-/// or the `n` of `!prelim_hlep.x<n>`/`!prelim_hlep.y<n>` -- or `nullopt` if
-/// `type` is none of these.
+/// Returns `N` for `iN`, `!prelim_hlep.x<N>`, or `!prelim_hlep.y<N>`.
 static std::optional<int64_t> getBasisSize(Type type) {
   if (auto intType = dyn_cast<IntegerType>(type)) {
     return intType.getWidth();
@@ -176,6 +170,7 @@ LogicalResult ConstantOp::verify() {
     return success();
   }
 
+  // From ODS we already know that the result type is either `XType` or `YType`, so the cast is safe.
   auto yType = cast<YType>(resultType);
   if (static_cast<int64_t>(value.size()) != 2 * yType.getSize()) {
     return emitOpError("expected a length-")
@@ -346,7 +341,7 @@ static bool mayDependOnDelinearized(Region& body, Value value) {
     // Only block arguments of `body` itself are reachable: values defined in
     // nested regions are never pushed below.
     Operation* def = current.getDefiningOp();
-    if (!def) {
+    if (def == nullptr) {
       return true;
     }
     def->walk([&](Operation* nested) {
@@ -373,6 +368,7 @@ static bool capturesLinearValue(Region& body) {
   return result.wasInterrupted();
 }
 
+// TODO: Understand better and revisit.
 // The body's own effects are added by `RecursiveMemoryEffects`; see the op
 // description for the effects of the op itself.
 void LinOp::getEffects(SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>& effects) {
@@ -422,6 +418,9 @@ Operation* PrelimHLEPDialect::materializeConstant(OpBuilder& builder, Attribute 
   return ConstantOp::create(builder, loc, type, stringValue);
 }
 
+/// Verifier for function-like operations latched on via `prelim_hlep.halo` attribute.
+/// Checks that the function has at least one argument and one result,
+/// and that all values subject to linearity within the function are provably used exactly once.
 LogicalResult PrelimHLEPDialect::verifyOperationAttribute(Operation* op, NamedAttribute attribute) {
   std::string haloAttrName = (getNamespace() + "." + HaloAttr::getMnemonic()).str();
   if (attribute.getName() != haloAttrName) {
@@ -492,6 +491,7 @@ struct PrelimHLEPInlinerInterface final : DialectInlinerInterface {
 
   bool isLegalToInline(Region* /*dest*/, Region* /*src*/, bool /*wouldBeCloned*/,
                        IRMapping& /*valueMapping*/) const override {
+    /// This overload is used for coarse checking, i.e.: Can this kind of region be inlined at all?
     return true;
   }
 
