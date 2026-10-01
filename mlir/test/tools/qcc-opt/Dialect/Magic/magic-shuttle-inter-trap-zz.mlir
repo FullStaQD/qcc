@@ -1,5 +1,5 @@
-// RUN: qcc-opt %s --qcc-attach-device=file=%S/../Qcc/Inputs/device-2x3.mlir --magic-shuttle-inter-trap-zz --split-input-file | FileCheck %s --check-prefixes=CHECK,CAP3
-// RUN: qcc-opt %s --qcc-attach-device=file=%S/Inputs/device-2x4.mlir --magic-shuttle-inter-trap-zz --split-input-file | FileCheck %s --check-prefixes=CHECK,CAP4
+// RUN: qcc-opt %s --qcc-attach-device=file=%S/../Qcc/Inputs/device-2x3.mlir --magic-shuttle-inter-trap-zz --split-input-file | FileCheck %s --check-prefixes=CHECK,CHECK-CAP3
+// RUN: qcc-opt %s --qcc-attach-device=file=%S/Inputs/device-2x4.mlir --magic-shuttle-inter-trap-zz --split-input-file | FileCheck %s --check-prefixes=CHECK,CHECK-CAP4
 
 // Both devices hold ions 0, 1 in trap 0 and ions 2, 3 in trap 1. With capacity 3 each trap has one free slot, with
 // capacity 4 two. In every case the chain types after the lowering equal those before.
@@ -62,20 +62,20 @@ func.func @behind_front() {
   return
 }
 
-// CHECK:      %[[INIT:.*]]:2 = magic.init
+// CHECK:           %[[INIT:.*]]:2 = magic.init
 
-// CAP3-NEXT:  %[[A1:.*]] = magic.swap %[[INIT]]#0 ions [0, 1] : !chain
-// CAP3-NEXT:  %[[A2:.*]], %[[B2:.*]] = magic.shuttle %[[A1]], %[[INIT]]#1 : !chain, !chain1 -> !chain2, !chain3
-// CAP3-NEXT:  %[[B3:.*]] = magic.active_zz %[[B2]] {angles = dense<{{\[\[}}0.000000e+00, 0.000000e+00, -5.000000e-01], [0.000000e+00, 0.000000e+00, 0.000000e+00], [-5.000000e-01, 0.000000e+00, 0.000000e+00]]> : tensor<3x3xf64>} : !chain3
-// CAP3-NEXT:  %[[B4:.*]], %[[A4:.*]] = magic.shuttle %[[B3]], %[[A2]] : !chain3, !chain2 -> !chain1, !chain
-// CAP3-NEXT:  %[[A5:.*]] = magic.swap %[[A4]] ions [0, 1] : !chain
-// CAP3-NEXT:  magic.mzd %[[A5]] : !chain
-// CAP3-NEXT:  magic.mzd %[[B4]] : !chain1
+// CHECK-CAP3-NEXT: %[[A1:.*]] = magic.swap %[[INIT]]#0 ions [0, 1] : !chain
+// CHECK-CAP3-NEXT: %[[A2:.*]], %[[B2:.*]] = magic.shuttle %[[A1]], %[[INIT]]#1 : !chain, !chain1 -> !chain2, !chain3
+// CHECK-CAP3-NEXT: %[[B3:.*]] = magic.active_zz %[[B2]] {angles = dense<{{\[\[}}0.000000e+00, 0.000000e+00, -5.000000e-01], [0.000000e+00, 0.000000e+00, 0.000000e+00], [-5.000000e-01, 0.000000e+00, 0.000000e+00]]> : tensor<3x3xf64>} : !chain3
+// CHECK-CAP3-NEXT: %[[B4:.*]], %[[A4:.*]] = magic.shuttle %[[B3]], %[[A2]] : !chain3, !chain2 -> !chain1, !chain
+// CHECK-CAP3-NEXT: %[[A5:.*]] = magic.swap %[[A4]] ions [0, 1] : !chain
+// CHECK-CAP3-NEXT: magic.mzd %[[A5]] : !chain
+// CHECK-CAP3-NEXT: magic.mzd %[[B4]] : !chain1
 
-// CAP4-NEXT:  %[[A1:.*]], %[[B1:.*]] = magic.shuttle %[[INIT]]#0, %[[INIT]]#1 : !chain, !chain1 -> !chain2, !chain3
-// CAP4-NEXT:  %[[A2:.*]], %[[B2:.*]] = magic.shuttle %[[A1]], %[[B1]] : !chain2, !chain3 -> !chain4, !chain5
-// CAP4-NEXT:  %[[B3:.*]] = magic.active_zz %[[B2]] {angles = dense<{{\[\[}}0.000000e+00, 0.000000e+00, 0.000000e+00, -5.000000e-01], [0.000000e+00, 0.000000e+00, 0.000000e+00, 0.000000e+00], [0.000000e+00, 0.000000e+00, 0.000000e+00, 0.000000e+00], [-5.000000e-01, 0.000000e+00, 0.000000e+00, 0.000000e+00]]> : tensor<4x4xf64>} : !chain5
-// CAP4-NEXT:  %[[B4:.*]], %[[A4:.*]] = magic.shuttle %[[B3]], %[[A2]] : !chain5, !chain4 -> !chain3, !chain2
-// CAP4-NEXT:  %[[B5:.*]], %[[A5:.*]] = magic.shuttle %[[B4]], %[[A4]] : !chain3, !chain2 -> !chain1, !chain
-// CAP4-NEXT:  magic.mzd %[[A5]] : !chain
-// CAP4-NEXT:  magic.mzd %[[B5]] : !chain1
+// CHECK-CAP4-NEXT: %[[A1:.*]], %[[B1:.*]] = magic.shuttle %[[INIT]]#0, %[[INIT]]#1 : !chain, !chain1 -> !chain2, !chain3
+// CHECK-CAP4-NEXT: %[[A2:.*]], %[[B2:.*]] = magic.shuttle %[[A1]], %[[B1]] : !chain2, !chain3 -> !chain4, !chain5
+// CHECK-CAP4-NEXT: %[[B3:.*]] = magic.active_zz %[[B2]] {angles = dense<{{\[\[}}0.000000e+00, 0.000000e+00, 0.000000e+00, -5.000000e-01], [0.000000e+00, 0.000000e+00, 0.000000e+00, 0.000000e+00], [0.000000e+00, 0.000000e+00, 0.000000e+00, 0.000000e+00], [-5.000000e-01, 0.000000e+00, 0.000000e+00, 0.000000e+00]]> : tensor<4x4xf64>} : !chain5
+// CHECK-CAP4-NEXT: %[[B4:.*]], %[[A4:.*]] = magic.shuttle %[[B3]], %[[A2]] : !chain5, !chain4 -> !chain3, !chain2
+// CHECK-CAP4-NEXT: %[[B5:.*]], %[[A5:.*]] = magic.shuttle %[[B4]], %[[A4]] : !chain3, !chain2 -> !chain1, !chain
+// CHECK-CAP4-NEXT: magic.mzd %[[A5]] : !chain
+// CHECK-CAP4-NEXT: magic.mzd %[[B5]] : !chain1

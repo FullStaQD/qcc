@@ -1,8 +1,8 @@
 // RUN: qcc-opt %s --qcc-attach-device=file=%S/../Qcc/Inputs/device-2x3.mlir --magic-verify --split-input-file --verify-diagnostics
-// RUN: not qcc-opt %s --magic-verify --split-input-file 2>&1 | FileCheck %s --check-prefix=NO-DEVICE
+// RUN: not qcc-opt %s --magic-verify --split-input-file 2>&1 | FileCheck %s --check-prefix=CHECK-NO-DEVICE
 
 // The device: two traps of capacity 3, ions 0 and 1 in trap 0, ions 2 and 3 in trap 1. Without it the pass fails.
-// NO-DEVICE: error: module carries no 'qcc.device' attribute
+// CHECK-NO-DEVICE: error: module carries no 'qcc.device' attribute
 
 !t0 = !magic.ion_chain<0, [0:1, 1:1]>
 !t1 = !magic.ion_chain<1, [2:1, 3:1]>
