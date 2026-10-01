@@ -5,7 +5,6 @@
 !t1i = !magic.ion_chain<1, [2:0]>
 !t0s = !magic.ion_chain<0, [1:1]>
 !t1s = !magic.ion_chain<1, [0:1, 2:1]>
-!t0i = !magic.ion_chain<0, [1:0]>
 
 // Type aliases come first, then the attribute aliases of the device used by @main below.
 // CHECK: !magic.ion_chain<0, [0:1, 1:1]>
@@ -25,7 +24,7 @@ module attributes {qcc.device = #magic.device<name = "two-trap", time_unit_ns = 
   func.func @main() attributes {qcc.entry_point} {
     %a0, %b0 = magic.init : !t0, !t1
 
-    // segment 1: trap 0 works, trap 1 idles (padding)
+    // before the shuttle: trap 0 works, trap 1 idles (padding)
     %a1 = magic.sym_zxz %a0 ions [0] {z = [1.5708], x = [1.5708]} : !t0
     %a2 = magic.delay %a1 {ticks = 2491} : !t0
     %a3 = magic.rz %a2 ions [0, 1] {angles = [-1.5708, -1.5708]} : !t0
@@ -33,17 +32,14 @@ module attributes {qcc.device = #magic.device<name = "two-trap", time_unit_ns = 
     %b2 = magic.delay %b1 {ticks = 2491} : !t1i
     %b3 = magic.recode %b2 : !t1i -> !t1
 
-    // sync point
+    // sync point for the two traps
     %a4, %b4 = magic.shuttle %a3, %b3 : !t0, !t1 -> !t0s, !t1s
 
-    // segment 2: trap 1 works, trap 0 pads
+    // after the shuttle: trap 1 works, trap 0 needs no padding (the measurement is no sync point)
     %b5 = magic.sym_zxz %b4 ions [0] {z = [0.0], x = [3.1416]} : !t1s
     %b6 = magic.delay %b5 {ticks = 4982} : !t1s
-    %a5 = magic.recode %a4 : !t0s -> !t0i
-    %a6 = magic.delay %a5 {ticks = 4982} : !t0i
-    %a7 = magic.recode %a6 : !t0i -> !t0s
 
-    %m0 = magic.mzd %a7 : !t0s -> i1
+    %m0 = magic.mzd %a4 : !t0s -> i1
     %m1, %m2 = magic.mzd %b6 : !t1s -> i1, i1
     aux.record_int %m0 : i1
     aux.record_int %m1 : i1

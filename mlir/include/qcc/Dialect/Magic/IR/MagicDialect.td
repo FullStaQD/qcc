@@ -37,9 +37,9 @@ def Magic_Dialect : Dialect {
         others are intermediate and are lowered to native ones before export.
 
         **Sync points.** The `magic.delay` operation is the only *native* operation which takes a certain amount of
-        time. All other *native* operations are instant. Shuttle operations (native) are *sync points*: the traps
-        between it shuttles have to have the same amount of time being passed in a valid program. This is checked by a
-        dedicated pass.
+        time. All other *native* operations are instant. Every trap has its own clock: the time spent in the delays on
+        its chain since the program start. A `magic.shuttle` is a *sync point* for its two traps: in a valid program
+        both have spent the same time when it happens. `magic-pad-timing` establishes this and `magic-verify` checks it.
 
         Example:
         ```mlir

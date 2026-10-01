@@ -77,8 +77,8 @@ LogicalResult qcc::magic::verifyAffineChains(Operation* op) {
     return op->emitOpError() << "must be directly inside a 'func.func': a program is one function";
   }
 
-  // The dialect has no control flow: a program is one straight line of sync points, which is what the timing model
-  // and the type-level chain tracking assume. It also makes possible to check affine typing via usage counting.
+  // The dialect has no control flow: a program is one straight line of ops, which is what the timing model and the
+  // type-level chain tracking assume. It also makes possible to check affine typing via usage counting.
   if (!op->getParentRegion()->hasOneBlock()) {
     return op->emitOpError() << "must be in a single-block region: the dialect has no control flow";
   }

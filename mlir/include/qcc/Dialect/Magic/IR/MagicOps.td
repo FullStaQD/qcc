@@ -248,7 +248,7 @@ def Magic_ShuttleOp : Magic_Op<"shuttle", [Magic_Native]> {
   let summary = "moves the front ion of one trap to the front of another";
   let description = [{
         Moves the front ion of `from` and inserts it at the front of `to`, activation kept, everything else
-        unchanged. The two chains belong to different traps. Zero duration; a sync point for the timing.
+        unchanged. The two chains belong to different traps. Zero duration; a sync point for the two traps.
 
         Which ion moves follows from the types. Shuttling is front to front on both sides: the machine can only move
         the ion at the open end of a chain, and that is an architectural invariant rather than per-device data, so the
@@ -285,8 +285,7 @@ def Magic_ShuttleOp : Magic_Op<"shuttle", [Magic_Native]> {
 def Magic_MZDOp : Magic_Op<"mzd", [Magic_Native]> {
   let summary = "destructively measures every ion of a chain";
   let description = [{
-        Measures all ions of the chain in the computational basis and yields one `i1` per ion, in position order. The
-        chain is consumed: measurement happens at the very end of a program.
+        Measures all ions of the chain in the computational basis and yields one `i1` per ion, in position order.
 
         Example:
         ```mlir

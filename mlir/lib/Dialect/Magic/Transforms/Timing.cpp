@@ -14,11 +14,10 @@
 
 #include "mlir/IR/Block.h"
 #include "mlir/IR/Operation.h"
-#include "mlir/IR/Value.h"
 #include "mlir/Support/LLVM.h"
 
-#include "llvm/ADT/MapVector.h"
-#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/STLFunctionalExtras.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -27,45 +26,25 @@ using namespace mlir;
 
 namespace qcc::magic {
 
-Ticks TimingSegment::getMaxTicks() const {
-  Ticks max = 0;
-  for (const auto& [trap, entry] : traps) {
-    max = std::max(max, entry.ticks);
-  }
-  return max;
-}
-
-SmallVector<TimingSegment> getTimingSegments(Block& block) {
-  SmallVector<TimingSegment> segments;
-  // Per trap the latest chain value and the ticks since the last sync point.
-  llvm::MapVector<int64_t, TimingSegment::Trap> current;
-
-  auto closeSegment = [&](ShuttleOp end) {
-    TimingSegment& segment = segments.emplace_back();
-    segment.end = end;
-    for (auto& [trap, entry] : current) {
-      if (cast<IonChainType>(entry.chain.getType()).getNumIons() > 0) {
-        segment.traps.insert({trap, entry});
-      }
-      entry.ticks = 0;
-    }
-  };
-
+void forEachShuttleSync(Block& block, function_ref<void(ShuttleOp, Ticks, Ticks)> callback) {
+  // Per trap (id) the ticks spent so far.
+  llvm::DenseMap<int64_t, Ticks> clocks;
   for (Operation& op : block) {
-    if (auto shuttle = dyn_cast<ShuttleOp>(op)) {
-      closeSegment(shuttle);
-    }
     if (auto delay = dyn_cast<DelayOp>(op)) {
-      current[delay.getChainIn().getType().getTrap()].ticks += static_cast<Ticks>(delay.getTicks());
+      clocks[delay.getChainIn().getType().getTrap()] += static_cast<Ticks>(delay.getTicks());
+      continue;
     }
-    for (Value result : op.getResults()) {
-      if (auto type = dyn_cast<IonChainType>(result.getType())) {
-        current[type.getTrap()].chain = result;
-      }
+    auto shuttle = dyn_cast<ShuttleOp>(op);
+    if (!shuttle) {
+      continue;
     }
+    const int64_t from = shuttle.getFromIn().getType().getTrap();
+    const int64_t to = shuttle.getToIn().getType().getTrap();
+    const Ticks fromTicks = clocks.lookup(from);
+    const Ticks toTicks = clocks.lookup(to);
+    callback(shuttle, fromTicks, toTicks);
+    clocks[from] = clocks[to] = std::max(fromTicks, toTicks);
   }
-  closeSegment(nullptr);
-  return segments;
 }
 
 } // namespace qcc::magic

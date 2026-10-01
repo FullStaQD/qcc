@@ -165,22 +165,18 @@ private:
     }
   }
 
-  /// All traps with ions spend the same time between two sync points.
+  /// The two traps of every shuttle have spent the same time.
   void verifyTiming() {
-    for (TimingSegment& segment : getTimingSegments(*firstInit->getBlock())) {
-      const Ticks max = segment.getMaxTicks();
-      for (const auto& [trap, entry] : segment.traps) {
-        if (entry.ticks == max) {
-          continue;
-        }
-        InFlightDiagnostic diag = segment.end != nullptr ? segment.end.emitOpError() : function.emitOpError();
-        diag << "has unbalanced timing " << (segment.end != nullptr ? "before this shuttle" : "before the measurement")
-             << ": trap " << trap << " spends " << entry.ticks << " ticks, but another trap " << max
-             << "; every trap spends the same time between two sync points";
-        valid = false;
-        break;
+    forEachShuttleSync(function.front(), [&](ShuttleOp shuttle, Ticks fromTicks, Ticks toTicks) {
+      if (fromTicks == toTicks) {
+        return;
       }
-    }
+      shuttle.emitOpError() << "has unbalanced timing: trap " << shuttle.getFromIn().getType().getTrap()
+                            << " has spent " << fromTicks << " ticks, but trap "
+                            << shuttle.getToIn().getType().getTrap() << " " << toTicks
+                            << "; the two traps of a shuttle must have spent the same time";
+      valid = false;
+    });
   }
 
   func::FuncOp function;

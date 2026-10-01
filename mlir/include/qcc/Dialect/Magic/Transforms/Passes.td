@@ -81,13 +81,15 @@ def MagicFinalizeZXZ : Pass<"magic-finalize-zxz", "mlir::func::FuncOp"> {
 }
 
 def MagicPadTiming : Pass<"magic-pad-timing", "mlir::func::FuncOp"> {
-  let summary = "Balances the delays of all traps between sync points.";
+  let summary = "Balances the delays of the two traps of every shuttle.";
 
   let description = [{
-      Sync points are the program start, every `shuttle` and the final measurement. Between two of them all traps must
-      spend the same time. For every segment the pass sums the `delay` ticks per trap; each trap with ions and a
-      smaller sum than the maximum gets, at the end of its segment, a `recode` of all its active ions to inactive (so
-      the coupling does nothing), one `delay` with the difference, and the `recode` back.
+      Every trap has its own clock: the `delay` ticks spent on its chain since the program start. A `shuttle` is a sync
+      point for its two traps, which must have spent the same time when it happens. Where they have not, the trap that
+      is behind gets the padding right before the shuttle. Padding means adding a `magic.delay`, possibly wrapped in a
+      recode sandwich to make sure no ions are active during the `magic.delay`.
+
+      Traps that take no part in a shuttle are left alone.
   }];
 
   let dependentDialects = ["qcc::magic::MagicDialect"];
@@ -105,8 +107,8 @@ def MagicVerify : Pass<"magic-verify", "mlir::func::FuncOp"> {
         assigned trap by trap, all active.
       - Every chain holds at most as many ions as its trap's capacity.
       - Only ops with the `Magic_Native` trait remain.
-      - Between two sync points (program start, every `shuttle`, the final measurement) the `delay` ticks of all
-        traps with ions add up to the same time.
+      - At every `shuttle` its two traps have spent the same time: their `delay` ticks since the program start add
+        up to the same.
       - Every non-empty chain ends in `magic.mzd`, every ion is measured exactly once, every measurement result is
         recorded by exactly one `aux.record_int`, and nothing else is recorded.
   }];

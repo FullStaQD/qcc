@@ -23,6 +23,7 @@
 #include "llvm/ADT/SmallVector.h"
 
 #include <cstdint>
+#include <cstdlib>
 
 using namespace mlir;
 
@@ -55,25 +56,14 @@ static void pad(OpBuilder& builder, Value chain, Ticks ticks) {
 }
 
 static void padBlock(Block& block) {
-  for (const TimingSegment& segment : getTimingSegments(block)) {
-    const Ticks max = segment.getMaxTicks();
-    for (const auto& [trap, entry] : segment.traps) {
-      if (entry.ticks == max) {
-        continue;
-      }
-      // At the end of the segment: before the shuttle that closes it, or before the measurement (or wherever the
-      // chain ends) for the last one.
-      OpBuilder builder(block.getParentOp()->getContext());
-      if (segment.end != nullptr) {
-        builder.setInsertionPoint(segment.end);
-      } else if (!entry.chain.use_empty()) {
-        builder.setInsertionPoint(*entry.chain.user_begin());
-      } else {
-        builder.setInsertionPointAfterValue(entry.chain);
-      }
-      pad(builder, entry.chain, max - entry.ticks);
+  forEachShuttleSync(block, [](ShuttleOp shuttle, Ticks fromTicks, Ticks toTicks) {
+    if (fromTicks == toTicks) {
+      return;
     }
-  }
+    // The trap that is behind waits right before the shuttle.
+    OpBuilder builder(shuttle);
+    pad(builder, fromTicks < toTicks ? shuttle.getFromIn() : shuttle.getToIn(), std::abs(toTicks - fromTicks));
+  });
 }
 
 namespace {

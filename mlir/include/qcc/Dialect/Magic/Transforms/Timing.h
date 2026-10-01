@@ -13,41 +13,23 @@
 #include "qcc/Dialect/Magic/IR/Magic.h"
 
 #include "mlir/IR/Block.h"
-#include "mlir/IR/Value.h"
 
-#include "llvm/ADT/MapVector.h"
-#include "llvm/ADT/SmallVector.h"
-
-#include <cstdint>
+#include "llvm/ADT/STLFunctionalExtras.h"
 
 namespace qcc::magic {
 
 //===----------------------------------------------------------------------===//
-// Timing segments
+// Trap clocks
 //===----------------------------------------------------------------------===//
 
-/// The part of a program between two sync points: the program start, a `magic.shuttle`, the final measurement.
-/// Between two sync points every trap must spend the same time.
-struct TimingSegment {
-  /// One trap that holds ions during the segment.
-  struct Trap {
-    /// The trap's chain value at the end of the segment.
-    mlir::Value chain;
-    /// The ticks of the trap's `magic.delay`s in the segment.
-    Ticks ticks = 0;
-  };
-
-  /// The shuttle that ends the segment. Null for the last segment, which ends with the measurements.
-  ShuttleOp end;
-  /// The traps (by id) that hold ions, in the order their chains appear.
-  llvm::MapVector<int64_t, Trap> traps;
-
-  /// The largest sum of ticks of any trap in the segment.
-  [[nodiscard]] Ticks getMaxTicks() const;
-};
-
-/// Splits the magic ops of `block` into segments, in program order. The ops of different traps are ordered by the
-/// block, which for two traps agrees with the data flow: every shuttle involves both.
-llvm::SmallVector<TimingSegment> getTimingSegments(mlir::Block& block);
+/// Every trap has its own clock: the ticks of the `magic.delay`s on its chain since the program start. A
+/// `magic.shuttle` is a sync point for its two traps, which must have spent the same time when it happens. Nothing
+/// else relates the clocks of two traps.
+///
+/// Walks `block` in order and calls `callback` for every shuttle with the clocks of its source and its destination
+/// trap. Both traps continue at the later of the two clocks, so the callback may pad the trap that is behind (in
+/// front of the shuttle) or report it.
+void forEachShuttleSync(mlir::Block& block,
+                        llvm::function_ref<void(ShuttleOp shuttle, Ticks fromTicks, Ticks toTicks)> callback);
 
 } // namespace qcc::magic

@@ -9,7 +9,6 @@
 !t1i = !magic.ion_chain<1, [2:0, 3:0]>
 !t0s = !magic.ion_chain<0, [1:1]>
 !t1s = !magic.ion_chain<1, [0:1, 2:1, 3:1]>
-!t0i = !magic.ion_chain<0, [1:0]>
 
 // OK: the example program of the dialect on this device: padding on the idle trap, one shuttle, everything measured
 // and recorded.
@@ -24,10 +23,7 @@ func.func @main() attributes {qcc.entry_point} {
   %a4, %b4 = magic.shuttle %a3, %b3 : !t0, !t1 -> !t0s, !t1s
   %b5 = magic.sym_zxz %b4 ions [0] {z = [0.0], x = [3.1416]} : !t1s
   %b6 = magic.delay %b5 {ticks = 4982} : !t1s
-  %a5 = magic.recode %a4 : !t0s -> !t0i
-  %a6 = magic.delay %a5 {ticks = 4982} : !t0i
-  %a7 = magic.recode %a6 : !t0i -> !t0s
-  %m1 = magic.mzd %a7 : !t0s -> i1
+  %m1 = magic.mzd %a4 : !t0s -> i1
   %m0, %m2, %m3 = magic.mzd %b6 : !t1s -> i1, i1, i1
   aux.record_int %m0 : i1
   aux.record_int %m1 : i1
@@ -132,8 +128,31 @@ func.func @not_native() {
 !t0 = !magic.ion_chain<0, [0:1, 1:1]>
 !t1 = !magic.ion_chain<1, [2:1, 3:1]>
 
-// expected-error @+1 {{'func.func' op has unbalanced timing before the measurement: trap 1 spends 0 ticks, but another trap 10; every trap spends the same time between two sync points}}
+!t0s = !magic.ion_chain<0, [1:1]>
+!t1s = !magic.ion_chain<1, [0:1, 2:1, 3:1]>
+
+// A shuttle is a sync point for its two traps.
 func.func @unbalanced() {
+  %a0, %b0 = magic.init : !t0, !t1
+  %a1 = magic.delay %a0 {ticks = 10} : !t0
+  // expected-error @+1 {{'magic.shuttle' op has unbalanced timing: trap 0 has spent 10 ticks, but trap 1 0; the two traps of a shuttle must have spent the same time}}
+  %a2, %b1 = magic.shuttle %a1, %b0 : !t0, !t1 -> !t0s, !t1s
+  %m1 = magic.mzd %a2 : !t0s -> i1
+  %m0, %m2, %m3 = magic.mzd %b1 : !t1s -> i1, i1, i1
+  aux.record_int %m0 : i1
+  aux.record_int %m1 : i1
+  aux.record_int %m2 : i1
+  aux.record_int %m3 : i1
+  return
+}
+
+// -----
+
+!t0 = !magic.ion_chain<0, [0:1, 1:1]>
+!t1 = !magic.ion_chain<1, [2:1, 3:1]>
+
+// OK: the measurement is no sync point, the traps may have spent different times when they are measured.
+func.func @unequal_at_measurement() {
   %a0, %b1 = magic.init : !t0, !t1
   %a1 = magic.delay %a0 {ticks = 10} : !t0
   %m0, %m1 = magic.mzd %a1 : !t0 -> i1, i1
