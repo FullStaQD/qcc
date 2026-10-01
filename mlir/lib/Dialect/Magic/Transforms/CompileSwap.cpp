@@ -48,22 +48,24 @@ static LogicalResult compileSwap(SwapOp op) {
     auto angle = builder.getF64ArrayAttr({halfPi});
     chain = ZXZOp::create(builder, loc, chain.getType(), chain, ArrayRef<int64_t>{ion}, angle, angle, angle);
   };
+
   // cz = rzz(pi/2) followed by rz(-pi/2) on both ions, up to a global phase.
-  auto cz = [&] {
-    chain = ActiveZZOp::create(builder, loc, chain, ionA, ionB, halfPi);
-    chain = RZOp::create(builder, loc, chain.getType(), chain, ArrayRef<int64_t>{ionA, ionB},
+  auto cz = [&](int64_t ionCtrl, int64_t ionTgt) {
+    chain = ActiveZZOp::create(builder, loc, chain, ionCtrl, ionTgt, halfPi);
+    chain = RZOp::create(builder, loc, chain.getType(), chain, ArrayRef<int64_t>{ionCtrl, ionTgt},
                          builder.getF64ArrayAttr({-halfPi, -halfPi}));
   };
+
   // cx(control, target) = h(target) cz h(target).
-  auto cx = [&](int64_t target) {
-    hadamard(target);
-    cz();
-    hadamard(target);
+  auto cx = [&](int64_t ionCtrl, int64_t ionTgt) {
+    hadamard(ionTgt);
+    cz(ionCtrl, ionTgt);
+    hadamard(ionTgt);
   };
 
-  cx(ionB);
-  cx(ionA);
-  cx(ionB);
+  cx(ionA, ionB);
+  cx(ionB, ionA);
+  cx(ionA, ionB);
 
   op.getChainOut().replaceAllUsesWith(chain);
   op.erase();
