@@ -209,35 +209,40 @@ def BaseChangeOp : PrelimHLEPOp<"base_change", [Pure]> {
     let hasVerifier = 1;
 }
 
-def ConstantOp : PrelimHLEPOp<"constant"> {
-    let summary = "A literal value of a linearized X- or Y-basis type.";
+def ConstantOp : PrelimHLEPOp<"constant", [Pure, ConstantLike]> {
+    let summary = "A classical literal of X- or Y-basis type.";
     let description = [{
-        Constructs a constant term of `!prelimhlep.lin<!prelimhlep.x<n>>`
-        or `!prelimhlep.lin<!prelimhlep.y<n>>` from a string of basis
-        symbols (`+`/`-` for X, `->`/`<-` for Y).
+        Constructs a classical constant of `!prelimhlep.x<n>` or
+        `!prelimhlep.y<n>` from a string of basis symbols (`+`/`-` for X,
+        `->`/`<-` for Y). This is the X-/Y-basis analogue of
+        `arith.constant` for `i<n>`: a qubit register in a basis state is
+        obtained by linearizing the constant with `prelimhlep.lin`.
 
         Example:
         ```mlir
-        %xxx = prelimhlep.constant "++-" : !prelimhlep.lin<!prelimhlep.x<3>>
-        %yyy = prelimhlep.constant "><>" : !prelimhlep.lin<!prelimhlep.y<3>>
+        %xxx = prelimhlep.constant "++-" : !prelimhlep.x<3>
+        %yyy = prelimhlep.constant "-><-->" : !prelimhlep.y<3>
+        %plus = prelimhlep.lin () -> (!prelimhlep.lin<!prelimhlep.x<1>>) {
+            %p = prelimhlep.constant "+" : !prelimhlep.x<1>
+            prelimhlep.output (%p : !prelimhlep.x<1>)
+        }
         ```
 
         The verifier checks that `value` consists only of valid basis
         symbols for the result type (`+`/`-` for X, `->`/`<-` for Y), with
-        length matching the result type's `n`.
+        `n` symbols for a result type of size `n`.
 
-        The op allocates its result rather than being `Pure`: two constants
-        must never be merged into one linear value with two uses. For the
-        same reason, it is not `ConstantLike`.
-        TODO: Understand this side-effect issue better.
+        Being classical, the op is `Pure`: allocating the linear value is
+        the job of the enclosing `prelimhlep.lin` (see its side effects).
 
         TODO: consider defining a custom attribute instead of a string.
     }];
 
     let arguments = (ins StrAttr:$value);
-    let results = (outs Res<AnyType, "", [MemAlloc<PrelimHLEP_QuantumStateResource>]>:$result);
+    let results = (outs AnyTypeOf<[XType, YType]>:$result);
 
     let assemblyFormat = "$value attr-dict `:` type($result)";
+    let hasFolder = 1;
     let hasVerifier = 1;
 }
 

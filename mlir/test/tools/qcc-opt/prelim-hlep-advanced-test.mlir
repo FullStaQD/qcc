@@ -45,14 +45,14 @@ func.func @hadamard(%in_qubit: !prelimhlep.lin<i1>) -> !prelimhlep.lin<i1> attri
   %out_qubit_x_basis = prelimhlep.lin (
     %in_bit: i1 from %in_qubit: !prelimhlep.lin<i1>
   ) -> (!prelimhlep.lin<!prelimhlep.x<1>>) {
-    %out_bit_x = scf.if %in_bit -> !prelimhlep.lin<!prelimhlep.x<1>> {
-      %minus = prelimhlep.constant "-" : !prelimhlep.lin<!prelimhlep.x<1>>
-      scf.yield %minus : !prelimhlep.lin<!prelimhlep.x<1>>
+    %out_bit_x = scf.if %in_bit -> !prelimhlep.x<1> {
+      %minus = prelimhlep.constant "-" : !prelimhlep.x<1>
+      scf.yield %minus : !prelimhlep.x<1>
     } else {
-      %plus = prelimhlep.constant "+" : !prelimhlep.lin<!prelimhlep.x<1>>
-      scf.yield %plus : !prelimhlep.lin<!prelimhlep.x<1>>
+      %plus = prelimhlep.constant "+" : !prelimhlep.x<1>
+      scf.yield %plus : !prelimhlep.x<1>
     }
-    prelimhlep.output () carrying (%out_bit_x : !prelimhlep.lin<!prelimhlep.x<1>>)
+    prelimhlep.output (%out_bit_x : !prelimhlep.x<1>)
   }
   %out_qubit = prelimhlep.base_change %out_qubit_x_basis : !prelimhlep.lin<!prelimhlep.x<1>> -> !prelimhlep.lin<i1>
   return %out_qubit : !prelimhlep.lin<i1>

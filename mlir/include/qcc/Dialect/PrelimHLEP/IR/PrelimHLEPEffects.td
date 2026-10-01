@@ -20,7 +20,7 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 // keeps them from being duplicated or hoisted. Everything else is modeled on
 // one of these resources.
 //===----------------------------------------------------------------------===//
-TODO: Develop a principled theory of these side-effect resources.
+// TODO: Develop a principled theory of these side-effect resources.
 
 // The hidden world index. A measurement reads it (its outcome is the world's
 // value) and writes it (the next measurement is a fresh draw), so that two

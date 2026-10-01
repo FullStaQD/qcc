@@ -45,42 +45,42 @@ func.func private @base_change_mismatched_n(%t: !prelimhlep.lin<i1>) -> !prelimh
 
 // -----
 
-func.func private @constant_x_wrong_length() -> !prelimhlep.lin<!prelimhlep.x<3>> {
-    // expected-error @below {{expected a length-3 string for result type '!prelimhlep.lin<!prelimhlep.x<3>>', got length 2}}
-    %0 = prelimhlep.constant "++" : !prelimhlep.lin<!prelimhlep.x<3>>
-    return %0 : !prelimhlep.lin<!prelimhlep.x<3>>
+func.func private @constant_x_wrong_length() -> !prelimhlep.x<3> {
+    // expected-error @below {{expected a length-3 string for result type '!prelimhlep.x<3>', got length 2}}
+    %0 = prelimhlep.constant "++" : !prelimhlep.x<3>
+    return %0 : !prelimhlep.x<3>
 }
 
 // -----
 
-func.func private @constant_x_bad_symbol() -> !prelimhlep.lin<!prelimhlep.x<3>> {
-    // expected-error @below {{expected only '+'/'-' symbols for result type '!prelimhlep.lin<!prelimhlep.x<3>>', got 'a'}}
-    %0 = prelimhlep.constant "+-a" : !prelimhlep.lin<!prelimhlep.x<3>>
-    return %0 : !prelimhlep.lin<!prelimhlep.x<3>>
+func.func private @constant_x_bad_symbol() -> !prelimhlep.x<3> {
+    // expected-error @below {{expected only '+'/'-' symbols for result type '!prelimhlep.x<3>', got 'a'}}
+    %0 = prelimhlep.constant "+-a" : !prelimhlep.x<3>
+    return %0 : !prelimhlep.x<3>
 }
 
 // -----
 
-func.func private @constant_y_wrong_length() -> !prelimhlep.lin<!prelimhlep.y<3>> {
-    // expected-error @below {{expected a length-6 string (3 '->'/'<-' symbols) for result type '!prelimhlep.lin<!prelimhlep.y<3>>', got length 2}}
-    %0 = prelimhlep.constant "->" : !prelimhlep.lin<!prelimhlep.y<3>>
-    return %0 : !prelimhlep.lin<!prelimhlep.y<3>>
+func.func private @constant_y_wrong_length() -> !prelimhlep.y<3> {
+    // expected-error @below {{expected a length-6 string (3 '->'/'<-' symbols) for result type '!prelimhlep.y<3>', got length 2}}
+    %0 = prelimhlep.constant "->" : !prelimhlep.y<3>
+    return %0 : !prelimhlep.y<3>
 }
 
 // -----
 
-func.func private @constant_y_bad_symbol() -> !prelimhlep.lin<!prelimhlep.y<2>> {
-    // expected-error @below {{expected only '->'/'<-' symbols for result type '!prelimhlep.lin<!prelimhlep.y<2>>', got 'XY'}}
-    %0 = prelimhlep.constant "->XY" : !prelimhlep.lin<!prelimhlep.y<2>>
-    return %0 : !prelimhlep.lin<!prelimhlep.y<2>>
+func.func private @constant_y_bad_symbol() -> !prelimhlep.y<2> {
+    // expected-error @below {{expected only '->'/'<-' symbols for result type '!prelimhlep.y<2>', got 'XY'}}
+    %0 = prelimhlep.constant "->XY" : !prelimhlep.y<2>
+    return %0 : !prelimhlep.y<2>
 }
 
 // -----
 
-func.func private @constant_bad_result_type() -> !prelimhlep.lin<i2> {
-    // expected-error @below {{expected result type to be 'lin<x<n>>' or 'lin<y<n>>', got '!prelimhlep.lin<i2>'}}
-    %0 = prelimhlep.constant "++" : !prelimhlep.lin<i2>
-    return %0 : !prelimhlep.lin<i2>
+func.func private @constant_linear_result_type() -> !prelimhlep.lin<!prelimhlep.x<2>> {
+    // expected-error @below {{result #0 must be Classical type for length-n strings over the X-basis symbols {+, -}. or Classical type for length-n strings over the Y-basis symbols {->, <-}., but got '!prelimhlep.lin<!prelimhlep.x<2>>'}}
+    %0 = prelimhlep.constant "++" : !prelimhlep.lin<!prelimhlep.x<2>>
+    return %0 : !prelimhlep.lin<!prelimhlep.x<2>>
 }
 
 // -----

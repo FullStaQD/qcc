@@ -2,17 +2,17 @@
 // RUN: qcc-opt %s --loop-invariant-code-motion | FileCheck %s --check-prefix=LICM
 // RUN: qcc-opt %s --canonicalize | FileCheck %s --check-prefix=DCE
 
-// Side effects of `prelimhlep.lin` (see PrelimHLEPEffects.td). A coin flip
-// consumes no linear value, so linearity does not keep it apart from
-// another one. Only its nested measurement, which reads and writes the
-// hidden world index, keeps it from being merged, hoisted, or erased.
+// Two coin flips: It's important that the duplicate code stays duplicate.
 
 // CSE-LABEL: func.func @two_coin_flips
 // CSE-COUNT-2: prelimhlep.base_change
 // CSE-NOT:     prelimhlep.base_change
 func.func @two_coin_flips(%u : !prelimhlep.unit) -> (i1, i1) attributes { prelimhlep.halo } {
     %r0 = prelimhlep.lin () -> (i1) {
-        %p = prelimhlep.constant "+" : !prelimhlep.lin<!prelimhlep.x<1>>
+        %p = prelimhlep.lin () -> (!prelimhlep.lin<!prelimhlep.x<1>>) {
+            %c = prelimhlep.constant "+" : !prelimhlep.x<1>
+            prelimhlep.output (%c : !prelimhlep.x<1>)
+        }
         %z = prelimhlep.base_change %p : !prelimhlep.lin<!prelimhlep.x<1>> -> !prelimhlep.lin<i1>
         %b = prelimhlep.lin (%zb : i1 from %z : !prelimhlep.lin<i1>) -> (i1) {
             prelimhlep.output () carrying (%zb : i1)
@@ -20,7 +20,10 @@ func.func @two_coin_flips(%u : !prelimhlep.unit) -> (i1, i1) attributes { prelim
         prelimhlep.output () carrying (%b : i1)
     }
     %r1 = prelimhlep.lin () -> (i1) {
-        %p = prelimhlep.constant "+" : !prelimhlep.lin<!prelimhlep.x<1>>
+        %p = prelimhlep.lin () -> (!prelimhlep.lin<!prelimhlep.x<1>>) {
+            %c = prelimhlep.constant "+" : !prelimhlep.x<1>
+            prelimhlep.output (%c : !prelimhlep.x<1>)
+        }
         %z = prelimhlep.base_change %p : !prelimhlep.lin<!prelimhlep.x<1>> -> !prelimhlep.lin<i1>
         %b = prelimhlep.lin (%zb : i1 from %z : !prelimhlep.lin<i1>) -> (i1) {
             prelimhlep.output () carrying (%zb : i1)
@@ -30,13 +33,31 @@ func.func @two_coin_flips(%u : !prelimhlep.unit) -> (i1, i1) attributes { prelim
     return %r0, %r1 : i1, i1
 }
 
-// Two allocations of the same constant must not become one linear value.
+// Classical + values may be CSE'd.
 
 // CSE-LABEL: func.func @two_constants
-// CSE-COUNT-2: prelimhlep.constant "+"
-func.func @two_constants(%u : !prelimhlep.unit) -> (!prelimhlep.lin<!prelimhlep.x<1>>, !prelimhlep.lin<!prelimhlep.x<1>>) attributes { prelimhlep.halo } {
-    %p0 = prelimhlep.constant "+" : !prelimhlep.lin<!prelimhlep.x<1>>
-    %p1 = prelimhlep.constant "+" : !prelimhlep.lin<!prelimhlep.x<1>>
+// CSE-COUNT-1: prelimhlep.constant "+"
+// CSE-NOT:     prelimhlep.constant
+func.func @two_constants(%u : !prelimhlep.unit) -> (!prelimhlep.x<1>, !prelimhlep.x<1>) attributes { prelimhlep.halo } {
+    %c0 = prelimhlep.constant "+" : !prelimhlep.x<1>
+    %c1 = prelimhlep.constant "+" : !prelimhlep.x<1>
+    return %c0, %c1 : !prelimhlep.x<1>, !prelimhlep.x<1>
+}
+
+// Linearized classical + values may not be CSE'd.
+
+// CSE-LABEL: func.func @two_linearized_constants
+// CSE-COUNT-2: prelimhlep.lin ()
+// CSE-NOT:     prelimhlep.lin ()
+func.func @two_linearized_constants(%u : !prelimhlep.unit) -> (!prelimhlep.lin<!prelimhlep.x<1>>, !prelimhlep.lin<!prelimhlep.x<1>>) attributes { prelimhlep.halo } {
+    %p0 = prelimhlep.lin () -> (!prelimhlep.lin<!prelimhlep.x<1>>) {
+        %c = prelimhlep.constant "+" : !prelimhlep.x<1>
+        prelimhlep.output (%c : !prelimhlep.x<1>)
+    }
+    %p1 = prelimhlep.lin () -> (!prelimhlep.lin<!prelimhlep.x<1>>) {
+        %c = prelimhlep.constant "+" : !prelimhlep.x<1>
+        prelimhlep.output (%c : !prelimhlep.x<1>)
+    }
     return %p0, %p1 : !prelimhlep.lin<!prelimhlep.x<1>>, !prelimhlep.lin<!prelimhlep.x<1>>
 }
 
@@ -71,7 +92,10 @@ func.func @coin_flips_in_loop(%u : !prelimhlep.unit) -> i1 attributes { prelimhl
     %false = arith.constant false
     %parity = scf.for %i = %c0 to %c10 step %c1 iter_args(%acc = %false) -> (i1) {
         %r = prelimhlep.lin () -> (i1) {
-            %p = prelimhlep.constant "+" : !prelimhlep.lin<!prelimhlep.x<1>>
+            %p = prelimhlep.lin () -> (!prelimhlep.lin<!prelimhlep.x<1>>) {
+            %c = prelimhlep.constant "+" : !prelimhlep.x<1>
+            prelimhlep.output (%c : !prelimhlep.x<1>)
+        }
             %z = prelimhlep.base_change %p : !prelimhlep.lin<!prelimhlep.x<1>> -> !prelimhlep.lin<i1>
             %b = prelimhlep.lin (%zb : i1 from %z : !prelimhlep.lin<i1>) -> (i1) {
                 prelimhlep.output () carrying (%zb : i1)
@@ -105,14 +129,17 @@ func.func @pure_lin_in_loop(%u : !prelimhlep.unit, %a : i1) -> i1 attributes { p
     return %parity : i1
 }
 
-// An unused coin flip is not dead code, a measurement of a captured bit that
-// is ignored afterwards is, since the latter has a single world.
+// An unused coin flip is not dead code.
+// TODO: It should be.
 
 // DCE-LABEL: func.func @unused_coin_flip
 // DCE:         prelimhlep.lin () -> (i1)
 func.func @unused_coin_flip(%u : !prelimhlep.unit) -> !prelimhlep.unit attributes { prelimhlep.halo } {
     %r = prelimhlep.lin () -> (i1) {
-        %p = prelimhlep.constant "+" : !prelimhlep.lin<!prelimhlep.x<1>>
+        %p = prelimhlep.lin () -> (!prelimhlep.lin<!prelimhlep.x<1>>) {
+            %c = prelimhlep.constant "+" : !prelimhlep.x<1>
+            prelimhlep.output (%c : !prelimhlep.x<1>)
+        }
         %z = prelimhlep.base_change %p : !prelimhlep.lin<!prelimhlep.x<1>> -> !prelimhlep.lin<i1>
         %b = prelimhlep.lin (%zb : i1 from %z : !prelimhlep.lin<i1>) -> (i1) {
             prelimhlep.output () carrying (%zb : i1)

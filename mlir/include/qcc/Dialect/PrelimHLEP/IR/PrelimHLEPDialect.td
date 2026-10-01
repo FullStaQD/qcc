@@ -19,6 +19,7 @@ def PrelimHLEPDialect : Dialect {
     let cppNamespace = "::qcc::prelimhlep";
     let useDefaultTypePrinterParser = 1;
     let useDefaultAttributePrinterParser = 1;
+    let hasConstantMaterializer = 1;
 
     let extraClassDeclaration = [{
         /// Verifies dialect attributes (e.g. `prelimhlep.halo`) attached to

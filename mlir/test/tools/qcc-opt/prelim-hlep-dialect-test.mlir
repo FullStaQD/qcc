@@ -30,16 +30,16 @@ func.func @base_change(%q: !prelimhlep.lin<i1>) -> !prelimhlep.lin<!prelimhlep.x
 // CHECK-LABEL: func.func @base_change
 // CHECK: prelimhlep.base_change
 
-func.func @constant_x() -> !prelimhlep.lin<!prelimhlep.x<3>> {
-    %0 = prelimhlep.constant "++-" : !prelimhlep.lin<!prelimhlep.x<3>>
-    return %0 : !prelimhlep.lin<!prelimhlep.x<3>>
+func.func @constant_x() -> !prelimhlep.x<3> {
+    %0 = prelimhlep.constant "++-" : !prelimhlep.x<3>
+    return %0 : !prelimhlep.x<3>
 }
 // CHECK-LABEL: func.func @constant_x
 // CHECK: prelimhlep.constant "++-"
 
-func.func @constant_y() -> !prelimhlep.lin<!prelimhlep.y<3>> {
-    %0 = prelimhlep.constant "-><-->" : !prelimhlep.lin<!prelimhlep.y<3>>
-    return %0 : !prelimhlep.lin<!prelimhlep.y<3>>
+func.func @constant_y() -> !prelimhlep.y<3> {
+    %0 = prelimhlep.constant "-><-->" : !prelimhlep.y<3>
+    return %0 : !prelimhlep.y<3>
 }
 // CHECK-LABEL: func.func @constant_y
 // CHECK: prelimhlep.constant "-><-->"

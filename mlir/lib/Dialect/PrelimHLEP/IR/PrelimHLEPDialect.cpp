@@ -157,12 +157,13 @@ void OutputOp::print(OpAsmPrinter& p) {
 
 LogicalResult OutputOp::verify() { return verifyWithinHaloedFunction(getOperation()); }
 
+OpFoldResult ConstantOp::fold(FoldAdaptor /*adaptor*/) { return getValueAttr(); }
+
 LogicalResult ConstantOp::verify() {
-  auto resultType = dyn_cast<LinType>(getResult().getType());
-  Type elementType = resultType ? resultType.getElementType() : nullptr;
+  Type resultType = getResult().getType();
   StringRef value = getValue();
 
-  if (auto xType = dyn_cast_or_null<XType>(elementType)) {
+  if (auto xType = dyn_cast<XType>(resultType)) {
     if (static_cast<int64_t>(value.size()) != xType.getSize()) {
       return emitOpError("expected a length-")
              << xType.getSize() << " string for result type " << resultType << ", got length " << value.size();
@@ -175,25 +176,20 @@ LogicalResult ConstantOp::verify() {
     return success();
   }
 
-  if (auto yType = dyn_cast_or_null<YType>(elementType)) {
-    if (static_cast<int64_t>(value.size()) != 2 * yType.getSize()) {
-      return emitOpError("expected a length-")
-             << (2 * yType.getSize()) << " string (" << yType.getSize() << " '->'/'<-' symbols) for result type "
-             << resultType << ", got length " << value.size();
-    }
-    for (size_t i = 0, e = value.size(); i < e; i += 2) {
-      StringRef symbol = value.substr(i, 2);
-      if (symbol != "->" && symbol != "<-") {
-        return emitOpError("expected only '->'/'<-' symbols for result type ")
-               << resultType << ", got '" << symbol << "'";
-      }
-    }
-    return success();
+  auto yType = cast<YType>(resultType);
+  if (static_cast<int64_t>(value.size()) != 2 * yType.getSize()) {
+    return emitOpError("expected a length-")
+           << (2 * yType.getSize()) << " string (" << yType.getSize() << " '->'/'<-' symbols) for result type "
+           << resultType << ", got length " << value.size();
   }
-
-  return emitOpError("expected result type to be '")
-         << LinType::getMnemonic() << "<" << XType::getMnemonic() << "<n>>' or '" << LinType::getMnemonic() << "<"
-         << YType::getMnemonic() << "<n>>', got " << getResult().getType();
+  for (size_t i = 0, e = value.size(); i < e; i += 2) {
+    StringRef symbol = value.substr(i, 2);
+    if (symbol != "->" && symbol != "<-") {
+      return emitOpError("expected only '->'/'<-' symbols for result type ")
+             << resultType << ", got '" << symbol << "'";
+    }
+  }
+  return success();
 }
 
 LogicalResult ExpOp::verify() {
@@ -416,6 +412,14 @@ void LinOp::getEffects(SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects
       effects.emplace_back(MemoryEffects::Free::get(), QuantumStateResource::get());
     }
   }
+}
+
+Operation* PrelimHLEPDialect::materializeConstant(OpBuilder& builder, Attribute value, Type type, Location loc) {
+  auto stringValue = dyn_cast<StringAttr>(value);
+  if (!stringValue || !isa<XType, YType>(type)) {
+    return nullptr;
+  }
+  return ConstantOp::create(builder, loc, type, stringValue);
 }
 
 LogicalResult PrelimHLEPDialect::verifyOperationAttribute(Operation* op, NamedAttribute attribute) {
