@@ -72,10 +72,7 @@ static LogicalResult compileTrivially(ActiveZZOp op, const MagicDevice& device) 
 
       // The delay acts with the coupling for the ions present, active or not, indexed by chain position.
       const double coupling = device.coupling(trap, type.getNumIons())(type.getPosition(ionA), type.getPosition(ionB));
-      if (coupling == 0.0) {
-        return op.emitOpError() << "cannot couple ions " << ionA << " and " << ionB
-                                << ": the device's coupling between them is zero";
-      }
+      assert(coupling > 0.0 && "coupling between any ions must be strictly positive");
 
       // Every other active ion must not take part.
       SmallVector<int64_t> others;
@@ -85,8 +82,8 @@ static LogicalResult compileTrivially(ActiveZZOp op, const MagicDevice& device) 
       }
 
       // A delay of t seconds is an `active_zz` with angles t*J.
-      const bool negative = (angle < 0.0) != (coupling < 0.0);
-      const double seconds = std::abs(angle) / std::abs(coupling);
+      const bool negative = angle < 0.0;
+      const double seconds = std::abs(angle) / coupling;
       if (negative) {
         flip(ionA);
       }

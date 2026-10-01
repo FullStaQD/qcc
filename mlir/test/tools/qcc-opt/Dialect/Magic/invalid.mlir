@@ -27,6 +27,16 @@
 
 // -----
 
+// expected-error @+1 {{coupling matrix for 2 ions must be positive off the diagonal}}
+#trap = #magic.trap<capacity = 2, couplings = [dense<0.0> : tensor<1x1xf64>, dense<[[0.0, -1.0], [-1.0, 0.0]]> : tensor<2x2xf64>]>
+
+// -----
+
+// expected-error @+1 {{coupling matrix for 2 ions must be positive off the diagonal}}
+#trap = #magic.trap<capacity = 2, couplings = [dense<0.0> : tensor<1x1xf64>, dense<0.0> : tensor<2x2xf64>]>
+
+// -----
+
 // expected-error @+1 {{coupling matrix for 1 ions must have a zero diagonal}}
 #trap = #magic.trap<capacity = 1, couplings = [dense<1.0> : tensor<1x1xf64>]>
 

@@ -74,6 +74,9 @@ LogicalResult TrapAttr::verify(function_ref<InFlightDiagnostic()> emitError, int
         if (values[(i * numIons) + j] != values[(j * numIons) + i]) {
           return emitError() << "coupling matrix for " << numIons << " ions must be symmetric";
         }
+        if (values[(i * numIons) + j] <= 0.0) {
+          return emitError() << "coupling matrix for " << numIons << " ions must be positive off the diagonal";
+        }
       }
     }
   }

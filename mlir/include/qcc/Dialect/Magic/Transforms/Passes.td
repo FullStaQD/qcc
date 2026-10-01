@@ -52,8 +52,8 @@ def MagicCompileActiveZZTrivially : Pass<"magic-compile-active-zz-trivially", "m
       in a straightforward way:
 
       1. `recode` to ensure only the two relevant ions are active,
-      2. if `A_ij` and `J_ij` differ in sign: Do an X-flip on ion `i` (`sym_zxz(z = 0, x = pi)`)
-      3. `delay` for `t = |A_ij| / |J_ij|` seconds, rounded to the nearest tick of the device's time unit,
+      2. if `A_ij < 0`: Do an X-flip on ion `i` (`sym_zxz(z = 0, x = pi)`)
+      3. `delay` for `t = |A_ij| / J_ij` seconds, rounded to the nearest tick of the device's time unit,
       4. Do the X-flip again if it was needed in step 2 and recode back.
 
       `J` is the device's coupling matrix for the number of ions present in the trap (active and inactive), indexed by

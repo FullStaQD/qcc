@@ -31,7 +31,9 @@ def Magic_TrapAttr : Magic_Attr<"Trap", "trap"> {
 
         `couplings` holds one matrix per possible occupancy: matrix `k` (0-based) is the `(k+1)x(k+1)` coupling matrix
         that applies when `k+1` ions are present in the trap, active or not. Entry `(i, j)` is the coupling strength
-        between the ions at chain positions `i` and `j` (front = 0). The matrices are symmetric with a zero diagonal.
+        between the ions at chain positions `i` and `j` (front = 0). The matrices are symmetric with a zero diagonal and
+        positive entries everywhere else.
+
         See `magic.delay` for how the coupling acts.
 
         Example:
