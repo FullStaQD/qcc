@@ -197,6 +197,15 @@ func.func @ion_listed_twice() {
 
 // -----
 
+func.func @ions_not_increasing() {
+  %c0 = magic.init : !magic.ion_chain<0, [0:1, 1:1]>
+  // expected-error @+1 {{'magic.rz' op ions must be listed in increasing order, got ion 0 after ion 1}}
+  %c1 = magic.rz %c0 ions [1, 0] {angles = [0.0, 0.0]} : !magic.ion_chain<0, [0:1, 1:1]>
+  return
+}
+
+// -----
+
 func.func @angle_count() {
   %c0 = magic.init : !magic.ion_chain<0, [0:1, 1:1]>
   // expected-error @+1 {{'magic.zxz' op expected one 'x' angle per ion, got 1 for 2 ions}}
@@ -348,5 +357,14 @@ func.func @swap_same_ion() {
   %c0 = magic.init : !magic.ion_chain<0, [0:1, 1:1]>
   // expected-error @+1 {{'magic.swap' op ion 0 is listed more than once}}
   %c1 = magic.swap %c0 ions [0, 0] : !magic.ion_chain<0, [0:1, 1:1]>
+  return
+}
+
+// -----
+
+func.func @swap_not_increasing() {
+  %c0 = magic.init : !magic.ion_chain<0, [0:1, 1:1]>
+  // expected-error @+1 {{'magic.swap' op ions must be listed in increasing order, got ion 0 after ion 1}}
+  %c1 = magic.swap %c0 ions [1, 0] : !magic.ion_chain<0, [0:1, 1:1]>
   return
 }

@@ -97,8 +97,8 @@ func.func @intermediate_ops() {
   %a2 = magic.active_zz %a1 {angles = dense<[[0.0, 1.5708], [1.5708, 0.0]]> : tensor<2x2xf64>} : !t0
   // CHECK: %[[A3:.*]], %[[B1:.*]] = magic.inter_trap_zz %[[A2]], %[[INIT]]#1 ions [1, 2] {angle = 7.854000e-01 : f64} : !chain{{[0-9]*}}, !chain{{[0-9]*}}
   %a3, %b1 = magic.inter_trap_zz %a2, %b0 ions [1, 2] {angle = 0.7854} : !t0, !t1
-  // CHECK: magic.swap %[[A3]] ions [1, 0] : !chain{{[0-9]*}}
-  %a4 = magic.swap %a3 ions [1, 0] : !t0
+  // CHECK: magic.swap %[[A3]] ions [0, 1] : !chain{{[0-9]*}}
+  %a4 = magic.swap %a3 ions [0, 1] : !t0
   return
 }
 

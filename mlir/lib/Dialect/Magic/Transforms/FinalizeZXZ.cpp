@@ -77,8 +77,7 @@ private:
       pending[ion] = first + z2;
     }
     OpBuilder builder(zxz);
-    auto sym = SymZXZOp::create(builder, zxz.getLoc(), zxz.getType(), zxz.getChainIn(), zxz.getIonsAttr(),
-                                builder.getF64ArrayAttr(z), builder.getF64ArrayAttr(x));
+    auto sym = SymZXZOp::create(builder, zxz.getLoc(), zxz.getChainIn(), zxz.getIons(), z, x);
     zxz.replaceAllUsesWith(sym.getChainOut());
     zxz.erase();
   }
@@ -120,7 +119,7 @@ private:
         }
       }
       if (!ions.empty()) {
-        operand.set(RZOp::create(builder, op->getLoc(), type, operand.get(), ions, builder.getF64ArrayAttr(angles)));
+        operand.set(RZOp::create(builder, op->getLoc(), operand.get(), ions, angles));
       }
     }
   }

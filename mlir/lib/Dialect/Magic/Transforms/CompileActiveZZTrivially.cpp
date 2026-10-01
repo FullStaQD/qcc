@@ -56,10 +56,7 @@ static LogicalResult compileTrivially(ActiveZZOp op, const MagicDevice& device) 
   Value chain = op.getChainIn();
 
   // The X sandwich for negative angles: X_i (Z_i Z_j) X_i = -Z_i Z_j.
-  auto flip = [&](int64_t ion) {
-    chain = SymZXZOp::create(builder, loc, chain.getType(), chain, ArrayRef<int64_t>{ion},
-                             builder.getF64ArrayAttr({0.0}), builder.getF64ArrayAttr({std::numbers::pi}));
-  };
+  auto flip = [&](int64_t ion) { chain = SymZXZOp::create(builder, loc, chain, {ion}, {0.0}, {std::numbers::pi}); };
 
   for (size_t a = 0; a < numActive; ++a) {
     for (size_t b = a + 1; b < numActive; ++b) {

@@ -44,16 +44,12 @@ static LogicalResult compileSwap(SwapOp op) {
   Value chain = op.getChainIn();
 
   // h = Rz(pi/2) Rx(pi/2) Rz(pi/2) up to a global phase.
-  auto hadamard = [&](int64_t ion) {
-    auto angle = builder.getF64ArrayAttr({halfPi});
-    chain = ZXZOp::create(builder, loc, chain.getType(), chain, ArrayRef<int64_t>{ion}, angle, angle, angle);
-  };
+  auto hadamard = [&](int64_t ion) { chain = ZXZOp::create(builder, loc, chain, {ion}, {halfPi}, {halfPi}, {halfPi}); };
 
   // cz = rzz(pi/2) followed by rz(-pi/2) on both ions, up to a global phase.
   auto cz = [&](int64_t ionCtrl, int64_t ionTgt) {
     chain = ActiveZZOp::create(builder, loc, chain, ionCtrl, ionTgt, halfPi);
-    chain = RZOp::create(builder, loc, chain.getType(), chain, ArrayRef<int64_t>{ionCtrl, ionTgt},
-                         builder.getF64ArrayAttr({-halfPi, -halfPi}));
+    chain = RZOp::create(builder, loc, chain, {ionCtrl, ionTgt}, {-halfPi, -halfPi});
   };
 
   // cx(control, target) = h(target) cz h(target).

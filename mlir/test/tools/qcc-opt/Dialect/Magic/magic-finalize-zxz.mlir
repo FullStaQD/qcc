@@ -1,4 +1,4 @@
-// RUN: qcc-opt %s --magic-finalize-zxz --split-input-file | FileCheck %s
+// RUN: qcc-opt %s --magic-finalize-zxz --split-input-file --allow-unregistered-dialect | FileCheck %s
 
 !c = !magic.ion_chain<0, [0:1, 1:1]>
 
@@ -66,3 +66,21 @@ func.func @through_shuttle() {
 // CHECK-NEXT: %{{.*}}, %[[B1:.*]] = magic.shuttle
 // CHECK-NEXT: magic.sym_zxz %[[B1]] ions [0] {x = [1.000000e+00], z = [-2.883185307179{{[0-9]*}}]}
 // CHECK-NOT:  magic.rz
+
+// -----
+
+!c = !magic.ion_chain<0, [1:1, 0:1]>
+
+// An op the rotations cannot pass gets them as an explicit rz in front of it, with the ions listed by increasing id
+// rather than by chain position.
+// CHECK-LABEL: func.func @flushed
+func.func @flushed() {
+  %c0 = magic.init : !c
+  %c1 = magic.zxz %c0 ions [0, 1] {z1 = [0.25, 0.5], x = [1.0, 1.0], z2 = [0.25, 0.25]} : !c
+  "foreign.use"(%c1) : (!c) -> ()
+  return
+}
+
+// CHECK:      %[[C1:.*]] = magic.sym_zxz %{{.*}} ions [0, 1] {x = [1.000000e+00, 1.000000e+00], z = [2.500000e-01, 5.000000e-01]}
+// CHECK-NEXT: %[[C2:.*]] = magic.rz %[[C1]] ions [0, 1] {angles = [5.000000e-01, 7.500000e-01]}
+// CHECK-NEXT: "foreign.use"(%[[C2]])

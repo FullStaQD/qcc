@@ -49,7 +49,8 @@ class Magic_SameChainOp<string mnemonic, list<Trait> traits = []>
   let results = (outs Magic_IonChainType:$chain_out);
 }
 
-// A single-ion gate: the same gate applied to the ions in `ions` (ids, not positions) of one chain.
+// A single-ion gate: the same gate applied to the ions in `ions` (ids, not positions) of one chain. The ids are
+// listed in increasing order.
 class Magic_SingleIonGateOp<string mnemonic, list<Trait> traits = []> : Magic_SameChainOp<mnemonic, traits> {
   let assemblyFormat = [{
         $chain_in custom<IonList>($ions) attr-dict `:` type($chain_in)
@@ -99,6 +100,13 @@ def Magic_ZXZOp : Magic_SingleIonGateOp<"zxz"> {
                        F64ArrayAttr:$z1,
                        F64ArrayAttr:$x,
                        F64ArrayAttr:$z2);
+
+  let builders = [
+    // The gate with angles `z1[k]`, `x[k]`, `z2[k]` on ion `ions[k]` of `chain`. The ions may come in any order: they
+    // are sorted by id, the angles along with them.
+    OpBuilder<(ins "::mlir::Value":$chain, "::llvm::ArrayRef<int64_t>":$ions, "::llvm::ArrayRef<double>":$z1,
+                   "::llvm::ArrayRef<double>":$x, "::llvm::ArrayRef<double>":$z2)>
+  ];
 }
 
 def Magic_RZOp : Magic_SingleIonGateOp<"rz", [Magic_Native]> {
@@ -118,12 +126,19 @@ def Magic_RZOp : Magic_SingleIonGateOp<"rz", [Magic_Native]> {
 
   // Merges two consecutive `rz`, drops zero angles.
   let hasCanonicalizeMethod = 1;
+
+  let builders = [
+    // `rz(angles[k])` on ion `ions[k]` of `chain`. The ions may come in any order: they are sorted by id, the angles
+    // along with them.
+    OpBuilder<(ins "::mlir::Value":$chain, "::llvm::ArrayRef<int64_t>":$ions, "::llvm::ArrayRef<double>":$angles)>
+  ];
 }
 
 def Magic_SymZXZOp : Magic_SingleIonGateOp<"sym_zxz", [Magic_Native]> {
   let summary = "symmetric single-ion rotation Rz(-z)·Rx(x)·Rz(z)";
   let description = [{
-        Applies `Rz(-z[k])·Rx(x[k])·Rz(z[k])` to ion `ions[k]`. Zero duration.
+        Applies `Rz(-z[k])·Rx(x[k])·Rz(z[k])` to ion `ions[k]`. Zero
+        duration.
 
         Example:
         ```mlir
@@ -135,6 +150,13 @@ def Magic_SymZXZOp : Magic_SingleIonGateOp<"sym_zxz", [Magic_Native]> {
                        DenseI64ArrayAttr:$ions,
                        F64ArrayAttr:$z,
                        F64ArrayAttr:$x);
+
+  let builders = [
+    // The gate with angles `z[k]`, `x[k]` on ion `ions[k]` of `chain`. The ions may come in any order: they are
+    // sorted by id, the angles along with them.
+    OpBuilder<(ins "::mlir::Value":$chain, "::llvm::ArrayRef<int64_t>":$ions, "::llvm::ArrayRef<double>":$z,
+                   "::llvm::ArrayRef<double>":$x)>
+  ];
 }
 
 def Magic_ActiveZZOp : Magic_SameChainOp<"active_zz"> {
@@ -315,7 +337,7 @@ def Magic_SwapOp : Magic_SameChainOp<"swap"> {
 
         Example:
         ```mlir
-        %c1 = magic.swap %c0 ions [4, 0] : !chain
+        %c1 = magic.swap %c0 ions [0, 4] : !chain
         ```
     }];
 
@@ -326,6 +348,11 @@ def Magic_SwapOp : Magic_SameChainOp<"swap"> {
         $chain_in custom<IonList>($ions) attr-dict `:` type($chain_in)
     }];
   let hasVerifier = 1;
+
+  let builders = [
+    // Swaps the ions `ionA` and `ionB` (ids) of `chain`, given in either order.
+    OpBuilder<(ins "::mlir::Value":$chain, "int64_t":$ionA, "int64_t":$ionB)>
+  ];
 }
 
 #endif // INCLUDE_QCC_DIALECT_MAGIC_IR_MAGICOPS_TD_

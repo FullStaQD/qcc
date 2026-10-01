@@ -55,7 +55,7 @@ func.func @recode_pair_combines() {
 func.func @rz_merge() {
   %c0 = magic.init : !c
   %c1 = magic.rz %c0 ions [0, 2] {angles = [0.5, 3.0]} : !c
-  %c2 = magic.rz %c1 ions [1, 0, 2] {angles = [0.25, -0.5, 1.0]} : !c
+  %c2 = magic.rz %c1 ions [0, 1, 2] {angles = [-0.5, 0.25, 1.0]} : !c
   %m0, %m1, %m2 = magic.mzd %c2 : !c -> i1, i1, i1
   aux.record_int %m0 : i1
   aux.record_int %m1 : i1
@@ -64,7 +64,7 @@ func.func @rz_merge() {
 }
 
 // CHECK:      %[[C0:.*]] = magic.init
-// CHECK-NEXT: %[[C1:.*]] = magic.rz %[[C0]] ions [2, 1] {angles = [-2.283185307179{{[0-9]*}}, 2.500000e-01]}
+// CHECK-NEXT: %[[C1:.*]] = magic.rz %[[C0]] ions [1, 2] {angles = [2.500000e-01, -2.283185307179{{[0-9]*}}]}
 // CHECK-NEXT: magic.mzd %[[C1]]
 
 // -----

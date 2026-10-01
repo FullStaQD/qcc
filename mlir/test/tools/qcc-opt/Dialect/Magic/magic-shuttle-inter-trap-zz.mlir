@@ -64,11 +64,11 @@ func.func @behind_front() {
 
 // CHECK:      %[[INIT:.*]]:2 = magic.init
 
-// CAP3-NEXT:  %[[A1:.*]] = magic.swap %[[INIT]]#0 ions [1, 0] : !chain
+// CAP3-NEXT:  %[[A1:.*]] = magic.swap %[[INIT]]#0 ions [0, 1] : !chain
 // CAP3-NEXT:  %[[A2:.*]], %[[B2:.*]] = magic.shuttle %[[A1]], %[[INIT]]#1 : !chain, !chain1 -> !chain2, !chain3
 // CAP3-NEXT:  %[[B3:.*]] = magic.active_zz %[[B2]] {angles = dense<{{\[\[}}0.000000e+00, 0.000000e+00, -5.000000e-01], [0.000000e+00, 0.000000e+00, 0.000000e+00], [-5.000000e-01, 0.000000e+00, 0.000000e+00]]> : tensor<3x3xf64>} : !chain3
 // CAP3-NEXT:  %[[B4:.*]], %[[A4:.*]] = magic.shuttle %[[B3]], %[[A2]] : !chain3, !chain2 -> !chain1, !chain
-// CAP3-NEXT:  %[[A5:.*]] = magic.swap %[[A4]] ions [1, 0] : !chain
+// CAP3-NEXT:  %[[A5:.*]] = magic.swap %[[A4]] ions [0, 1] : !chain
 // CAP3-NEXT:  magic.mzd %[[A5]] : !chain
 // CAP3-NEXT:  magic.mzd %[[B4]] : !chain1
 

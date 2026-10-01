@@ -23,12 +23,15 @@
 
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/Sequence.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/TypeSwitch.h" // IWYU pragma: keep
 
+#include <algorithm>
 #include <cassert>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <numbers>
 
@@ -99,15 +102,22 @@ LogicalResult qcc::magic::verifyAffineChains(Operation* op) {
   return success();
 }
 
-/// Verifies that `ions` (ids) are distinct and all contained in `chain`.
+/// Verifies that `ions` (ids) are all contained in `chain` and listed in strictly increasing order.
 static LogicalResult verifyIonsInChain(Operation* op, ArrayRef<int64_t> ions, IonChainType chain) {
-  llvm::SmallSet<int64_t, 8> seen;
-  for (const int64_t ion : ions) {
+  for (auto [index, ion] : llvm::enumerate(ions)) {
     if (!chain.contains(ion)) {
       return op->emitOpError() << "ion " << ion << " is not in the chain " << chain;
     }
-    if (!seen.insert(ion).second) {
+    if (index == 0) {
+      continue;
+    }
+    const int64_t previous = ions[index - 1];
+    if (ion == previous) {
       return op->emitOpError() << "ion " << ion << " is listed more than once";
+    }
+    if (ion < previous) {
+      return op->emitOpError() << "ions must be listed in increasing order, got ion " << ion << " after ion "
+                               << previous;
     }
   }
   return success();
@@ -153,6 +163,39 @@ LogicalResult InitOp::verify() {
 //===----------------------------------------------------------------------===//
 // Single-ion gates
 //===----------------------------------------------------------------------===//
+
+/// The order that lists `ions` by increasing id: entry `k` is the index of the ion that comes `k`-th.
+static SmallVector<size_t> getOrderById(ArrayRef<int64_t> ions) {
+  SmallVector<size_t> order = llvm::to_vector(llvm::seq<size_t>(0, ions.size()));
+  llvm::sort(order, [&](size_t a, size_t b) { return ions[a] < ions[b]; });
+  return order;
+}
+
+/// `values` rearranged by `order`, see `getOrderById`.
+template <typename T> static SmallVector<T> permute(ArrayRef<T> values, ArrayRef<size_t> order) {
+  assert(values.size() == order.size() && "expected one value per ion");
+  return llvm::map_to_vector(order, [&](size_t index) { return values[index]; });
+}
+
+void ZXZOp::build(OpBuilder& builder, OperationState& state, Value chain, ArrayRef<int64_t> ions, ArrayRef<double> z1,
+                  ArrayRef<double> x, ArrayRef<double> z2) {
+  const SmallVector<size_t> order = getOrderById(ions);
+  build(builder, state, chain.getType(), chain, permute(ions, order), builder.getF64ArrayAttr(permute(z1, order)),
+        builder.getF64ArrayAttr(permute(x, order)), builder.getF64ArrayAttr(permute(z2, order)));
+}
+
+void RZOp::build(OpBuilder& builder, OperationState& state, Value chain, ArrayRef<int64_t> ions,
+                 ArrayRef<double> angles) {
+  const SmallVector<size_t> order = getOrderById(ions);
+  build(builder, state, chain.getType(), chain, permute(ions, order), builder.getF64ArrayAttr(permute(angles, order)));
+}
+
+void SymZXZOp::build(OpBuilder& builder, OperationState& state, Value chain, ArrayRef<int64_t> ions, ArrayRef<double> z,
+                     ArrayRef<double> x) {
+  const SmallVector<size_t> order = getOrderById(ions);
+  build(builder, state, chain.getType(), chain, permute(ions, order), builder.getF64ArrayAttr(permute(z, order)),
+        builder.getF64ArrayAttr(permute(x, order)));
+}
 
 LogicalResult ZXZOp::verify() {
   if (failed(verifyIonsInChain(*this, getIons(), getChainIn().getType()))) {
@@ -214,7 +257,7 @@ LogicalResult RZOp::canonicalize(RZOp op, PatternRewriter& rewriter) {
   if (ions.empty()) {
     rewriter.replaceOp(op, chainIn);
   } else if (previous || ions.size() != op.getIons().size()) {
-    rewriter.replaceOpWithNewOp<RZOp>(op, op.getType(), chainIn, ions, rewriter.getF64ArrayAttr(sums));
+    rewriter.replaceOpWithNewOp<RZOp>(op, chainIn, ions, sums);
   } else {
     return failure();
   }
@@ -409,6 +452,11 @@ LogicalResult InterTrapZZOp::verify() {
 //===----------------------------------------------------------------------===//
 // SwapOp
 //===----------------------------------------------------------------------===//
+
+void SwapOp::build(OpBuilder& builder, OperationState& state, Value chain, int64_t ionA, int64_t ionB) {
+  const auto [low, high] = std::minmax(ionA, ionB);
+  build(builder, state, chain.getType(), chain, ArrayRef<int64_t>{low, high});
+}
 
 LogicalResult SwapOp::verify() {
   if (getIons().size() != 2) {

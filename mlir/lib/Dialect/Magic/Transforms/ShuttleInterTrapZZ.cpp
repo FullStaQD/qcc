@@ -63,7 +63,7 @@ static std::pair<Value, Value> buildSwapRoundTrip(OpBuilder& builder, Location l
     if (front == fromIon) {
       return chain;
     }
-    return SwapOp::create(builder, loc, chain.getType(), chain, ArrayRef<int64_t>{fromIon, front});
+    return SwapOp::create(builder, loc, chain, fromIon, front);
   };
   from = swap(from);
   std::tie(from, to) = buildRoundTrip(builder, loc, from, to, /*count=*/1, front, toIon, angle);

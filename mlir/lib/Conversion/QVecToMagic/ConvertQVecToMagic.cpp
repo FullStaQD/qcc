@@ -254,26 +254,24 @@ private:
     OpBuilder builder(single);
     for (auto [trap, chain] : llvm::enumerate(chains)) {
       SmallVector<int64_t> trapIons;
-      SmallVector<SmallVector<Attribute>> trapParams(params.size());
+      SmallVector<SmallVector<double>> trapParams(params.size());
       for (auto [lane, ion] : llvm::enumerate(*ions)) {
         if (getTrap(ion) != static_cast<int64_t>(trap)) {
           continue;
         }
         trapIons.push_back(ion);
-        for (auto [values, attrs] : llvm::zip_equal(params, trapParams)) {
-          attrs.push_back(builder.getF64FloatAttr(values[lane]));
+        for (auto [values, trapValues] : llvm::zip_equal(params, trapParams)) {
+          trapValues.push_back(values[lane]);
         }
       }
       if (trapIons.empty()) {
         continue;
       }
       if (kind == qvec::SingleGateKind::UZXZ) {
-        chain = ZXZOp::create(
-            builder, single.getLoc(), chain.getType(), chain, trapIons, builder.getArrayAttr(trapParams[qvec::zxz::z1]),
-            builder.getArrayAttr(trapParams[qvec::zxz::x]), builder.getArrayAttr(trapParams[qvec::zxz::z2]));
+        chain = ZXZOp::create(builder, single.getLoc(), chain, trapIons, trapParams[qvec::zxz::z1],
+                              trapParams[qvec::zxz::x], trapParams[qvec::zxz::z2]);
       } else {
-        chain = RZOp::create(builder, single.getLoc(), chain.getType(), chain, trapIons,
-                             builder.getArrayAttr(trapParams.front()));
+        chain = RZOp::create(builder, single.getLoc(), chain, trapIons, trapParams.front());
       }
     }
     lanes[single.getQubitsOut()] = SmallVector<int64_t>(*ions);
