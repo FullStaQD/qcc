@@ -3,8 +3,8 @@
 !c = !magic.ion_chain<0, [0:1, 1:1]>
 
 // zxz(z1, x, z2) = rz(z1 + z2) after sym_zxz(z1, x); the residual rz(0.4) reaches the measurement and is dropped.
-// CHECK-LABEL: func.func @dropped_before_mzd
-func.func @dropped_before_mzd() {
+// CHECK-LABEL: func.func @rz_dropped_before_mzd
+func.func @rz_dropped_before_mzd() {
   %c0 = magic.init : !c
   %c1 = magic.zxz %c0 ions [0] {z1 = [0.1], x = [0.2], z2 = [0.3]} : !c
   %m0, %m1 = magic.mzd %c1 : !c -> i1, i1
@@ -21,9 +21,9 @@ func.func @dropped_before_mzd() {
 !ci = !magic.ion_chain<0, [0:1, 1:0]>
 
 // The residual rz(0.1 + 0.3) of the first zxz and the explicit rz(0.5) commute through the delay and the recodes and
-// are absorbed into z1 of the next zxz on ion 0: z = 0.4 + 0.4 + 0.5 = 1.3. Ion 1 is untouched.
-// CHECK-LABEL: func.func @absorbed
-func.func @absorbed() {
+// are absorbed into z1 of the next zxz on ion 0.
+// CHECK-LABEL: func.func @rz_absorbed
+func.func @rz_absorbed() {
   %c0 = magic.init : !c
   %c1 = magic.zxz %c0 ions [0] {z1 = [0.1], x = [0.2], z2 = [0.3]} : !c
   %c2 = magic.delay %c1 {ticks = 10} : !c
@@ -49,10 +49,9 @@ func.func @absorbed() {
 !as = !magic.ion_chain<0, [1:1]>
 !bs = !magic.ion_chain<1, [0:1, 2:1]>
 
-// The residual rotation travels with ion 0 to trap 1 and moves through the sym_zxz there: sym_zxz(z, x) after rz(r) is
-// rz(r) after sym_zxz(z + r, x). The angles are wrapped into (-pi, pi]: 3.0 + 0.4 - 2 pi.
-// CHECK-LABEL: func.func @through_shuttle
-func.func @through_shuttle() {
+// The residual rotation travels with ion 0 to trap 1 and moves through the sym_zxz there.
+// CHECK-LABEL: func.func @rz_through_shuttle
+func.func @rz_through_shuttle() {
   %a0, %b0 = magic.init : !a, !b
   %a1 = magic.zxz %a0 ions [0] {z1 = [0.1], x = [0.2], z2 = [0.3]} : !a
   %a2, %b1 = magic.shuttle %a1, %b0 : !a, !b -> !as, !bs
@@ -71,8 +70,7 @@ func.func @through_shuttle() {
 
 !c = !magic.ion_chain<0, [1:1, 0:1]>
 
-// An op the rotations cannot pass gets them as an explicit rz in front of it, with the ions listed by increasing id
-// rather than by chain position.
+// An op the rotations cannot pass gets them as an explicit rz in front of it.
 // CHECK-LABEL: func.func @flushed
 func.func @flushed() {
   %c0 = magic.init : !c

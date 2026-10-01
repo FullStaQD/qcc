@@ -137,8 +137,7 @@ def Magic_RZOp : Magic_SingleIonGateOp<"rz", [Magic_Native]> {
 def Magic_SymZXZOp : Magic_SingleIonGateOp<"sym_zxz", [Magic_Native]> {
   let summary = "symmetric single-ion rotation Rz(-z)·Rx(x)·Rz(z)";
   let description = [{
-        Applies `Rz(-z[k])·Rx(x[k])·Rz(z[k])` to ion `ions[k]`. Zero
-        duration.
+        Applies `Rz(-z[k])·Rx(x[k])·Rz(z[k])` to ion `ions[k]`. Zero duration.
 
         Example:
         ```mlir

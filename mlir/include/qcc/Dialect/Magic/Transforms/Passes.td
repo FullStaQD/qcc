@@ -67,11 +67,11 @@ def MagicFinalizeZXZ : Pass<"magic-finalize-zxz", "mlir::ModuleOp"> {
   let summary = "Rewrites `magic.zxz` into native `sym_zxz` and pushes the residual Z rotations into the measurement.";
 
   let description = [{
-      `zxz(z1, x, z2) = Rz(z2) Rx(x) Rz(z1)` equals `sym_zxz(z = z1, x)` followed by `rz(z1 + z2)`. Every `zxz` is
-      rewritten that way, and every residual or pre-existing `rz` is commuted to the right: through `delay`,
-      `recode`, `active_zz` and `inter_trap_zz` (all diagonal), through `shuttle` (it travels with its ion), and into
-      the following `zxz` / `sym_zxz` on the same ion (`sym_zxz(z, x)` after `rz(r)` is `rz(r)` after
-      `sym_zxz(z + r, x)`). What arrives at `mzd` is dropped. Angles are normalised to (-pi, pi].
+      Every `zxz(z1, x, z2)` is rewritten as `sym_zxz(z = z1, x)` followed by `rz(z1 + z2)`. Every residual or
+      pre-existing `rz` is commuted to the right: through ops which trivially commute with it, through `shuttle` (it
+      travels with its ion). When it hits a `zxz` / `sym_zxz` on the same ion the pattern is replaced by something where
+      the `rz` comes later so that it can continue its journey towards the end. What arrives at `mzd` is dropped. Angles
+      are normalised to (-pi, pi].
 
       Not unitary-preserving: the Z rotations dropped before the Z-basis measurement change the state, not the
       measurement statistics.
