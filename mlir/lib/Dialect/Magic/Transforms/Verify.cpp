@@ -132,7 +132,7 @@ private:
     for (auto [ion, count] : llvm::enumerate(measured)) {
       if (count != 1) {
         firstInit.emitOpError() << "starts a program that measures ion " << ion << " " << count
-                                << " times: every ion is measured exactly once";
+                                << " times: every ion must be measured exactly once";
         valid = false;
       }
     }

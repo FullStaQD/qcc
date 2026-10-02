@@ -10,6 +10,7 @@
 
 // OK: the example program of the dialect on this device: padding on the idle trap, one shuttle, everything measured
 // and recorded.
+// CHECK-LABEL: @main
 func.func @main() attributes {qcc.entry_point} {
   %a0, %b0 = magic.init : !t0, !t1
   %a1 = magic.sym_zxz %a0 ions [0] {z = [1.5708], x = [1.5708]} : !t0
@@ -48,7 +49,6 @@ func.func @two_inits() {
 
 !t0 = !magic.ion_chain<0, [1:1, 0:1]>
 
-// Ion ids are assigned trap by trap: trap 0 holds ions 0 and 1 in this order.
 func.func @wrong_ions() {
   // expected-error @+1 {{expected trap 0 to start with the ions [0, 1], got '!magic.ion_chain<0, [1:1, 0:1]>': ion ids are assigned trap by trap}}
   %a0 = magic.init : !t0
@@ -60,7 +60,6 @@ func.func @wrong_ions() {
 
 // -----
 
-// The device has traps 0 and 1.
 func.func @unknown_trap() {
   // expected-error @+1 {{'magic.init' op produces a chain of trap 2, but the device has 2 traps}}
   %a0 = magic.init : !magic.ion_chain<2, [0:1]>
@@ -73,7 +72,6 @@ func.func @unknown_trap() {
 
 !t0 = !magic.ion_chain<0, [0:1, 1:1, 2:1, 3:1]>
 
-// Each trap holds at most three ions.
 func.func @over_capacity() {
   // expected-error @+1 {{'magic.init' op puts 4 ions into trap 0, which holds at most 3}}
   %a0 = magic.init : !t0
@@ -105,7 +103,6 @@ func.func @not_native() {
 !t0s = !magic.ion_chain<0, []>
 !t1s = !magic.ion_chain<1, [0:1, 1:1]>
 
-// A shuttle is a sync point for its two traps.
 func.func @unbalanced() {
   %a0, %b0 = magic.init : !t0, !t1
   %a1 = magic.delay %a0 {ticks = 10} : !t0
@@ -123,6 +120,7 @@ func.func @unbalanced() {
 !t1 = !magic.ion_chain<1, [1:1]>
 
 // OK: the measurement is no sync point, the traps may have spent different times when they are measured.
+// CHECK-LABEL: @unequal_at_measurement
 func.func @unequal_at_measurement() {
   %a0, %b0 = magic.init : !t0, !t1
   %a1 = magic.delay %a0 {ticks = 10} : !t0
@@ -140,7 +138,7 @@ func.func @unequal_at_measurement() {
 
 func.func @unmeasured_chain() {
   // expected-error @+2 {{'magic.init' op produces a chain of trap 1 that is never measured: every chain ends in 'magic.mzd'}}
-  // expected-error @+1 {{starts a program that measures ion 1 0 times: every ion is measured exactly once}}
+  // expected-error @+1 {{starts a program that measures ion 1 0 times: every ion must be measured exactly once}}
   %a0, %b0 = magic.init : !t0, !t1
   %m0 = magic.mzd %a0 : !t0 -> i1
   aux.record_int %m0 : i1
@@ -175,6 +173,7 @@ func.func @other_record() {
 // -----
 
 // OK: A module without magic code.
+// CHECK-LABEL: @unequal_at_measurement
 func.func @no_magic() {
   return
 }
