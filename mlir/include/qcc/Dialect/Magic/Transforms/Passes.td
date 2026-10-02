@@ -20,13 +20,14 @@ def MagicShuttleInterTrapZZ : Pass<"magic-shuttle-inter-trap-zz", "mlir::func::F
       ways to bring the pair together. Both are described as moving towards `B`; each also exists mirrored, moving `j`
       towards `A`:
 
-      - Greedy: shuttle the `p + 1` front ions of `A` to `B`, apply `active_zz` with the pair as the only nonzero
+      - Shuttle: shuttle the `p + 1` front ions of `A` to `B`, apply `active_zz` with the pair as the only nonzero
         entry, shuttle back. Needs `p + 1` free slots in `B`.
-      - Swap: `swap` `i` with the front ion `f` of `A` (skipped if `p = 0`), shuttle `f` alone, `active_zz` on the
-        pair `(f, j)`, shuttle back, `swap` back. Needs one free slot in `B`.
+      - Swap and shuttle: `swap` `i` with the front ion `f` of `A` (skipped if `p = 0`), shuttle `f` alone,
+        `active_zz` on the pair `(f, j)`, shuttle back, `swap` back. Needs one free slot in `B`.
 
-      The pass uses the greedy variant that moves fewer ions among those that fit. If that is not possible (e.g. too
-      little capacity) it uses the swap variant towards a trap with a free slot. It fails if both traps are full.
+      The pass uses the shuttle variant that moves fewer ions among those that fit. If that is not possible (e.g. too
+      little capacity) it uses the swap-and-shuttle variant towards a trap with a free slot. It fails if both traps
+      are full.
 
       An inactive ion of the `active_zz` pair is recoded before the shuttles and back after them.
   }];
