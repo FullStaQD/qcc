@@ -71,6 +71,17 @@ func.func @wrong_ions() {
 
 // -----
 
+// The device has traps 0 and 1.
+func.func @unknown_trap() {
+  // expected-error @+1 {{'magic.init' op produces a chain of trap 2, but the device has 2 traps}}
+  %a0 = magic.init : !magic.ion_chain<2, [0:1]>
+  %m0 = magic.mzd %a0 : !magic.ion_chain<2, [0:1]> -> i1
+  aux.record_int %m0 : i1
+  return
+}
+
+// -----
+
 !t0 = !magic.ion_chain<0, [0:1, 1:1]>
 !t1 = !magic.ion_chain<1, [2:1, 3:1]>
 

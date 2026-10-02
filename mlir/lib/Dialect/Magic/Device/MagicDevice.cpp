@@ -18,7 +18,10 @@
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/MLIRContext.h"
+#include "mlir/IR/Operation.h"
+#include "mlir/IR/Types.h"
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/SmallVectorExtras.h"
 
@@ -108,6 +111,41 @@ FailureOr<MagicDevice> MagicDevice::fromParentModule(Operation* op) {
     return op->emitError() << "is not inside a module, which would carry the device";
   }
   return fromModule(module);
+}
+
+FailureOr<MagicDevice> MagicDevice::fromParentModuleChecked(Operation* op) {
+  FailureOr<MagicDevice> device = fromParentModule(op);
+  if (failed(device)) {
+    return failure();
+  }
+
+  bool fits = true;
+  op->walk([&](Operation* nested) {
+    for (const Type type : nested->getResultTypes()) {
+      auto chain = dyn_cast<IonChainType>(type);
+      if (!chain || llvm::is_contained(nested->getOperandTypes(), type)) {
+        continue;
+      }
+      if (chain.getTrap() >= device->numTraps()) {
+        nested->emitOpError() << "produces a chain of trap " << chain.getTrap() << ", but the device has "
+                              << device->numTraps() << " traps";
+        fits = false;
+        continue;
+      }
+      const IonCount capacity = device->capacity(static_cast<TrapId>(chain.getTrap()));
+      if (chain.getNumIons() > capacity) {
+        nested->emitOpError() << "puts " << chain.getNumIons() << " ions into trap " << chain.getTrap()
+                              << ", which holds at most " << capacity;
+        fits = false;
+      }
+    }
+  });
+
+  if (!fits) {
+    return failure();
+  }
+
+  return device;
 }
 
 FailureOr<MagicDevice> MagicDevice::fromFile(StringRef path, MLIRContext& ctx) {

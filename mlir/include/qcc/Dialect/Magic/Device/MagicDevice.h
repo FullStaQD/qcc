@@ -71,6 +71,10 @@ public:
   /// Like `fromModule`, for the module that encloses `op`.
   static mlir::FailureOr<MagicDevice> fromParentModule(mlir::Operation* op);
 
+  /// Like `fromParentModule`, for a program `op` that already holds magic ops. Additionally checks that the program
+  /// fits the device: every chain belongs to one of its traps and holds at most as many ions as the trap's capacity.
+  static mlir::FailureOr<MagicDevice> fromParentModuleChecked(mlir::Operation* op);
+
   /// Parses a device file (see `qcc::parseDeviceFile`) that carries a `#magic.device`.
   static mlir::FailureOr<MagicDevice> fromFile(llvm::StringRef path, mlir::MLIRContext& ctx);
 

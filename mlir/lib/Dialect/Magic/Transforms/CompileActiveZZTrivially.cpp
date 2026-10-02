@@ -35,17 +35,9 @@ namespace qcc::magic {
 #include "qcc/Dialect/Magic/Transforms/Passes.h.inc"
 
 /// Replaces `op` by one recode / delay / recode sequence per nonzero pair of its matrix.
-static LogicalResult compileTrivially(ActiveZZOp op, const MagicDevice& device) {
+static void compileTrivially(ActiveZZOp op, const MagicDevice& device) {
   const IonChainType type = op.getChainIn().getType();
-  if (type.getTrap() >= device.numTraps()) {
-    return op.emitOpError() << "acts on trap " << type.getTrap() << ", but the device has " << device.numTraps()
-                            << " traps";
-  }
   const auto trap = static_cast<TrapId>(type.getTrap());
-  if (type.getNumIons() > device.capacity(trap)) {
-    return op.emitOpError() << "acts on " << type.getNumIons() << " ions, but trap " << trap << " holds at most "
-                            << device.capacity(trap);
-  }
 
   const SmallVector<int64_t> active = type.getActiveIons();
   const SmallVector<double> angles(op.getAngles().getValues<double>());
@@ -98,7 +90,6 @@ static LogicalResult compileTrivially(ActiveZZOp op, const MagicDevice& device) 
 
   op.getChainOut().replaceAllUsesWith(chain);
   op.erase();
-  return success();
 }
 
 namespace {
@@ -114,14 +105,12 @@ protected:
       return;
     }
 
-    const FailureOr<MagicDevice> device = MagicDevice::fromParentModule(getOperation());
+    const FailureOr<MagicDevice> device = MagicDevice::fromParentModuleChecked(getOperation());
     if (failed(device)) {
       return signalPassFailure();
     }
     for (ActiveZZOp op : ops) {
-      if (failed(compileTrivially(op, *device))) {
-        return signalPassFailure();
-      }
+      compileTrivially(op, *device);
     }
   }
 };

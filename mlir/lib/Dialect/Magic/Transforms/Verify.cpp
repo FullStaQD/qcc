@@ -27,7 +27,6 @@
 #include "llvm/ADT/SmallVectorExtras.h"
 
 #include <cstdint>
-#include <utility>
 
 using namespace mlir;
 
@@ -38,10 +37,10 @@ namespace qcc::magic {
 
 namespace {
 
-/// Checks one program (function) against the device. Emits a diagnostic for every violation.
+/// Checks the whole-program rules of one program (function). Emits a diagnostic for every violation.
 class ProgramVerifier {
 public:
-  ProgramVerifier(func::FuncOp function, MagicDevice device) : function(function), device(std::move(device)) {}
+  explicit ProgramVerifier(func::FuncOp function) : function(function) {}
 
   LogicalResult verify() {
     function.walk([&](Operation* op) { verifyOp(op); });
@@ -65,7 +64,7 @@ public:
   }
 
 private:
-  /// The rules for a single op that need the device or the rest of the program.
+  /// The rules for a single op that need the rest of the program.
   void verifyOp(Operation* op) {
     if (isa_and_present<MagicDialect>(op->getDialect()) && !op->hasTrait<Native>()) {
       op->emitOpError() << "is not native to the device and must be lowered before export";
@@ -84,18 +83,6 @@ private:
       auto chain = dyn_cast<IonChainType>(result.getType());
       if (!chain) {
         continue;
-      }
-      if (chain.getTrap() >= device.numTraps()) {
-        op->emitOpError() << "produces a chain of trap " << chain.getTrap() << ", but the device has "
-                          << device.numTraps() << " traps";
-        valid = false;
-        continue;
-      }
-      const IonCount capacity = device.capacity(static_cast<TrapId>(chain.getTrap()));
-      if (chain.getNumIons() > capacity) {
-        op->emitOpError() << "puts " << chain.getNumIons() << " ions into trap " << chain.getTrap()
-                          << ", which holds at most " << capacity;
-        valid = false;
       }
       if (result.use_empty() && chain.getNumIons() > 0) {
         op->emitOpError() << "produces a chain of trap " << chain.getTrap()
@@ -165,7 +152,6 @@ private:
   }
 
   func::FuncOp function;
-  MagicDevice device;
   InitOp firstInit;
   /// The number of ions `firstInit` creates.
   int64_t numIons = 0;
@@ -186,8 +172,8 @@ protected:
       return;
     }
 
-    const FailureOr<MagicDevice> device = MagicDevice::fromParentModule(function);
-    if (failed(device) || failed(ProgramVerifier(function, *device).verify())) {
+    // The lookup checks that the program fits the device: the traps exist and no chain exceeds its capacity.
+    if (failed(MagicDevice::fromParentModuleChecked(function)) || failed(ProgramVerifier(function).verify())) {
       return signalPassFailure();
     }
   }

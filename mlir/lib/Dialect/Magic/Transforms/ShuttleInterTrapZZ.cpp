@@ -94,12 +94,6 @@ static std::pair<Value, Value> buildSwapRoundTrip(OpBuilder& builder, Location l
 static LogicalResult lowerInterTrapZZ(InterTrapZZOp op, const MagicDevice& device) {
   const IonChainType a = op.getAIn().getType();
   const IonChainType b = op.getBIn().getType();
-  for (const IonChainType chain : {a, b}) {
-    if (chain.getTrap() >= device.numTraps()) {
-      return op.emitOpError() << "acts on trap " << chain.getTrap() << ", but the device has " << device.numTraps()
-                              << " traps";
-    }
-  }
   const int64_t ionA = op.getIons()[0];
   const int64_t ionB = op.getIons()[1];
 
@@ -149,10 +143,11 @@ protected:
       return;
     }
 
-    const FailureOr<MagicDevice> device = MagicDevice::fromParentModule(getOperation());
+    const FailureOr<MagicDevice> device = MagicDevice::fromParentModuleChecked(getOperation());
     if (failed(device)) {
       return signalPassFailure();
     }
+
     for (InterTrapZZOp op : ops) {
       if (failed(lowerInterTrapZZ(op, *device))) {
         return signalPassFailure();
