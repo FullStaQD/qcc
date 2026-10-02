@@ -1,4 +1,4 @@
-// RUN: qcc-opt %s --qcc-attach-device=file=%S/../Dialect/Qcc/Inputs/device-2x3.mlir --convert-qvec-to-magic --split-input-file --verify-diagnostics
+// RUN: qcc-opt %s --qcc-attach-device=file=%S/Inputs/device-2x3.mlir --convert-qvec-to-magic --split-input-file --verify-diagnostics
 
 func.func @dynamic_angle(%t: vector<1xf64>) {
   %q0 = qco.static 0 : !qco.qubit

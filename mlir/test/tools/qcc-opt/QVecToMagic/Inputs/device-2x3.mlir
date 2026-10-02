@@ -1,4 +1,4 @@
-// A two-trap device with capacity 3 per trap and a time unit of 1 us. Shared by tests that only need *a* device.
+// A two-trap device with capacity 3 per trap and a time unit of 1 us.
 #trap = #magic.trap<capacity = 3, couplings = [
   dense<0.0> : tensor<1x1xf64>,
   dense<[[0.0, 1.0], [1.0, 0.0]]> : tensor<2x2xf64>,

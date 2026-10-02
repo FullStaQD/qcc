@@ -1,4 +1,4 @@
-// RUN: qcc-opt %s --qcc-attach-device=file=%S/../Dialect/Qcc/Inputs/device-2x3.mlir --convert-qvec-to-magic --split-input-file | FileCheck %s
+// RUN: qcc-opt %s --qcc-attach-device=file=%S/Inputs/device-2x3.mlir --convert-qvec-to-magic --split-input-file | FileCheck %s
 
 // Two traps of capacity 3, each takes two ions: qubits 0, 1 are ions 0, 1 in trap 0, qubits 2, 3 are ions 2, 3 in
 // trap 1. A zz block spanning both traps splits into one active_zz per trap and one inter_trap_zz per coupling across.

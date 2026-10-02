@@ -1,4 +1,4 @@
-// RUN: qcc-opt %s --qcc-attach-device=file=%S/../Qcc/Inputs/device-2x3.mlir --magic-shuttle-inter-trap-zz --split-input-file | FileCheck %s
+// RUN: qcc-opt %s --qcc-attach-device=file=%S/Inputs/device-2x3.mlir --magic-shuttle-inter-trap-zz --split-input-file | FileCheck %s
 
 // Each trap takes three ions. With two ions per trap there is one free slot each: only a front ion can move over. In
 // every case the chain types after the lowering equal those before.

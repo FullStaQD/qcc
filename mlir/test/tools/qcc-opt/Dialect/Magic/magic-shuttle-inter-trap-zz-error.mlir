@@ -1,4 +1,4 @@
-// RUN: qcc-opt %s --qcc-attach-device=file=%S/../Qcc/Inputs/device-2x3.mlir --magic-shuttle-inter-trap-zz --verify-diagnostics
+// RUN: qcc-opt %s --qcc-attach-device=file=%S/Inputs/device-2x3.mlir --magic-shuttle-inter-trap-zz --verify-diagnostics
 
 !a = !magic.ion_chain<0, [0:1, 1:1, 2:1]>
 !b = !magic.ion_chain<1, [3:1, 4:1, 5:1]>

@@ -1,4 +1,4 @@
-// RUN: qcc-opt %s --qcc-attach-device=file=%S/../Qcc/Inputs/device-2x3.mlir --magic-verify --split-input-file --verify-diagnostics
+// RUN: qcc-opt %s --qcc-attach-device=file=%S/Inputs/device-2x3.mlir --magic-verify --split-input-file --verify-diagnostics
 
 // The device: two traps of capacity 3.
 

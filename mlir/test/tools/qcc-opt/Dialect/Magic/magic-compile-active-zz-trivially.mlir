@@ -1,4 +1,4 @@
-// RUN: qcc-opt %s --qcc-attach-device=file=%S/../Qcc/Inputs/device-2x3.mlir --magic-compile-active-zz-trivially --split-input-file | FileCheck %s
+// RUN: qcc-opt %s --qcc-attach-device=file=%S/Inputs/device-2x3.mlir --magic-compile-active-zz-trivially --split-input-file | FileCheck %s
 
 // The device: time unit 1 us; J = 1.0 rad/s for two ions; for three ions 1.0 between neighbours, 0.5 for the outer
 // pair. The tick counts pin the assumed delay convention t = |angle| / |J|: a change of it shows up here.
