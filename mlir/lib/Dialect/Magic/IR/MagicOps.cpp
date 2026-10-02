@@ -9,21 +9,32 @@
 
 #include "qcc/Dialect/Magic/IR/Magic.h"
 
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinTypeInterfaces.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Diagnostics.h"
+#include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/Operation.h"
+#include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Region.h"
 #include "mlir/IR/Value.h"
-#include "mlir/Interfaces/FunctionInterfaces.h"
 
+#include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/SmallSet.h"
+#include "llvm/ADT/Sequence.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/SmallVectorExtras.h"
 #include "llvm/ADT/TypeSwitch.h" // IWYU pragma: keep
 
+#include <algorithm>
+#include <cassert>
+#include <cmath>
+#include <cstddef>
 #include <cstdint>
+#include <iterator>
+#include <numbers>
 
 using namespace mlir;
 using namespace qcc::magic;
@@ -62,13 +73,13 @@ static void printIonList(OpAsmPrinter& printer, Operation* /*op*/, DenseI64Array
 //===----------------------------------------------------------------------===//
 
 LogicalResult qcc::magic::verifyAffineChains(Operation* op) {
-  // A program is one function, so every op lives in one.
-  if (op->getParentOfType<FunctionOpInterface>() == nullptr) {
-    return op->emitOpError() << "must be inside a function: a program is one function";
+  // A program is one function, and its ops sit directly in the function body.
+  if (!isa_and_present<func::FuncOp>(op->getParentOp())) {
+    return op->emitOpError() << "must be directly inside a 'func.func': a program is one function";
   }
 
-  // The dialect has no control flow: a program is one straight line of sync points, which is what the timing model
-  // and the type-level chain tracking assume. It also makes possible to check affine typing via usage counting.
+  // The dialect has no control flow: a program is one straight line of ops, which is what the timing model and the
+  // type-level chain tracking assume. It also makes possible to check affine typing via usage counting.
   if (!op->getParentRegion()->hasOneBlock()) {
     return op->emitOpError() << "must be in a single-block region: the dialect has no control flow";
   }
@@ -92,15 +103,22 @@ LogicalResult qcc::magic::verifyAffineChains(Operation* op) {
   return success();
 }
 
-/// Verifies that `ions` (ids) are distinct and all contained in `chain`.
+/// Verifies that `ions` (ids) are all contained in `chain` and listed in strictly increasing order.
 static LogicalResult verifyIonsInChain(Operation* op, ArrayRef<int64_t> ions, IonChainType chain) {
-  llvm::SmallSet<int64_t, 8> seen;
-  for (const int64_t ion : ions) {
+  for (auto [index, ion] : llvm::enumerate(ions)) {
     if (!chain.contains(ion)) {
       return op->emitOpError() << "ion " << ion << " is not in the chain " << chain;
     }
-    if (!seen.insert(ion).second) {
+    if (index == 0) {
+      continue;
+    }
+    const int64_t previous = ions[index - 1];
+    if (ion == previous) {
       return op->emitOpError() << "ion " << ion << " is listed more than once";
+    }
+    if (ion < previous) {
+      return op->emitOpError() << "ions must be listed in increasing order, got ion " << ion << " after ion "
+                               << previous;
     }
   }
   return success();
@@ -124,28 +142,90 @@ LogicalResult InitOp::verify() {
     return emitOpError() << "expected at least one chain";
   }
 
-  llvm::SmallSet<int64_t, 4> traps;
-  llvm::SmallSet<int64_t, 16> ions;
+  int64_t previousTrap = -1;
+  int64_t previousIon = -1;
   for (Value chainValue : getChains()) {
     auto chain = cast<IonChainType>(chainValue.getType());
-    if (!traps.insert(chain.getTrap()).second) {
-      return emitOpError() << "trap " << chain.getTrap() << " is initialized more than once";
+    if (chain.getTrap() <= previousTrap) {
+      return emitOpError() << "lists trap " << chain.getTrap() << " after trap " << previousTrap
+                           << ": the traps come in strictly increasing order";
     }
+    previousTrap = chain.getTrap();
     for (const IonSlot& slot : chain.getSlots()) {
       if (!slot.active) {
         return emitOpError() << "ion " << slot.ion << " must be active initially";
       }
-      if (!ions.insert(slot.ion).second) {
-        return emitOpError() << "ion " << slot.ion << " is placed in more than one trap";
+      if (slot.ion <= previousIon) {
+        return emitOpError() << "lists ion " << slot.ion << " after ion " << previousIon
+                             << ": the ion ids increase trap by trap";
       }
+      previousIon = slot.ion;
     }
   }
   return success();
 }
 
+LogicalResult InitOp::canonicalize(InitOp op, PatternRewriter& rewriter) {
+  // A trap whose chain is unused need not be loaded. An op without any use is left to dead code elimination.
+  SmallVector<Value> used;
+  SmallVector<Type> types;
+  for (Value chain : op.getChains()) {
+    if (!chain.use_empty()) {
+      used.push_back(chain);
+      types.push_back(chain.getType());
+    }
+  }
+  if (used.empty() || used.size() == op.getNumResults()) {
+    return failure();
+  }
+  auto shrunk = InitOp::create(rewriter, op.getLoc(), types);
+  for (auto [chain, replacement] : llvm::zip_equal(used, shrunk.getChains())) {
+    rewriter.replaceAllUsesWith(chain, replacement);
+  }
+  rewriter.eraseOp(op);
+  return success();
+}
+
+SmallVector<int64_t> InitOp::getTraps() {
+  return llvm::map_to_vector(getChains(), [](Value chain) { return cast<IonChainType>(chain.getType()).getTrap(); });
+}
+
 //===----------------------------------------------------------------------===//
 // Single-ion gates
 //===----------------------------------------------------------------------===//
+
+/// The order that lists `ions` by increasing id: entry `k` is the index of the ion that comes `k`-th.
+static SmallVector<size_t> getOrderById(ArrayRef<int64_t> ions) {
+  SmallVector<size_t> order = llvm::to_vector(llvm::seq<size_t>(0, ions.size()));
+  llvm::sort(order, [&](size_t a, size_t b) { return ions[a] < ions[b]; });
+  return order;
+}
+
+/// `values` rearranged by `order`, see `getOrderById`.
+template <typename T> static SmallVector<T> permute(ArrayRef<T> values, ArrayRef<size_t> order) {
+  assert(values.size() == order.size() && "expected one value per ion");
+  return llvm::map_to_vector(order, [&](size_t index) { return values[index]; });
+}
+
+void ZXZOp::build(OpBuilder& builder, OperationState& state, Value chain, ArrayRef<int64_t> ions, ArrayRef<double> z1,
+                  ArrayRef<double> x, ArrayRef<double> z2) {
+  const SmallVector<size_t> order = getOrderById(ions);
+  build(builder, state, chain.getType(), chain, permute(ions, order), builder.getF64ArrayAttr(permute(z1, order)),
+        builder.getF64ArrayAttr(permute(x, order)), builder.getF64ArrayAttr(permute(z2, order)));
+}
+
+void RZOp::build(OpBuilder& builder, OperationState& state, Value chain, ArrayRef<int64_t> ions,
+                 ArrayRef<double> angles) {
+  const SmallVector<size_t> order = getOrderById(ions);
+  build(builder, state, chain.getType(), chain, permute(ions, order), builder.getF64ArrayAttr(permute(angles, order)));
+}
+
+void SymZXZOp::build(OpBuilder& builder, OperationState& state, Value chain, ArrayRef<int64_t> ions, ArrayRef<double> z,
+                     ArrayRef<double> x) {
+  const SmallVector<size_t> order = getOrderById(ions);
+  build(builder, state, chain.getType(), chain, permute(ions, order), builder.getF64ArrayAttr(permute(z, order)),
+        builder.getF64ArrayAttr(permute(x, order)));
+}
 
 LogicalResult ZXZOp::verify() {
   if (failed(verifyIonsInChain(*this, getIons(), getChainIn().getType()))) {
@@ -173,9 +253,71 @@ LogicalResult SymZXZOp::verify() {
                  succeeded(verifyOneAnglePerIon(*this, "x", getX(), numIons)));
 }
 
+/// Wraps `angle` into (-pi, pi]. Shifting by 2 pi only changes the global phase of a rotation.
+static double normalizeAngle(double angle) {
+  const double wrapped = std::remainder(angle, 2.0 * std::numbers::pi);
+  return wrapped <= -std::numbers::pi ? wrapped + (2.0 * std::numbers::pi) : wrapped;
+}
+
+LogicalResult RZOp::canonicalize(RZOp op, PatternRewriter& rewriter) {
+  // Per ion the sum of the angles of this op and, if it directly follows one, the preceding `rz`. Chain values are
+  // affine, so the preceding op has no other user.
+  llvm::MapVector<int64_t, double> angles;
+  auto previous = op.getChainIn().getDefiningOp<RZOp>();
+  for (RZOp rz : {previous, op}) {
+    if (!rz) {
+      continue;
+    }
+    for (auto [ion, angle] : llvm::zip_equal(rz.getIons(), rz.getAngles().getAsValueRange<FloatAttr>())) {
+      angles[ion] += angle.convertToDouble();
+    }
+  }
+
+  SmallVector<int64_t> ions;
+  SmallVector<double> sums;
+  for (auto [ion, angle] : angles) {
+    const double normalized = normalizeAngle(angle);
+    if (normalized != 0.0) {
+      ions.push_back(ion);
+      sums.push_back(normalized);
+    }
+  }
+
+  Value chainIn = previous ? previous.getChainIn() : op.getChainIn();
+  if (ions.empty()) {
+    rewriter.replaceOp(op, chainIn);
+  } else if (previous || ions.size() != op.getIons().size()) {
+    rewriter.replaceOpWithNewOp<RZOp>(op, chainIn, ions, sums);
+  } else {
+    return failure();
+  }
+  if (previous) {
+    rewriter.eraseOp(previous);
+  }
+  return success();
+}
+
 //===----------------------------------------------------------------------===//
 // ActiveZZOp
 //===----------------------------------------------------------------------===//
+
+void ActiveZZOp::build(OpBuilder& builder, OperationState& state, Value chain, int64_t ionA, int64_t ionB,
+                       double angle) {
+  auto type = cast<IonChainType>(chain.getType());
+  const SmallVector<int64_t> active = type.getActiveIons();
+  const int64_t size = std::ssize(active);
+  const auto* itA = llvm::find(active, ionA);
+  const auto* itB = llvm::find(active, ionB);
+  assert(itA != active.end() && itB != active.end() && ionA != ionB && "expected two distinct active ions");
+  const int64_t a = itA - active.begin();
+  const int64_t b = itB - active.begin();
+
+  SmallVector<double> matrix(size * size, 0.0);
+  matrix[(a * size) + b] = angle;
+  matrix[(b * size) + a] = angle;
+  auto matrixType = RankedTensorType::get({size, size}, Float64Type::get(builder.getContext()));
+  build(builder, state, type, chain, DenseElementsAttr::get(matrixType, ArrayRef(matrix)));
+}
 
 LogicalResult ActiveZZOp::verify() {
   const int64_t numActive = getChainIn().getType().getNumActiveIons();
@@ -200,8 +342,39 @@ LogicalResult ActiveZZOp::verify() {
 }
 
 //===----------------------------------------------------------------------===//
+// DelayOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult DelayOp::fold(FoldAdaptor /*adaptor*/) {
+  if (getTicks() == 0) {
+    return getChainIn();
+  }
+  return {};
+}
+
+//===----------------------------------------------------------------------===//
 // RecodeOp
 //===----------------------------------------------------------------------===//
+
+void RecodeOp::build(OpBuilder& builder, OperationState& state, Value chain, ArrayRef<int64_t> ions) {
+  build(builder, state, cast<IonChainType>(chain.getType()).withToggled(ions), chain);
+}
+
+LogicalResult RecodeOp::canonicalize(RecodeOp op, PatternRewriter& rewriter) {
+  // Chain values are affine, so the preceding recode has no other user.
+  auto previous = op.getChainIn().getDefiningOp<RecodeOp>();
+  if (!previous) {
+    return failure();
+  }
+  Value chainIn = previous.getChainIn();
+  if (chainIn.getType() == op.getType()) {
+    rewriter.replaceOp(op, chainIn);
+  } else {
+    rewriter.replaceOpWithNewOp<RecodeOp>(op, op.getType(), chainIn);
+  }
+  rewriter.eraseOp(previous);
+  return success();
+}
 
 LogicalResult RecodeOp::verify() {
   const IonChainType in = getChainIn().getType();
@@ -222,6 +395,13 @@ LogicalResult RecodeOp::verify() {
 //===----------------------------------------------------------------------===//
 // ShuttleOp
 //===----------------------------------------------------------------------===//
+
+void ShuttleOp::build(OpBuilder& builder, OperationState& state, Value from, Value to) {
+  auto fromType = cast<IonChainType>(from.getType());
+  auto toType = cast<IonChainType>(to.getType());
+  const IonSlot front = fromType.getSlots().front();
+  build(builder, state, fromType.withoutFront(), toType.withFront(front.ion, front.active), from, to);
+}
 
 LogicalResult ShuttleOp::verify() {
   const IonChainType fromIn = getFromIn().getType();
@@ -266,11 +446,11 @@ LogicalResult ShuttleOp::verify() {
 //===----------------------------------------------------------------------===//
 
 LogicalResult MZDOp::verify() {
-  const unsigned numIons = getChain().getType().getNumIons();
+  const int64_t numIons = getChain().getType().getNumIons();
   if (numIons == 0) {
     return emitOpError() << "cannot measure the empty chain";
   }
-  if (getBits().size() != numIons) {
+  if (std::ssize(getBits()) != numIons) {
     return emitOpError() << "expected one result per ion, got " << getBits().size() << " for " << numIons << " ions";
   }
   return success();
@@ -302,6 +482,11 @@ LogicalResult InterTrapZZOp::verify() {
 //===----------------------------------------------------------------------===//
 // SwapOp
 //===----------------------------------------------------------------------===//
+
+void SwapOp::build(OpBuilder& builder, OperationState& state, Value chain, int64_t ionA, int64_t ionB) {
+  const auto [low, high] = std::minmax(ionA, ionB);
+  build(builder, state, chain.getType(), chain, ArrayRef<int64_t>{low, high});
+}
 
 LogicalResult SwapOp::verify() {
   if (getIons().size() != 2) {

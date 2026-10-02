@@ -31,7 +31,10 @@ def Magic_TrapAttr : Magic_Attr<"Trap", "trap"> {
 
         `couplings` holds one matrix per possible occupancy: matrix `k` (0-based) is the `(k+1)x(k+1)` coupling matrix
         that applies when `k+1` ions are present in the trap, active or not. Entry `(i, j)` is the coupling strength
-        between the ions at chain positions `i` and `j` (front = 0). The matrices are symmetric with a zero diagonal.
+        between the ions at chain positions `i` and `j` (front = 0). The matrices are symmetric with a zero diagonal and
+        positive entries everywhere else.
+
+        See `magic.delay` for how the coupling acts.
 
         Example:
         ```mlir
@@ -58,21 +61,19 @@ def Magic_DeviceAttr : Magic_Attr<"Device", "device", [QCC_DeviceAttrInterface]>
 
         - `name`: a human-readable name.
         - `time_unit_ns`: the base unit of a `magic.delay` in nanoseconds; delays are integer multiples of it.
-        - `initial_occupancies`: the number of ions loaded into each trap at program start (index = trap id).
         - `traps`: one `#magic.trap` per trap.
 
         Passes and the exporter read it through the `MagicDevice` C++ class rather than through the attribute directly.
 
         Example:
         ```mlir
-        #magic.device<name = "two-trap", time_unit_ns = 1000, initial_occupancies = [2, 1], traps = [#trap, #trap]>
+        #magic.device<name = "two-trap", time_unit_ns = 1000, traps = [#trap, #trap]>
         ```
     }];
 
   let parameters = (ins
     StringRefParameter<"human-readable device name">:$name,
     "int64_t":$time_unit_ns,
-    ArrayRefParameter<"int64_t", "ions loaded at program start, per trap">:$initial_occupancies,
     QCC_ArrayRefParameter<"::qcc::magic::TrapAttr", "the traps, index = trap id">:$traps
   );
 

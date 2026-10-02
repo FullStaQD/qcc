@@ -27,6 +27,16 @@
 
 // -----
 
+// expected-error @+1 {{coupling matrix for 2 ions must be positive off the diagonal}}
+#trap = #magic.trap<capacity = 2, couplings = [dense<0.0> : tensor<1x1xf64>, dense<[[0.0, -1.0], [-1.0, 0.0]]> : tensor<2x2xf64>]>
+
+// -----
+
+// expected-error @+1 {{coupling matrix for 2 ions must be positive off the diagonal}}
+#trap = #magic.trap<capacity = 2, couplings = [dense<0.0> : tensor<1x1xf64>, dense<0.0> : tensor<2x2xf64>]>
+
+// -----
+
 // expected-error @+1 {{coupling matrix for 1 ions must have a zero diagonal}}
 #trap = #magic.trap<capacity = 1, couplings = [dense<1.0> : tensor<1x1xf64>]>
 
@@ -34,30 +44,18 @@
 
 #trap = #magic.trap<capacity = 1, couplings = [dense<0.0> : tensor<1x1xf64>]>
 // expected-error @+1 {{name must not be empty}}
-#device = #magic.device<name = "", time_unit_ns = 1000, initial_occupancies = [1], traps = [#trap]>
+#device = #magic.device<name = "", time_unit_ns = 1000, traps = [#trap]>
 
 // -----
 
 #trap = #magic.trap<capacity = 1, couplings = [dense<0.0> : tensor<1x1xf64>]>
 // expected-error @+1 {{time_unit_ns must be positive, got 0}}
-#device = #magic.device<name = "d", time_unit_ns = 0, initial_occupancies = [1], traps = [#trap]>
+#device = #magic.device<name = "d", time_unit_ns = 0, traps = [#trap]>
 
 // -----
 
 // expected-error @+1 {{expected at least one trap}}
-#device = #magic.device<name = "d", time_unit_ns = 1000, initial_occupancies = [1], traps = []>
-
-// -----
-
-#trap = #magic.trap<capacity = 1, couplings = [dense<0.0> : tensor<1x1xf64>]>
-// expected-error @+1 {{expected one initial occupancy per trap, got 1 occupancies for 2 traps}}
-#device = #magic.device<name = "d", time_unit_ns = 1000, initial_occupancies = [1], traps = [#trap, #trap]>
-
-// -----
-
-#trap = #magic.trap<capacity = 1, couplings = [dense<0.0> : tensor<1x1xf64>]>
-// expected-error @+1 {{initial occupancy of trap 1 must be in 0..1, got 2}}
-#device = #magic.device<name = "d", time_unit_ns = 1000, initial_occupancies = [1, 2], traps = [#trap, #trap]>
+#device = #magic.device<name = "d", time_unit_ns = 1000, traps = []>
 
 // -----
 
@@ -115,11 +113,11 @@ func.func @chain_as_function_argument(%c: !magic.ion_chain<0, [0:1]>) {
 
 // -----
 
-// The chain enters the loop body as an iteration argument, which the single-block rule alone does not catch.
-func.func @chain_as_iter_arg(%lb: index, %ub: index, %step: index) {
+// A magic op sits directly in the function body, not in the region of another op.
+func.func @nested_in_loop(%lb: index, %ub: index, %step: index) {
   %c0 = magic.init : !magic.ion_chain<0, [0:1]>
   %r = scf.for %i = %lb to %ub step %step iter_args(%c = %c0) -> (!magic.ion_chain<0, [0:1]>) {
-    // expected-error @+1 {{'magic.rz' op chain operand #0 must be produced by a magic op, not a block argument}}
+    // expected-error @+1 {{'magic.rz' op must be directly inside a 'func.func': a program is one function}}
     %c1 = magic.rz %c ions [0] {angles = [1.0]} : !magic.ion_chain<0, [0:1]>
     scf.yield %c1 : !magic.ion_chain<0, [0:1]>
   }
@@ -129,7 +127,7 @@ func.func @chain_as_iter_arg(%lb: index, %ub: index, %step: index) {
 // -----
 
 module {
-  // expected-error @+1 {{'magic.init' op must be inside a function: a program is one function}}
+  // expected-error @+1 {{'magic.init' op must be directly inside a 'func.func': a program is one function}}
   %c0 = magic.init : !magic.ion_chain<0, [0:1]>
 }
 
@@ -145,17 +143,17 @@ func.func @two_blocks() {
 
 // -----
 
-func.func @init_duplicate_ion() {
-  // expected-error @+1 {{'magic.init' op ion 1 is placed in more than one trap}}
+func.func @init_ions_unordered() {
+  // expected-error @+1 {{'magic.init' op lists ion 1 after ion 1: the ion ids increase trap by trap}}
   %a, %b = magic.init : !magic.ion_chain<0, [0:1, 1:1]>, !magic.ion_chain<1, [1:1]>
   return
 }
 
 // -----
 
-func.func @init_duplicate_trap() {
-  // expected-error @+1 {{'magic.init' op trap 0 is initialized more than once}}
-  %a, %b = magic.init : !magic.ion_chain<0, [0:1]>, !magic.ion_chain<0, [1:1]>
+func.func @init_traps_unordered() {
+  // expected-error @+1 {{'magic.init' op lists trap 0 after trap 1: the traps come in strictly increasing order}}
+  %a, %b = magic.init : !magic.ion_chain<1, [0:1]>, !magic.ion_chain<0, [1:1]>
   return
 }
 
@@ -182,6 +180,15 @@ func.func @ion_listed_twice() {
   %c0 = magic.init : !magic.ion_chain<0, [0:1, 1:1]>
   // expected-error @+1 {{'magic.rz' op ion 1 is listed more than once}}
   %c1 = magic.rz %c0 ions [1, 1] {angles = [0.0, 0.0]} : !magic.ion_chain<0, [0:1, 1:1]>
+  return
+}
+
+// -----
+
+func.func @ions_not_increasing() {
+  %c0 = magic.init : !magic.ion_chain<0, [0:1, 1:1]>
+  // expected-error @+1 {{'magic.rz' op ions must be listed in increasing order, got ion 0 after ion 1}}
+  %c1 = magic.rz %c0 ions [1, 0] {angles = [0.0, 0.0]} : !magic.ion_chain<0, [0:1, 1:1]>
   return
 }
 
@@ -338,5 +345,14 @@ func.func @swap_same_ion() {
   %c0 = magic.init : !magic.ion_chain<0, [0:1, 1:1]>
   // expected-error @+1 {{'magic.swap' op ion 0 is listed more than once}}
   %c1 = magic.swap %c0 ions [0, 0] : !magic.ion_chain<0, [0:1, 1:1]>
+  return
+}
+
+// -----
+
+func.func @swap_not_increasing() {
+  %c0 = magic.init : !magic.ion_chain<0, [0:1, 1:1]>
+  // expected-error @+1 {{'magic.swap' op ions must be listed in increasing order, got ion 0 after ion 1}}
+  %c1 = magic.swap %c0 ions [1, 0] : !magic.ion_chain<0, [0:1, 1:1]>
   return
 }

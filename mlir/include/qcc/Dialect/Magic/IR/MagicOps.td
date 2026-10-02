@@ -22,8 +22,8 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 // Magic traits
 //===----------------------------------------------------------------------===//
 
-// Chain values are affine: In our case this means at most one use. This works because magic ops are only valid inside
-// single-block regions and all chain values originate from magic ops (not e.g. block arguments).
+// Chain values are affine: In our case this means at most one use. This works because magic ops are only valid
+// directly inside a single-block `func.func` and all chain values originate from magic ops (not e.g. block arguments).
 def Magic_AffineChains : NativeOpTrait<"AffineChains"> {
   let cppNamespace = "::qcc::magic";
 }
@@ -49,7 +49,8 @@ class Magic_SameChainOp<string mnemonic, list<Trait> traits = []>
   let results = (outs Magic_IonChainType:$chain_out);
 }
 
-// A single-ion gate: the same gate applied to the ions in `ions` (ids, not positions) of one chain.
+// A single-ion gate: the same gate applied to the ions in `ions` (ids, not positions) of one chain. The ids are
+// listed in increasing order.
 class Magic_SingleIonGateOp<string mnemonic, list<Trait> traits = []> : Magic_SameChainOp<mnemonic, traits> {
   let assemblyFormat = [{
         $chain_in custom<IonList>($ions) attr-dict `:` type($chain_in)
@@ -60,18 +61,20 @@ class Magic_SingleIonGateOp<string mnemonic, list<Trait> traits = []> : Magic_Sa
 def Magic_InitOp : Magic_Op<"init", [Magic_Native]> {
   let summary = "creates the initial chain values";
   let description = [{
-        Creates the chain value of every trap at program start. There is one result per trap; all ions are active.
-        Ion ids are distinct across all results, trap ids are distinct.
+        All ions are active. The trap ids increase in result order, and so do the ion ids, trap by trap. Neither needs
+        to be dense: a program need not use all traps of the device.
 
-        Each function (program) should hold at most one `magic.init`.
+        Each function (program) must hold at most one `magic.init`.
 
-        Whether the chains agree with the device (occupancies, capacities, identity placement) can be checked by the
-        verification pass, not here.
+        The op decides how many ions the program loads into each trap. Whether that fits the capacities of the device
+        is checked by the `magic-verify` pass, not here.
+
+        Canonicalization drops the traps whose chain is unused. The ion ids of the other traps stay as they are.
 
         Example:
         ```mlir
-        // Creates two traps with 2 and 1 ions respectively.
-        %t0, %t1 = magic.init : !magic.ion_chain<0, [0:1, 1:1]>, !magic.ion_chain<1, [2:1]>
+        // Creates two traps (ids 0 and 3) with 2 and 1 ions respectively.
+        %t0, %t1 = magic.init : !magic.ion_chain<0, [0:1, 1:1]>, !magic.ion_chain<3, [2:1]>
         ```
     }];
 
@@ -81,6 +84,12 @@ def Magic_InitOp : Magic_Op<"init", [Magic_Native]> {
         attr-dict `:` type($chains)
     }];
   let hasVerifier = 1;
+  let hasCanonicalizeMethod = 1;
+
+  let extraClassDeclaration = [{
+        /// The trap ids of the chains, in result order.
+        ::llvm::SmallVector<int64_t> getTraps();
+    }];
 }
 
 def Magic_ZXZOp : Magic_SingleIonGateOp<"zxz"> {
@@ -99,6 +108,13 @@ def Magic_ZXZOp : Magic_SingleIonGateOp<"zxz"> {
                        F64ArrayAttr:$z1,
                        F64ArrayAttr:$x,
                        F64ArrayAttr:$z2);
+
+  let builders = [
+    // The gate with angles `z1[k]`, `x[k]`, `z2[k]` on ion `ions[k]` of `chain`. The ions may come in any order: they
+    // are sorted by id, the angles along with them.
+    OpBuilder<(ins "::mlir::Value":$chain, "::llvm::ArrayRef<int64_t>":$ions, "::llvm::ArrayRef<double>":$z1,
+                   "::llvm::ArrayRef<double>":$x, "::llvm::ArrayRef<double>":$z2)>
+  ];
 }
 
 def Magic_RZOp : Magic_SingleIonGateOp<"rz", [Magic_Native]> {
@@ -115,6 +131,15 @@ def Magic_RZOp : Magic_SingleIonGateOp<"rz", [Magic_Native]> {
   let arguments = (ins Magic_IonChainType:$chain_in,
                        DenseI64ArrayAttr:$ions,
                        F64ArrayAttr:$angles);
+
+  // Merges two consecutive `rz`, drops zero angles.
+  let hasCanonicalizeMethod = 1;
+
+  let builders = [
+    // `rz(angles[k])` on ion `ions[k]` of `chain`. The ions may come in any order: they are sorted by id, the angles
+    // along with them.
+    OpBuilder<(ins "::mlir::Value":$chain, "::llvm::ArrayRef<int64_t>":$ions, "::llvm::ArrayRef<double>":$angles)>
+  ];
 }
 
 def Magic_SymZXZOp : Magic_SingleIonGateOp<"sym_zxz", [Magic_Native]> {
@@ -132,6 +157,13 @@ def Magic_SymZXZOp : Magic_SingleIonGateOp<"sym_zxz", [Magic_Native]> {
                        DenseI64ArrayAttr:$ions,
                        F64ArrayAttr:$z,
                        F64ArrayAttr:$x);
+
+  let builders = [
+    // The gate with angles `z[k]`, `x[k]` on ion `ions[k]` of `chain`. The ions may come in any order: they are
+    // sorted by id, the angles along with them.
+    OpBuilder<(ins "::mlir::Value":$chain, "::llvm::ArrayRef<int64_t>":$ions, "::llvm::ArrayRef<double>":$z,
+                   "::llvm::ArrayRef<double>":$x)>
+  ];
 }
 
 def Magic_ActiveZZOp : Magic_SameChainOp<"active_zz"> {
@@ -156,13 +188,23 @@ def Magic_ActiveZZOp : Magic_SameChainOp<"active_zz"> {
         $chain_in attr-dict `:` type($chain_in)
     }];
   let hasVerifier = 1;
+
+  let builders = [
+    // `rzz(angle)` between the ions `ionA` and `ionB` (ids) of `chain`, both active; every other entry is zero.
+    OpBuilder<(ins "::mlir::Value":$chain, "int64_t":$ionA, "int64_t":$ionB, "double":$angle)>
+  ];
 }
 
 def Magic_DelayOp : Magic_SameChainOp<"delay", [Magic_Native]> {
   let summary = "lets the permanent coupling act between the active ions for a while";
   let description = [{
         Waits `ticks` times the device's time unit. During that time the ZZ coupling acts between all active ions of
-        the chain, with strengths given by the device's coupling matrix (J) for the ions present in the trap.
+        the chain: a delay of `t` seconds applies `exp(-i t/4 Σ_{i≠j} J_ij Z_i Z_j)` over the active ions, where `J`
+        is the device's coupling matrix for the ions present in the trap (active or not), in rad/s. That is
+        `active_zz` with `angles = t * J`, restricted to the active ions.
+
+        TODO: the prefactor 1/4, the sign of the exponent and the unit of `J` are assumptions. Confirm them with the
+        hardware vendor.
 
         Example:
         ```mlir
@@ -176,6 +218,9 @@ def Magic_DelayOp : Magic_SameChainOp<"delay", [Magic_Native]> {
   let assemblyFormat = [{
         $chain_in attr-dict `:` type($chain_in)
     }];
+
+  // A delay of zero ticks is a no-op.
+  let hasFolder = 1;
 }
 
 def Magic_RecodeOp : Magic_Op<"recode", [Magic_Native]> {
@@ -197,13 +242,21 @@ def Magic_RecodeOp : Magic_Op<"recode", [Magic_Native]> {
         $chain_in attr-dict `:` type($chain_in) `->` type($chain_out)
     }];
   let hasVerifier = 1;
+
+  // Two consecutive recodes become one, or none if they toggle the same ions.
+  let hasCanonicalizeMethod = 1;
+
+  let builders = [
+    // Toggles the activation of the ions `ions` (ids) of `chain`.
+    OpBuilder<(ins "::mlir::Value":$chain, "::llvm::ArrayRef<int64_t>":$ions)>
+  ];
 }
 
 def Magic_ShuttleOp : Magic_Op<"shuttle", [Magic_Native]> {
   let summary = "moves the front ion of one trap to the front of another";
   let description = [{
         Moves the front ion of `from` and inserts it at the front of `to`, activation kept, everything else
-        unchanged. The two chains belong to different traps. Zero duration; a sync point for the timing.
+        unchanged. The two chains belong to different traps. Zero duration; a sync point for the two traps.
 
         Which ion moves follows from the types. Shuttling is front to front on both sides: the machine can only move
         the ion at the open end of a chain, and that is an architectural invariant rather than per-device data, so the
@@ -226,6 +279,11 @@ def Magic_ShuttleOp : Magic_Op<"shuttle", [Magic_Native]> {
     }];
   let hasVerifier = 1;
 
+  let builders = [
+    // Moves the front ion of `from` to the front of `to`; the result types follow.
+    OpBuilder<(ins "::mlir::Value":$from, "::mlir::Value":$to)>
+  ];
+
   let extraClassDeclaration = [{
         /// The id of the ion that moves.
         int64_t getMovedIon() { return getToOut().getType().getSlots().front().ion; }
@@ -235,8 +293,7 @@ def Magic_ShuttleOp : Magic_Op<"shuttle", [Magic_Native]> {
 def Magic_MZDOp : Magic_Op<"mzd", [Magic_Native]> {
   let summary = "destructively measures every ion of a chain";
   let description = [{
-        Measures all ions of the chain in the computational basis and yields one `i1` per ion, in position order. The
-        chain is consumed: measurement happens at the very end of a program.
+        Measures all ions of the chain in the computational basis and yields one `i1` per ion, in position order.
 
         Example:
         ```mlir
@@ -258,7 +315,7 @@ def Magic_InterTrapZZOp : Magic_Op<"inter_trap_zz", [AllTypesMatch<["a_in", "a_o
   let summary = "rzz between two ions in different traps";
   let description = [{
         Applies `rzz(angle) = exp(-i angle/2 Z⊗Z)` between ion `ions[0]` of chain `a` and ion `ions[1]` of chain `b`,
-        which belong to different traps. Its lowering requires shuttling, so it is a sync point in the making.
+        which belong to different traps. It requires shuttling, so the op is a sync point in the making.
 
         Example:
         ```mlir
@@ -286,7 +343,7 @@ def Magic_SwapOp : Magic_SameChainOp<"swap"> {
 
         Example:
         ```mlir
-        %c1 = magic.swap %c0 ions [4, 0] : !chain
+        %c1 = magic.swap %c0 ions [0, 4] : !chain
         ```
     }];
 
@@ -297,6 +354,11 @@ def Magic_SwapOp : Magic_SameChainOp<"swap"> {
         $chain_in custom<IonList>($ions) attr-dict `:` type($chain_in)
     }];
   let hasVerifier = 1;
+
+  let builders = [
+    // Swaps the ions `ionA` and `ionB` (ids) of `chain`, given in either order.
+    OpBuilder<(ins "::mlir::Value":$chain, "int64_t":$ionA, "int64_t":$ionB)>
+  ];
 }
 
 #endif // INCLUDE_QCC_DIALECT_MAGIC_IR_MAGICOPS_TD_

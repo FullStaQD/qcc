@@ -5,10 +5,10 @@
 
 // qcc-opt introduces an alias for the devices and traps.
 // CHECK: #magic_trap = #magic.trap<capacity = 1, couplings = [dense<0.000000e+00> : tensor<1x1xf64>]>
-// CHECK: #magic_device = #magic.device<name = "single-trap", time_unit_ns = 500, initial_occupancies = [1], traps = [#magic_trap]>
+// CHECK: #magic_device = #magic.device<name = "single-trap", time_unit_ns = 500, traps = [#magic_trap]>
 
 // CHECK: module attributes {qcc.device = #magic_device}
-module attributes {qcc.device = #magic.device<name = "single-trap", time_unit_ns = 500, initial_occupancies = [1], traps = [#magic.trap<capacity = 1, couplings = [dense<0.0> : tensor<1x1xf64>]>]>} {
+module attributes {qcc.device = #magic.device<name = "single-trap", time_unit_ns = 500, traps = [#magic.trap<capacity = 1, couplings = [dense<0.0> : tensor<1x1xf64>]>]>} {
   // CHECK: func.func @main() attributes {qcc.entry_point}
   func.func @main() attributes {qcc.entry_point} {
     return

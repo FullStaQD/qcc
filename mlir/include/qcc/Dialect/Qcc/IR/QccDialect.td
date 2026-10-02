@@ -33,8 +33,7 @@ def Qcc_Dialect : Dialect {
         ```mlir
         #trap = #magic.trap<capacity = 2, couplings = [dense<0.0> : tensor<1x1xf64>,
                                                        dense<[[0.0, 297.4], [297.4, 0.0]]> : tensor<2x2xf64>]>
-        module attributes {qcc.device = #magic.device<name = "two-trap", time_unit_ns = 1000,
-                                                      initial_occupancies = [2, 1], traps = [#trap, #trap]>} {
+        module attributes {qcc.device = #magic.device<name = "two-trap", time_unit_ns = 1000, traps = [#trap, #trap]>} {
           func.func @main() attributes {qcc.entry_point} {
             return
           }

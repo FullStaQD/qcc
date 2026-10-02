@@ -24,22 +24,22 @@ def Magic_Dialect : Dialect {
         line of ions. The only two-qubit interaction is a permanent ZZ coupling that acts between all *active* ions of
         one trap while the trap waits (`magic.delay`). Everything else is single-ion rotations, toggling ions between
         active and inactive (`magic.recode`), moving ions between traps (`magic.shuttle`) and a final destructive
-        measurement (`magic.mzd`). The device data (occupancies, coupling strengths, time unit) lives in the dialect's
+        measurement (`magic.mzd`). The device data (capacities, coupling strengths, time unit) lives in the dialect's
         own `#magic.device` attribute, which the module carries as `qcc.device`.
 
         **Chains are affine values.** More precisely we impose the following constraints:
 
         - each chain value is used at most once
-        - `magic` ops are only allowed inside single-block function-like ops
+        - `magic` ops are only allowed directly inside a `func.func` with a single block
         - only `magic` ops are allowed to produce chain values (magic.init` being its only source)
 
         **Native vs intermediate ops.** The `Magic_Native` trait marks the native instructions of the hardware; the
         others are intermediate and are lowered to native ones before export.
 
         **Sync points.** The `magic.delay` operation is the only *native* operation which takes a certain amount of
-        time. All other *native* operations are instant. Shuttle operations (native) are *sync points*: the traps
-        between it shuttles have to have the same amount of time being passed in a valid program. This is checked by a
-        dedicated pass.
+        time. All other *native* operations are instant. Every trap has its own clock: the time spent in the delays on
+        its chain since the program start. A `magic.shuttle` is a *sync point* for its two traps: in a valid program
+        both have spent the same time when it happens. `magic-pad-timing` establishes this and `magic-verify` checks it.
 
         Example:
         ```mlir
