@@ -307,7 +307,7 @@ def Magic_InterTrapZZOp : Magic_Op<"inter_trap_zz", [AllTypesMatch<["a_in", "a_o
   let summary = "rzz between two ions in different traps";
   let description = [{
         Applies `rzz(angle) = exp(-i angle/2 Z⊗Z)` between ion `ions[0]` of chain `a` and ion `ions[1]` of chain `b`,
-        which belong to different traps. Its lowering requires shuttling, so it is a sync point in the making.
+        which belong to different traps. It requires shuttling, so the op is a sync point in the making.
 
         Example:
         ```mlir

@@ -13,20 +13,22 @@
 include "mlir/Pass/PassBase.td"
 
 def MagicShuttleInterTrapZZ : Pass<"magic-shuttle-inter-trap-zz", "mlir::func::FuncOp"> {
-  let summary = "Lowers `magic.inter_trap_zz` to shuttles around an `active_zz` in one trap.";
+  let summary = "Lowers `magic.inter_trap_zz` to shuttles and `active_zz`.";
 
   let description = [{
-      Every `inter_trap_zz` between ion `i` of chain `A` (at position `p`) and ion `j` of chain `B` (at position `q`)
-      becomes a local sequence that restores the placement, so the result types equal the operand types:
+      Consider an `inter_trap_zz` between ion `i` of chain `A` (at position `p`) and ion `j` of chain `B`. There are two
+      ways to bring the pair together. Both are described as moving towards `B`; each also exists mirrored, moving `j`
+      towards `A`:
 
-      - Greedy: shuttle the `p + 1` front ions of `A` to `B` (they arrive reversed, `i` in front), apply
-        `active_zz` with the pair as the only nonzero entry, shuttle them back. Needs `p + 1` free slots in `B`. The
-        mirror image moves `j` to `A`; the cheaper variant that fits is used.
-      - Fallback, when neither fits: `swap` `i` with the front ion `f` of `A` (skipped if `p = 0`), shuttle `f`
-        alone, `active_zz` on the pair `(f, j)`, shuttle back, `swap` back. Needs one free slot on either side.
+      - Greedy: shuttle the `p + 1` front ions of `A` to `B`, apply `active_zz` with the pair as the only nonzero
+        entry, shuttle back. Needs `p + 1` free slots in `B`.
+      - Swap: `swap` `i` with the front ion `f` of `A` (skipped if `p = 0`), shuttle `f` alone, `active_zz` on the
+        pair `(f, j)`, shuttle back, `swap` back. Needs one free slot in `B`.
 
-      Both ions must be active. Capacities come from the device in `qcc.device`; a pass failure is reported if no
-      trap has a free slot.
+      The pass uses the greedy variant that moves fewer ions among those that fit. If that is not possible (e.g. too
+      little capacity) it uses the swap variant towards a trap with a free slot. It fails if both traps are full.
+
+      An inactive ion of the `active_zz` pair is recoded before the shuttles and back after them.
   }];
 
   let dependentDialects = ["qcc::magic::MagicDialect"];

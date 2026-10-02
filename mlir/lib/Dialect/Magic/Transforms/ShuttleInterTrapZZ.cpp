@@ -37,9 +37,20 @@ static int64_t freeSlots(IonChainType chain, const MagicDevice& device) {
 }
 
 /// Shuttles the `count` front ions of `from` to `to`, applies `rzz(angle)` between `fromIon` (then at the front of
-/// `to`) and `toIon` there and shuttles the ions back, which restores both chains. Returns the new (from, to).
+/// `to`) and `toIon` there and shuttles the ions back, which restores both chains. An inactive `fromIon` or `toIon` is
+/// recoded for the duration. Returns the new (from, to).
 static std::pair<Value, Value> buildRoundTrip(OpBuilder& builder, Location loc, Value from, Value to, int64_t count,
                                               int64_t fromIon, int64_t toIon, double angle) {
+  // The coupling acts between active ions only.
+  const bool recodeFrom = !cast<IonChainType>(from.getType()).isActive(fromIon);
+  const bool recodeTo = !cast<IonChainType>(to.getType()).isActive(toIon);
+  if (recodeFrom) {
+    from = RecodeOp::create(builder, loc, from, {fromIon});
+  }
+  if (recodeTo) {
+    to = RecodeOp::create(builder, loc, to, {toIon});
+  }
+
   for (int64_t k = 0; k < count; ++k) {
     auto shuttle = ShuttleOp::create(builder, loc, from, to);
     from = shuttle.getFromOut();
@@ -52,11 +63,19 @@ static std::pair<Value, Value> buildRoundTrip(OpBuilder& builder, Location loc, 
     to = shuttle.getFromOut();
     from = shuttle.getToOut();
   }
+
+  if (recodeTo) {
+    to = RecodeOp::create(builder, loc, to, {toIon});
+  }
+  if (recodeFrom) {
+    from = RecodeOp::create(builder, loc, from, {fromIon});
+  }
   return {from, to};
 }
 
 /// Like `buildRoundTrip`, but moves only the front ion of `from`: `fromIon` is swapped to the front first and back
-/// afterwards. Needs a single free slot in `to`.
+/// afterwards. Needs a single free slot in `to`. The swaps are logical, so it is the front ion that has to be active
+/// for the coupling, not `fromIon`.
 static std::pair<Value, Value> buildSwapRoundTrip(OpBuilder& builder, Location loc, Value from, Value to,
                                                   int64_t fromIon, int64_t toIon, double angle) {
   const int64_t front = cast<IonChainType>(from.getType()).getSlots().front().ion;
@@ -83,9 +102,6 @@ static LogicalResult lowerInterTrapZZ(InterTrapZZOp op, const MagicDevice& devic
   }
   const int64_t ionA = op.getIons()[0];
   const int64_t ionB = op.getIons()[1];
-  if (!a.isActive(ionA) || !b.isActive(ionB)) {
-    return op.emitOpError() << "expects both ions to be active";
-  }
 
   const int64_t moveA = a.getPosition(ionA) + 1; // ions to move for the greedy variant that moves `ionA` to `b`
   const int64_t moveB = b.getPosition(ionB) + 1;
@@ -105,13 +121,10 @@ static LogicalResult lowerInterTrapZZ(InterTrapZZOp op, const MagicDevice& devic
     std::tie(chainA, chainB) = buildRoundTrip(builder, loc, chainA, chainB, moveA, ionA, ionB, angle);
   } else if (greedyB) {
     std::tie(chainB, chainA) = buildRoundTrip(builder, loc, chainB, chainA, moveB, ionB, ionA, angle);
-  } else if (freeB > 0 && a.getSlots().front().active) {
+  } else if (freeB > 0) {
     std::tie(chainA, chainB) = buildSwapRoundTrip(builder, loc, chainA, chainB, ionA, ionB, angle);
-  } else if (freeA > 0 && b.getSlots().front().active) {
+  } else if (freeA > 0) {
     std::tie(chainB, chainA) = buildSwapRoundTrip(builder, loc, chainB, chainA, ionB, ionA, angle);
-  } else if (freeA > 0 || freeB > 0) {
-    return op.emitOpError() << "cannot bring ions " << ionA << " and " << ionB
-                            << " together: the swap fallback needs an active front ion";
   } else {
     return op.emitOpError() << "cannot bring ions " << ionA << " and " << ionB
                             << " together: both traps are full, shuttling needs a free slot";
