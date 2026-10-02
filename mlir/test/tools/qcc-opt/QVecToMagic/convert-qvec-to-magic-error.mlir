@@ -1,6 +1,6 @@
 // RUN: qcc-opt %s --qcc-attach-device=file=%S/../Dialect/Qcc/Inputs/device-2x3.mlir --convert-qvec-to-magic --split-input-file --verify-diagnostics
 
-// The device holds four ions, 0 and 1 in trap 0, 2 and 3 in trap 1.
+// The device has two traps of capacity 3: it takes up to four qubits, two per trap.
 
 func.func @dynamic_angle(%t: vector<4xf64>) {
   %q0 = qco.static 0 : !qco.qubit
@@ -25,7 +25,7 @@ func.func @dynamic_angle(%t: vector<4xf64>) {
 // -----
 
 func.func @too_many_qubits() {
-  // expected-error @+1 {{uses qubit 4, but the device holds only 4 ions}}
+  // expected-error @+1 {{uses qubit 4, but the device can be loaded with at most 4 ions: one slot per trap stays free for shuttling}}
   %q4 = qco.static 4 : !qco.qubit
   %v = vector.from_elements %q4 : vector<1x!qco.qubit>
   %o, %r = qvec.mz %v : vector<1x!qco.qubit> -> vector<1xi1>
@@ -64,12 +64,12 @@ func.func @unrecorded_measurement() {
 
 // -----
 
-// Every ion of the device is measured, so a program uses all of them.
-// expected-error @+1 {{does not measure qubit 3: every ion of the device (4) is measured exactly once}}
+// expected-error @+1 {{does not measure qubit 3: every qubit up to the highest index (3) is measured exactly once}}
 func.func @unmeasured_qubit() {
   %q0 = qco.static 0 : !qco.qubit
   %q1 = qco.static 1 : !qco.qubit
   %q2 = qco.static 2 : !qco.qubit
+  %q3 = qco.static 3 : !qco.qubit
   %v = vector.from_elements %q0, %q1, %q2 : vector<3x!qco.qubit>
   %o, %r = qvec.mz %v : vector<3x!qco.qubit> -> vector<3xi1>
   %r0 = vector.extract %r[0] : i1 from vector<3xi1>

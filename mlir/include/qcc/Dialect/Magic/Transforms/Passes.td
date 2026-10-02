@@ -105,8 +105,7 @@ def MagicVerify : Pass<"magic-verify", "mlir::func::FuncOp"> {
       and the rules that need the device description in `qcc.device` (required if the function holds magic ops). A
       program that passes is ready for export:
 
-      - At most one `magic.init` per function; its chains match the device: the initial occupancies, ion ids
-        assigned trap by trap, all active.
+      - At most one `magic.init` per function; its ion ids are `0 .. n - 1`, assigned trap by trap.
       - Every chain holds at most as many ions as its trap's capacity.
       - Only ops with the `Magic_Native` trait remain.
       - At every `shuttle` its two traps have spent the same time: their `delay` ticks since the program start add

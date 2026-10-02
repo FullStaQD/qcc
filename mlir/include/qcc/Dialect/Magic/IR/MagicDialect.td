@@ -24,7 +24,7 @@ def Magic_Dialect : Dialect {
         line of ions. The only two-qubit interaction is a permanent ZZ coupling that acts between all *active* ions of
         one trap while the trap waits (`magic.delay`). Everything else is single-ion rotations, toggling ions between
         active and inactive (`magic.recode`), moving ions between traps (`magic.shuttle`) and a final destructive
-        measurement (`magic.mzd`). The device data (occupancies, coupling strengths, time unit) lives in the dialect's
+        measurement (`magic.mzd`). The device data (capacities, coupling strengths, time unit) lives in the dialect's
         own `#magic.device` attribute, which the module carries as `qcc.device`.
 
         **Chains are affine values.** More precisely we impose the following constraints:

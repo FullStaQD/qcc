@@ -61,8 +61,8 @@ private:
 /// TODO: construct from QDMI.
 class MagicDevice {
 public:
-  /// From the `#magic.device` attr. Cannot fail: the attribute verifier already enforces same-length arrays, occupancy
-  /// <= capacity, a positive time unit and a complete coupling table.
+  /// From the `#magic.device` attr. Cannot fail: the attribute verifier already enforces a positive time unit and a
+  /// complete coupling table.
   static MagicDevice fromAttr(DeviceAttr attr);
 
   /// Looks up `qcc.device` on the module and checks that it is a `#magic.device`.
@@ -84,10 +84,6 @@ public:
   [[nodiscard]] llvm::StringRef name() const;
   [[nodiscard]] unsigned numTraps() const;
   [[nodiscard]] IonCount capacity(TrapId trap) const;
-  /// The number of ions loaded into `trap` at program start.
-  [[nodiscard]] IonCount initialOccupancy(TrapId trap) const;
-  /// The number of ions on the device, i.e. the sum of the initial occupancies.
-  [[nodiscard]] IonCount numIons() const;
 
   /// The base unit of `magic.delay` in nanoseconds.
   [[nodiscard]] int64_t timeUnitNs() const;

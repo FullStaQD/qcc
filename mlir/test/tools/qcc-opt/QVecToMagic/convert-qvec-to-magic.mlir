@@ -1,8 +1,8 @@
 // RUN: qcc-opt %s --qcc-attach-device=file=%S/../Dialect/Qcc/Inputs/device-2x3.mlir --convert-qvec-to-magic --split-input-file | FileCheck %s
 
-// Two traps with two ions each: qubits 0, 1 are ions 0, 1 in trap 0, qubits 2, 3 are ions 2, 3 in trap 1. A zz block
-// spanning both traps splits into one active_zz per trap and one inter_trap_zz per coupling across. The records keep
-// their order: q2, q3, q0, q1.
+// Two traps of capacity 3, each takes two ions: qubits 0, 1 are ions 0, 1 in trap 0, qubits 2, 3 are ions 2, 3 in
+// trap 1. A zz block spanning both traps splits into one active_zz per trap and one inter_trap_zz per coupling across.
+// The records keep their order: q2, q3, q0, q1.
 // CHECK-LABEL: func.func @spanning_block
 func.func @spanning_block() attributes {qcc.entry_point} {
   %q0 = qco.static 0 : !qco.qubit
@@ -106,3 +106,29 @@ func.func @one_op_per_trap() {
 // CHECK-NEXT: aux.record_int %[[MB]]#1 : i1
 // CHECK-NOT:  arith.constant
 // CHECK:      return
+
+// -----
+
+// A program creates only as many ions as it has qubits. Three fit into trap 0, so trap 1 stays empty and is not
+// measured.
+// CHECK:       !chain = !magic.ion_chain<0, [0:1, 1:1, 2:1]>
+// CHECK:       !chain1 = !magic.ion_chain<1, []>
+// CHECK-LABEL: func.func @three_qubits
+func.func @three_qubits() {
+  %q0 = qco.static 0 : !qco.qubit
+  %q1 = qco.static 1 : !qco.qubit
+  %q2 = qco.static 2 : !qco.qubit
+  %v = vector.from_elements %q0, %q1, %q2 : vector<3x!qco.qubit>
+  %o, %r = qvec.mz %v : vector<3x!qco.qubit> -> vector<3xi1>
+  %r0 = vector.extract %r[0] : i1 from vector<3xi1>
+  %r1 = vector.extract %r[1] : i1 from vector<3xi1>
+  %r2 = vector.extract %r[2] : i1 from vector<3xi1>
+  aux.record_int %r0 : i1
+  aux.record_int %r1 : i1
+  aux.record_int %r2 : i1
+  return
+}
+
+// CHECK:      %[[INIT:.*]]:2 = magic.init : !chain, !chain1
+// CHECK-NEXT: magic.mzd %[[INIT]]#0 : !chain -> i1, i1, i1
+// CHECK-NOT:  magic.mzd

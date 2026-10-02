@@ -66,8 +66,8 @@ def Magic_InitOp : Magic_Op<"init", [Magic_Native]> {
 
         Each function (program) should hold at most one `magic.init`.
 
-        Whether the chains agree with the device (occupancies, capacities, identity placement) is checked by the
-        `magic-verify` pass, not here.
+        The op decides how many ions the program loads into each trap. Whether that fits the capacities of the device
+        and whether the ion ids are assigned trap by trap is checked by the `magic-verify` pass, not here.
 
         Example:
         ```mlir

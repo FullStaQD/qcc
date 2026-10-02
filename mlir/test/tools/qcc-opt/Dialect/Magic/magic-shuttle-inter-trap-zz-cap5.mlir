@@ -1,7 +1,8 @@
 // RUN: qcc-opt %s --qcc-attach-device=file=%S/Inputs/device-2x5.mlir --magic-shuttle-inter-trap-zz --split-input-file | FileCheck %s
 
-// The device holds ions 0, 1 in trap 0 and ions 2, 3, 4 in trap 1, with three and two free slots: either ion of a pair
-// can move over, so the cheaper side decides. In every case the chain types after the lowering equal those before.
+// Each trap takes five ions. With ions 0, 1 in trap 0 and ions 2, 3, 4 in trap 1 there are three and two free slots:
+// either ion of a pair can move over, so the cheaper side decides. In every case the chain types after the lowering
+// equal those before.
 
 !a = !magic.ion_chain<0, [0:1, 1:1]>
 !b = !magic.ion_chain<1, [2:1, 3:1, 4:1]>

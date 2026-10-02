@@ -44,30 +44,18 @@
 
 #trap = #magic.trap<capacity = 1, couplings = [dense<0.0> : tensor<1x1xf64>]>
 // expected-error @+1 {{name must not be empty}}
-#device = #magic.device<name = "", time_unit_ns = 1000, initial_occupancies = [1], traps = [#trap]>
+#device = #magic.device<name = "", time_unit_ns = 1000, traps = [#trap]>
 
 // -----
 
 #trap = #magic.trap<capacity = 1, couplings = [dense<0.0> : tensor<1x1xf64>]>
 // expected-error @+1 {{time_unit_ns must be positive, got 0}}
-#device = #magic.device<name = "d", time_unit_ns = 0, initial_occupancies = [1], traps = [#trap]>
+#device = #magic.device<name = "d", time_unit_ns = 0, traps = [#trap]>
 
 // -----
 
 // expected-error @+1 {{expected at least one trap}}
-#device = #magic.device<name = "d", time_unit_ns = 1000, initial_occupancies = [1], traps = []>
-
-// -----
-
-#trap = #magic.trap<capacity = 1, couplings = [dense<0.0> : tensor<1x1xf64>]>
-// expected-error @+1 {{expected one initial occupancy per trap, got 1 occupancies for 2 traps}}
-#device = #magic.device<name = "d", time_unit_ns = 1000, initial_occupancies = [1], traps = [#trap, #trap]>
-
-// -----
-
-#trap = #magic.trap<capacity = 1, couplings = [dense<0.0> : tensor<1x1xf64>]>
-// expected-error @+1 {{initial occupancy of trap 1 must be in 0..1, got 2}}
-#device = #magic.device<name = "d", time_unit_ns = 1000, initial_occupancies = [1, 2], traps = [#trap, #trap]>
+#device = #magic.device<name = "d", time_unit_ns = 1000, traps = []>
 
 // -----
 

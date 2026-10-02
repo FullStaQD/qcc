@@ -1,7 +1,7 @@
 // RUN: qcc-opt %s --qcc-attach-device=file=%S/../Qcc/Inputs/device-2x3.mlir --magic-verify --split-input-file --verify-diagnostics
 // RUN: not qcc-opt %s --magic-verify --split-input-file 2>&1 | FileCheck %s --check-prefix=CHECK-NO-DEVICE
 
-// The device: two traps of capacity 3, ions 0 and 1 in trap 0, ions 2 and 3 in trap 1. Without it the pass fails.
+// The device: two traps of capacity 3. Without it the pass fails.
 // CHECK-NO-DEVICE: error: module carries no 'qcc.device' attribute
 
 !t0 = !magic.ion_chain<0, [0:1, 1:1]>
@@ -38,7 +38,6 @@ func.func @main() attributes {qcc.entry_point} {
 !t1 = !magic.ion_chain<1, [2:1, 3:1]>
 
 func.func @two_inits() {
-  // expected-error @+2 {{does not create trap 1, which holds 2 ions}}
   // expected-note @+1 {{the program's 'magic.init' is here}}
   %a1 = magic.init : !t0
   // expected-error @+1 {{a program has at most one 'magic.init': one op creates the chains of all traps}}
@@ -57,9 +56,9 @@ func.func @two_inits() {
 !t0 = !magic.ion_chain<0, [0:1, 1:1]>
 !t1 = !magic.ion_chain<1, [2:1, 3:1]>
 
-// Identity placement: trap 0 holds ions 0 and 1 in this order.
+// Ion ids are assigned trap by trap: trap 0 holds ions 0 and 1 in this order.
 func.func @wrong_ions() {
-  // expected-error @+1 {{expected trap 0 to start with the ions [0, 1] of the device, got '!magic.ion_chain<0, [1:1, 0:1]>'}}
+  // expected-error @+1 {{expected trap 0 to start with the ions [0, 1], got '!magic.ion_chain<0, [1:1, 0:1]>': ion ids are assigned trap by trap}}
   %a1, %b1 = magic.init : !magic.ion_chain<0, [1:1, 0:1]>, !t1
   %m1, %m0 = magic.mzd %a1 : !magic.ion_chain<0, [1:1, 0:1]> -> i1, i1
   %m2, %m3 = magic.mzd %b1 : !t1 -> i1, i1
@@ -67,22 +66,6 @@ func.func @wrong_ions() {
   aux.record_int %m1 : i1
   aux.record_int %m2 : i1
   aux.record_int %m3 : i1
-  return
-}
-
-// -----
-
-!t0 = !magic.ion_chain<0, [0:1, 1:1]>
-!t1 = !magic.ion_chain<1, [2:1, 3:1]>
-
-func.func @missing_trap() {
-  // expected-error @+3 {{does not create trap 1, which holds 2 ions}}
-  // expected-error @+2 {{starts a program that measures ion 2 0 times: every ion of the device is measured exactly once}}
-  // expected-error @+1 {{starts a program that measures ion 3 0 times: every ion of the device is measured exactly once}}
-  %a1 = magic.init : !t0
-  %m0, %m1 = magic.mzd %a1 : !t0 -> i1, i1
-  aux.record_int %m0 : i1
-  aux.record_int %m1 : i1
   return
 }
 
@@ -171,8 +154,8 @@ func.func @unequal_at_measurement() {
 
 func.func @unmeasured_chain() {
   // expected-error @+3 {{'magic.init' op produces a chain of trap 1 that is never measured: every chain ends in 'magic.mzd'}}
-  // expected-error @+2 {{starts a program that measures ion 2 0 times: every ion of the device is measured exactly once}}
-  // expected-error @+1 {{starts a program that measures ion 3 0 times: every ion of the device is measured exactly once}}
+  // expected-error @+2 {{starts a program that measures ion 2 0 times: every ion is measured exactly once}}
+  // expected-error @+1 {{starts a program that measures ion 3 0 times: every ion is measured exactly once}}
   %a1, %b1 = magic.init : !t0, !t1
   %m0, %m1 = magic.mzd %a1 : !t0 -> i1, i1
   aux.record_int %m0 : i1

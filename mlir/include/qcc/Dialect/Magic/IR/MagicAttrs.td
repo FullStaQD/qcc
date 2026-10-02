@@ -61,21 +61,19 @@ def Magic_DeviceAttr : Magic_Attr<"Device", "device", [QCC_DeviceAttrInterface]>
 
         - `name`: a human-readable name.
         - `time_unit_ns`: the base unit of a `magic.delay` in nanoseconds; delays are integer multiples of it.
-        - `initial_occupancies`: the number of ions loaded into each trap at program start (index = trap id).
         - `traps`: one `#magic.trap` per trap.
 
         Passes and the exporter read it through the `MagicDevice` C++ class rather than through the attribute directly.
 
         Example:
         ```mlir
-        #magic.device<name = "two-trap", time_unit_ns = 1000, initial_occupancies = [2, 1], traps = [#trap, #trap]>
+        #magic.device<name = "two-trap", time_unit_ns = 1000, traps = [#trap, #trap]>
         ```
     }];
 
   let parameters = (ins
     StringRefParameter<"human-readable device name">:$name,
     "int64_t":$time_unit_ns,
-    ArrayRefParameter<"int64_t", "ions loaded at program start, per trap">:$initial_occupancies,
     QCC_ArrayRefParameter<"::qcc::magic::TrapAttr", "the traps, index = trap id">:$traps
   );
 

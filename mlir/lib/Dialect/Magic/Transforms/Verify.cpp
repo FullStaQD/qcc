@@ -22,7 +22,9 @@
 #include "mlir/Support/LLVM.h"
 
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/Sequence.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/SmallVectorExtras.h"
 
 #include <cstdint>
 #include <utility>
@@ -109,41 +111,27 @@ private:
     }
   }
 
-  /// Identity placement: trap 0 holds the ions 0 .. o0 - 1, trap 1 the next o1, and so on, all active.
+  /// The ion ids are 0 .. n - 1, assigned trap by trap in chain order.
   void verifyInit(InitOp init) {
-    SmallVector<bool> initialized(device.numTraps(), false);
-    for (Value chainValue : init.getChains()) {
-      auto chain = cast<IonChainType>(chainValue.getType());
-      if (chain.getTrap() >= device.numTraps()) {
-        continue; // reported by verifyOp
-      }
-      const auto trap = static_cast<TrapId>(chain.getTrap());
-      initialized[trap] = true;
-      int64_t first = 0;
-      for (TrapId previous = 0; previous < trap; ++previous) {
-        first += device.initialOccupancy(previous);
-      }
-      const SmallVector<int64_t> expected =
-          llvm::to_vector(llvm::seq<int64_t>(first, first + device.initialOccupancy(trap)));
+    // `magic.init` need not list its traps in order.
+    SmallVector<IonChainType> chains =
+        llvm::map_to_vector(init.getChains(), [](Value chain) { return cast<IonChainType>(chain.getType()); });
+    llvm::sort(chains, [](IonChainType a, IonChainType b) { return a.getTrap() < b.getTrap(); });
+    for (const IonChainType chain : chains) {
+      const SmallVector<int64_t> expected = llvm::to_vector(llvm::seq<int64_t>(numIons, numIons + chain.getNumIons()));
       if (chain.getIons() != expected) {
-        auto diag = init.emitOpError() << "expected trap " << trap << " to start with the ions [";
+        auto diag = init.emitOpError() << "expected trap " << chain.getTrap() << " to start with the ions [";
         llvm::interleaveComma(expected, diag);
-        diag << "] of the device, got " << chain;
+        diag << "], got " << chain << ": ion ids are assigned trap by trap";
         valid = false;
       }
-    }
-    for (TrapId trap = 0; trap < device.numTraps(); ++trap) {
-      if (!initialized[trap] && device.initialOccupancy(trap) > 0) {
-        init.emitOpError() << "does not create trap " << trap << ", which holds " << device.initialOccupancy(trap)
-                           << " ions";
-        valid = false;
-      }
+      numIons += chain.getNumIons();
     }
   }
 
   /// Every ion is measured once, every result is recorded once.
   void verifyMeasurements() {
-    SmallVector<unsigned> measured(device.numIons(), 0);
+    SmallVector<unsigned> measured(numIons, 0);
     function.walk([&](MZDOp mzd) {
       for (auto [ion, bit] : llvm::zip_equal(mzd.getChain().getType().getIons(), mzd.getBits())) {
         if (ion >= 0 && std::cmp_less(ion, measured.size())) {
@@ -159,7 +147,7 @@ private:
     for (auto [ion, count] : llvm::enumerate(measured)) {
       if (count != 1) {
         firstInit.emitOpError() << "starts a program that measures ion " << ion << " " << count
-                                << " times: every ion of the device is measured exactly once";
+                                << " times: every ion is measured exactly once";
         valid = false;
       }
     }
@@ -179,6 +167,8 @@ private:
   func::FuncOp function;
   MagicDevice device;
   InitOp firstInit;
+  /// The number of ions `firstInit` creates.
+  int64_t numIons = 0;
   bool valid = true;
 };
 

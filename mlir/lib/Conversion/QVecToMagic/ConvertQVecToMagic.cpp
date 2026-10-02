@@ -8,7 +8,7 @@
 // ===----------------------------------------------------------------------===//
 //
 // `convert-qvec-to-magic` walks each function once, in order. Qubit values are traced forward to the ions they hold
-// (identity placement), gates are emitted on the current chain value of each trap, and the replaced operations are
+// (ion id = qubit index), gates are emitted on the current chain value of each trap, and the replaced operations are
 // erased at the end.
 //
 //===----------------------------------------------------------------------===//
@@ -68,7 +68,9 @@ public:
       return func.emitOpError() << "convert-qvec-to-magic expects a single-block function";
     }
     Block& block = func.getBody().front();
-    createChains(block);
+    if (failed(createChains(block))) {
+      return failure();
+    }
 
     for (Operation& op : llvm::make_early_inc_range(block)) {
       if (failed(convert(&op))) {
@@ -97,33 +99,46 @@ private:
   // Placement
   //===--------------------------------------------------------------------===//
 
-  /// The trap of `ion` under the identity placement.
-  [[nodiscard]] int64_t getTrap(int64_t ion) const {
-    int64_t end = 0;
-    for (TrapId trap = 0;; ++trap) {
-      end += device.initialOccupancy(trap);
-      if (ion < end) {
-        return trap;
+  /// One `magic.init` at the start of `block` with the chains of all traps. It creates as many ions as the program has
+  /// qubits (ion id = qubit index). If they all fit into trap 0 they go there, which needs no shuttling. Otherwise
+  /// they are filled in trap by trap, one ion less than the capacity each, as shuttling needs a free slot.
+  LogicalResult createChains(Block& block) {
+    int64_t numQubits = 0;
+    mlir::qco::StaticOp highest;
+    for (Operation& op : block) {
+      auto staticOp = dyn_cast<mlir::qco::StaticOp>(op);
+      if (staticOp && std::cmp_greater_equal(staticOp.getIndex(), numQubits)) {
+        numQubits = static_cast<int64_t>(staticOp.getIndex()) + 1;
+        highest = staticOp;
       }
     }
-  }
 
-  /// One `magic.init` at the start of `block` with the chains of all traps, filled trap by trap.
-  void createChains(Block& block) {
     MLIRContext* ctx = func.getContext();
+    const bool spread = device.numTraps() > 1 && std::cmp_greater(numQubits, device.capacity(0));
+    const IonCount reserved = spread ? 1 : 0;
     SmallVector<Type> types;
-    int64_t ion = 0;
     for (TrapId trap = 0; trap < device.numTraps(); ++trap) {
       SmallVector<IonSlot> slots;
-      for (IonCount k = 0; k < device.initialOccupancy(trap); ++k) {
-        slots.push_back(IonSlot{.ion = ion++, .active = true});
+      while (std::cmp_less(trapOf.size(), numQubits) && slots.size() + reserved < device.capacity(trap)) {
+        slots.push_back(IonSlot{.ion = static_cast<int64_t>(trapOf.size()), .active = true});
+        trapOf.push_back(trap);
       }
       types.push_back(IonChainType::get(ctx, trap, slots));
     }
+    if (std::cmp_less(trapOf.size(), numQubits)) {
+      return highest.emitOpError() << "uses qubit " << numQubits - 1 << ", but the device can be loaded with at most "
+                                   << trapOf.size() << " ions"
+                                   << (reserved ? ": one slot per trap stays free for shuttling" : "");
+    }
+
     auto builder = OpBuilder::atBlockBegin(&block);
     auto init = InitOp::create(builder, func.getLoc(), types);
     chains.assign(init.getChains().begin(), init.getChains().end());
+    return success();
   }
+
+  /// The trap `ion` is placed in.
+  [[nodiscard]] int64_t getTrap(int64_t ion) const { return trapOf[ion]; }
 
   //===--------------------------------------------------------------------===//
   // Conversion
@@ -150,10 +165,6 @@ private:
 
   LogicalResult convertStatic(mlir::qco::StaticOp staticOp) {
     const auto index = static_cast<int64_t>(staticOp.getIndex());
-    if (std::cmp_greater_equal(index, device.numIons())) {
-      return staticOp.emitOpError() << "uses qubit " << index << ", but the device holds only " << device.numIons()
-                                    << " ions";
-    }
     if (!usedQubits.insert(index).second) {
       return staticOp.emitOpError() << "refers to qubit " << index << " a second time";
     }
@@ -396,11 +407,11 @@ private:
 
   /// Every ion is measured once and every result is recorded once.
   LogicalResult checkMeasurements() {
-    for (int64_t ion = 0; std::cmp_less(ion, device.numIons()); ++ion) {
+    for (int64_t ion = 0; std::cmp_less(ion, trapOf.size()); ++ion) {
       auto it = measuredBy.find(ion);
       if (it == measuredBy.end()) {
-        return func.emitOpError() << "does not measure qubit " << ion << ": every ion of the device ("
-                                  << device.numIons() << ") is measured exactly once";
+        return func.emitOpError() << "does not measure qubit " << ion << ": every qubit up to the highest index ("
+                                  << trapOf.size() - 1 << ") is measured exactly once";
       }
       Value bit = bitOf.lookup(ion);
       if (!bit.hasOneUse() || !isa<aux::RecordIntOp>(*bit.user_begin())) {
@@ -434,6 +445,8 @@ private:
   func::FuncOp func;
   MagicDevice device;
 
+  /// The trap per ion, as placed by `createChains`.
+  SmallVector<TrapId> trapOf;
   /// The current chain value per trap.
   SmallVector<Value> chains;
   /// The ion held by a scalar qubit value.
