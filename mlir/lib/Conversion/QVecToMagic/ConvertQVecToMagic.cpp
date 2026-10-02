@@ -128,7 +128,7 @@ private:
     if (std::cmp_less(trapOf.size(), numQubits)) {
       return highest.emitOpError() << "uses qubit " << numQubits - 1 << ", but the device can be loaded with at most "
                                    << trapOf.size() << " ions"
-                                   << (reserved ? ": one slot per trap stays free for shuttling" : "");
+                                   << (spread ? ": one slot per trap stays free for shuttling" : "");
     }
 
     auto builder = OpBuilder::atBlockBegin(&block);

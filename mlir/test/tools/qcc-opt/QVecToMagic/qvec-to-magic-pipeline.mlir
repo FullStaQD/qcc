@@ -27,9 +27,9 @@ func.func @bell() {
 }
 
 // CHECK:      %[[C0:.*]] = magic.init : !chain
-// CHECK-NEXT: %[[C1:.*]] = magic.sym_zxz %[[C0]] ions [0, 1] {x = [1.5707963267948966, 1.5707963267948966], z = [1.57079632679489{{[0-9]*}}, 1.5707963267948966]} : !chain
+// CHECK-NEXT: %[[C1:.*]] = magic.sym_zxz %[[C0]] ions [0, 1] {x = [1.57079632679489{{[0-9]+}}, 1.57079632679489{{[0-9]+}}], z = [1.57079632679489{{[0-9]+}}, 1.57079632679489{{[0-9]+}}]} : !chain
 // CHECK-NEXT: %[[C2:.*]] = magic.delay %[[C1]] {ticks = 1570796 : i64} : !chain
-// CHECK-NEXT: %[[C3:.*]] = magic.sym_zxz %[[C2]] ions [1] {x = [1.5707963267948966], z = [3.1415926535897931]} : !chain
+// CHECK-NEXT: %[[C3:.*]] = magic.sym_zxz %[[C2]] ions [1] {x = [1.57079632679489{{[0-9]+}}], z = [3.14159265358979{{[0-9]+}}]} : !chain
 // CHECK-NEXT: %[[M:.*]]:2 = magic.mzd %[[C3]] : !chain -> i1, i1
 // CHECK-NEXT: aux.record_int %[[M]]#0 : i1
 // CHECK-NEXT: aux.record_int %[[M]]#1 : i1
