@@ -46,7 +46,7 @@ def Magic_IonChainType : Magic_Type<"IonChain", "ion_chain"> {
 
   let extraClassDeclaration = [{
         /// The number of ions in the chain, active or not.
-        unsigned getNumIons() const { return static_cast<unsigned>(getSlots().size()); }
+        int64_t getNumIons() const { return std::ssize(getSlots()); }
 
         /// Whether the chain holds the ion with id `ion`.
         bool contains(int64_t ion) const;
@@ -55,7 +55,7 @@ def Magic_IonChainType : Magic_Type<"IonChain", "ion_chain"> {
         ::llvm::SmallVector<int64_t> getIons() const;
 
         /// The position of `ion` (front = 0). Asserts that the chain contains `ion`.
-        unsigned getPosition(int64_t ion) const;
+        int64_t getPosition(int64_t ion) const;
 
         /// Whether `ion` is active. Asserts that the chain contains `ion`.
         bool isActive(int64_t ion) const;
@@ -64,10 +64,10 @@ def Magic_IonChainType : Magic_Type<"IonChain", "ion_chain"> {
         ::llvm::SmallVector<int64_t> getActiveIons() const;
 
         /// The positions of the active ions, ascending.
-        ::llvm::SmallVector<unsigned> getActivePositions() const;
+        ::llvm::SmallVector<int64_t> getActivePositions() const;
 
         /// The number of active ions.
-        unsigned getNumActiveIons() const { return static_cast<unsigned>(getActivePositions().size()); }
+        int64_t getNumActiveIons() const { return std::ssize(getActivePositions()); }
 
         /// The same chain with the activation of every ion in `ions` toggled. Asserts that the chain contains them.
         IonChainType withToggled(::llvm::ArrayRef<int64_t> ions) const;

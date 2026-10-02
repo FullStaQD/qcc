@@ -37,7 +37,7 @@ namespace qcc::magic {
 /// Replaces `op` by one recode / delay / recode sequence per nonzero pair of its matrix.
 static void compileTrivially(ActiveZZOp op, const MagicDevice& device) {
   const IonChainType type = op.getChainIn().getType();
-  const auto trap = static_cast<TrapId>(type.getTrap());
+  const TrapId trap = type.getTrap();
 
   const SmallVector<int64_t> active = type.getActiveIons();
   const SmallVector<double> angles(op.getAngles().getValues<double>());

@@ -19,7 +19,7 @@
 #include "llvm/ADT/TypeSwitch.h" // IWYU pragma: keep
 
 #include <cstdint>
-#include <utility>
+#include <iterator>
 
 using namespace mlir;
 using namespace qcc::magic;
@@ -48,7 +48,7 @@ LogicalResult TrapAttr::verify(function_ref<InFlightDiagnostic()> emitError, int
   if (capacity < 1) {
     return emitError() << "capacity must be at least 1, got " << capacity;
   }
-  if (std::cmp_not_equal(couplings.size(), capacity)) {
+  if (std::ssize(couplings) != capacity) {
     return emitError() << "expected one coupling matrix per occupancy 1.." << capacity << ", got " << couplings.size();
   }
 

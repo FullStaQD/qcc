@@ -24,8 +24,8 @@
 
 namespace qcc::magic {
 
-using TrapId = unsigned;
-using IonCount = unsigned;
+using TrapId = int64_t;
+using IonCount = int64_t;
 /// Integer multiples of the device's base time unit, the unit of `magic.delay`.
 using Ticks = int64_t;
 
@@ -43,7 +43,7 @@ public:
   [[nodiscard]] IonCount size() const { return numIons; }
 
   /// The coupling between the ions at chain positions `i` and `j`.
-  [[nodiscard]] double operator()(unsigned i, unsigned j) const;
+  [[nodiscard]] double operator()(int64_t i, int64_t j) const;
 
   /// An `n x n` `f64` tensor.
   [[nodiscard]] mlir::DenseElementsAttr toAttr(mlir::MLIRContext& ctx) const;
@@ -86,7 +86,7 @@ public:
   //===--------------------------------------------------------------------===//
 
   [[nodiscard]] llvm::StringRef name() const;
-  [[nodiscard]] unsigned numTraps() const;
+  [[nodiscard]] int64_t numTraps() const;
   [[nodiscard]] IonCount capacity(TrapId trap) const;
 
   /// The base unit of `magic.delay` in nanoseconds.

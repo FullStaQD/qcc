@@ -44,6 +44,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <iterator>
 #include <optional>
 #include <utility>
 
@@ -115,18 +116,18 @@ private:
     }
 
     MLIRContext* ctx = func.getContext();
-    const bool spread = device.numTraps() > 1 && std::cmp_greater(numQubits, device.capacity(0));
+    const bool spread = device.numTraps() > 1 && numQubits > device.capacity(0);
     const IonCount reserved = spread ? 1 : 0;
     SmallVector<Type> types;
     for (TrapId trap = 0; trap < device.numTraps(); ++trap) {
       SmallVector<IonSlot> slots;
-      while (std::cmp_less(trapOf.size(), numQubits) && slots.size() + reserved < device.capacity(trap)) {
-        slots.push_back(IonSlot{.ion = static_cast<int64_t>(trapOf.size()), .active = true});
+      while (std::ssize(trapOf) < numQubits && std::ssize(slots) + reserved < device.capacity(trap)) {
+        slots.push_back(IonSlot{.ion = std::ssize(trapOf), .active = true});
         trapOf.push_back(trap);
       }
       types.push_back(IonChainType::get(ctx, trap, slots));
     }
-    if (std::cmp_less(trapOf.size(), numQubits)) {
+    if (std::ssize(trapOf) < numQubits) {
       return highest.emitOpError() << "uses qubit " << numQubits - 1 << ", but the device can be loaded with at most "
                                    << trapOf.size() << " ions"
                                    << (spread ? ": one slot per trap stays free for shuttling" : "");
@@ -269,11 +270,11 @@ private:
     }
 
     OpBuilder builder(single);
-    for (auto [trap, chain] : llvm::enumerate(chains)) {
+    for (TypedValue<IonChainType>& chain : chains) {
       SmallVector<int64_t> trapIons;
       SmallVector<SmallVector<double>> trapParams(params.size());
       for (auto [lane, ion] : llvm::enumerate(*ions)) {
-        if (getTrap(ion) != static_cast<int64_t>(trap)) {
+        if (getTrap(ion) != chain.getType().getTrap()) {
           continue;
         }
         trapIons.push_back(ion);
@@ -331,11 +332,11 @@ private:
     for (TypedValue<IonChainType>& chain : chains) {
       // The matrix over the active ions of the chain in position order; ions outside the layer do not couple.
       const SmallVector<int64_t> active = chain.getType().getActiveIons();
-      const size_t numActive = active.size();
+      const int64_t numActive = std::ssize(active);
       SmallVector<double> block(numActive * numActive, 0.0);
       bool nonzero = false;
-      for (size_t a = 0; a < numActive; ++a) {
-        for (size_t b = 0; b < numActive; ++b) {
+      for (int64_t a = 0; a < numActive; ++a) {
+        for (int64_t b = 0; b < numActive; ++b) {
           auto laneA = laneOf.find(active[a]);
           auto laneB = laneOf.find(active[b]);
           if (laneA != laneOf.end() && laneB != laneOf.end()) {
@@ -345,8 +346,7 @@ private:
         }
       }
       if (nonzero) {
-        auto type = RankedTensorType::get({static_cast<int64_t>(numActive), static_cast<int64_t>(numActive)},
-                                          Float64Type::get(builder.getContext()));
+        auto type = RankedTensorType::get({numActive, numActive}, Float64Type::get(builder.getContext()));
         chain = ActiveZZOp::create(builder, loc, chain.getType(), chain, DenseElementsAttr::get(type, ArrayRef(block)));
       }
     }
@@ -414,7 +414,7 @@ private:
 
   /// Every result is recorded at most once. A qubit need not be measured.
   LogicalResult checkMeasurements() {
-    for (int64_t ion = 0; std::cmp_less(ion, trapOf.size()); ++ion) {
+    for (int64_t ion = 0; ion < std::ssize(trapOf); ++ion) {
       auto it = measuredBy.find(ion);
       if (it == measuredBy.end()) {
         continue;

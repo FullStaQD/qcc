@@ -32,8 +32,7 @@ namespace qcc::magic {
 
 /// The number of ions `chain` can still take in.
 static int64_t freeSlots(IonChainType chain, const MagicDevice& device) {
-  return static_cast<int64_t>(device.capacity(static_cast<TrapId>(chain.getTrap()))) -
-         static_cast<int64_t>(chain.getNumIons());
+  return device.capacity(chain.getTrap()) - chain.getNumIons();
 }
 
 /// Shuttles the `count` front ions of the `from` chain to the `to` chain, applies `rzz(angle)` between `fromIon` (then

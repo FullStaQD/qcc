@@ -28,6 +28,7 @@
 #include <cassert>
 #include <cmath>
 #include <cstdint>
+#include <iterator>
 #include <memory>
 #include <string>
 #include <utility>
@@ -43,11 +44,11 @@ using namespace qcc::magic;
 CouplingMatrix::CouplingMatrix(DenseElementsAttr matrix) : data(matrix.getValues<double>()) {
   const ShapedType type = matrix.getType();
   assert(type.getRank() == 2 && type.getDimSize(0) == type.getDimSize(1) && "expected a square matrix");
-  numIons = static_cast<IonCount>(type.getDimSize(0));
+  numIons = type.getDimSize(0);
 }
 
-double CouplingMatrix::operator()(unsigned i, unsigned j) const {
-  assert(i < numIons && j < numIons && "position out of range");
+double CouplingMatrix::operator()(int64_t i, int64_t j) const {
+  assert(i >= 0 && i < numIons && j >= 0 && j < numIons && "position out of range");
   return data[(i * numIons) + j];
 }
 
@@ -84,7 +85,7 @@ MagicDevice MagicDevice::fromAttr(DeviceAttr attr) {
   storage.timeUnitNs = attr.getTimeUnitNs();
   for (TrapAttr trapAttr : attr.getTraps()) {
     Storage::Trap& trap = storage.traps.emplace_back();
-    trap.capacity = static_cast<IonCount>(trapAttr.getCapacity());
+    trap.capacity = trapAttr.getCapacity();
     for (DenseElementsAttr matrix : trapAttr.getCouplings()) {
       trap.couplings.emplace_back(matrix);
     }
@@ -132,7 +133,7 @@ FailureOr<MagicDevice> MagicDevice::fromParentModuleChecked(Operation* op) {
         fits = false;
         continue;
       }
-      const IonCount capacity = device->capacity(static_cast<TrapId>(chain.getTrap()));
+      const IonCount capacity = device->capacity(chain.getTrap());
       if (chain.getNumIons() > capacity) {
         nested->emitOpError() << "puts " << chain.getNumIons() << " ions into trap " << chain.getTrap()
                               << ", which holds at most " << capacity;
@@ -177,10 +178,10 @@ DeviceAttr MagicDevice::toAttr(MLIRContext& ctx) const {
 
 StringRef MagicDevice::name() const { return storage->name; }
 
-unsigned MagicDevice::numTraps() const { return static_cast<unsigned>(storage->traps.size()); }
+int64_t MagicDevice::numTraps() const { return std::ssize(storage->traps); }
 
 IonCount MagicDevice::capacity(TrapId trap) const {
-  assert(trap < storage->traps.size() && "no such trap");
+  assert(trap >= 0 && trap < numTraps() && "no such trap");
   return storage->traps[trap].capacity;
 }
 
@@ -195,7 +196,7 @@ Ticks MagicDevice::microsecondsToTicks(double microseconds) const {
 }
 
 const CouplingMatrix& MagicDevice::coupling(TrapId trap, IonCount n) const {
-  assert(trap < storage->traps.size() && "no such trap");
+  assert(trap >= 0 && trap < numTraps() && "no such trap");
   assert(n >= 1 && n <= storage->traps[trap].capacity && "occupancy out of range");
   return storage->traps[trap].couplings[n - 1];
 }

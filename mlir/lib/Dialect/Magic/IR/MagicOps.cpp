@@ -33,6 +33,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <iterator>
 #include <numbers>
 
 using namespace mlir;
@@ -304,14 +305,14 @@ void ActiveZZOp::build(OpBuilder& builder, OperationState& state, Value chain, i
                        double angle) {
   auto type = cast<IonChainType>(chain.getType());
   const SmallVector<int64_t> active = type.getActiveIons();
-  const auto size = static_cast<int64_t>(active.size());
+  const int64_t size = std::ssize(active);
   const auto* itA = llvm::find(active, ionA);
   const auto* itB = llvm::find(active, ionB);
   assert(itA != active.end() && itB != active.end() && ionA != ionB && "expected two distinct active ions");
   const int64_t a = itA - active.begin();
   const int64_t b = itB - active.begin();
 
-  SmallVector<double> matrix(static_cast<size_t>(size * size), 0.0);
+  SmallVector<double> matrix(size * size, 0.0);
   matrix[(a * size) + b] = angle;
   matrix[(b * size) + a] = angle;
   auto matrixType = RankedTensorType::get({size, size}, Float64Type::get(builder.getContext()));
@@ -445,11 +446,11 @@ LogicalResult ShuttleOp::verify() {
 //===----------------------------------------------------------------------===//
 
 LogicalResult MZDOp::verify() {
-  const unsigned numIons = getChain().getType().getNumIons();
+  const int64_t numIons = getChain().getType().getNumIons();
   if (numIons == 0) {
     return emitOpError() << "cannot measure the empty chain";
   }
-  if (getBits().size() != numIons) {
+  if (std::ssize(getBits()) != numIons) {
     return emitOpError() << "expected one result per ion, got " << getBits().size() << " for " << numIons << " ions";
   }
   return success();

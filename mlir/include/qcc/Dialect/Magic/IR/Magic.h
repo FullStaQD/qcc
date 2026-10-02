@@ -23,6 +23,7 @@
 #include "llvm/Support/LogicalResult.h"
 
 #include <cstdint>
+#include <iterator>
 
 //===----------------------------------------------------------------------===//
 // Magic Dialect
