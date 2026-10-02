@@ -1,3 +1,5 @@
+#include "LinearityChecker.h"
+
 #include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEP.h"
 
 #include <llvm/ADT/TypeSwitch.h>
@@ -10,7 +12,6 @@ using namespace qcc::prelimhlep;
 
 namespace {
 
-std::string describeLinearValue(FunctionOpInterface funcOp, Value value);
 Location getRegionLoc(Region* region);
 void attachUseNotes(InFlightDiagnostic& diag, ArrayRef<OpOperand*> uses);
 
@@ -338,6 +339,10 @@ LogicalResult checkUsesCoverRegion(const Twine& description, Region* region, Arr
   return checkBranchCoverage(description, branchOp, branchUses);
 }
 
+} // namespace
+
+namespace qcc::prelimhlep {
+
 /// Tries to prove that `value` is used exactly once on every control-flow
 /// path. Fails if it cannot be proven.
 LogicalResult checkPreciselyOneUse(Value value, const Twine& description) {
@@ -376,6 +381,10 @@ LogicalResult checkPreciselyOneUse(Value value, const Twine& description) {
 /// itself.
 bool isNotPurelyClassical(Type type) { return isa<LinType>(type); }
 
+} // namespace qcc::prelimhlep
+
+namespace {
+
 /// Returns true if `region` directly contains (not nested) a linear value.
 bool regionHasLinearValue(Region& region) {
   for (Block& block : region) {
@@ -391,6 +400,10 @@ bool regionHasLinearValue(Region& region) {
   }
   return false;
 }
+
+} // namespace
+
+namespace qcc::prelimhlep {
 
 /// Verifies that every region (transitively) nested inside `op` that
 /// contains a value subject to linearity checking (see
@@ -432,10 +445,16 @@ LogicalResult checkNoSelectOfLinearValues(Operation* op, const Twine& haloAttrNa
   return result;
 }
 
+} // namespace qcc::prelimhlep
+
+namespace {
+
 // -------
 // DIAGNOSTICS HELPERS
 // -------
-// (Declared at the top of this file, since the checks above use them.)
+} // namespace
+
+namespace qcc::prelimhlep {
 
 /// Builds a human-readable description of `value` (a linearity-checked
 /// function argument, block argument, or op result) for use in diagnostics.
@@ -450,6 +469,10 @@ std::string describeLinearValue(FunctionOpInterface funcOp, Value value) {
   return ("result #" + Twine(result.getResultNumber()) + " of '" + result.getOwner()->getName().getStringRef() + "'")
       .str();
 }
+
+} // namespace qcc::prelimhlep
+
+namespace {
 
 Location getRegionLoc(Region* region) {
   if (!region->empty() && !region->front().empty()) {
