@@ -20,6 +20,7 @@
 #include "mlir/Support/LLVM.h"
 
 #include "llvm/ADT/APInt.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 
 #include <cstdint>
@@ -42,10 +43,11 @@ static LogicalResult collectBits(Value value, std::map<int64_t, Value>& bits) {
   int64_t position = 0;
   if (auto shli = value.getDefiningOp<arith::ShLIOp>()) {
     APInt shift;
-    if (!matchPattern(shli.getRhs(), m_ConstantInt(&shift))) {
+    // A shift by the bit width or more is poison.
+    if (!matchPattern(shli.getRhs(), m_ConstantInt(&shift)) || shift.uge(shift.getBitWidth())) {
       return failure();
     }
-    position = shift.getSExtValue();
+    position = static_cast<int64_t>(shift.getZExtValue());
     value = shli.getLhs();
   }
 
@@ -59,9 +61,11 @@ static LogicalResult collectBits(Value value, std::map<int64_t, Value>& bits) {
 /// Erases `op` and, transitively, the operand definitions it leaves without users.
 static void eraseDeadTree(Operation* op) {
   SmallVector<Operation*> worklist{op};
+  // An op is queued once per user that is erased, so it may come up again after it is gone.
+  SmallPtrSet<Operation*, 8> erased;
   while (!worklist.empty()) {
     Operation* current = worklist.pop_back_val();
-    if (!isOpTriviallyDead(current)) {
+    if (erased.contains(current) || !isOpTriviallyDead(current)) {
       continue;
     }
     for (Value operand : current->getOperands()) {
@@ -69,6 +73,7 @@ static void eraseDeadTree(Operation* op) {
         worklist.push_back(definition);
       }
     }
+    erased.insert(current);
     current->erase();
   }
 }
