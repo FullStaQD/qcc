@@ -10,26 +10,24 @@
 using namespace mlir;
 using namespace qcc::prelimhlep;
 
-namespace {
+static Location getRegionLoc(Region* region);
+static void attachUseNotes(InFlightDiagnostic& diag, ArrayRef<OpOperand*> uses);
 
-Location getRegionLoc(Region* region);
-void attachUseNotes(InFlightDiagnostic& diag, ArrayRef<OpOperand*> uses);
-
-Region* getDefiningRegion(Value value) {
+static Region* getDefiningRegion(Value value) {
   if (auto blockArg = dyn_cast<BlockArgument>(value)) {
     return blockArg.getOwner()->getParent();
   }
   return value.getDefiningOp()->getParentRegion();
 }
 
-Operation* getDefiningAnchorOp(Value value) {
+static Operation* getDefiningAnchorOp(Value value) {
   if (auto blockArg = dyn_cast<BlockArgument>(value)) {
     return blockArg.getOwner()->getParentOp();
   }
   return value.getDefiningOp();
 }
 
-bool mayExecuteRepeatedly(Operation* user, Region* scopeRegion) {
+static bool mayExecuteRepeatedly(Operation* user, Region* scopeRegion) {
   for (Region* region = user->getParentRegion(); (region != nullptr) && region != scopeRegion;
        region = region->getParentOp()->getParentRegion()) {
     auto branchOp = dyn_cast<RegionBranchOpInterface>(region->getParentOp());
@@ -41,7 +39,7 @@ bool mayExecuteRepeatedly(Operation* user, Region* scopeRegion) {
 }
 
 /// Top-most `RegionBranchOpInterface` region enclosing `value` that is a child of `boundaryRegion`, or nullptr if none.
-std::pair<Operation*, Region*> findEnclosingBranchAncestor(OpOperand* use, Region* boundaryRegion) {
+static std::pair<Operation*, Region*> findEnclosingBranchAncestor(OpOperand* use, Region* boundaryRegion) {
   std::pair<Operation*, Region*> found = {nullptr, nullptr};
   for (Region* region = use->getOwner()->getParentRegion(); (region != nullptr) && region != boundaryRegion;
        region = region->getParentOp()->getParentRegion()) {
@@ -52,8 +50,8 @@ std::pair<Operation*, Region*> findEnclosingBranchAncestor(OpOperand* use, Regio
   return found;
 }
 
-LogicalResult checkUsesCoverRegion(const Twine& description, Region* region, ArrayRef<OpOperand*> uses,
-                                   bool isRegionUnconditional);
+static LogicalResult checkUsesCoverRegion(const Twine& description, Region* region, ArrayRef<OpOperand*> uses,
+                                          bool isRegionUnconditional);
 
 /// Bitmask of the numbers of uses that may have accumulated at some point of
 /// the control flow through a branch op, saturating at "two or more" (which is
@@ -61,30 +59,29 @@ LogicalResult checkUsesCoverRegion(const Twine& description, Region* region, Arr
 ///
 /// Example usage: `(counts | kOneUse) & (counts | kTwoOrMoreUses)` means that
 /// there exists a path with one use and a path with two or more uses.
-enum UseCounts : unsigned {
-  kNoPath = 0,
-  kZeroUses = 1U << 0,
-  kOneUse = 1U << 1,
-  kTwoOrMoreUses = 1U << 2,
-};
+using UseCounts = unsigned;
+constexpr UseCounts kNoPath = 0;
+constexpr UseCounts kZeroUses = 1U << 0;
+constexpr UseCounts kOneUse = 1U << 1;
+constexpr UseCounts kTwoOrMoreUses = 1U << 2;
 
 /// Adds one use to every count in `counts`.
-UseCounts addOneUse(UseCounts counts) {
-  unsigned result = 0;
+static UseCounts addOneUse(UseCounts counts) {
+  UseCounts result = kNoPath;
   if ((counts & kZeroUses) != 0) {
     result |= kOneUse;
   }
   if ((counts & (kOneUse | kTwoOrMoreUses)) != 0) {
     result |= kTwoOrMoreUses;
   }
-  return static_cast<UseCounts>(result);
+  return result;
 }
 
 /// Finds a block terminator in `branchOp`'s regions that does not implement
 /// `RegionBranchTerminatorOpInterface`, or returns nullptr if there is none.
 /// Without that interface, the control-flow successors of the region are
 /// unknown, so the coverage analysis cannot reason about the op.
-Operation* findUnsupportedTerminator(Operation* branchOp) {
+static Operation* findUnsupportedTerminator(Operation* branchOp) {
   for (Region& region : branchOp->getRegions()) {
     for (Block& block : region) {
       if (!block.empty() && !isa<RegionBranchTerminatorOpInterface>(block.back())) {
@@ -100,8 +97,8 @@ Operation* findUnsupportedTerminator(Operation* branchOp) {
 ///
 /// Requires every block terminator in `region` to implement
 /// `RegionBranchTerminatorOpInterface` (see `findUnsupportedTerminator`).
-void getRegionSuccessors(RegionBranchOpInterface branchOp, Region* region,
-                         SmallVectorImpl<RegionSuccessor>& successors) {
+static void getRegionSuccessors(RegionBranchOpInterface branchOp, Region* region,
+                                SmallVectorImpl<RegionSuccessor>& successors) {
   for (Block& block : *region) {
     if (block.empty()) {
       continue;
@@ -116,8 +113,8 @@ void getRegionSuccessors(RegionBranchOpInterface branchOp, Region* region,
 /// with exactly one use on every path through it; otherwise fails.
 ///
 /// Recursive back-and-forth with `checkUsesCoverRegion`.
-LogicalResult checkBranchCoverage(const Twine& description, Operation* branchOp,
-                                  ArrayRef<std::pair<OpOperand*, Region*>> branchUses) {
+static LogicalResult checkBranchCoverage(const Twine& description, Operation* branchOp,
+                                         ArrayRef<std::pair<OpOperand*, Region*>> branchUses) {
   auto regionBranchOp = cast<RegionBranchOpInterface>(branchOp);
 
   if (Operation* terminator = findUnsupportedTerminator(branchOp)) {
@@ -170,7 +167,7 @@ LogicalResult checkBranchCoverage(const Twine& description, Operation* branchOp,
   auto propagate = [&](const RegionSuccessor& successor, UseCounts counts) {
     Region* target = successor.getSuccessor();
     if (target == nullptr) { // The parent op itself, i.e. a path leaving the op.
-      exitCounts = static_cast<UseCounts>(exitCounts | counts);
+      exitCounts |= counts;
       return;
     }
     auto [it, inserted] = incoming.try_emplace(target, kNoPath);
@@ -182,7 +179,7 @@ LogicalResult checkBranchCoverage(const Twine& description, Operation* branchOp,
       // Current uses do not add information to the target's counts, so no need to propagate further.
       return;
     }
-    targetCounts = static_cast<UseCounts>(targetCounts | counts);
+    targetCounts |= counts;
     worklist.push_back(target);
   };
 
@@ -287,8 +284,8 @@ LogicalResult checkBranchCoverage(const Twine& description, Operation* branchOp,
 /// Checks whether the uses of a value cover all control-flow paths through a region.
 ///
 /// Recursive back-and-forth with `checkBranchCoverage`.
-LogicalResult checkUsesCoverRegion(const Twine& description, Region* region, ArrayRef<OpOperand*> uses,
-                                   bool isRegionUnconditional) {
+static LogicalResult checkUsesCoverRegion(const Twine& description, Region* region, ArrayRef<OpOperand*> uses,
+                                          bool isRegionUnconditional) {
   unsigned directUses = 0;       // Number of uses that are not nested under a branch.
   Operation* branchOp = nullptr; // The single branch op that all nested uses are under, if any.
   OpOperand* conflictingUse =
@@ -339,8 +336,6 @@ LogicalResult checkUsesCoverRegion(const Twine& description, Region* region, Arr
   return checkBranchCoverage(description, branchOp, branchUses);
 }
 
-} // namespace
-
 namespace qcc::prelimhlep {
 
 /// Tries to prove that `value` is used exactly once on every control-flow
@@ -383,10 +378,8 @@ bool isNotPurelyClassical(Type type) { return isa<LinType>(type); }
 
 } // namespace qcc::prelimhlep
 
-namespace {
-
 /// Returns true if `region` directly contains (not nested) a linear value.
-bool regionHasLinearValue(Region& region) {
+static bool regionHasLinearValue(Region& region) {
   for (Block& block : region) {
     if (llvm::any_of(block.getArgumentTypes(), isNotPurelyClassical)) {
       return true;
@@ -400,8 +393,6 @@ bool regionHasLinearValue(Region& region) {
   }
   return false;
 }
-
-} // namespace
 
 namespace qcc::prelimhlep {
 
@@ -447,13 +438,6 @@ LogicalResult checkNoSelectOfLinearValues(Operation* op, const Twine& haloAttrNa
 
 } // namespace qcc::prelimhlep
 
-namespace {
-
-// -------
-// DIAGNOSTICS HELPERS
-// -------
-} // namespace
-
 namespace qcc::prelimhlep {
 
 /// Builds a human-readable description of `value` (a linearity-checked
@@ -472,16 +456,14 @@ std::string describeLinearValue(FunctionOpInterface funcOp, Value value) {
 
 } // namespace qcc::prelimhlep
 
-namespace {
-
-Location getRegionLoc(Region* region) {
+static Location getRegionLoc(Region* region) {
   if (!region->empty() && !region->front().empty()) {
     return region->front().front().getLoc();
   }
   return region->getParentOp()->getLoc();
 }
 
-void attachUseNotes(InFlightDiagnostic& diag, ArrayRef<OpOperand*> uses) {
+static void attachUseNotes(InFlightDiagnostic& diag, ArrayRef<OpOperand*> uses) {
   SmallVector<std::pair<Operation*, unsigned>> counts;
   for (OpOperand* use : uses) {
     Operation* owner = use->getOwner();
@@ -500,5 +482,3 @@ void attachUseNotes(InFlightDiagnostic& diag, ArrayRef<OpOperand*> uses) {
     }
   }
 }
-
-} // namespace

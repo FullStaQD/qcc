@@ -24,8 +24,7 @@ using namespace qcc::prelimhlep;
 #define GET_OP_CLASSES
 #include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEPOps.cpp.inc"
 
-namespace {
-StringRef mnemonicFor(PauliKind kind) {
+static StringRef mnemonicFor(PauliKind kind) {
   switch (kind) {
   case PauliKind::X:
     return "X";
@@ -39,7 +38,7 @@ StringRef mnemonicFor(PauliKind kind) {
 
 /// Parses a single `X`/`Y`/`Z` keyword into `kind`, without erroring (and
 /// without consuming input) if none is present.
-ParseResult parseOptionalPauliKind(AsmParser& parser, PauliKind& kind) {
+static ParseResult parseOptionalPauliKind(AsmParser& parser, PauliKind& kind) {
   if (succeeded(parser.parseOptionalKeyword("X"))) {
     kind = PauliKind::X;
     return success();
@@ -54,13 +53,12 @@ ParseResult parseOptionalPauliKind(AsmParser& parser, PauliKind& kind) {
   }
   return failure();
 }
-} // namespace
 
 SmallVector<HamiltonianAttr::Term> HamiltonianAttr::getTerms() const {
   SmallVector<Term> terms;
   ArrayRef<PauliFactor> remaining = getFactors();
   for (const HamiltonianTermHeader& header : getTermHeaders()) {
-    terms.push_back({header.coefficient, remaining.take_front(header.size)});
+    terms.push_back({.coefficient = header.coefficient, .factors = remaining.take_front(header.size)});
     remaining = remaining.drop_front(header.size);
   }
   return terms;
@@ -83,12 +81,12 @@ Attribute HamiltonianAttr::parse(AsmParser& parser, Type /*unused*/) {
     if (parser.parseLSquare() || parser.parseInteger(qubit) || parser.parseRSquare()) {
       return failure();
     }
-    factors.push_back({kind, qubit});
+    factors.push_back({.kind = kind, .qubit = qubit});
     return success();
   };
 
   auto parseTerm = [&]() -> ParseResult {
-    PauliKind kind;
+    PauliKind kind = PauliKind::X;
     double coefficient = 1.0;
     if (failed(parseOptionalPauliKind(parser, kind))) {
       bool negative = succeeded(parser.parseOptionalMinus());
@@ -112,7 +110,7 @@ Attribute HamiltonianAttr::parse(AsmParser& parser, Type /*unused*/) {
       return failure();
     }
     while (succeeded(parser.parseOptionalStar())) {
-      PauliKind nextKind;
+      PauliKind nextKind = PauliKind::X;
       SMLoc kindLoc = parser.getCurrentLocation();
       if (failed(parseOptionalPauliKind(parser, nextKind))) {
         return parser.emitError(kindLoc, "expected 'X', 'Y', or 'Z'");
@@ -122,7 +120,7 @@ Attribute HamiltonianAttr::parse(AsmParser& parser, Type /*unused*/) {
       }
     }
 
-    termHeaders.push_back({coefficient, static_cast<int64_t>(factors.size() - termStart)});
+    termHeaders.push_back({.coefficient = coefficient, .size = static_cast<int64_t>(factors.size() - termStart)});
     return success();
   };
 
