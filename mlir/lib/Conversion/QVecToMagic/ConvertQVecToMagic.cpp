@@ -1,15 +1,16 @@
 // ===----------------------------------------------------------------------===//
 //
-// Part of the FullStaQD Project, under the Apache License v2.0 with LLVM
-// Exceptions.
-// See <repo-root>/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Part of the FullStaQD Project, under the Apache License v2.0 with LLVM Exceptions. See <repo-root>/LICENSE.txt for
+// license information. SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 // ===----------------------------------------------------------------------===//
 //
 // `convert-qvec-to-magic` walks each function once, in order. Qubit values are traced forward to the ions they hold
 // (ion id = qubit index), gates are emitted on the current chain value of each trap, and the replaced operations are
 // erased at the end.
+//
+// We do not use the dialect conversion framework here: A qubit has no magic value to be replaced with. Instead multiple
+// qubits have to be replaced by a single chain.
 //
 //===----------------------------------------------------------------------===//
 
@@ -208,7 +209,11 @@ private:
     if (extract.hasDynamicPosition() || extract.getStaticPosition().size() != 1) {
       return extract.emitOpError() << "must extract a single lane at a constant position";
     }
-    const int64_t ion = it->second[extract.getStaticPosition().front()];
+    const int64_t position = extract.getStaticPosition().front();
+    if (position == vector::ExtractOp::kPoisonIndex) {
+      return extract.emitOpError() << "must not extract at the poison position";
+    }
+    const int64_t ion = it->second[position];
     if (qvec::isQubitVector(extract.getSource().getType())) {
       ionOf[extract.getResult()] = ion;
     } else {

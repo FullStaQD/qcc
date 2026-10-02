@@ -34,6 +34,17 @@ func.func @dynamic_allocation() {
 
 // -----
 
+func.func @poison_extract() {
+  %q0 = qco.static 0 : !qco.qubit
+  %v = vector.from_elements %q0 : vector<1x!qco.qubit>
+  // expected-error @+1 {{must not extract at the poison position}}
+  %a = vector.extract %v[-1] : !qco.qubit from vector<1x!qco.qubit>
+  %o, %r = qvec.mz %v : vector<1x!qco.qubit> -> vector<1xi1>
+  return
+}
+
+// -----
+
 func.func @unrecorded_measurement() {
   %q0 = qco.static 0 : !qco.qubit
   %v = vector.from_elements %q0 : vector<1x!qco.qubit>
