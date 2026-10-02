@@ -84,11 +84,6 @@ private:
       if (!chain) {
         continue;
       }
-      if (result.use_empty() && chain.getNumIons() > 0) {
-        op->emitOpError() << "produces a chain of trap " << chain.getTrap()
-                          << " that is never measured: every chain ends in 'magic.mzd'";
-        valid = false;
-      }
       for (Operation* user : result.getUsers()) {
         if (!isa_and_present<MagicDialect>(user->getDialect())) {
           user->emitOpError() << "uses a chain value: only magic ops are allowed to consume chains";
@@ -114,28 +109,17 @@ private:
     }
   }
 
-  /// Every ion is measured once, every result is recorded once.
+  /// Every result is recorded at most once. Chain values are affine, so no ion is measured twice.
   void verifyMeasurements() {
-    SmallVector<unsigned> measured(numIons, 0);
     function.walk([&](MZDOp mzd) {
       for (auto [ion, bit] : llvm::zip_equal(mzd.getChain().getType().getIons(), mzd.getBits())) {
-        if (ion >= 0 && std::cmp_less(ion, measured.size())) {
-          ++measured[ion];
-        }
-        if (!bit.hasOneUse() || !isa<aux::RecordIntOp>(*bit.user_begin())) {
+        if (!bit.use_empty() && (!bit.hasOneUse() || !isa<aux::RecordIntOp>(*bit.user_begin()))) {
           mzd.emitOpError() << "must have its result for ion " << ion
-                            << " recorded by exactly one 'aux.record_int' and used nowhere else";
+                            << " recorded by at most one 'aux.record_int' and used nowhere else";
           valid = false;
         }
       }
     });
-    for (auto [ion, count] : llvm::enumerate(measured)) {
-      if (count != 1) {
-        firstInit.emitOpError() << "starts a program that measures ion " << ion << " " << count
-                                << " times: every ion must be measured exactly once";
-        valid = false;
-      }
-    }
   }
 
   /// The two traps of every shuttle have spent the same time.

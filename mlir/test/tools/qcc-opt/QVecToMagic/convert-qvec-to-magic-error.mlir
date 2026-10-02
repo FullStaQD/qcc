@@ -45,23 +45,13 @@ func.func @poison_extract() {
 
 // -----
 
-func.func @unrecorded_measurement() {
+func.func @recorded_twice() {
   %q0 = qco.static 0 : !qco.qubit
   %v = vector.from_elements %q0 : vector<1x!qco.qubit>
-  // expected-error @+1 {{must have the result of qubit 0 recorded by exactly one `aux.record_int` and used nowhere else}}
-  %o, %r = qvec.mz %v : vector<1x!qco.qubit> -> vector<1xi1>
-  return
-}
-
-// -----
-
-// expected-error @+1 {{does not measure qubit 1: every qubit up to the highest index (1) is measured exactly once}}
-func.func @unmeasured_qubit() {
-  %q0 = qco.static 0 : !qco.qubit
-  %q1 = qco.static 1 : !qco.qubit
-  %v = vector.from_elements %q0 : vector<1x!qco.qubit>
+  // expected-error @+1 {{must have the result of qubit 0 recorded by at most one `aux.record_int` and used nowhere else}}
   %o, %r = qvec.mz %v : vector<1x!qco.qubit> -> vector<1xi1>
   %r0 = vector.extract %r[0] : i1 from vector<1xi1>
+  aux.record_int %r0 : i1
   aux.record_int %r0 : i1
   return
 }

@@ -412,18 +412,17 @@ private:
   // Checks
   //===--------------------------------------------------------------------===//
 
-  /// Every ion is measured once and every result is recorded once.
+  /// Every result is recorded at most once. A qubit need not be measured.
   LogicalResult checkMeasurements() {
     for (int64_t ion = 0; std::cmp_less(ion, trapOf.size()); ++ion) {
       auto it = measuredBy.find(ion);
       if (it == measuredBy.end()) {
-        return func.emitOpError() << "does not measure qubit " << ion << ": every qubit up to the highest index ("
-                                  << trapOf.size() - 1 << ") is measured exactly once";
+        continue;
       }
       Value bit = bitOf.lookup(ion);
-      if (!bit.hasOneUse() || !isa<aux::RecordIntOp>(*bit.user_begin())) {
+      if (!bit.use_empty() && (!bit.hasOneUse() || !isa<aux::RecordIntOp>(*bit.user_begin()))) {
         return it->second->emitOpError() << "must have the result of qubit " << ion
-                                         << " recorded by exactly one `aux.record_int` and used nowhere else";
+                                         << " recorded by at most one `aux.record_int` and used nowhere else";
       }
     }
     return success();

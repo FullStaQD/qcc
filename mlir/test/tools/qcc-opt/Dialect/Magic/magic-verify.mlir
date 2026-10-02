@@ -52,6 +52,19 @@ func.func @measurement_need_no_syncing() {
 
 // -----
 
+!t0 = !magic.ion_chain<0, [0:1, 1:1]>
+!t1 = !magic.ion_chain<1, [2:1]>
+
+// Measuring and recording are optional: trap 1 is not measured, the result of ion 1 is not recorded.
+func.func @partly_observed() {
+  %a0, %b0 = magic.init : !t0, !t1
+  %m0, %m1 = magic.mzd %a0 : !t0 -> i1, i1
+  aux.record_int %m0 : i1
+  return
+}
+
+// -----
+
 // A module without magic code.
 func.func @no_magic() {
   return
@@ -147,25 +160,13 @@ func.func @unbalanced() {
 // -----
 
 !t0 = !magic.ion_chain<0, [0:1]>
-!t1 = !magic.ion_chain<1, [1:1]>
 
-func.func @unmeasured_chain() {
-  // expected-error @+2 {{'magic.init' op produces a chain of trap 1 that is never measured: every chain ends in 'magic.mzd'}}
-  // expected-error @+1 {{starts a program that measures ion 1 0 times: every ion must be measured exactly once}}
-  %a0, %b0 = magic.init : !t0, !t1
+func.func @recorded_twice() {
+  %a0 = magic.init : !t0
+  // expected-error @+1 {{'magic.mzd' op must have its result for ion 0 recorded by at most one 'aux.record_int' and used nowhere else}}
   %m0 = magic.mzd %a0 : !t0 -> i1
   aux.record_int %m0 : i1
-  return
-}
-
-// -----
-
-!t0 = !magic.ion_chain<0, [0:1]>
-
-func.func @unrecorded() {
-  %a0 = magic.init : !t0
-  // expected-error @+1 {{'magic.mzd' op must have its result for ion 0 recorded by exactly one 'aux.record_int' and used nowhere else}}
-  %m0 = magic.mzd %a0 : !t0 -> i1
+  aux.record_int %m0 : i1
   return
 }
 

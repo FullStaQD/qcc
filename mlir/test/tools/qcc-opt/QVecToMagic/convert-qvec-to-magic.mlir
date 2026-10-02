@@ -132,3 +132,24 @@ func.func @three_qubits() {
 // CHECK:      %[[INIT:.*]]:2 = magic.init : !chain, !chain1
 // CHECK-NEXT: magic.mzd %[[INIT]]#0 : !chain -> i1, i1, i1
 // CHECK-NOT:  magic.mzd
+
+// -----
+
+// Measuring and recording are optional. The chain is measured as a whole, so qubit 2 is measured without a `qvec.mz`;
+// its result and the one of qubit 1 stay unused.
+// CHECK-LABEL: func.func @partly_observed
+func.func @partly_observed() {
+  %q0 = qco.static 0 : !qco.qubit
+  %q1 = qco.static 1 : !qco.qubit
+  %q2 = qco.static 2 : !qco.qubit
+  %v = vector.from_elements %q0, %q1 : vector<2x!qco.qubit>
+  %o, %r = qvec.mz %v : vector<2x!qco.qubit> -> vector<2xi1>
+  %r0 = vector.extract %r[0] : i1 from vector<2xi1>
+  aux.record_int %r0 : i1
+  return
+}
+
+// CHECK:      %[[INIT:.*]]:2 = magic.init : !chain, !chain1
+// CHECK-NEXT: %[[M:.*]]:3 = magic.mzd %[[INIT]]#0 : !chain -> i1, i1, i1
+// CHECK-NEXT: aux.record_int %[[M]]#0 : i1
+// CHECK-NEXT: return

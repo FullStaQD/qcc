@@ -14,7 +14,8 @@ def ConvertQVecToMagic : Pass<"convert-qvec-to-magic", "mlir::func::FuncOp"> {
 
   let description = [{
       Expects the output of `qvec-layer`: static qubits, `single u_zxz` layers alternating with `global zz` blocks
-      (constant angles), and a final measurement of every qubit whose bits are recorded. Anything else is rejected.
+      (constant angles), and measurements at the end. A measured bit is recorded or left unused. Anything else is
+      rejected.
 
       Static qubit `i` becomes ion `i`. If all ions fit into trap 0 they go there. Otherwise the traps are filled one
       by one, leaving one slot free per trap for shuttling.

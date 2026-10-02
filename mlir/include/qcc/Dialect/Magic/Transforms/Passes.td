@@ -111,8 +111,8 @@ def MagicVerify : Pass<"magic-verify", "mlir::func::FuncOp"> {
       - Only ops with the `Magic_Native` trait remain.
       - At every `shuttle` its two traps have spent the same time: their `delay` ticks since the program start add
         up to the same.
-      - Every non-empty chain ends in `magic.mzd`, every ion is measured exactly once, every measurement result is
-        recorded by exactly one `aux.record_int`, and nothing else is recorded.
+      - Every measurement result is recorded by at most one `aux.record_int` and used nowhere else, and nothing
+        else is recorded.
   }];
 
   let dependentDialects = ["qcc::magic::MagicDialect"];
