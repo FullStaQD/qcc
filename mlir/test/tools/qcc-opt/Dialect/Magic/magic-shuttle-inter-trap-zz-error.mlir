@@ -34,3 +34,22 @@ module attributes {qcc.device = #magic.device<name = "two-trap", time_unit_ns = 
     return
   }
 }
+
+// -----
+
+#trap = #magic.trap<capacity = 3, couplings = [
+  dense<0.0> : tensor<1x1xf64>,
+  dense<[[0.0, 1.0], [1.0, 0.0]]> : tensor<2x2xf64>,
+  dense<[[0.0, 1.0, 1.0], [1.0, 0.0, 1.0], [1.0, 1.0, 0.0]]> : tensor<3x3xf64>]>
+
+// One free slot each, neither ion at the front, and both front ions inactive: no front ion can carry the coupling.
+module attributes {qcc.device = #magic.device<name = "two-trap", time_unit_ns = 1000, initial_occupancies = [2, 2], traps = [#trap, #trap]>} {
+  func.func @inactive_fronts() {
+    %a0, %b0 = magic.init : !magic.ion_chain<0, [0:1, 1:1]>, !magic.ion_chain<1, [2:1, 3:1]>
+    %a1 = magic.recode %a0 : !magic.ion_chain<0, [0:1, 1:1]> -> !magic.ion_chain<0, [0:0, 1:1]>
+    %b1 = magic.recode %b0 : !magic.ion_chain<1, [2:1, 3:1]> -> !magic.ion_chain<1, [2:0, 3:1]>
+    // expected-error @+1 {{cannot bring ions 1 and 3 together: the swap fallback needs an active front ion}}
+    %a2, %b2 = magic.inter_trap_zz %a1, %b1 ions [1, 3] {angle = 0.5} : !magic.ion_chain<0, [0:0, 1:1]>, !magic.ion_chain<1, [2:0, 3:1]>
+    return
+  }
+}
