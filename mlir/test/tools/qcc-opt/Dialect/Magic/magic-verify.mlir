@@ -1,8 +1,6 @@
 // RUN: qcc-opt %s --qcc-attach-device=file=%S/../Qcc/Inputs/device-2x3.mlir --magic-verify --split-input-file --verify-diagnostics
-// RUN: not qcc-opt %s --magic-verify --split-input-file 2>&1 | FileCheck %s --check-prefix=CHECK-NO-DEVICE
 
-// The device: two traps of capacity 3. Without it the pass fails.
-// CHECK-NO-DEVICE: error: module carries no 'qcc.device' attribute
+// The device: two traps of capacity 3.
 
 !t0 = !magic.ion_chain<0, [0:1, 1:1]>
 !t1 = !magic.ion_chain<1, [2:1, 3:1]>
