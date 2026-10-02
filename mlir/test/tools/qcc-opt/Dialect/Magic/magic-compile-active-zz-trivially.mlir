@@ -22,11 +22,11 @@ func.func @pair() {
 // Three active ions, two couplings with different strengths. X flip to account for the sign.
 // CHECK-LABEL: func.func @three_ions
 func.func @three_ions() {
-  %c0 = magic.init : !magic.ion_chain<1, [0:1, 2:1, 3:1]>
+  %c0 = magic.init : !magic.ion_chain<0, [0:1, 1:1, 2:1]>
   %c1 = magic.active_zz %c0 {angles = dense<[[0.0, 1.5707963267948966, -1.5707963267948966],
                                              [1.5707963267948966, 0.0, 0.0],
-                                             [-1.5707963267948966, 0.0, 0.0]]> : tensor<3x3xf64>} : !magic.ion_chain<1, [0:1, 2:1, 3:1]>
-  %m0, %m1, %m2 = magic.mzd %c1 : !magic.ion_chain<1, [0:1, 2:1, 3:1]> -> i1, i1, i1
+                                             [-1.5707963267948966, 0.0, 0.0]]> : tensor<3x3xf64>} : !magic.ion_chain<0, [0:1, 1:1, 2:1]>
+  %m0, %m1, %m2 = magic.mzd %c1 : !magic.ion_chain<0, [0:1, 1:1, 2:1]> -> i1, i1, i1
   return
 }
 

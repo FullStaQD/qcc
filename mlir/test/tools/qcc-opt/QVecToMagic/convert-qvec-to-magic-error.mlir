@@ -1,29 +1,19 @@
 // RUN: qcc-opt %s --qcc-attach-device=file=%S/../Dialect/Qcc/Inputs/device-2x3.mlir --convert-qvec-to-magic --split-input-file --verify-diagnostics
 
-// The device has two traps of capacity 3: it takes up to four qubits, two per trap.
-
-func.func @dynamic_angle(%t: vector<4xf64>) {
+func.func @dynamic_angle(%t: vector<1xf64>) {
   %q0 = qco.static 0 : !qco.qubit
-  %q1 = qco.static 1 : !qco.qubit
-  %q2 = qco.static 2 : !qco.qubit
-  %q3 = qco.static 3 : !qco.qubit
-  %v = vector.from_elements %q0, %q1, %q2, %q3 : vector<4x!qco.qubit>
+  %v = vector.from_elements %q0 : vector<1x!qco.qubit>
   // expected-error @+1 {{angles must be compile-time constants}}
-  %l = qvec.single rz(%t) %v : vector<4x!qco.qubit>, vector<4xf64>
-  %o, %r = qvec.mz %l : vector<4x!qco.qubit> -> vector<4xi1>
-  %r0 = vector.extract %r[0] : i1 from vector<4xi1>
-  %r1 = vector.extract %r[1] : i1 from vector<4xi1>
-  %r2 = vector.extract %r[2] : i1 from vector<4xi1>
-  %r3 = vector.extract %r[3] : i1 from vector<4xi1>
+  %l = qvec.single rz(%t) %v : vector<1x!qco.qubit>, vector<1xf64>
+  %o, %r = qvec.mz %l : vector<1x!qco.qubit> -> vector<1xi1>
+  %r0 = vector.extract %r[0] : i1 from vector<1xi1>
   aux.record_int %r0 : i1
-  aux.record_int %r1 : i1
-  aux.record_int %r2 : i1
-  aux.record_int %r3 : i1
   return
 }
 
 // -----
 
+// The device has two traps of capacity 3: it takes up to four qubits, two per trap.
 func.func @too_many_qubits() {
   // expected-error @+1 {{uses qubit 4, but the device can be loaded with at most 4 ions: one slot per trap stays free for shuttling}}
   %q4 = qco.static 4 : !qco.qubit
@@ -46,38 +36,22 @@ func.func @dynamic_allocation() {
 
 func.func @unrecorded_measurement() {
   %q0 = qco.static 0 : !qco.qubit
-  %q1 = qco.static 1 : !qco.qubit
-  %q2 = qco.static 2 : !qco.qubit
-  %q3 = qco.static 3 : !qco.qubit
-  %v = vector.from_elements %q0, %q1, %q2, %q3 : vector<4x!qco.qubit>
-  // expected-error @+1 {{must have the result of qubit 1 recorded by exactly one `aux.record_int` and used nowhere else}}
-  %o, %r = qvec.mz %v : vector<4x!qco.qubit> -> vector<4xi1>
-  %r0 = vector.extract %r[0] : i1 from vector<4xi1>
-  %r1 = vector.extract %r[1] : i1 from vector<4xi1>
-  %r2 = vector.extract %r[2] : i1 from vector<4xi1>
-  %r3 = vector.extract %r[3] : i1 from vector<4xi1>
-  aux.record_int %r0 : i1
-  aux.record_int %r2 : i1
-  aux.record_int %r3 : i1
+  %v = vector.from_elements %q0 : vector<1x!qco.qubit>
+  // expected-error @+1 {{must have the result of qubit 0 recorded by exactly one `aux.record_int` and used nowhere else}}
+  %o, %r = qvec.mz %v : vector<1x!qco.qubit> -> vector<1xi1>
   return
 }
 
 // -----
 
-// expected-error @+1 {{does not measure qubit 3: every qubit up to the highest index (3) is measured exactly once}}
+// expected-error @+1 {{does not measure qubit 1: every qubit up to the highest index (1) is measured exactly once}}
 func.func @unmeasured_qubit() {
   %q0 = qco.static 0 : !qco.qubit
   %q1 = qco.static 1 : !qco.qubit
-  %q2 = qco.static 2 : !qco.qubit
-  %q3 = qco.static 3 : !qco.qubit
-  %v = vector.from_elements %q0, %q1, %q2 : vector<3x!qco.qubit>
-  %o, %r = qvec.mz %v : vector<3x!qco.qubit> -> vector<3xi1>
-  %r0 = vector.extract %r[0] : i1 from vector<3xi1>
-  %r1 = vector.extract %r[1] : i1 from vector<3xi1>
-  %r2 = vector.extract %r[2] : i1 from vector<3xi1>
+  %v = vector.from_elements %q0 : vector<1x!qco.qubit>
+  %o, %r = qvec.mz %v : vector<1x!qco.qubit> -> vector<1xi1>
+  %r0 = vector.extract %r[0] : i1 from vector<1xi1>
   aux.record_int %r0 : i1
-  aux.record_int %r1 : i1
-  aux.record_int %r2 : i1
   return
 }
 
@@ -85,22 +59,13 @@ func.func @unmeasured_qubit() {
 
 func.func @gate_after_measurement() {
   %q0 = qco.static 0 : !qco.qubit
-  %q1 = qco.static 1 : !qco.qubit
-  %q2 = qco.static 2 : !qco.qubit
-  %q3 = qco.static 3 : !qco.qubit
-  %v = vector.from_elements %q0, %q1, %q2, %q3 : vector<4x!qco.qubit>
-  %o, %r = qvec.mz %v : vector<4x!qco.qubit> -> vector<4xi1>
-  %r0 = vector.extract %r[0] : i1 from vector<4xi1>
-  %r1 = vector.extract %r[1] : i1 from vector<4xi1>
-  %r2 = vector.extract %r[2] : i1 from vector<4xi1>
-  %r3 = vector.extract %r[3] : i1 from vector<4xi1>
+  %v = vector.from_elements %q0 : vector<1x!qco.qubit>
+  %o, %r = qvec.mz %v : vector<1x!qco.qubit> -> vector<1xi1>
+  %r0 = vector.extract %r[0] : i1 from vector<1xi1>
   aux.record_int %r0 : i1
-  aux.record_int %r1 : i1
-  aux.record_int %r2 : i1
-  aux.record_int %r3 : i1
-  %t = arith.constant dense<0.5> : vector<4xf64>
+  %t = arith.constant dense<0.5> : vector<1xf64>
   // expected-error @+1 {{acts after the measurement: measurements end a program}}
-  %l = qvec.single rz(%t) %o : vector<4x!qco.qubit>, vector<4xf64>
+  %l = qvec.single rz(%t) %o : vector<1x!qco.qubit>, vector<1xf64>
   return
 }
 
@@ -108,23 +73,14 @@ func.func @gate_after_measurement() {
 
 func.func @layer_order() {
   %q0 = qco.static 0 : !qco.qubit
-  %q1 = qco.static 1 : !qco.qubit
-  %q2 = qco.static 2 : !qco.qubit
-  %q3 = qco.static 3 : !qco.qubit
-  %v = vector.from_elements %q0, %q1, %q2, %q3 : vector<4x!qco.qubit>
-  %t = arith.constant dense<0.5> : vector<4xf64>
-  %l0 = qvec.single u_zxz(%t, %t, %t) %v : vector<4x!qco.qubit>, vector<4xf64>
+  %v = vector.from_elements %q0 : vector<1x!qco.qubit>
+  %t = arith.constant dense<0.5> : vector<1xf64>
+  %l0 = qvec.single u_zxz(%t, %t, %t) %v : vector<1x!qco.qubit>, vector<1xf64>
   // expected-error @+1 {{breaks the layer order expected from `qvec-layer`}}
-  %l1 = qvec.single u_zxz(%t, %t, %t) %l0 : vector<4x!qco.qubit>, vector<4xf64>
-  %o, %r = qvec.mz %l1 : vector<4x!qco.qubit> -> vector<4xi1>
-  %r0 = vector.extract %r[0] : i1 from vector<4xi1>
-  %r1 = vector.extract %r[1] : i1 from vector<4xi1>
-  %r2 = vector.extract %r[2] : i1 from vector<4xi1>
-  %r3 = vector.extract %r[3] : i1 from vector<4xi1>
+  %l1 = qvec.single u_zxz(%t, %t, %t) %l0 : vector<1x!qco.qubit>, vector<1xf64>
+  %o, %r = qvec.mz %l1 : vector<1x!qco.qubit> -> vector<1xi1>
+  %r0 = vector.extract %r[0] : i1 from vector<1xi1>
   aux.record_int %r0 : i1
-  aux.record_int %r1 : i1
-  aux.record_int %r2 : i1
-  aux.record_int %r3 : i1
   return
 }
 
@@ -132,21 +88,12 @@ func.func @layer_order() {
 
 func.func @unsupported_gate() {
   %q0 = qco.static 0 : !qco.qubit
-  %q1 = qco.static 1 : !qco.qubit
-  %q2 = qco.static 2 : !qco.qubit
-  %q3 = qco.static 3 : !qco.qubit
-  %v = vector.from_elements %q0, %q1, %q2, %q3 : vector<4x!qco.qubit>
+  %v = vector.from_elements %q0 : vector<1x!qco.qubit>
   // expected-error @+1 {{gate 'h' is not supported, run `qvec-to-u-zxz` and `qvec-layer` first}}
-  %l = qvec.single h %v : vector<4x!qco.qubit>
-  %o, %r = qvec.mz %l : vector<4x!qco.qubit> -> vector<4xi1>
-  %r0 = vector.extract %r[0] : i1 from vector<4xi1>
-  %r1 = vector.extract %r[1] : i1 from vector<4xi1>
-  %r2 = vector.extract %r[2] : i1 from vector<4xi1>
-  %r3 = vector.extract %r[3] : i1 from vector<4xi1>
+  %l = qvec.single h %v : vector<1x!qco.qubit>
+  %o, %r = qvec.mz %l : vector<1x!qco.qubit> -> vector<1xi1>
+  %r0 = vector.extract %r[0] : i1 from vector<1xi1>
   aux.record_int %r0 : i1
-  aux.record_int %r1 : i1
-  aux.record_int %r2 : i1
-  aux.record_int %r3 : i1
   return
 }
 
@@ -154,19 +101,10 @@ func.func @unsupported_gate() {
 
 func.func @classical_tail() {
   %q0 = qco.static 0 : !qco.qubit
-  %q1 = qco.static 1 : !qco.qubit
-  %q2 = qco.static 2 : !qco.qubit
-  %q3 = qco.static 3 : !qco.qubit
-  %v = vector.from_elements %q0, %q1, %q2, %q3 : vector<4x!qco.qubit>
-  %o, %r = qvec.mz %v : vector<4x!qco.qubit> -> vector<4xi1>
-  %r0 = vector.extract %r[0] : i1 from vector<4xi1>
-  %r1 = vector.extract %r[1] : i1 from vector<4xi1>
-  %r2 = vector.extract %r[2] : i1 from vector<4xi1>
-  %r3 = vector.extract %r[3] : i1 from vector<4xi1>
+  %v = vector.from_elements %q0 : vector<1x!qco.qubit>
+  %o, %r = qvec.mz %v : vector<1x!qco.qubit> -> vector<1xi1>
+  %r0 = vector.extract %r[0] : i1 from vector<1xi1>
   aux.record_int %r0 : i1
-  aux.record_int %r1 : i1
-  aux.record_int %r2 : i1
-  aux.record_int %r3 : i1
   %c1 = arith.constant 1 : i64
   // expected-error @+1 {{records a value that is not a measurement result}}
   aux.record_int %c1 : i64
