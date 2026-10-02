@@ -25,6 +25,7 @@
 #include "llvm/ADT/Sequence.h"
 #include "llvm/ADT/SmallVector.h"
 
+#include <cassert>
 #include <cstdint>
 
 using namespace mlir;
@@ -99,7 +100,7 @@ private:
 
   /// The ion ids are 0 .. n - 1, assigned trap by trap in chain order.
   void verifyInit(InitOp init) {
-    // `magic.init` lists its traps in increasing order.
+    assert(llvm::is_sorted(init.getTraps()) && "the op verifier guarantees increasing trap ids");
     for (Value chainValue : init.getChains()) {
       const auto chain = cast<IonChainType>(chainValue.getType());
       const SmallVector<int64_t> expected = llvm::to_vector(llvm::seq<int64_t>(numIons, numIons + chain.getNumIons()));

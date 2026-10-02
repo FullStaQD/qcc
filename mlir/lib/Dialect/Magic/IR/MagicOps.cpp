@@ -26,6 +26,7 @@
 #include "llvm/ADT/Sequence.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/SmallVectorExtras.h"
 #include "llvm/ADT/TypeSwitch.h" // IWYU pragma: keep
 
 #include <algorithm>
@@ -160,6 +161,10 @@ LogicalResult InitOp::verify() {
     }
   }
   return success();
+}
+
+SmallVector<int64_t> InitOp::getTraps() {
+  return llvm::map_to_vector(getChains(), [](Value chain) { return cast<IonChainType>(chain.getType()).getTrap(); });
 }
 
 //===----------------------------------------------------------------------===//

@@ -82,6 +82,11 @@ def Magic_InitOp : Magic_Op<"init", [Magic_Native]> {
         attr-dict `:` type($chains)
     }];
   let hasVerifier = 1;
+
+  let extraClassDeclaration = [{
+        /// The trap ids of the chains, in result order.
+        ::llvm::SmallVector<int64_t> getTraps();
+    }];
 }
 
 def Magic_ZXZOp : Magic_SingleIonGateOp<"zxz"> {
