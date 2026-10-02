@@ -141,13 +141,15 @@ LogicalResult InitOp::verify() {
     return emitOpError() << "expected at least one chain";
   }
 
-  llvm::SmallSet<int64_t, 4> traps;
+  int64_t previousTrap = -1;
   llvm::SmallSet<int64_t, 16> ions;
   for (Value chainValue : getChains()) {
     auto chain = cast<IonChainType>(chainValue.getType());
-    if (!traps.insert(chain.getTrap()).second) {
-      return emitOpError() << "trap " << chain.getTrap() << " is initialized more than once";
+    if (chain.getTrap() <= previousTrap) {
+      return emitOpError() << "lists trap " << chain.getTrap() << " after trap " << previousTrap
+                           << ": the traps come in strictly increasing order";
     }
+    previousTrap = chain.getTrap();
     for (const IonSlot& slot : chain.getSlots()) {
       if (!slot.active) {
         return emitOpError() << "ion " << slot.ion << " must be active initially";

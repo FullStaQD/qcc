@@ -151,9 +151,9 @@ func.func @init_duplicate_ion() {
 
 // -----
 
-func.func @init_duplicate_trap() {
-  // expected-error @+1 {{'magic.init' op trap 0 is initialized more than once}}
-  %a, %b = magic.init : !magic.ion_chain<0, [0:1]>, !magic.ion_chain<0, [1:1]>
+func.func @init_traps_unordered() {
+  // expected-error @+1 {{'magic.init' op lists trap 0 after trap 1: the traps come in strictly increasing order}}
+  %a, %b = magic.init : !magic.ion_chain<1, [0:1]>, !magic.ion_chain<0, [1:1]>
   return
 }
 

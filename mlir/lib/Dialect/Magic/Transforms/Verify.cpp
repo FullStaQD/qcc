@@ -24,7 +24,6 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Sequence.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/SmallVectorExtras.h"
 
 #include <cstdint>
 
@@ -91,7 +90,7 @@ private:
       }
       for (Operation* user : result.getUsers()) {
         if (!isa_and_present<MagicDialect>(user->getDialect())) {
-          user->emitOpError() << "uses a chain value: chains end in 'magic.mzd'";
+          user->emitOpError() << "uses a chain value: only magic ops are allowed to consume chains";
           valid = false;
         }
       }
@@ -100,11 +99,9 @@ private:
 
   /// The ion ids are 0 .. n - 1, assigned trap by trap in chain order.
   void verifyInit(InitOp init) {
-    // `magic.init` need not list its traps in order.
-    SmallVector<IonChainType> chains =
-        llvm::map_to_vector(init.getChains(), [](Value chain) { return cast<IonChainType>(chain.getType()); });
-    llvm::sort(chains, [](IonChainType a, IonChainType b) { return a.getTrap() < b.getTrap(); });
-    for (const IonChainType chain : chains) {
+    // `magic.init` lists its traps in increasing order.
+    for (Value chainValue : init.getChains()) {
+      const auto chain = cast<IonChainType>(chainValue.getType());
       const SmallVector<int64_t> expected = llvm::to_vector(llvm::seq<int64_t>(numIons, numIons + chain.getNumIons()));
       if (chain.getIons() != expected) {
         auto diag = init.emitOpError() << "expected trap " << chain.getTrap() << " to start with the ions [";
