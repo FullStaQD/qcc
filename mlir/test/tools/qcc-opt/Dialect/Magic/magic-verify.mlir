@@ -90,19 +90,6 @@ func.func @two_inits() {
 
 // -----
 
-!t0 = !magic.ion_chain<0, [1:1, 0:1]>
-
-func.func @wrong_ions() {
-  // expected-error @+1 {{expected trap 0 to start with the ions [0, 1], got '!magic.ion_chain<0, [1:1, 0:1]>': ion ids are assigned trap by trap}}
-  %a0 = magic.init : !t0
-  %m1, %m0 = magic.mzd %a0 : !t0 -> i1, i1
-  aux.record_int %m0 : i1
-  aux.record_int %m1 : i1
-  return
-}
-
-// -----
-
 func.func @unknown_trap() {
   // expected-error @+1 {{'magic.init' op produces a chain of trap 2, but the device has 2 traps}}
   %a0 = magic.init : !magic.ion_chain<2, [0:1]>

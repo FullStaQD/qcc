@@ -103,17 +103,17 @@ func.func @intermediate_ops() {
 func.func @ids_not_positions() {
   // CHECK: magic.init : !chain{{[0-9]*}}
   // CHECK: magic.rz %{{.*}} ions [7] {angles = [1.000000e+00]}
-  %c0 = magic.init : !magic.ion_chain<0, [5:1, 7:1, 3:1]>
-  %c1 = magic.rz %c0 ions [7] {angles = [1.0]} : !magic.ion_chain<0, [5:1, 7:1, 3:1]>
+  %c0 = magic.init : !magic.ion_chain<0, [3:1, 5:1, 7:1]>
+  %c1 = magic.rz %c0 ions [7] {angles = [1.0]} : !magic.ion_chain<0, [3:1, 5:1, 7:1]>
   // Only two ions are active, so the ZZ matrix is 2x2.
   // CHECK: magic.recode
-  %c2 = magic.recode %c1 : !magic.ion_chain<0, [5:1, 7:1, 3:1]> -> !magic.ion_chain<0, [5:1, 7:0, 3:1]>
+  %c2 = magic.recode %c1 : !magic.ion_chain<0, [3:1, 5:1, 7:1]> -> !magic.ion_chain<0, [3:1, 5:1, 7:0]>
   // CHECK: magic.active_zz %{{.*}} {angles = dense<{{\[\[}}0.000000e+00, 5.000000e-01], [5.000000e-01, 0.000000e+00]]> : tensor<2x2xf64>}
-  %c3 = magic.active_zz %c2 {angles = dense<[[0.0, 0.5], [0.5, 0.0]]> : tensor<2x2xf64>} : !magic.ion_chain<0, [5:1, 7:0, 3:1]>
+  %c3 = magic.active_zz %c2 {angles = dense<[[0.0, 0.5], [0.5, 0.0]]> : tensor<2x2xf64>} : !magic.ion_chain<0, [3:1, 5:1, 7:0]>
   // Shuttling an ion into an empty trap.
   // CHECK: magic.shuttle
   %d0 = magic.init : !magic.ion_chain<1, []>
-  %c4, %d1 = magic.shuttle %c3, %d0 : !magic.ion_chain<0, [5:1, 7:0, 3:1]>, !magic.ion_chain<1, []>
-                                    -> !magic.ion_chain<0, [7:0, 3:1]>, !magic.ion_chain<1, [5:1]>
+  %c4, %d1 = magic.shuttle %c3, %d0 : !magic.ion_chain<0, [3:1, 5:1, 7:0]>, !magic.ion_chain<1, []>
+                                    -> !magic.ion_chain<0, [5:1, 7:0]>, !magic.ion_chain<1, [3:1]>
   return
 }

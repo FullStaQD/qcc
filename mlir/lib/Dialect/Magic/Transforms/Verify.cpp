@@ -22,11 +22,7 @@
 #include "mlir/Support/LLVM.h"
 
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/Sequence.h"
 #include "llvm/ADT/SmallVector.h"
-
-#include <cassert>
-#include <cstdint>
 
 using namespace mlir;
 
@@ -47,7 +43,6 @@ public:
     function.walk([&](InitOp init) {
       if (!firstInit) {
         firstInit = init;
-        verifyInit(init);
         return;
       }
       init.emitError()
@@ -93,22 +88,6 @@ private:
     }
   }
 
-  /// The ion ids are 0 .. n - 1, assigned trap by trap in chain order.
-  void verifyInit(InitOp init) {
-    assert(llvm::is_sorted(init.getTraps()) && "the op verifier guarantees increasing trap ids");
-    for (Value chainValue : init.getChains()) {
-      const auto chain = cast<IonChainType>(chainValue.getType());
-      const SmallVector<int64_t> expected = llvm::to_vector(llvm::seq<int64_t>(numIons, numIons + chain.getNumIons()));
-      if (chain.getIons() != expected) {
-        auto diag = init.emitOpError() << "expected trap " << chain.getTrap() << " to start with the ions [";
-        llvm::interleaveComma(expected, diag);
-        diag << "], got " << chain << ": ion ids are assigned trap by trap";
-        valid = false;
-      }
-      numIons += chain.getNumIons();
-    }
-  }
-
   /// Every result is recorded at most once. Chain values are affine, so no ion is measured twice.
   void verifyMeasurements() {
     function.walk([&](MZDOp mzd) {
@@ -135,8 +114,6 @@ private:
 
   func::FuncOp function;
   InitOp firstInit;
-  /// The number of ions `firstInit` creates.
-  int64_t numIons = 0;
   bool valid = true;
 };
 

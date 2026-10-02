@@ -68,7 +68,7 @@ func.func @rz_through_shuttle() {
 
 // -----
 
-!c = !magic.ion_chain<0, [1:1, 0:1]>
+!c = !magic.ion_chain<0, [0:1, 1:1]>
 
 // An op the rotations cannot pass gets them as an explicit rz in front of it.
 // CHECK-LABEL: func.func @flushed

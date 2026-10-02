@@ -143,8 +143,8 @@ func.func @two_blocks() {
 
 // -----
 
-func.func @init_duplicate_ion() {
-  // expected-error @+1 {{'magic.init' op ion 1 is placed in more than one trap}}
+func.func @init_ions_unordered() {
+  // expected-error @+1 {{'magic.init' op lists ion 1 after ion 1: the ion ids increase trap by trap}}
   %a, %b = magic.init : !magic.ion_chain<0, [0:1, 1:1]>, !magic.ion_chain<1, [1:1]>
   return
 }

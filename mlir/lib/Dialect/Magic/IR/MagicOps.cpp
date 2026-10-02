@@ -24,7 +24,6 @@
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Sequence.h"
-#include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/SmallVectorExtras.h"
 #include "llvm/ADT/TypeSwitch.h" // IWYU pragma: keep
@@ -143,7 +142,7 @@ LogicalResult InitOp::verify() {
   }
 
   int64_t previousTrap = -1;
-  llvm::SmallSet<int64_t, 16> ions;
+  int64_t previousIon = -1;
   for (Value chainValue : getChains()) {
     auto chain = cast<IonChainType>(chainValue.getType());
     if (chain.getTrap() <= previousTrap) {
@@ -155,11 +154,34 @@ LogicalResult InitOp::verify() {
       if (!slot.active) {
         return emitOpError() << "ion " << slot.ion << " must be active initially";
       }
-      if (!ions.insert(slot.ion).second) {
-        return emitOpError() << "ion " << slot.ion << " is placed in more than one trap";
+      if (slot.ion <= previousIon) {
+        return emitOpError() << "lists ion " << slot.ion << " after ion " << previousIon
+                             << ": the ion ids increase trap by trap";
       }
+      previousIon = slot.ion;
     }
   }
+  return success();
+}
+
+LogicalResult InitOp::canonicalize(InitOp op, PatternRewriter& rewriter) {
+  // A trap whose chain is unused need not be loaded. An op without any use is left to dead code elimination.
+  SmallVector<Value> used;
+  SmallVector<Type> types;
+  for (Value chain : op.getChains()) {
+    if (!chain.use_empty()) {
+      used.push_back(chain);
+      types.push_back(chain.getType());
+    }
+  }
+  if (used.empty() || used.size() == op.getNumResults()) {
+    return failure();
+  }
+  auto shrunk = InitOp::create(rewriter, op.getLoc(), types);
+  for (auto [chain, replacement] : llvm::zip_equal(used, shrunk.getChains())) {
+    rewriter.replaceAllUsesWith(chain, replacement);
+  }
+  rewriter.eraseOp(op);
   return success();
 }
 

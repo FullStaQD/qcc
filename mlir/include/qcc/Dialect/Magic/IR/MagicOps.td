@@ -61,13 +61,15 @@ class Magic_SingleIonGateOp<string mnemonic, list<Trait> traits = []> : Magic_Sa
 def Magic_InitOp : Magic_Op<"init", [Magic_Native]> {
   let summary = "creates the initial chain values";
   let description = [{
-        All ions are active, their ids are distinct across all results. Chain ids are distinct and increasing in the
-        order their traps are returned. A program need not use all traps of the device.
+        All ions are active. The trap ids increase in result order, and so do the ion ids, trap by trap. Neither needs
+        to be dense: a program need not use all traps of the device.
 
         Each function (program) must hold at most one `magic.init`.
 
         The op decides how many ions the program loads into each trap. Whether that fits the capacities of the device
-        and whether the ion ids are assigned trap by trap is checked by the `magic-verify` pass, not here.
+        is checked by the `magic-verify` pass, not here.
+
+        Canonicalization drops the traps whose chain is unused. The ion ids of the other traps stay as they are.
 
         Example:
         ```mlir
@@ -82,6 +84,7 @@ def Magic_InitOp : Magic_Op<"init", [Magic_Native]> {
         attr-dict `:` type($chains)
     }];
   let hasVerifier = 1;
+  let hasCanonicalizeMethod = 1;
 
   let extraClassDeclaration = [{
         /// The trap ids of the chains, in result order.

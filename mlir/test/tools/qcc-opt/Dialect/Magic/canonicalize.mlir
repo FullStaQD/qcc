@@ -109,3 +109,21 @@ func.func @sym_zxz_kept() {
 
 // CHECK:      magic.sym_zxz
 // CHECK-NEXT: magic.sym_zxz
+
+// -----
+
+!t0 = !magic.ion_chain<0, [0:1]>
+!t1 = !magic.ion_chain<1, [1:1]>
+
+// A trap whose chain is unused is not loaded: the init shrinks to the traps in use, their ion ids stay.
+// CHECK:       !chain = !magic.ion_chain<1, [1:1]>
+// CHECK-LABEL: func.func @unused_trap
+func.func @unused_trap() {
+  %a0, %b0, %c0 = magic.init : !t0, !t1, !magic.ion_chain<2, []>
+  %m1 = magic.mzd %b0 : !t1 -> i1
+  aux.record_int %m1 : i1
+  return
+}
+
+// CHECK:      %[[C0:.*]] = magic.init : !chain{{$}}
+// CHECK-NEXT: magic.mzd %[[C0]]
