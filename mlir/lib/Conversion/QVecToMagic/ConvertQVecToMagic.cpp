@@ -133,7 +133,9 @@ private:
 
     auto builder = OpBuilder::atBlockBegin(&block);
     auto init = InitOp::create(builder, func.getLoc(), types);
-    chains.assign(init.getChains().begin(), init.getChains().end());
+    for (Value chain : init.getChains()) {
+      chains.push_back(cast<TypedValue<IonChainType>>(chain));
+    }
     return success();
   }
 
@@ -321,9 +323,9 @@ private:
     for (auto [lane, ion] : llvm::enumerate(*ions)) {
       laneOf[ion] = lane;
     }
-    for (Value& chain : chains) {
+    for (TypedValue<IonChainType>& chain : chains) {
       // The matrix over the active ions of the chain in position order; ions outside the layer do not couple.
-      const SmallVector<int64_t> active = cast<IonChainType>(chain.getType()).getActiveIons();
+      const SmallVector<int64_t> active = chain.getType().getActiveIons();
       const size_t numActive = active.size();
       SmallVector<double> block(numActive * numActive, 0.0);
       bool nonzero = false;
@@ -354,8 +356,8 @@ private:
         }
         // The lower trap first, so the output does not depend on the lane order.
         const bool ordered = trapA < trapB;
-        Value& first = chains[ordered ? trapA : trapB];
-        Value& second = chains[ordered ? trapB : trapA];
+        TypedValue<IonChainType>& first = chains[ordered ? trapA : trapB];
+        TypedValue<IonChainType>& second = chains[ordered ? trapB : trapA];
         auto interTrap = InterTrapZZOp::create(
             builder, loc, first.getType(), second.getType(), first, second,
             builder.getDenseI64ArrayAttr(ordered ? ArrayRef<int64_t>{ionA, ionB} : ArrayRef<int64_t>{ionB, ionA}),
@@ -377,8 +379,8 @@ private:
     if (!measured) {
       // The first measurement ends the program: every chain is measured as a whole.
       OpBuilder builder(mz);
-      for (Value chain : chains) {
-        auto type = cast<IonChainType>(chain.getType());
+      for (const TypedValue<IonChainType> chain : chains) {
+        const IonChainType type = chain.getType();
         if (type.getNumIons() == 0) {
           continue;
         }
@@ -448,7 +450,7 @@ private:
   /// The trap per ion, as placed by `createChains`.
   SmallVector<TrapId> trapOf;
   /// The current chain value per trap.
-  SmallVector<Value> chains;
+  SmallVector<TypedValue<IonChainType>> chains;
   /// The ion held by a scalar qubit value.
   llvm::DenseMap<Value, int64_t> ionOf;
   /// The ion per lane of a qubit vector, or of the bit vector of a `qvec.mz`.

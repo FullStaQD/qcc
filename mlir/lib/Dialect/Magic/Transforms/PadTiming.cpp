@@ -32,9 +32,9 @@ namespace qcc::magic {
 #define GEN_PASS_DEF_MAGICPADTIMING
 #include "qcc/Dialect/Magic/Transforms/Passes.h.inc"
 
-static void pad(OpBuilder& builder, Value chain, Ticks ticks) {
+static void pad(OpBuilder& builder, TypedValue<IonChainType> chain, Ticks ticks) {
   const Location loc = chain.getLoc();
-  const SmallVector<int64_t> active = cast<IonChainType>(chain.getType()).getActiveIons();
+  const SmallVector<int64_t> active = chain.getType().getActiveIons();
 
   Value padded = chain;
   Operation* first = nullptr;
