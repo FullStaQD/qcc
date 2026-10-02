@@ -19,8 +19,6 @@
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Support/LLVM.h"
 
-#include "llvm/ADT/APInt.h"
-#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 
 #include <cstdint>
@@ -90,7 +88,7 @@ static void unpack(aux::RecordIntOp record) {
   }
 
   OpBuilder builder(record);
-  for (const auto& [position, bit] : bits) {
+  for (const auto& [_, bit] : bits) {
     aux::RecordIntOp::create(builder, record.getLoc(), bit);
   }
   Operation* root = record.getValue().getDefiningOp();
