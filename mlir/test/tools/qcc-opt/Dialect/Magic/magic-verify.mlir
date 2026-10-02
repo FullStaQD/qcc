@@ -32,38 +32,29 @@ func.func @main() attributes {qcc.entry_point} {
 
 // -----
 
-!t0 = !magic.ion_chain<0, [0:1, 1:1]>
-!t1 = !magic.ion_chain<1, [2:1, 3:1]>
+!t0 = !magic.ion_chain<0, [0:1]>
 
 func.func @two_inits() {
   // expected-note @+1 {{the program's 'magic.init' is here}}
-  %a1 = magic.init : !t0
+  %a0 = magic.init : !t0
   // expected-error @+1 {{a program has at most one 'magic.init': one op creates the chains of all traps}}
-  %b1 = magic.init : !t1
-  %m0, %m1 = magic.mzd %a1 : !t0 -> i1, i1
-  %m2, %m3 = magic.mzd %b1 : !t1 -> i1, i1
+  %b0 = magic.init : !magic.ion_chain<1, []>
+  %m0 = magic.mzd %a0 : !t0 -> i1
   aux.record_int %m0 : i1
-  aux.record_int %m1 : i1
-  aux.record_int %m2 : i1
-  aux.record_int %m3 : i1
   return
 }
 
 // -----
 
-!t0 = !magic.ion_chain<0, [0:1, 1:1]>
-!t1 = !magic.ion_chain<1, [2:1, 3:1]>
+!t0 = !magic.ion_chain<0, [1:1, 0:1]>
 
 // Ion ids are assigned trap by trap: trap 0 holds ions 0 and 1 in this order.
 func.func @wrong_ions() {
   // expected-error @+1 {{expected trap 0 to start with the ions [0, 1], got '!magic.ion_chain<0, [1:1, 0:1]>': ion ids are assigned trap by trap}}
-  %a1, %b1 = magic.init : !magic.ion_chain<0, [1:1, 0:1]>, !t1
-  %m1, %m0 = magic.mzd %a1 : !magic.ion_chain<0, [1:1, 0:1]> -> i1, i1
-  %m2, %m3 = magic.mzd %b1 : !t1 -> i1, i1
+  %a0 = magic.init : !t0
+  %m1, %m0 = magic.mzd %a0 : !t0 -> i1, i1
   aux.record_int %m0 : i1
   aux.record_int %m1 : i1
-  aux.record_int %m2 : i1
-  aux.record_int %m3 : i1
   return
 }
 
@@ -80,16 +71,13 @@ func.func @unknown_trap() {
 
 // -----
 
-!t0 = !magic.ion_chain<0, [0:1, 1:1]>
-!t1 = !magic.ion_chain<1, [2:1, 3:1]>
+!t0 = !magic.ion_chain<0, [0:1, 1:1, 2:1, 3:1]>
 
 // Each trap holds at most three ions.
 func.func @over_capacity() {
-  %a0, %b0 = magic.init : !t0, !t1
-  %b1, %a1 = magic.shuttle %b0, %a0 : !t1, !t0 -> !magic.ion_chain<1, [3:1]>, !magic.ion_chain<0, [2:1, 0:1, 1:1]>
-  // expected-error @+1 {{'magic.shuttle' op puts 4 ions into trap 0, which holds at most 3}}
-  %b2, %a2 = magic.shuttle %b1, %a1 : !magic.ion_chain<1, [3:1]>, !magic.ion_chain<0, [2:1, 0:1, 1:1]> -> !magic.ion_chain<1, []>, !magic.ion_chain<0, [3:1, 2:1, 0:1, 1:1]>
-  %m3, %m2, %m0, %m1 = magic.mzd %a2 : !magic.ion_chain<0, [3:1, 2:1, 0:1, 1:1]> -> i1, i1, i1, i1
+  // expected-error @+1 {{'magic.init' op puts 4 ions into trap 0, which holds at most 3}}
+  %a0 = magic.init : !t0
+  %m0, %m1, %m2, %m3 = magic.mzd %a0 : !t0 -> i1, i1, i1, i1
   aux.record_int %m0 : i1
   aux.record_int %m1 : i1
   aux.record_int %m2 : i1
@@ -99,29 +87,23 @@ func.func @over_capacity() {
 
 // -----
 
-!t0 = !magic.ion_chain<0, [0:1, 1:1]>
-!t1 = !magic.ion_chain<1, [2:1, 3:1]>
+!t0 = !magic.ion_chain<0, [0:1]>
 
 func.func @not_native() {
-  %a0, %b1 = magic.init : !t0, !t1
+  %a0 = magic.init : !t0
   // expected-error @+1 {{'magic.zxz' op is not native to the device and must be lowered before export}}
   %a1 = magic.zxz %a0 ions [0] {z1 = [0.1], x = [0.2], z2 = [0.3]} : !t0
-  %m0, %m1 = magic.mzd %a1 : !t0 -> i1, i1
-  %m2, %m3 = magic.mzd %b1 : !t1 -> i1, i1
+  %m0 = magic.mzd %a1 : !t0 -> i1
   aux.record_int %m0 : i1
-  aux.record_int %m1 : i1
-  aux.record_int %m2 : i1
-  aux.record_int %m3 : i1
   return
 }
 
 // -----
 
-!t0 = !magic.ion_chain<0, [0:1, 1:1]>
-!t1 = !magic.ion_chain<1, [2:1, 3:1]>
-
-!t0s = !magic.ion_chain<0, [1:1]>
-!t1s = !magic.ion_chain<1, [0:1, 2:1, 3:1]>
+!t0 = !magic.ion_chain<0, [0:1]>
+!t1 = !magic.ion_chain<1, [1:1]>
+!t0s = !magic.ion_chain<0, []>
+!t1s = !magic.ion_chain<1, [0:1, 1:1]>
 
 // A shuttle is a sync point for its two traps.
 func.func @unbalanced() {
@@ -129,78 +111,61 @@ func.func @unbalanced() {
   %a1 = magic.delay %a0 {ticks = 10} : !t0
   // expected-error @+1 {{'magic.shuttle' op has unbalanced timing: trap 0 has spent 10 ticks, but trap 1 0; the two traps of a shuttle must have spent the same time}}
   %a2, %b1 = magic.shuttle %a1, %b0 : !t0, !t1 -> !t0s, !t1s
-  %m1 = magic.mzd %a2 : !t0s -> i1
-  %m0, %m2, %m3 = magic.mzd %b1 : !t1s -> i1, i1, i1
+  %m0, %m1 = magic.mzd %b1 : !t1s -> i1, i1
   aux.record_int %m0 : i1
   aux.record_int %m1 : i1
-  aux.record_int %m2 : i1
-  aux.record_int %m3 : i1
   return
 }
 
 // -----
 
-!t0 = !magic.ion_chain<0, [0:1, 1:1]>
-!t1 = !magic.ion_chain<1, [2:1, 3:1]>
+!t0 = !magic.ion_chain<0, [0:1]>
+!t1 = !magic.ion_chain<1, [1:1]>
 
 // OK: the measurement is no sync point, the traps may have spent different times when they are measured.
 func.func @unequal_at_measurement() {
-  %a0, %b1 = magic.init : !t0, !t1
+  %a0, %b0 = magic.init : !t0, !t1
   %a1 = magic.delay %a0 {ticks = 10} : !t0
-  %m0, %m1 = magic.mzd %a1 : !t0 -> i1, i1
-  %m2, %m3 = magic.mzd %b1 : !t1 -> i1, i1
+  %m0 = magic.mzd %a1 : !t0 -> i1
+  %m1 = magic.mzd %b0 : !t1 -> i1
   aux.record_int %m0 : i1
   aux.record_int %m1 : i1
-  aux.record_int %m2 : i1
-  aux.record_int %m3 : i1
   return
 }
 
 // -----
 
-!t0 = !magic.ion_chain<0, [0:1, 1:1]>
-!t1 = !magic.ion_chain<1, [2:1, 3:1]>
+!t0 = !magic.ion_chain<0, [0:1]>
+!t1 = !magic.ion_chain<1, [1:1]>
 
 func.func @unmeasured_chain() {
-  // expected-error @+3 {{'magic.init' op produces a chain of trap 1 that is never measured: every chain ends in 'magic.mzd'}}
-  // expected-error @+2 {{starts a program that measures ion 2 0 times: every ion is measured exactly once}}
-  // expected-error @+1 {{starts a program that measures ion 3 0 times: every ion is measured exactly once}}
-  %a1, %b1 = magic.init : !t0, !t1
-  %m0, %m1 = magic.mzd %a1 : !t0 -> i1, i1
+  // expected-error @+2 {{'magic.init' op produces a chain of trap 1 that is never measured: every chain ends in 'magic.mzd'}}
+  // expected-error @+1 {{starts a program that measures ion 1 0 times: every ion is measured exactly once}}
+  %a0, %b0 = magic.init : !t0, !t1
+  %m0 = magic.mzd %a0 : !t0 -> i1
   aux.record_int %m0 : i1
-  aux.record_int %m1 : i1
   return
 }
 
 // -----
 
-!t0 = !magic.ion_chain<0, [0:1, 1:1]>
-!t1 = !magic.ion_chain<1, [2:1, 3:1]>
+!t0 = !magic.ion_chain<0, [0:1]>
 
 func.func @unrecorded() {
-  %a1, %b1 = magic.init : !t0, !t1
-  // expected-error @+1 {{'magic.mzd' op must have its result for ion 1 recorded by exactly one 'aux.record_int' and used nowhere else}}
-  %m0, %m1 = magic.mzd %a1 : !t0 -> i1, i1
-  %m2, %m3 = magic.mzd %b1 : !t1 -> i1, i1
-  aux.record_int %m0 : i1
-  aux.record_int %m2 : i1
-  aux.record_int %m3 : i1
+  %a0 = magic.init : !t0
+  // expected-error @+1 {{'magic.mzd' op must have its result for ion 0 recorded by exactly one 'aux.record_int' and used nowhere else}}
+  %m0 = magic.mzd %a0 : !t0 -> i1
   return
 }
 
 // -----
 
-!t0 = !magic.ion_chain<0, [0:1, 1:1]>
-!t1 = !magic.ion_chain<1, [2:1, 3:1]>
+!t0 = !magic.ion_chain<0, [0:1]>
 
 func.func @other_record() {
-  %a1, %b1 = magic.init : !t0, !t1
-  %m0, %m1 = magic.mzd %a1 : !t0 -> i1, i1
-  %m2, %m3 = magic.mzd %b1 : !t1 -> i1, i1
+  %a0 = magic.init : !t0
+  %m0 = magic.mzd %a0 : !t0 -> i1
   aux.record_int %m0 : i1
-  aux.record_int %m1 : i1
-  aux.record_int %m2 : i1
-  aux.record_int %m3 : i1
   %c = arith.constant 7 : i64
   // expected-error @+1 {{records a value that is not a 'magic.mzd' result; a program records its measurements}}
   aux.record_int %c : i64
