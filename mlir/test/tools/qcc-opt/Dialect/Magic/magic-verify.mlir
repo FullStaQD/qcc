@@ -2,15 +2,18 @@
 
 // The device: two traps of capacity 3.
 
+//===----------------------------------------------------------------------===//
+// Valid programs
+//===----------------------------------------------------------------------===//
+
 !t0 = !magic.ion_chain<0, [0:1, 1:1]>
 !t1 = !magic.ion_chain<1, [2:1, 3:1]>
 !t1i = !magic.ion_chain<1, [2:0, 3:0]>
 !t0s = !magic.ion_chain<0, [1:1]>
 !t1s = !magic.ion_chain<1, [0:1, 2:1, 3:1]>
 
-// OK: the example program of the dialect on this device: padding on the idle trap, one shuttle, everything measured
+// The example program of the dialect on this device: padding on the idle trap, one shuttle, everything measured
 // and recorded.
-// CHECK-LABEL: @main
 func.func @main() attributes {qcc.entry_point} {
   %a0, %b0 = magic.init : !t0, !t1
   %a1 = magic.sym_zxz %a0 ions [0] {z = [1.5708], x = [1.5708]} : !t0
@@ -32,6 +35,33 @@ func.func @main() attributes {qcc.entry_point} {
 }
 
 // -----
+
+!t0 = !magic.ion_chain<0, [0:1]>
+!t1 = !magic.ion_chain<1, [1:1]>
+
+// The measurement is no sync point: the traps may have spent different times when they are measured.
+func.func @measurement_need_no_syncing() {
+  %a0, %b0 = magic.init : !t0, !t1
+  %a1 = magic.delay %a0 {ticks = 10} : !t0
+  %m0 = magic.mzd %a1 : !t0 -> i1
+  %m1 = magic.mzd %b0 : !t1 -> i1
+  aux.record_int %m0 : i1
+  aux.record_int %m1 : i1
+  return
+}
+
+// -----
+
+// A module without magic code.
+func.func @no_magic() {
+  return
+}
+
+// -----
+
+//===----------------------------------------------------------------------===//
+// Violations
+//===----------------------------------------------------------------------===//
 
 !t0 = !magic.ion_chain<0, [0:1]>
 
@@ -119,23 +149,6 @@ func.func @unbalanced() {
 !t0 = !magic.ion_chain<0, [0:1]>
 !t1 = !magic.ion_chain<1, [1:1]>
 
-// OK: the measurement is no sync point, the traps may have spent different times when they are measured.
-// CHECK-LABEL: @unequal_at_measurement
-func.func @unequal_at_measurement() {
-  %a0, %b0 = magic.init : !t0, !t1
-  %a1 = magic.delay %a0 {ticks = 10} : !t0
-  %m0 = magic.mzd %a1 : !t0 -> i1
-  %m1 = magic.mzd %b0 : !t1 -> i1
-  aux.record_int %m0 : i1
-  aux.record_int %m1 : i1
-  return
-}
-
-// -----
-
-!t0 = !magic.ion_chain<0, [0:1]>
-!t1 = !magic.ion_chain<1, [1:1]>
-
 func.func @unmeasured_chain() {
   // expected-error @+2 {{'magic.init' op produces a chain of trap 1 that is never measured: every chain ends in 'magic.mzd'}}
   // expected-error @+1 {{starts a program that measures ion 1 0 times: every ion must be measured exactly once}}
@@ -167,13 +180,5 @@ func.func @other_record() {
   %c = arith.constant 7 : i64
   // expected-error @+1 {{records a value that is not a 'magic.mzd' result; a program records its measurements}}
   aux.record_int %c : i64
-  return
-}
-
-// -----
-
-// OK: A module without magic code.
-// CHECK-LABEL: @unequal_at_measurement
-func.func @no_magic() {
   return
 }
