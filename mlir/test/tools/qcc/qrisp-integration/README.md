@@ -47,41 +47,11 @@ Do not use `jrange` or `with control(classical condition)`. Instead use `q_cond`
 
 A MAGIC program is a fixed sequence of gates followed by the measurement of all ions. So a program for `magic/`
 
-- returns exactly one integer, the result of one `measure(qv)` at the end of the program. The recorded integer is
-  split into its bits, and `magic-runner` reports them as a single integer again. A program with several outputs
-  would lose their grouping (there is no MAGIC counterpart of `qir/multi_output`).
-- has no classical control flow that depends on a measurement (`q_cond`, feed-forward) and no reset. Python loops
-  are fine: they are unrolled when the program is traced. Loops whose bounds are only known at run time are not
-  (this rules out Qrisp's built-in `QFT`; `magic/qft.py` writes the loops out).
-- uses the gates `x y z h s s_dg t t_dg rx ry rz p`, `cx cy cz cp rzz` only.
-- should have a (nearly) deterministic outcome, so that the simulation can be checked: `magic/qft.py` prepares
-  its input such that the QFT yields a basis state.
+- ends with a single `measure(qv)` and returns its result,
+- has no control flow that depends on a measurement or is only known at run time, and no reset,
+- should have a (nearly) deterministic outcome, so that the simulation can be checked.
 
-How the ions are distributed over the traps follows from the number of qubits and the capacities of the device: if
-all fit into the first trap they go there, otherwise every trap is filled up to one free slot. Each test picks a
-device from `magic/Inputs/` accordingly (e.g. three qubits on capacities 2 and 3 spread over both traps, which
-needs shuttling).
-
-## Simulating MAGIC programs
-
-`--compile-to=custom-magic` writes the program in the text format the device takes today, and
-`mlir/utils/magic-runner` simulates that text. It needs the device file as well, for the coupling strengths:
-
-```bash
-qcc my_program.mlir --quantum-device=magic --device-description=magic/Inputs/device-2x3.mlir \
-    --compile-to=custom-magic -o my_program.txt
-mlir/utils/magic-runner --file my_program.txt --device magic/Inputs/device-2x3.mlir -s 5
-```
-
-The output follows `qir-runner`: one `OUTPUT INT <n>` line per shot. `--probabilities` prints the exact
-distribution instead. Bits that are no result of the program (the device measures every ion, see the pass
-`magic-measure-and-record-garbage`) are dropped unless `--keep-garbage-bits` is given.
-
-The script installs its dependency (numpy) on the first run and needs `uv`. In the tests it is available as
-`magic-runner`; the test suite refuses to run without `uv`.
-
-The text format has a fixed header. Its `include` line names a file of the device vendor's tooling; that name is
-part of the format and the only place where it appears.
+The tests simulate the compiled program with `mlir/utils/magic-runner` (see its `--help`), which needs `uv`.
 
 ## Performance considerations for simulation
 
