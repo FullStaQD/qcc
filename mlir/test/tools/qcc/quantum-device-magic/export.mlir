@@ -1,7 +1,7 @@
 // RUN: qcc %s --quantum-device=magic --device-description=%S/Inputs/device-2x3-500ns.mlir --compile-to=custom-magic -o %t.txt
 // RUN: FileCheck %s < %t.txt
-// RUN: %if magic-runner %{ magic-runner --file %t.txt --device %S/Inputs/device-2x3-500ns.mlir -s 3 | FileCheck %s --check-prefix=CHECK-SIM %}
-// RUN: %if magic-runner %{ magic-runner --file %t.txt --device %S/Inputs/device-2x3-500ns.mlir --probabilities --keep-garbage-bits | FileCheck %s --check-prefix=CHECK-ALL-BITS %}
+// RUN: magic-runner --file %t.txt --device %S/Inputs/device-2x3-500ns.mlir -s 3 | FileCheck %s --check-prefix=CHECK-SIM
+// RUN: magic-runner --file %t.txt --device %S/Inputs/device-2x3-500ns.mlir --probabilities --keep-garbage-bits | FileCheck %s --check-prefix=CHECK-ALL-BITS
 
 // The exporter on a program that is already magic IR. The driver completes it: the unmeasured ion 5 is measured and
 // recorded as garbage, the ions 2, 5, 7 become 0, 1, 2, and trap 1 waits before the shuttle as long as trap 0 did.

@@ -1,7 +1,7 @@
 // RUN: qcc %s --quantum-device=magic --device-description=%S/Inputs/device-2x3.mlir --compile-to=mlir | FileCheck %s --check-prefix=CHECK-MLIR
 // RUN: qcc %s --quantum-device=magic --device-description=%S/Inputs/device-2x3.mlir --compile-to=custom-magic -o %t.txt
 // RUN: FileCheck %s --check-prefix=CHECK-TXT < %t.txt
-// RUN: %if magic-runner %{ magic-runner --file %t.txt --device %S/Inputs/device-2x3.mlir --probabilities | FileCheck %s --check-prefix=CHECK-SIM %}
+// RUN: magic-runner --file %t.txt --device %S/Inputs/device-2x3.mlir --probabilities | FileCheck %s --check-prefix=CHECK-SIM
 
 // GENERATED FROM QRISP VERSION 0.9.6
 

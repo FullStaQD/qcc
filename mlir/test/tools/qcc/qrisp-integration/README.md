@@ -4,10 +4,10 @@ End-to-end tests that start from a [Qrisp](https://qrisp.eu/) program: the progr
 dialect once, checked in, and compiled by `qcc` in the test. Where a simulator is available the compiled program is
 also run.
 
-| Folder   | Compiled for                                  | Simulator      |
-| -------- | --------------------------------------------- | -------------- |
-| `qir/`   | QIR (and HiSEP-Q QISA in builds that have it) | `qir-runner`   |
-| `magic/` | a MAGIC device (`--quantum-device=magic`)     | `magic-runner` |
+| Folder   | Compiled for                              | Simulator      |
+| -------- | ----------------------------------------- | -------------- |
+| `qir/`   | QIR                                       | `qir-runner`   |
+| `magic/` | a MAGIC device (`--quantum-device=magic`) | `magic-runner` |
 
 Each test consists of the Qrisp source `<name>.py` and the test `<name>.mlir` generated from it.
 
@@ -78,7 +78,7 @@ distribution instead. Bits that are no result of the program (the device measure
 `magic-measure-and-record-garbage`) are dropped unless `--keep-garbage-bits` is given.
 
 The script installs its dependency (numpy) on the first run and needs `uv`. In the tests it is available as
-`magic-runner` behind the lit feature of the same name: `%if magic-runner %{ magic-runner ... %}`.
+`magic-runner`; the test suite refuses to run without `uv`.
 
 The text format has a fixed header. Its `include` line names a file of the device vendor's tooling; that name is
 part of the format and the only place where it appears.
