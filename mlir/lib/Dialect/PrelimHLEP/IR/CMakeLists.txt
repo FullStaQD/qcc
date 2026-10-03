@@ -1,0 +1,22 @@
+add_mlir_dialect_library(
+  QCCPrelimHLEPDialect
+  PrelimHLEPDialect.cpp
+  LinearityChecker.cpp
+  DEPENDS
+  QCCPrelimHLEPDialectIncGen
+  QCCPrelimHLEPTypesIncGen
+  QCCPrelimHLEPAttrsIncGen
+  QCCPrelimHLEPOpsIncGen
+  LINK_LIBS
+  PRIVATE
+  MLIRIR
+  MLIRSupport
+  MLIRInferTypeOpInterface
+  MLIRSideEffectInterfaces
+  MLIRFunctionInterfaces
+  MLIRControlFlowInterfaces
+  PUBLIC
+  MLIRArithDialect
+  MLIRComplexDialect
+  MLIRFuncDialect
+  MLIRSCFDialect)
