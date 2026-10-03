@@ -1,4 +1,7 @@
 // RUN: qcc-opt %s --pass-pipeline='builtin.module(inline,func.func(tmp-raise-scf-to-affine,affine-loop-unroll{unroll-factor=-1 unroll-full-threshold=1000},affine-loop-unroll{unroll-factor=-1 unroll-num-reps=10}),canonicalize,prelim-hlep-lin-to-gates,prelim-hlep-to-qco,canonicalize)' | FileCheck %s
+// Merging `lin` ops first and peeling the merged bodies apart again yields
+// the same circuit.
+// RUN: qcc-opt %s --pass-pipeline='builtin.module(inline,func.func(tmp-raise-scf-to-affine,affine-loop-unroll{unroll-factor=-1 unroll-full-threshold=1000},affine-loop-unroll{unroll-factor=-1 unroll-num-reps=10}),canonicalize,prelim-hlep-merge-lin,prelim-hlep-lin-to-gates,prelim-hlep-to-qco,canonicalize)' | FileCheck %s
 
 // End-to-end lowering of the Grover program from
 // prelim-hlep-advanced-test.mlir. Compared to that file, the helpers are
@@ -243,7 +246,8 @@ func.func @main(%u : !prelimhlep.unit) -> i4 attributes { prelimhlep.halo } {
 
 // CHECK-LABEL: func.func @main() -> i4
 
-// State preparation: four qubits in |0>, each with a Hadamard.
+// State preparation: four qubits in |0>, each with a Hadamard. The two RUN
+// lines interleave the allocations and the Hadamards differently.
 // CHECK-DAG:     qco.alloc
 // CHECK-DAG:     qco.alloc
 // CHECK-DAG:     qco.alloc

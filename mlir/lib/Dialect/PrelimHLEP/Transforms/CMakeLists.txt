@@ -1,5 +1,6 @@
 add_mlir_dialect_library(
   QCCPrelimHLEPTransforms
+  LinMerge.cpp
   LinToGates.cpp
   DEPENDS
   QCCPrelimHLEPTransformsIncGen

@@ -291,6 +291,43 @@ LogicalResult BaseChangeOp::verify() {
   return success();
 }
 
+/// A base change to the type it already has does nothing, and a base change
+/// that undoes the one feeding it returns the original value.
+OpFoldResult BaseChangeOp::fold(FoldAdaptor /*adaptor*/) {
+  if (getInput().getType() == getResult().getType()) {
+    return getInput();
+  }
+  if (auto producer = getInput().getDefiningOp<BaseChangeOp>()) {
+    if (producer.getInput().getType() == getResult().getType()) {
+      return producer.getInput();
+    }
+  }
+  return {};
+}
+
+namespace {
+
+/// Merges a chain of base changes into a single one:
+///   base_change(base_change(%x : A -> B) : B -> C)  ->  base_change(%x : A -> C)
+struct MergeBaseChangeChain final : OpRewritePattern<BaseChangeOp> {
+  using OpRewritePattern::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(BaseChangeOp op, PatternRewriter& rewriter) const override {
+    auto producer = op.getInput().getDefiningOp<BaseChangeOp>();
+    if (!producer) {
+      return failure();
+    }
+    rewriter.replaceOpWithNewOp<BaseChangeOp>(op, op.getResult().getType(), producer.getInput());
+    return success();
+  }
+};
+
+} // namespace
+
+void BaseChangeOp::getCanonicalizationPatterns(RewritePatternSet& results, MLIRContext* context) {
+  results.add<MergeBaseChangeChain>(context);
+}
+
 // Parses `( %operand : type, ... ) (`carrying` ( %operand : type, ... ))?`.
 // The `carrying (...)` group is omitted entirely when there are no
 // auxiliary results, both on parse and on print.
