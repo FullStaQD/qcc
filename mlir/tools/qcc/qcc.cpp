@@ -73,7 +73,7 @@ static void printTargets() {
 /// Prints the quantum devices compiled into this build.
 static void printQuantumDevices() {
   llvm::outs() << "Available quantum devices for --quantum-device:\n";
-  for (const qcc::QuantumDevice& device : qcc::getQuantumDevices()) {
+  for (const qcc::QuantumDeviceKind& device : qcc::getQuantumDeviceKinds()) {
     llvm::outs() << "  " << device.name << " - " << device.description << "\n";
   }
 }
@@ -139,7 +139,7 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  const qcc::QuantumDevice* quantumDevice = qcc::lookupQuantumDevice(quantumDeviceName);
+  const qcc::QuantumDeviceKind* quantumDevice = qcc::lookupQuantumDeviceKind(quantumDeviceName);
   if (quantumDevice == nullptr) {
     llvm::errs() << "error: unknown quantum device '" << quantumDeviceName << "' (see --list-quantum-devices)\n";
     return 1;

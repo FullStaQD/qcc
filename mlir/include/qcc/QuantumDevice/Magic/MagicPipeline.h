@@ -17,8 +17,8 @@
 
 namespace qcc {
 
-/// `QuantumDevice::addLoweringPasses` for MAGIC devices: from QC to verified magic IR with native ops only, ready for
-/// `magic::exportProgram`. Expects the module to carry a `#magic.device` as `qcc.device`.
+/// `QuantumDeviceKind::addLoweringPasses` for MAGIC devices: from QC to verified magic IR with native ops only, ready
+/// for `magic::exportProgram`. Expects the module to carry a `#magic.device` as `qcc.device`.
 void addLoweringPassesMagic(mlir::PassManager& pm);
 
 } // namespace qcc

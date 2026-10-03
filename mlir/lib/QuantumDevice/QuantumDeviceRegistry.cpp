@@ -16,8 +16,8 @@
 
 namespace qcc {
 
-llvm::ArrayRef<QuantumDevice> getQuantumDevices() {
-  static const std::vector<QuantumDevice> devices = {
+llvm::ArrayRef<QuantumDeviceKind> getQuantumDeviceKinds() {
+  static const std::vector<QuantumDeviceKind> devices = {
       {
           .name = noQuantumDeviceName,
           .description = "No quantum device: no device-specific lowering",
@@ -34,8 +34,8 @@ llvm::ArrayRef<QuantumDevice> getQuantumDevices() {
   return devices;
 }
 
-const QuantumDevice* lookupQuantumDevice(llvm::StringRef name) {
-  for (const QuantumDevice& device : getQuantumDevices()) {
+const QuantumDeviceKind* lookupQuantumDeviceKind(llvm::StringRef name) {
+  for (const QuantumDeviceKind& device : getQuantumDeviceKinds()) {
     if (device.name == name) {
       return &device;
     }

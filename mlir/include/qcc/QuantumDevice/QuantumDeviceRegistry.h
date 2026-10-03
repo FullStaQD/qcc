@@ -26,7 +26,11 @@ namespace qcc {
 // lowered for.
 
 /// Describes a kind of quantum device selectable via `qcc --quantum-device=<name>`.
-struct QuantumDevice {
+///
+/// TODO: Our naming conventions are not ideal. On the commandline we just call it "quantum device". We also have
+/// "MagicDevice" which is not exactly a quantum device but a concrete instance. "quantum target" could be another
+/// option but we might want to rename the --target to --control-target then.
+struct QuantumDeviceKind {
   /// The `--quantum-device` value, e.g. "magic".
   llvm::StringRef name;
   /// Human-readable description.
@@ -42,10 +46,10 @@ struct QuantumDevice {
 inline constexpr llvm::StringLiteral noQuantumDeviceName = "none";
 
 /// Returns the quantum devices compiled into this build.
-llvm::ArrayRef<QuantumDevice> getQuantumDevices();
+llvm::ArrayRef<QuantumDeviceKind> getQuantumDeviceKinds();
 
 /// Looks up a quantum device by its name (as expected by `--quantum-device`), or returns nullptr if no device with
 /// that name is known.
-const QuantumDevice* lookupQuantumDevice(llvm::StringRef name);
+const QuantumDeviceKind* lookupQuantumDeviceKind(llvm::StringRef name);
 
 } // namespace qcc

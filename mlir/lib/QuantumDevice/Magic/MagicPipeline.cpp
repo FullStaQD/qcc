@@ -28,7 +28,7 @@ void addLoweringPassesMagic(mlir::PassManager& pm) {
   pm.addPass(qcc::createAuxOutputRecording());
   pm.addPass(qcc::createAuxUnpackRecordInt());
 
-  // qc -> qco -> qvec
+  // qc -> qvec
   pm.addPass(mlir::createQCToQCO());
   pm.addPass(qcc::createConvertQCOToQVec());
 

@@ -33,7 +33,7 @@ static void addLoweringQrisp(mlir::PassManager& pm);
 namespace qcc {
 
 void buildPipeline(mlir::PassManager& pm, const Target* target, const TargetOptions& targetOptions,
-                   const QuantumDevice* quantumDevice, llvm::StringRef deviceDescription) {
+                   const QuantumDeviceKind* quantumDevice, llvm::StringRef deviceDescription) {
   if (!deviceDescription.empty()) {
     QccAttachDeviceOptions attachOptions;
     attachOptions.file = deviceDescription.str();
