@@ -101,7 +101,7 @@ builtin.module @jasp_module {
 // CHECK-TXT-NEXT: //     occupancies (2, 2),
 // CHECK-TXT-NEXT: //     ion-bit map [0, 1, 2, 3],
 // CHECK-TXT-NEXT: //     unused_qubits ().
-// CHECK-TXT-NEXT: // Result bits of the program: the first 4 of c, the remaining bits are garbage.
+// CHECK-TXT-NEXT: // qcc: result_bits = 4
 // CHECK-TXT-EMPTY:
 // CHECK-TXT-NEXT: creg c[4];
 // CHECK-TXT-NEXT: qreg q[4];

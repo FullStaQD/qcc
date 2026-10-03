@@ -1,19 +1,19 @@
 // RUN: split-file --leading-lines %s %t
-// RUN: not qcc %t/no-program.mlir --quantum-device=magic --device-description=%S/Inputs/device-2x3-500ns.mlir --compile-to=custom-magic 2>&1 | FileCheck %t/no-program.mlir
-// RUN: not qcc %t/two-programs.mlir --quantum-device=magic --device-description=%S/Inputs/device-2x3-500ns.mlir --compile-to=custom-magic 2>&1 | FileCheck %t/two-programs.mlir
+// RUN: not qcc %t/no-init.mlir --quantum-device=magic --device-description=%S/Inputs/device-2x3-500ns.mlir --compile-to=custom-magic 2>&1 | FileCheck %t/no-init.mlir
+// RUN: not qcc %t/two-entry-points.mlir --quantum-device=magic --device-description=%S/Inputs/device-2x3-500ns.mlir --compile-to=custom-magic 2>&1 | FileCheck %t/two-entry-points.mlir
 // RUN: not qcc %t/foreign-op.mlir --quantum-device=magic --device-description=%S/Inputs/device-2x3-500ns.mlir --compile-to=custom-magic 2>&1 | FileCheck %t/foreign-op.mlir
 
 // What the exporter rejects although it is valid, verified magic IR.
 
-//--- no-program.mlir
+//--- no-init.mlir
 
-// CHECK: error: module holds no program to export: expected a function with a 'magic.init'
+// CHECK: error: 'func.func' op cannot be exported: the entry point holds no 'magic.init'
 func.func @main() {
   return
 }
 
 // -----
-//--- two-programs.mlir
+//--- two-entry-points.mlir
 
 !a = !magic.ion_chain<0, [0:1]>
 
@@ -24,9 +24,9 @@ func.func @main() {
   return
 }
 
-func.func @other() {
-  // CHECK: error: 'magic.init' op starts a second program: only a module with a single program can be exported
-  // CHECK: note: the first program starts here
+// CHECK: error: 'func.func' op is a second entry point: only a module with a single entry point can be exported
+// CHECK: note: the first entry point is here
+func.func @other() attributes {qcc.entry_point} {
   %a0 = magic.init : !a
   %m0 = magic.mzd %a0 : !a -> i1
   aux.record_int %m0 : i1

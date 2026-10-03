@@ -9,6 +9,7 @@
 
 #include "qcc/Dialect/Magic/Export/Export.h"
 
+#include "qcc/Constants.h"
 #include "qcc/Dialect/Aux_/IR/Aux_.h"
 #include "qcc/Dialect/Magic/Device/MagicDevice.h"
 #include "qcc/Dialect/Magic/IR/Magic.h"
@@ -47,6 +48,9 @@ namespace qcc::magic {
 /// Header line required by the target format.
 static constexpr llvm::StringLiteral nativeGatesInclude = "include \"qsea_native_gates.inc\";";
 
+/// Start of the header line that tells how many bits of `c` are results of the program, see `exportProgram`.
+static constexpr llvm::StringLiteral resultBitsDirective = "// qcc: result_bits = ";
+
 /// `value` as a plain decimal: the shortest one that reads back as the same value, never in scientific notation.
 static std::string toDecimal(double value) {
   // Long enough for every double in fixed notation.
@@ -71,28 +75,31 @@ public:
     if (failed(readInitialOccupancies())) {
       return failure();
     }
+
     for (Operation& op : *init->getBlock()) {
       if (failed(exportOp(&op))) {
         return failure();
       }
     }
+
     if (failed(checkAllRecorded())) {
       return failure();
     }
 
     printHeader(os);
     os << bodyText;
+
     for (int64_t ion = 0; ion < numIons(); ++ion) {
       os << "c[" << bitOfIon[ion] << "] = measure " << toQubit(ion) << ";\n";
     }
+
     return success();
   }
 
 private:
   [[nodiscard]] int64_t numIons() const { return std::ssize(bitOfIon); }
 
-  /// The ions each trap holds initially. The format has no ion ids of its own: ion `i` is the `i`-th qubit, counted
-  /// trap by trap.
+  /// The format has no ion ids of its own: ion `i` is the `i`-th qubit, counted trap by trap.
   LogicalResult readInitialOccupancies() {
     occupancies.assign(device.numTraps(), 0);
     int64_t expected = 0;
@@ -262,7 +269,7 @@ private:
     os << "),\n//     ion-bit map [";
     llvm::interleaveComma(bitOfIon, os);
     os << "],\n//     unused_qubits ().\n";
-    os << "// Result bits of the program: the first " << numProgramBits << " of c, the remaining bits are garbage.\n\n";
+    os << resultBitsDirective << numProgramBits << "\n\n";
     os << "creg c[" << numIons() << "];\n";
     os << "qreg q[" << numIons() << "];\n";
   }
@@ -280,32 +287,43 @@ private:
   /// The records without `magic.garbage_result`. They come first.
   int64_t numProgramBits = 0;
 
+  /// A string buffer to write the main part of the program to. We write to with via `body`. We need it because the
+  /// header must be written first but contains info only known later in the walk through the IR. We also need it to
+  /// guarantee that nothing is written out on error.
   std::string bodyText;
+  /// See `bodyText`.
   llvm::raw_string_ostream body;
 };
 
 } // namespace
 
 LogicalResult exportProgram(ModuleOp module, raw_ostream& os) {
-  // A program is a function with a `magic.init`.
-  InitOp init;
-  bool unique = true;
-  module.walk([&](InitOp op) {
-    if (!init) {
-      init = op;
-      return;
+  // The entry_point holds the program. Any other function is dead code, since the format has no calls.
+  func::FuncOp entryPoint;
+  for (func::FuncOp function : module.getOps<func::FuncOp>()) {
+    if (!function->hasAttr(entryPointAttrName)) {
+      continue;
     }
-    op.emitOpError()
-        .append("starts a second program: only a module with a single program can be exported")
-        .attachNote(init.getLoc())
-        .append("the first program starts here");
-    unique = false;
-  });
-  if (!unique) {
-    return failure();
+    if (entryPoint) {
+      return function.emitOpError()
+          .append("is a second entry point: only a module with a single entry point can be exported")
+          .attachNote(entryPoint.getLoc())
+          .append("the first entry point is here");
+    }
+    entryPoint = function;
   }
+  if (!entryPoint) {
+    return module.emitError() << "module holds no program to export: expected a function with '" << entryPointAttrName
+                              << "'";
+  }
+
+  InitOp init;
+  entryPoint.walk([&](InitOp op) {
+    init = op;
+    return WalkResult::interrupt();
+  });
   if (!init) {
-    return module.emitError() << "module holds no program to export: expected a function with a 'magic.init'";
+    return entryPoint.emitOpError() << "cannot be exported: the entry point holds no 'magic.init'";
   }
 
   const FailureOr<MagicDevice> device = MagicDevice::fromModule(module);

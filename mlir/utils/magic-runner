@@ -194,7 +194,7 @@ def parse_program(text):
         ),
         num_result_bits=int(
             header(
-                r"// Result bits of the program: the first (\d+) of c",
+                r"// qcc: result_bits = (\d+)",
                 "number of result bits",
             )
         ),

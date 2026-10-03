@@ -36,7 +36,7 @@ func.func @main() {
 // CHECK-TXT-NEXT: //     occupancies (0, 2),
 // CHECK-TXT-NEXT: //     ion-bit map [0, 1],
 // CHECK-TXT-NEXT: //     unused_qubits ().
-// CHECK-TXT-NEXT: // Result bits of the program: the first 1 of c, the remaining bits are garbage.
+// CHECK-TXT-NEXT: // qcc: result_bits = 1
 // CHECK-TXT-EMPTY:
 // CHECK-TXT-NEXT: creg c[2];
 // CHECK-TXT-NEXT: qreg q[2];

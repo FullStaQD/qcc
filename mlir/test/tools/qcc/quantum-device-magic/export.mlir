@@ -23,6 +23,14 @@ func.func @main() {
   return
 }
 
+// Only the entry point is exported. Any other function is ignored.
+func.func @unused() {
+  %b0 = magic.init : !b
+  %m7 = magic.mzd %b0 : !b -> i1
+  aux.record_int %m7 : i1
+  return
+}
+
 // The header: the traps of the device, the ions each trap holds initially, and for every ion the bit it is measured
 // into. The garbage bits come last.
 // CHECK:      OPENQASM 3.0;
@@ -33,7 +41,7 @@ func.func @main() {
 // CHECK-NEXT: //     occupancies (2, 1),
 // CHECK-NEXT: //     ion-bit map [1, 2, 0],
 // CHECK-NEXT: //     unused_qubits ().
-// CHECK-NEXT: // Result bits of the program: the first 2 of c, the remaining bits are garbage.
+// CHECK-NEXT: // qcc: result_bits = 2
 // CHECK-EMPTY:
 // CHECK-NEXT: creg c[3];
 // CHECK-NEXT: qreg q[3];
