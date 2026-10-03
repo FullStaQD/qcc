@@ -9,10 +9,13 @@ add_mlir_dialect_library(
   QCCMagicAttrsIncGen
   QCCMagicTypesIncGen
   QCCMagicOpsIncGen
+  QCCAuxDialectIncGen
+  QCCAuxOpsIncGen
   LINK_LIBS
   PRIVATE
   MLIRIR
   MLIRSupport
   MLIRSideEffectInterfaces
   MLIRFuncDialect
+  QCCAuxDialect
   QCCQccDialect)

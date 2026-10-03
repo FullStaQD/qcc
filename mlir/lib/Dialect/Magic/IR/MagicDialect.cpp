@@ -7,10 +7,14 @@
 //
 // ===----------------------------------------------------------------------===//
 
+#include "qcc/Dialect/Aux_/IR/Aux_.h"
 #include "qcc/Dialect/Magic/IR/Magic.h"
 
+#include "mlir/IR/Attributes.h"
+#include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/DialectImplementation.h" // IWYU pragma: keep
 #include "mlir/IR/OpImplementation.h"
+#include "mlir/IR/Operation.h"
 
 #include "llvm/ADT/TypeSwitch.h"      // IWYU pragma: keep
 #include "llvm/Support/raw_ostream.h" // IWYU pragma: keep
@@ -60,4 +64,20 @@ void MagicDialect::initialize() {
       >();
 
   addInterfaces<MagicOpAsmDialectInterface>();
+}
+
+LogicalResult MagicDialect::verifyOperationAttribute(Operation* op, NamedAttribute attr) {
+  const StringRef name = attr.getName().getValue();
+
+  if (name == GarbageResultAttrHelper::getNameStr()) {
+    if (!isa<qcc::aux::RecordIntOp>(op)) {
+      return op->emitOpError() << "attribute '" << name << "' is only valid on 'aux.record_int'";
+    }
+    if (!isa<UnitAttr>(attr.getValue())) {
+      return op->emitOpError() << "attribute '" << name << "' must be a unit attribute, got " << attr.getValue();
+    }
+    return success();
+  }
+
+  return success();
 }

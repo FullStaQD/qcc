@@ -53,6 +53,7 @@ public:
     });
     if (firstInit) {
       verifyMeasurements();
+      verifyGarbageRecords();
       verifyTiming();
     }
     return success(valid);
@@ -97,6 +98,28 @@ private:
                             << " recorded by at most one 'aux.record_int' and used nowhere else";
           valid = false;
         }
+      }
+    });
+  }
+
+  /// The garbage records come last, so that the results of the program are the leading bits of the output.
+  void verifyGarbageRecords() {
+    const MagicDialect::GarbageResultAttrHelper garbageResult(function.getContext());
+    aux::RecordIntOp firstGarbage;
+    function.walk([&](aux::RecordIntOp record) {
+      if (garbageResult.isAttrPresent(record)) {
+        if (!firstGarbage) {
+          firstGarbage = record;
+        }
+        return;
+      }
+      if (firstGarbage) {
+        record.emitOpError()
+            .append("records a result of the program after a garbage result: the records marked '",
+                    MagicDialect::GarbageResultAttrHelper::getNameStr(), "' come last")
+            .attachNote(firstGarbage.getLoc())
+            .append("the first garbage result is recorded here");
+        valid = false;
       }
     });
   }

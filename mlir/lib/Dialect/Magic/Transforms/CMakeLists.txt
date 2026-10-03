@@ -1,8 +1,10 @@
 add_mlir_dialect_library(
   QCCMagicTransforms
   CompileActiveZZTrivially.cpp
+  CompactIonIds.cpp
   CompileSwap.cpp
   FinalizeZXZ.cpp
+  MeasureAndRecordGarbage.cpp
   PadTiming.cpp
   ShuttleInterTrapZZ.cpp
   Timing.cpp

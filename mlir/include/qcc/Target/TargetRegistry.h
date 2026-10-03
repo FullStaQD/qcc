@@ -56,11 +56,16 @@ struct Target {
   /// the target has no native backend (e.g. QIR). Returns true on failure.
   std::function<bool(llvm::Module&, llvm::raw_pwrite_stream&, const NativeCodegenOptions&, const TargetOptions&)>
       emitNative;
+  /// Whether the lowering ends in the LLVM dialect.
+  bool lowersToLLVM = false;
   /// Whether `addLoweringPasses` reads the machine parameters in `TargetOptions`.
   /// `qcc` rejects the corresponding flags for a target that does not, rather
   /// than silently ignoring them.
   bool usesMachineOptions = false; // TODO: this option is a workaround, should not exist.
 };
+
+/// A (pseudo) target for when we have no control hardware (QISA) to target.
+inline constexpr llvm::StringLiteral noTargetName = "none";
 
 /// Returns the targets compiled into this build.
 llvm::ArrayRef<Target> getTargets();

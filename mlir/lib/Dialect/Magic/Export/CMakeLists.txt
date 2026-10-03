@@ -1,0 +1,12 @@
+add_mlir_library(
+  QCCMagicExport
+  Export.cpp
+  LINK_LIBS
+  PRIVATE
+  MLIRIR
+  MLIRSupport
+  MLIRFuncDialect
+  QCCAuxDialect
+  QCCMagicDevice
+  QCCMagicDialect
+  QCCQVecTransforms)

@@ -83,6 +83,10 @@ if config.enable_hisepq:
 if shutil.which("ld.lld", path=config.environment["PATH"]) is not None:
     config.available_features.add("lld")
 
+# `magic-runner` is a simulator for MAGIC programs.
+magic_runner = Path(config.project_source_dir) / "mlir" / "utils" / "magic-runner"
+config.substitutions.append((r"\bmagic-runner\b", f'"{sys.executable}" {magic_runner}'))
+
 # If `qir-runner` is not already available in the environment, fall back to
 # running it ephemerally via `uvx`.
 if shutil.which("qir-runner", path=config.environment["PATH"]) is None:

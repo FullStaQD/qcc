@@ -4,6 +4,7 @@ add_mlir_library(
   DEPENDS
   JaspToQCIncGen
   QCCAffineRaiseIncGen
+  QCCQccTransformsIncGen
   LINK_LIBS
   MLIRPass
   MLIRTransforms
@@ -24,5 +25,7 @@ add_mlir_library(
   MLIRBufferizationTransforms
   QCCAffineRaise
   QCCJaspToQC
+  QCCQccTransforms
+  QCCQuantumDevice
   # Extensions/Interfaces
   MLIRTransformUtils)

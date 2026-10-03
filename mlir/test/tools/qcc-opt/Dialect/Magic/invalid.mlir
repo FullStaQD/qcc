@@ -356,3 +356,23 @@ func.func @swap_not_increasing() {
   %c1 = magic.swap %c0 ions [1, 0] : !magic.ion_chain<0, [0:1, 1:1]>
   return
 }
+
+// -----
+
+// The garbage mark.
+
+func.func @garbage_result_on_other_op() {
+  // expected-error @+1 {{'magic.init' op attribute 'magic.garbage_result' is only valid on 'aux.record_int'}}
+  %c0 = magic.init {magic.garbage_result} : !magic.ion_chain<0, [0:1]>
+  return
+}
+
+// -----
+
+func.func @garbage_result_not_a_unit() {
+  %c0 = magic.init : !magic.ion_chain<0, [0:1]>
+  %m0 = magic.mzd %c0 : !magic.ion_chain<0, [0:1]> -> i1
+  // expected-error @+1 {{'aux.record_int' op attribute 'magic.garbage_result' must be a unit attribute, got true}}
+  aux.record_int %m0 {magic.garbage_result = true} : i1
+  return
+}
