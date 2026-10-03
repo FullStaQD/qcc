@@ -36,7 +36,6 @@ builtin.module @jasp_module {
 // CHECK-MLIR:        magic.delay %{{.*}} {ticks = [[TICKS:[0-9]+]] : i64} : !{{.*}}
 // CHECK-MLIR:        magic.delay %{{.*}} {ticks = [[TICKS]] : i64} : ![[T0E]]
 // CHECK-MLIR:        magic.shuttle %{{.*}}, %{{.*}} : ![[T1F]], ![[T0E]] -> ![[T1]], ![[T0]]
-// CHECK-MLIR:        magic.delay
 // CHECK-MLIR-NOT:    magic.{{zxz|active_zz|inter_trap_zz|swap}}
 // CHECK-MLIR:        %[[M0:.*]] = magic.mzd %{{.*}} : ![[T0]] -> i1
 // CHECK-MLIR-NEXT:   %[[M12:.*]]:2 = magic.mzd %{{.*}} : ![[T1]] -> i1, i1
@@ -60,27 +59,16 @@ builtin.module @jasp_module {
 // CHECK-TXT-NEXT: rz({{-?[0-9.]+}}) q[0];
 // CHECK-TXT-NEXT: rx({{-?[0-9.]+}}) q[0];
 // CHECK-TXT-NEXT: rz({{-?[0-9.]+}}) q[0];
-// CHECK-TXT-NEXT: rz({{-?[0-9.]+}}) q[1];
-// CHECK-TXT-NEXT: rx({{-?[0-9.]+}}) q[1];
-// CHECK-TXT-NEXT: rz({{-?[0-9.]+}}) q[1];
-// CHECK-TXT-NEXT: rz({{-?[0-9.]+}}) q[2];
-// CHECK-TXT-NEXT: rx({{-?[0-9.]+}}) q[2];
-// CHECK-TXT-NEXT: rz({{-?[0-9.]+}}) q[2];
-// CHECK-TXT-NEXT: shuttle(0,1) q[0];
+// CHECK-TXT:      shuttle(0,1) q[0];
 // CHECK-TXT-NEXT: recode q[2];
 // CHECK-TXT-NEXT: delay[[[T:[0-9.]+]]us] q[0],q[1],q[2];
 // CHECK-TXT-NEXT: recode q[2];
 // The format has no delay without qubits, so the wait of the empty trap is a comment.
 // CHECK-TXT-NEXT: // delay[[[T]]us] <empty trap 0>
 // CHECK-TXT-NEXT: shuttle(1,0) q[0];
-// CHECK-TXT-NEXT: rz({{-?[0-9.]+}}) q[1];
-// CHECK-TXT-NEXT: rx({{-?[0-9.]+}}) q[1];
-// CHECK-TXT-NEXT: rz({{-?[0-9.]+}}) q[1];
-// CHECK-TXT-NEXT: delay[{{[0-9.]+}}us] q[1],q[2];
-// CHECK-TXT-NEXT: rz({{-?[0-9.]+}}) q[2];
-// CHECK-TXT-NEXT: rx({{-?[0-9.]+}}) q[2];
-// CHECK-TXT-NEXT: rz({{-?[0-9.]+}}) q[2];
-// CHECK-TXT-NEXT: c[0] = measure q[0];
+// The coupling between ions 1 and 2 stays within trap 1 and needs no shuttle.
+// CHECK-TXT:      delay[{{[0-9.]+}}us] q[1],q[2];
+// CHECK-TXT:      c[0] = measure q[0];
 // CHECK-TXT-NEXT: c[1] = measure q[1];
 // CHECK-TXT-NEXT: c[2] = measure q[2];
 // CHECK-TXT-EMPTY:
