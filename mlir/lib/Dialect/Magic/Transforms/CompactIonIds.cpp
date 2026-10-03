@@ -71,11 +71,13 @@ private:
   llvm::DenseMap<int64_t, int64_t> newIds;
 };
 
+} // namespace
+
 /// Renumbers the ions that `op` names outside of its types.
 ///
 /// Every magic op has to be listed here. One that names ions and is not renumbered would silently address another
 /// ion, so an op this pass does not know is an error.
-LogicalResult renumberNamedIons(Operation* op, const IonRenumbering& renumbering) {
+static LogicalResult renumberNamedIons(Operation* op, const IonRenumbering& renumbering) {
   return llvm::TypeSwitch<Operation*, LogicalResult>(op)
       // The ops that name ions in `ions`. The new ids keep the order of the old ones, so sorted lists stay sorted.
       .Case<ZXZOp, RZOp, SymZXZOp, SwapOp, InterTrapZZOp>([&](auto gate) -> LogicalResult {
@@ -93,6 +95,8 @@ LogicalResult renumberNamedIons(Operation* op, const IonRenumbering& renumbering
                                        "names ions outside of its types";
       });
 }
+
+namespace {
 
 struct MagicCompactIonIds final : impl::MagicCompactIonIdsBase<MagicCompactIonIds> {
   using MagicCompactIonIdsBase::MagicCompactIonIdsBase;
