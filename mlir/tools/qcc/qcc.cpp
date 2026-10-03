@@ -94,7 +94,7 @@ int main(int argc, char** argv) {
                                   cl::init(false), cl::cat(qccCategory));
   const cl::opt<std::string> quantumDeviceName(
       "quantum-device",
-      cl::desc("Kind of quantum device to lower the gates for (see --list-quantum-devices). Implies --target=none"),
+      cl::desc("Kind of quantum device to lower for (see --list-quantum-devices). Implies --target=none by default."),
       cl::init(qcc::noQuantumDeviceName.str()), cl::value_desc("name"), cl::cat(qccCategory));
   const cl::opt<bool> listQuantumDevices("list-quantum-devices",
                                          cl::desc("List the available --quantum-device kinds and exit"),
@@ -113,9 +113,7 @@ int main(int argc, char** argv) {
       cl::init(qcc::TargetOptions{}.qubitElementWidth), cl::value_desc("bits"), cl::cat(qccCategory));
   const cl::opt<Stage> compileTo(
       "compile-to", cl::desc("Stage to lower to and emit"), cl::init(Stage::LlvmIr),
-      cl::values(clEnumValN(Stage::Mlir, "mlir",
-                            "MLIR after all lowering (the LLVM dialect, unless --target=none: then the level the "
-                            "quantum device lowering ends at)"),
+      cl::values(clEnumValN(Stage::Mlir, "mlir", "MLIR after all lowering"),
                  clEnumValN(Stage::LlvmIr, "llvmir", "LLVM IR (QIR for the QIR target)"),
                  clEnumValN(Stage::Native, "native", "Native target code (QISA; requires a target with a backend)"),
                  clEnumValN(Stage::CustomMagic, "custom-magic",

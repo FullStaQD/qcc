@@ -56,17 +56,15 @@ struct Target {
   /// the target has no native backend (e.g. QIR). Returns true on failure.
   std::function<bool(llvm::Module&, llvm::raw_pwrite_stream&, const NativeCodegenOptions&, const TargetOptions&)>
       emitNative;
-  /// Whether the lowering ends in the LLVM dialect, so that the module can be translated to LLVM IR. False for a
-  /// target without code generation ("none").
-  bool lowersToLLVM = true;
+  /// Whether the lowering ends in the LLVM dialect.
+  bool lowersToLLVM = false;
   /// Whether `addLoweringPasses` reads the machine parameters in `TargetOptions`.
   /// `qcc` rejects the corresponding flags for a target that does not, rather
   /// than silently ignoring them.
   bool usesMachineOptions = false; // TODO: this option is a workaround, should not exist.
 };
 
-/// The name of the target that stands for "no QISA to compile for": no lowering for control electronics and no code
-/// generation. The module stays at the level the frontend and the quantum device lowering leave it at.
+/// A (pseudo) target for when we have no control hardware (QISA) to target.
 inline constexpr llvm::StringLiteral noTargetName = "none";
 
 /// Returns the targets compiled into this build.

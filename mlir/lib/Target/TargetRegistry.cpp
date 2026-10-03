@@ -25,7 +25,8 @@ llvm::ArrayRef<Target> getTargets() {
       {.name = "qir",
        .description = "QIR (LLVM-based) target",
        .addLoweringPasses = [](mlir::PassManager& pm,
-                               const TargetOptions& /*targetOptions*/) { addLoweringPassesQIR(pm); }},
+                               const TargetOptions& /*targetOptions*/) { addLoweringPassesQIR(pm); },
+       .lowersToLLVM = true},
 #if QCC_ENABLE_HISEPQ
       {.name = "hisepq",
        .description = "HiSEP-Q QISA target (RISC-V based)",
@@ -34,12 +35,12 @@ llvm::ArrayRef<Target> getTargets() {
        .emitNative =
            [](llvm::Module& module, llvm::raw_pwrite_stream& os, const NativeCodegenOptions& options,
               const TargetOptions& targetOptions) { return emitNativeHiSEPQ(module, os, options, targetOptions); },
+       .lowersToLLVM = true,
        .usesMachineOptions = true},
 #endif
       {.name = noTargetName,
        .description = "No QISA: no lowering for control electronics and no code generation",
-       .addLoweringPasses = [](mlir::PassManager& /*pm*/, const TargetOptions& /*targetOptions*/) {},
-       .lowersToLLVM = false},
+       .addLoweringPasses = [](mlir::PassManager& /*pm*/, const TargetOptions& /*targetOptions*/) {}},
   };
 
   return targets;
