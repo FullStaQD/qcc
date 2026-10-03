@@ -42,9 +42,8 @@ def Magic_Dialect : Dialect {
         both have spent the same time when it happens. `magic-pad-timing` establishes this and `magic-verify` checks it.
 
         **Garbage results.** `magic.garbage_result` is a discardable unit attribute on an `aux.record_int`. It marks a
-        recorded bit that is no result of the program: the device reports the measurement of every ion, so the
-        compiler records the ions the program does not (`magic-measure-and-record-garbage`). A consumer of the output
-        drops these bits.
+        recorded bit that is no result of the program (we have to formally measure everything). A consumer of the output
+        may drop these bits.
 
         Example:
         ```mlir

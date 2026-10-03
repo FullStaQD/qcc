@@ -112,18 +112,18 @@ def MagicCompactIonIds : Pass<"magic-compact-ion-ids", "mlir::func::FuncOp"> {
   let summary = "Renumbers the ions to 0..N-1, trap by trap.";
 
   let description = [{
-      Ion ids need not be dense: canonicalization removes a trap whose chain is unused from `magic.init`, and the ids
-      of the remaining ions stay as they are. This pass renumbers the ions in the order `magic.init` lists them, i.e.
-      trap by trap and front to back, so that a program with `N` ions uses the ids `0..N-1`. It rewrites the chain
-      types and the `ions` lists of all ops. The order of the ids is preserved.
-
-      Trap ids are not touched: they name the traps of the device.
+      Ion ids need not be dense because canonicalization can remove a chain from `magic.init` if it does not contribute
+      to the observable behavior of the program. This pass renumbers the ions in the order `magic.init` lists them, i.e.
+      trap by trap and front to back, so that a program with `N` ions uses the ids `0..N-1`. It rewrites the chain types
+      and the `ions` lists of all ops. The order of the ids is preserved.
 
       ```mlir
       %b0 = magic.init : !magic.ion_chain<1, [2:1, 5:1]>
       %b1 = magic.rz %b0 ions [5] {angles = [0.5]} : !magic.ion_chain<1, [2:1, 5:1]>
       ```
+
       becomes
+
       ```mlir
       %b0 = magic.init : !magic.ion_chain<1, [0:1, 1:1]>
       %b1 = magic.rz %b0 ions [1] {angles = [0.5]} : !magic.ion_chain<1, [0:1, 1:1]>
