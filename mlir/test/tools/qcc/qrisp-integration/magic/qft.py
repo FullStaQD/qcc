@@ -1,4 +1,4 @@
-import numpy as np
+from math import pi
 from qrisp import QuantumVariable, h, p, cp, measure
 
 def qft():
@@ -16,12 +16,12 @@ def qft():
     # The inverse Fourier transform of |k>: sum_y exp(-2 pi i k y / 2^n) |y>.
     for j in range(n):
         h(qv[j])
-        p(-2 * np.pi * k * 2 ** (n - 1 - j) / 2**n, qv[j])
+        p(-2 * pi * k * 2 ** (n - 1 - j) / 2**n, qv[j])
 
     # The QFT itself.
     for i in range(n):
         h(qv[i])
         for j in range(i + 1, n):
-            cp(np.pi / 2 ** (j - i), qv[j], qv[i])
+            cp(pi / 2 ** (j - i), qv[j], qv[i])
 
     return measure(qv)
