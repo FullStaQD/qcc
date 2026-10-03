@@ -83,8 +83,7 @@ if config.enable_hisepq:
 if shutil.which("ld.lld", path=config.environment["PATH"]) is not None:
     config.available_features.add("lld")
 
-# `magic-runner` (a simulator for MAGIC programs, see `mlir/utils/magic-runner`) is a Python script without
-# dependencies, so the interpreter that runs lit runs it too.
+# `magic-runner` is a simulator for MAGIC programs.
 magic_runner = Path(config.project_source_dir) / "mlir" / "utils" / "magic-runner"
 config.substitutions.append((r"\bmagic-runner\b", f'"{sys.executable}" {magic_runner}'))
 

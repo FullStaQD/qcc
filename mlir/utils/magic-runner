@@ -10,30 +10,20 @@
 #  ===----------------------------------------------------------------------===//
 
 """
-Simulate a program for a MAGIC device, as written by
-``qcc --quantum-device=magic --compile-to=custom-magic``.
+Simulate a program for a MAGIC device, as written by ``qcc --quantum-device=magic --compile-to=custom-magic``.
 
 Usage::
 
     ./magic-runner --file program.txt --device device.mlir -s 5
 
-The interface and the output follow ``qir-runner`` where they overlap: every
-shot prints a ``START`` ... ``END 0`` block with one ``OUTPUT INT <n>`` line.
-Bit ``j`` of ``n`` is the classical bit ``c[j]``. The garbage bits the header
-of the program announces are dropped unless ``--keep-garbage-bits`` is given.
-``--probabilities`` prints the exact distribution of ``n`` instead of shots.
+The interface and the output follow ``qir-runner`` where they overlap. The garbage bits the header of the program
+announces are dropped unless ``--keep-garbage-bits`` is given. ``--probabilities`` prints the exact distribution instead
+of shots.
 
-The device file supplies what the program text does not: the coupling matrices
-(and the capacities, which are checked against the header). The simulator
-implements the convention of the compiler (see the ``magic.delay`` op): a delay
-of ``t`` seconds applies ``exp(-i t/4 sum_{i != j} J_ij Z_i Z_j)`` over the
-active ions of the trap, with ``J`` the coupling matrix for the number of ions
-present in the trap. So it checks the compiler against itself, not against the
-hardware.
+The device file supplies the coupling matrices.
 
-The script needs Python 3.10 or newer and nothing else. It does without numpy
-on purpose: up to about 10 ions, importing numpy takes longer than the whole
-run.
+The script needs Python 3.10 or newer and nothing else. It does without numpy on purpose: up to about 10 ions, importing
+numpy takes longer than the whole run.
 """
 
 import argparse
@@ -169,7 +159,7 @@ class Machine:
 _NUMBER = r"-?\d+(?:\.\d+)?"
 _ION = r"q\[\d+\]"
 # The statements of a program, as `qcc` writes them, and the method that executes each: its arguments are the numbers
-# of the statement, in the order they appear. Nothing executes a declaration.
+# of the statement, in the order they appear.
 _STATEMENTS = [
     (rf"rz\({_NUMBER}\) {_ION}", Machine.rz),
     (rf"rx\({_NUMBER}\) {_ION}", Machine.rx),
