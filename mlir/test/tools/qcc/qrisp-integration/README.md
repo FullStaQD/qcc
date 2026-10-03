@@ -51,7 +51,7 @@ A MAGIC program is a fixed sequence of gates followed by the measurement of all 
 - has no control flow that depends on a measurement or is only known at run time, and no reset,
 - should have a (nearly) deterministic outcome, so that the simulation can be checked.
 
-The tests simulate the compiled program with `mlir/utils/magic-runner` (see its `--help`), which needs `uv`.
+The tests simulate the compiled program with `mlir/utils/magic-runner` (see its `--help`).
 
 ## Performance considerations for simulation
 

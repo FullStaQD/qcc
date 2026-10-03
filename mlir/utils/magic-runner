@@ -1,4 +1,4 @@
-#!/usr/bin/env -S uv run --script --quiet
+#!/usr/bin/env python3
 
 #  ===----------------------------------------------------------------------===//
 #
@@ -8,12 +8,6 @@
 #  SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #
 #  ===----------------------------------------------------------------------===//
-
-# /// script
-# dependencies = [
-#   "numpy",
-# ]
-# ///
 
 """
 Simulate a program for a MAGIC device, as written by
@@ -36,416 +30,251 @@ of ``t`` seconds applies ``exp(-i t/4 sum_{i != j} J_ij Z_i Z_j)`` over the
 active ions of the trap, with ``J`` the coupling matrix for the number of ions
 present in the trap. So it checks the compiler against itself, not against the
 hardware.
+
+The script needs Python 3.10 or newer and nothing else. It does without numpy
+on purpose: up to about 10 ions, importing numpy takes longer than the whole
+run.
 """
 
 import argparse
 import ast
+import cmath
+import itertools
+import math
+import random
 import re
 import sys
-from dataclasses import dataclass, field
-
-import numpy as np
-
-# -----------------------------------------------------------------------------
-# Device file
-# -----------------------------------------------------------------------------
-
-
-@dataclass
-class Trap:
-    capacity: int
-    # couplings[n - 1] is the n x n matrix for n ions present.
-    couplings: list
 
 
 class RunnerError(Exception):
     pass
 
 
-def _strip_comments(text):
-    return re.sub(r"//[^\n]*", "", text)
-
-
-def _read_attribute(text, start):
-    """Return the attribute that starts at ``start``: a name with an optional
-    ``<...>`` body, which may nest."""
-    match = re.compile(r"#[\w$.]+").match(text, start)
-    if match is None:
-        raise RunnerError("device file: expected an attribute")
-    end = match.end()
-    if end < len(text) and text[end] == "<":
-        depth = 0
-        for end in range(end, len(text)):
-            depth += {"<": 1, ">": -1}.get(text[end], 0)
-            if depth == 0:
-                break
-        else:
-            raise RunnerError("device file: unbalanced '<'")
+def _attribute(text, start):
+    """Return the attribute that starts at ``start``: a name with an optional ``<...>`` body, which may nest."""
+    end = re.compile(r"#[\w$.]+").match(text, start).end()
+    depth = 0
+    while end < len(text) and (depth or text[end] == "<"):
+        depth += {"<": 1, ">": -1}.get(text[end], 0)
         end += 1
     return text[start:end]
 
 
 def parse_device(text):
-    """Read the traps of the ``#magic.device`` in a device file.
+    """Return the traps of the ``#magic.device`` in a device file.
 
-    Only the syntax ``qcc`` and the device files of the tests use is
-    understood: attribute aliases and the ``struct`` syntax of ``#magic.device``
-    and ``#magic.trap``.
+    A trap is the list of its coupling matrices: ``trap[n - 1]`` is the matrix for ``n`` ions present, so ``len(trap)``
+    is the capacity of the trap.
+
+    Only the syntax ``qcc`` and the device files of the tests use is understood: attribute aliases and the ``struct``
+    syntax of ``#magic.device`` and ``#magic.trap``.
     """
-    text = _strip_comments(text)
+    text = re.sub(r"//.*", "", text)
 
+    # An alias is defined before it is used, so its value is expanded once and for all.
     aliases = {}
-    for match in re.finditer(r"^\s*(#[\w$]+)\s*=\s*", text, re.MULTILINE):
-        aliases[match.group(1)] = _read_attribute(text, match.end())
 
-    def resolve(attribute):
-        # Aliases may refer to earlier aliases.
-        for _ in range(len(aliases) + 1):
-            expanded = re.sub(
-                r"#[\w$]+(?![\w$.])",
-                lambda m: aliases.get(m.group(0), m.group(0)),
-                attribute,
-            )
-            if expanded == attribute:
-                break
-            attribute = expanded
-        return attribute
+    def expand(attribute):
+        return re.sub(r"#[\w$.]+", lambda name: aliases.get(name[0], name[0]), attribute)
 
-    match = re.search(r"qcc\.device\s*=\s*", text)
-    if match is None:
-        raise RunnerError("device file: no 'qcc.device' attribute")
-    device = resolve(_read_attribute(text, match.end()))
+    for match in re.finditer(r"^\s*(#[\w$]+)\s*=\s*(?=#)", text, re.MULTILINE):
+        aliases[match[1]] = expand(_attribute(text, match.end()))
+
+    match = re.search(r"qcc\.device\s*=\s*(?=#)", text)
+    device = expand(_attribute(text, match.end())) if match else ""
     if not device.startswith("#magic.device<"):
-        raise RunnerError("device file: 'qcc.device' is not a #magic.device")
+        raise RunnerError("device file: no 'qcc.device' that is a #magic.device")
 
     traps = []
-    for match in re.finditer(r"#magic\.trap<", device):
-        trap = _read_attribute(device, match.start())
-        capacity = int(re.search(r"capacity\s*=\s*(\d+)", trap).group(1))
-        couplings = []
-        for dense in re.finditer(
-            r"dense<([^>]*)>\s*:\s*tensor<(\d+)x(\d+)xf64>", trap
-        ):
-            shape = (int(dense.group(2)), int(dense.group(3)))
-            values = np.array(ast.literal_eval(dense.group(1)), dtype=float)
-            couplings.append(np.broadcast_to(values, shape))
+    # Traps do not nest, so every piece after the first holds one trap.
+    for trap in device.split("#magic.trap<")[1:]:
+        capacity = int(re.search(r"capacity\s*=\s*(\d+)", trap)[1])
+        # A tensor literal is also a Python literal. The one for a single ion may be a scalar: it is never read.
+        couplings = [ast.literal_eval(dense[1]) for dense in re.finditer(r"dense<([^>]*)>", trap)]
         if len(couplings) != capacity:
             raise RunnerError(
-                f"device file: trap with capacity {capacity} has {len(couplings)} "
-                "coupling matrices"
+                f"device file: trap {len(traps)} has capacity {capacity}, but {len(couplings)} coupling matrices"
             )
-        traps.append(Trap(capacity, couplings))
-    if not traps:
-        raise RunnerError("device file: the device has no traps")
+        traps.append(couplings)
     return traps
 
 
-# -----------------------------------------------------------------------------
-# Program text
-# -----------------------------------------------------------------------------
-
-_NUMBER = r"([-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?)"
-_QUBIT = r"q\[(\d+)\]"
-
-_STATEMENTS = [
-    ("rz", re.compile(rf"rz\({_NUMBER}\)\s*{_QUBIT}")),
-    ("rx", re.compile(rf"rx\({_NUMBER}\)\s*{_QUBIT}")),
-    ("delay", re.compile(rf"delay\[{_NUMBER}us\]\s*((?:{_QUBIT}\s*,?\s*)+)")),
-    ("recode", re.compile(rf"recode\s+{_QUBIT}")),
-    ("shuttle", re.compile(rf"shuttle\((\d+)\s*,\s*(\d+)\)\s*{_QUBIT}")),
-    ("measure", re.compile(rf"c\[(\d+)\]\s*=\s*measure\s+{_QUBIT}")),
-    ("qreg", re.compile(r"qreg\s+q\[(\d+)\]")),
-    ("creg", re.compile(r"creg\s+c\[(\d+)\]")),
-    ("skip", re.compile(r"OPENQASM\s+[\d.]+|include\s+\"[^\"]*\"")),
-]
-
-
-@dataclass
-class Program:
-    capacities: list
-    occupancies: list
-    # Per ion the classical bit its measurement is written to.
-    ion_bit_map: list
-    # The first `num_result_bits` classical bits are results of the program.
-    num_result_bits: int
-    num_ions: int = 0
-    # (kind, groups of the statement's pattern, line number)
-    statements: list = field(default_factory=list)
-
-
-def _int_list(text):
-    return [int(item) for item in text.split(",") if item.strip()]
-
-
-def parse_program(text):
-    def header(pattern, what):
-        match = re.search(pattern, text)
-        if match is None:
-            raise RunnerError(f"program: the header has no {what}")
-        return match.group(1)
-
-    program = Program(
-        capacities=_int_list(header(r"//\s*capacities \(([\d, ]*)\)", "capacities")),
-        occupancies=_int_list(
-            header(r"//\s*occupancies \(([\d, ]*)\)", "occupancies")
-        ),
-        ion_bit_map=_int_list(
-            header(r"//\s*ion-bit map \[([\d, ]*)\]", "ion-bit map")
-        ),
-        num_result_bits=int(
-            header(
-                r"// qcc: result_bits = (\d+)",
-                "number of result bits",
-            )
-        ),
-    )
-
-    for number, line in enumerate(text.splitlines(), start=1):
-        for statement in _strip_comments(line).split(";"):
-            statement = statement.strip()
-            if not statement:
-                continue
-            for kind, pattern in _STATEMENTS:
-                match = pattern.fullmatch(statement)
-                if match is not None:
-                    program.statements.append((kind, match.groups(), number))
-                    break
-            else:
-                raise RunnerError(f"program:{number}: unknown statement '{statement}'")
-
-    sizes = {
-        kind: int(groups[0])
-        for kind, groups, _ in program.statements
-        if kind in ("qreg", "creg")
-    }
-    if "qreg" not in sizes or "creg" not in sizes:
-        raise RunnerError("program: expected a 'qreg' and a 'creg' declaration")
-    program.num_ions = sizes["qreg"]
-    if not (
-        program.num_ions
-        == sizes["creg"]
-        == sum(program.occupancies)
-        == len(program.ion_bit_map)
-    ):
-        raise RunnerError(
-            "program: the registers, the occupancies and the ion-bit map disagree "
-            "on the number of ions"
-        )
-    return program
-
-
-# -----------------------------------------------------------------------------
-# Simulation
-# -----------------------------------------------------------------------------
-
-
 class Machine:
-    """The state of the device: which ions sit where, which are active, and the
-    state vector over all ions (axis ``i`` of the array is ion ``i``)."""
+    """The state of the device: which ions sit where, which are active, and the state vector over all ions (bit ``i``
+    of an index is ion ``i``)."""
 
     def __init__(self, traps, occupancies):
         self.traps = traps
         self.num_ions = sum(occupancies)
         # Per trap the ion ids front to back. Ions are numbered trap by trap.
-        self.chains = []
-        first = 0
-        for occupancy in occupancies:
-            self.chains.append(list(range(first, first + occupancy)))
-            first += occupancy
+        ions = iter(range(self.num_ions))
+        self.chains = [list(itertools.islice(ions, occupancy)) for occupancy in occupancies]
         self.active = [True] * self.num_ions
-        self.state = np.zeros((2,) * self.num_ions, dtype=complex)
-        self.state[(0,) * self.num_ions] = 1.0
+        self.state = [1.0] + [0.0] * (2**self.num_ions - 1)
+        # Per measured ion the classical bit its measurement is written to.
+        self.bit_of_ion = {}
 
-    def _apply(self, gate, ion):
-        state = np.tensordot(gate, self.state, axes=([1], [ion]))
-        self.state = np.moveaxis(state, 0, ion)
+    def _rotate_z(self, angle, *ions):
+        """Apply ``exp(-i angle Z...Z)``, with a ``Z`` on each of ``ions``."""
+        mask = sum(1 << ion for ion in ions)
+        # The product of the Zs is -1 on a basis state where an odd number of the ions is 1.
+        phases = cmath.exp(-1j * angle), cmath.exp(1j * angle)
+        self.state = [amplitude * phases[(index & mask).bit_count() & 1] for index, amplitude in enumerate(self.state)]
 
-    def rz(self, theta, ion):
-        self._apply(np.diag([np.exp(-0.5j * theta), np.exp(0.5j * theta)]), ion)
+    def rz(self, angle, ion):
+        self._rotate_z(angle / 2, ion)
 
-    def rx(self, theta, ion):
-        c, s = np.cos(theta / 2), -1j * np.sin(theta / 2)
-        self._apply(np.array([[c, s], [s, c]]), ion)
+    def rx(self, angle, ion):
+        # rx = cos(angle/2) I - i sin(angle/2) X, where X flips the bit of the ion.
+        c, s, old = math.cos(angle / 2), -1j * math.sin(angle / 2), self.state
+        self.state = [c * amplitude + s * old[index ^ 1 << ion] for index, amplitude in enumerate(old)]
 
-    def _z(self, ion):
-        """The eigenvalues of Z on ``ion``, broadcastable over the state."""
-        shape = [1] * self.num_ions
-        shape[ion] = 2
-        return np.array([1.0, -1.0]).reshape(shape)
-
-    def delay(self, microseconds, ions):
-        trap = next((t for t, chain in enumerate(self.chains) if chain == ions), None)
-        if trap is None:
-            raise RunnerError(
-                f"delay on {ions}: expected all ions of one trap, front to back "
-                f"(the traps hold {self.chains})"
-            )
-        coupling = self.traps[trap].couplings[len(ions) - 1]
-        seconds = microseconds * 1e-6
-        # exp(-i t/4 sum_{i != j} J_ij Z_i Z_j) = exp(-i t/2 sum_{i < j} ...)
-        angle = np.zeros((1,) * self.num_ions)
-        for a, ion_a in enumerate(ions):
-            for b in range(a + 1, len(ions)):
-                ion_b = ions[b]
-                if self.active[ion_a] and self.active[ion_b]:
-                    angle = angle + coupling[a][b] * self._z(ion_a) * self._z(ion_b)
-        self.state = self.state * np.exp(-0.5j * seconds * angle)
+    def delay(self, microseconds, *ions):
+        chain = list(ions)
+        if chain not in self.chains:
+            raise RunnerError(f"expected all ions of one trap, front to back (the traps hold {self.chains})")
+        coupling = self.traps[self.chains.index(chain)][len(chain) - 1]
+        # exp(-i t/4 sum_{i != j} J_ij Z_i Z_j) = prod_{i < j} exp(-i t/2 J_ij Z_i Z_j), with t in seconds.
+        for (i, a), (j, b) in itertools.combinations(enumerate(chain), 2):
+            if self.active[a] and self.active[b]:
+                self._rotate_z(0.5e-6 * microseconds * coupling[i][j], a, b)
 
     def recode(self, ion):
         self.active[ion] = not self.active[ion]
 
     def shuttle(self, source, destination, ion):
         if source == destination or max(source, destination) >= len(self.chains):
-            raise RunnerError(f"shuttle({source},{destination}): no such pair of traps")
-        if not self.chains[source] or self.chains[source][0] != ion:
-            raise RunnerError(
-                f"shuttle({source},{destination}) q[{ion}]: the ion is not at the "
-                f"front of trap {source} (the traps hold {self.chains})"
-            )
-        if len(self.chains[destination]) >= self.traps[destination].capacity:
-            raise RunnerError(
-                f"shuttle({source},{destination}) q[{ion}]: trap {destination} is full"
-            )
-        self.chains[source].pop(0)
-        self.chains[destination].insert(0, ion)
+            raise RunnerError("no such pair of traps")
+        if self.chains[source][:1] != [ion]:
+            raise RunnerError(f"the ion is not at the front of trap {source} (the traps hold {self.chains})")
+        if len(self.chains[destination]) == len(self.traps[destination]):
+            raise RunnerError(f"trap {destination} is full")
+        self.chains[destination].insert(0, self.chains[source].pop(0))
 
-    def probabilities(self):
-        """The probability of every basis state. Ion 0 is the most significant
-        bit of the index."""
-        return (np.abs(self.state) ** 2).reshape(-1)
+    def measure(self, bit, ion):
+        if ion in self.bit_of_ion:
+            raise RunnerError("the ion is measured twice")
+        self.bit_of_ion[ion] = bit
+
+    def distribution(self, num_bits):
+        """Return the probability of every value of the first ``num_bits`` bits of the classical register ``c``
+        (``c[0]`` is the least significant bit)."""
+        distribution = [0.0] * 2**num_bits
+        for index, amplitude in enumerate(self.state):
+            value = sum((index >> ion & 1) << bit for ion, bit in self.bit_of_ion.items())
+            distribution[value % len(distribution)] += abs(amplitude) ** 2
+        return distribution
+
+
+_NUMBER = r"-?\d+(?:\.\d+)?"
+_ION = r"q\[\d+\]"
+# The statements of a program, as `qcc` writes them, and the method that executes each: its arguments are the numbers
+# of the statement, in the order they appear. Nothing executes a declaration.
+_STATEMENTS = [
+    (rf"rz\({_NUMBER}\) {_ION}", Machine.rz),
+    (rf"rx\({_NUMBER}\) {_ION}", Machine.rx),
+    (rf"recode {_ION}", Machine.recode),
+    (rf"delay\[{_NUMBER}us\] {_ION}(?:,{_ION})*", Machine.delay),
+    (rf"shuttle\(\d+,\d+\) {_ION}", Machine.shuttle),
+    (rf"c\[\d+\] = measure {_ION}", Machine.measure),
+    (r'OPENQASM 3\.0|include "[^"]*"|creg c\[\d+\]|qreg q\[\d+\]', None),
+]
+
+
+def _execute(statement, machine):
+    for pattern, method in _STATEMENTS:
+        if re.fullmatch(pattern, statement):
+            break
+    else:
+        raise RunnerError("unknown statement")
+    if method is None:
+        return
+    if machine.bit_of_ion and method is not Machine.measure:
+        raise RunnerError("the measurements come last")
+    if max(map(int, re.findall(r"q\[(\d+)\]", statement))) >= machine.num_ions:
+        raise RunnerError("no such ion")
+    method(machine, *(float(number) if "." in number else int(number) for number in re.findall(_NUMBER, statement)))
+
+
+def _header(program, key):
+    """Return the integers of the header line of the program that starts with ``key``."""
+    match = re.search(rf"^//\s*{key}(.*)", program, re.MULTILINE)
+    if match is None:
+        raise RunnerError(f"program: the header has no '{key}'")
+    return [int(number) for number in re.findall(r"\d+", match[1])]
 
 
 def run(program, traps):
-    """Return the probability of every value of the classical register ``c``,
-    as an array indexed by the value (``c[0]`` is the least significant bit)."""
-    if [trap.capacity for trap in traps] != program.capacities:
-        raise RunnerError(
-            f"the program is compiled for capacities {program.capacities}, the "
-            f"device has {[trap.capacity for trap in traps]}"
-        )
-    if any(o > c for o, c in zip(program.occupancies, program.capacities)):
-        raise RunnerError("program: an occupancy exceeds the capacity of its trap")
+    """Run the program on the device and return the machine it leaves behind."""
+    capacities = _header(program, "capacities")
+    occupancies = _header(program, "occupancies")
+    ion_bit_map = _header(program, "ion-bit map")
+    if capacities != list(map(len, traps)):
+        raise RunnerError(f"the program expects capacities {capacities}, the device has {list(map(len, traps))}")
+    if len(occupancies) != len(capacities) or any(o > c for o, c in zip(occupancies, capacities)):
+        raise RunnerError("program: the occupancies do not fit the capacities")
+    machine = Machine(traps, occupancies)
+    if re.findall(r"^\s*(?:creg c|qreg q)\[(\d+)\];", program, re.MULTILINE) != [str(machine.num_ions)] * 2:
+        raise RunnerError("program: expected a 'creg' and a 'qreg' with one entry per ion")
 
-    machine = Machine(traps, program.occupancies)
-    bit_of_ion = {}
-    for kind, groups, number in program.statements:
+    for number, line in enumerate(program.splitlines(), start=1):
+        statement = line.partition("//")[0].strip("; \t")
         try:
-            if kind in ("skip", "qreg", "creg"):
-                continue
-            if kind == "measure":
-                bit, ion = int(groups[0]), int(groups[1])
-                if ion in bit_of_ion or bit in bit_of_ion.values():
-                    raise RunnerError("an ion or a bit is measured twice")
-                bit_of_ion[ion] = bit
-                continue
-            if bit_of_ion:
-                raise RunnerError("the measurements come last")
-            if kind == "rz":
-                machine.rz(float(groups[0]), int(groups[1]))
-            elif kind == "rx":
-                machine.rx(float(groups[0]), int(groups[1]))
-            elif kind == "delay":
-                ions = [int(ion) for ion in re.findall(_QUBIT, groups[1])]
-                machine.delay(float(groups[0]), ions)
-            elif kind == "recode":
-                machine.recode(int(groups[0]))
-            elif kind == "shuttle":
-                machine.shuttle(int(groups[0]), int(groups[1]), int(groups[2]))
-        except (RunnerError, IndexError) as error:
-            raise RunnerError(f"program:{number}: {error}") from error
+            if statement:
+                _execute(statement, machine)
+        except RunnerError as error:
+            raise RunnerError(f"program:{number}: '{statement}': {error}") from error
 
-    n = machine.num_ions
-    measured = [bit_of_ion.get(ion) for ion in range(n)]
-    if measured != program.ion_bit_map:
-        raise RunnerError(
-            f"program: the measurements {measured} do not match the ion-bit map "
-            f"{program.ion_bit_map} of the header"
-        )
-
-    # Reorder the basis states: the value of c instead of the index over ions.
-    indices = np.array(range(2**n))
-    values = np.zeros_like(indices)
-    for ion in range(n):
-        values |= ((indices >> (n - 1 - ion)) & 1) << measured[ion]
-    distribution = np.zeros(2**n)
-    np.add.at(distribution, values, machine.probabilities())
-    return distribution
+    measured = [machine.bit_of_ion.get(ion) for ion in range(machine.num_ions)]
+    if measured != ion_bit_map:
+        raise RunnerError(f"program: the measurements {measured} differ from the ion-bit map {ion_bit_map}")
+    if sorted(measured) != list(range(machine.num_ions)):
+        raise RunnerError(f"program: the measurements {measured} do not write every bit exactly once")
+    return machine
 
 
-def drop_garbage_bits(distribution, num_result_bits):
-    """Marginalise over the classical bits from ``num_result_bits`` on."""
-    return distribution.reshape(-1, 2**num_result_bits).sum(axis=0)
+def _read(path):
+    if path == "-":
+        return sys.stdin.read()
+    with open(path) as file:
+        return file.read()
 
 
-# -----------------------------------------------------------------------------
-# Command line
-# -----------------------------------------------------------------------------
-
-
-def main(argv):
-    parser = argparse.ArgumentParser(
-        prog="magic-runner",
-        description="Simulate a program compiled by qcc for a MAGIC device.",
-    )
-    parser.add_argument(
-        "-f", "--file", required=True, help="the program ('-' reads standard input)"
-    )
-    parser.add_argument(
-        "-d", "--device", required=True, help="the device file the program is for"
-    )
+def main():
+    parser = argparse.ArgumentParser(description="Simulate a program compiled by qcc for a MAGIC device.")
+    parser.add_argument("-f", "--file", required=True, help="the program ('-' reads standard input)")
+    parser.add_argument("-d", "--device", required=True, help="the device file the program is for")
     parser.add_argument("-s", "--shots", type=int, default=1, help="number of shots")
+    parser.add_argument("-r", "--rngseed", type=int, help="seed of the random numbers")
     parser.add_argument(
-        "-r", "--rngseed", type=int, default=None, help="seed of the random numbers"
+        "--probabilities", action="store_true", help="print the exact distribution of the output instead of shots"
     )
     parser.add_argument(
-        "--probabilities",
-        action="store_true",
-        help="print the exact distribution of the output instead of shots",
+        "--keep-garbage-bits", action="store_true", help="keep the bits that are no results of the program"
     )
-    parser.add_argument(
-        "--keep-garbage-bits",
-        action="store_true",
-        help="keep the bits that are no results of the program",
-    )
-    args = parser.parse_args(argv[1:])
+    args = parser.parse_args()
 
     try:
-        with open(args.device) as device_file:
-            traps = parse_device(device_file.read())
-        if args.file == "-":
-            program = parse_program(sys.stdin.read())
-        else:
-            with open(args.file) as program_file:
-                program = parse_program(program_file.read())
-        distribution = run(program, traps)
+        program = _read(args.file)
+        machine = run(program, parse_device(_read(args.device)))
+        (num_result_bits,) = _header(program, "qcc: result_bits =")
     except (RunnerError, OSError) as error:
-        print(f"magic-runner: error: {error}", file=sys.stderr)
-        return 1
+        sys.exit(f"magic-runner: error: {error}")
 
-    num_results = program.num_ions
-    if not args.keep_garbage_bits:
-        num_results = program.num_result_bits
-        distribution = drop_garbage_bits(distribution, num_results)
-
-    metadata = (
-        f"METADATA\trequired_num_qubits\t{program.num_ions}\n"
-        f"METADATA\trequired_num_results\t{num_results}\n"
-    )
+    num_bits = machine.num_ions if args.keep_garbage_bits else num_result_bits
+    distribution = machine.distribution(num_bits)
+    metadata = f"METADATA\trequired_num_qubits\t{machine.num_ions}\nMETADATA\trequired_num_results\t{num_bits}\n"
     if args.probabilities:
         lines = "".join(
             f"PROBABILITY\tINT\t{value}\t{probability:.6f}\n"
             for value, probability in enumerate(distribution)
             if probability >= 5e-7
         )
-        sys.stdout.write(f"START\n{metadata}{lines}END\t0\n")
-        return 0
-
-    rng = np.random.default_rng(args.rngseed)
-    distribution = distribution / distribution.sum()
-    for value in rng.choice(len(distribution), size=args.shots, p=distribution):
-        sys.stdout.write(f"START\n{metadata}OUTPUT\tINT\t{value}\nEND\t0\n")
-    return 0
+        print(f"START\n{metadata}{lines}END\t0")
+        return
+    for value in random.Random(args.rngseed).choices(range(len(distribution)), distribution, k=args.shots):
+        print(f"START\n{metadata}OUTPUT\tINT\t{value}\nEND\t0")
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv))
+    main()

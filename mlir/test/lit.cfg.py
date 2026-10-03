@@ -83,15 +83,10 @@ if config.enable_hisepq:
 if shutil.which("ld.lld", path=config.environment["PATH"]) is not None:
     config.available_features.add("lld")
 
-# `magic-runner` (a simulator for MAGIC programs, see `mlir/utils/magic-runner`) is a script that `uv` runs; the
-# first run installs numpy.
-if shutil.which("uv", path=config.environment["PATH"]) is None:
-    lit_config.fatal(
-        "Could not find the 'uv' executable, which is required to run 'magic-runner' in some tests. "
-        "Install 'uv' (see README)."
-    )
+# `magic-runner` (a simulator for MAGIC programs, see `mlir/utils/magic-runner`) is a Python script without
+# dependencies, so the interpreter that runs lit runs it too.
 magic_runner = Path(config.project_source_dir) / "mlir" / "utils" / "magic-runner"
-config.substitutions.append((r"\bmagic-runner\b", f"uv run --script --quiet {magic_runner}"))
+config.substitutions.append((r"\bmagic-runner\b", f'"{sys.executable}" {magic_runner}'))
 
 # If `qir-runner` is not already available in the environment, fall back to
 # running it ephemerally via `uvx`.
