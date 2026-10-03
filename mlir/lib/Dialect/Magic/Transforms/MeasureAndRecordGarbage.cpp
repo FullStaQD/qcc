@@ -34,8 +34,7 @@ namespace qcc::magic {
 #define GEN_PASS_DEF_MAGICMEASUREANDRECORDGARBAGE
 #include "qcc/Dialect/Magic/Transforms/Passes.h.inc"
 
-/// Measures every non-empty chain of `block` that no op consumes. The measurements come right after the last magic
-/// op, where every chain value is available.
+/// Measures every chain of `block` that no op consumes. The measurements come right after the last magic op.
 static void measureUnmeasuredChains(Block& block) {
   SmallVector<TypedValue<IonChainType>> unmeasured;
   Operation* lastMagicOp = nullptr;
@@ -67,7 +66,7 @@ static void measureUnmeasuredChains(Block& block) {
 /// Records every measurement result of `block` that has no use, ordered by ion id. The records come at the end of
 /// the block, after all records of the program, and are marked as garbage.
 static void recordUnrecordedResults(Block& block) {
-  SmallVector<std::pair<int64_t, Value>> unrecorded;
+  SmallVector<std::pair<int64_t, Value>> unrecorded; // (ion id, bit of its measurement result)
   for (Operation& op : block) {
     auto mzd = dyn_cast<MZDOp>(op);
     if (!mzd) {
