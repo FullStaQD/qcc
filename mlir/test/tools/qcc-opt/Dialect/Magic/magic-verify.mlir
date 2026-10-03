@@ -67,12 +67,12 @@ func.func @partly_observed() {
 
 !t0 = !magic.ion_chain<0, [0:1, 1:1]>
 
-// Garbage results are recorded last (see `magic-measure-and-record-garbage`).
+// Garbage results are recorded last.
 func.func @garbage_last() {
   %a0 = magic.init : !t0
   %m0, %m1 = magic.mzd %a0 : !t0 -> i1, i1
   aux.record_int %m1 : i1
-  aux.record_int %m0 {magic.garbage_result} : i1
+  aux.record_int %m0 {magic.garbage_result} : i1 // garbage comes after other records.
   return
 }
 
