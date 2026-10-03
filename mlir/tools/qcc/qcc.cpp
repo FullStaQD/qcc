@@ -14,6 +14,7 @@
 #include "qcc/Dialect/Jasp/IR/Jasp.h"
 #include "qcc/Dialect/Magic/IR/Magic.h"
 #include "qcc/Dialect/QVec/IR/QVec.h"
+#include "qcc/QuantumDevice/QuantumDeviceRegistry.h"
 #include "qcc/Target/TargetRegistry.h"
 
 #include "mlir/Bytecode/BytecodeWriter.h"
@@ -58,7 +59,7 @@ static cl::OptionCategory qccCategory("QCC options");
 
 namespace {
 /// The stage to compile to and emit.
-enum class Stage : uint8_t { Mlir, LlvmIr, Native };
+enum class Stage : uint8_t { Mlir, LlvmIr, Native, CustomMagic };
 } // namespace
 
 /// Prints the targets compiled into this build.
@@ -66,6 +67,14 @@ static void printTargets() {
   llvm::outs() << "Available targets for --target:\n";
   for (const qcc::Target& backend : qcc::getTargets()) {
     llvm::outs() << "  " << backend.name << " - " << backend.description << "\n";
+  }
+}
+
+/// Prints the quantum devices compiled into this build.
+static void printQuantumDevices() {
+  llvm::outs() << "Available quantum devices for --quantum-device:\n";
+  for (const qcc::QuantumDevice& device : qcc::getQuantumDevices()) {
+    llvm::outs() << "  " << device.name << " - " << device.description << "\n";
   }
 }
 
@@ -77,10 +86,24 @@ int main(int argc, char** argv) {
   const cl::opt<std::string> inputFilename(cl::Positional, cl::desc("Input-file"), cl::cat(qccCategory));
   const cl::opt<std::string> outputFilename("o", cl::desc("Output-file"), cl::value_desc("filename"), cl::init("-"),
                                             cl::cat(qccCategory));
-  const cl::opt<std::string> targetName("target", cl::desc("Target backend to compile for (see --list-targets)"),
-                                        cl::init("qir"), cl::value_desc("name"), cl::cat(qccCategory));
+  const cl::opt<std::string> targetOption(
+      "target",
+      cl::desc("Target backend to compile for (see --list-targets). Default: qir, or none with a quantum device"),
+      cl::init("qir"), cl::value_desc("name"), cl::cat(qccCategory));
   const cl::opt<bool> listTargets("list-targets", cl::desc("List the available --target backends and exit"),
                                   cl::init(false), cl::cat(qccCategory));
+  const cl::opt<std::string> quantumDeviceName(
+      "quantum-device",
+      cl::desc("Kind of quantum device to lower the gates for (see --list-quantum-devices). Implies --target=none"),
+      cl::init(qcc::noQuantumDeviceName.str()), cl::value_desc("name"), cl::cat(qccCategory));
+  const cl::opt<bool> listQuantumDevices("list-quantum-devices",
+                                         cl::desc("List the available --quantum-device kinds and exit"),
+                                         cl::init(false), cl::cat(qccCategory));
+  const cl::opt<std::string> deviceDescription(
+      "device-description",
+      cl::desc("Device file that describes the quantum device (requires --quantum-device). Not needed if the input "
+               "module already carries a 'qcc.device' attribute"),
+      cl::value_desc("filename"), cl::cat(qccCategory));
   const cl::opt<unsigned> minVLen("min-vlen",
                                   cl::desc("Guaranteed lower bound on VLEN in bits; a power of two, at least 64 "
                                            "(--target=hisepq only)"),
@@ -90,9 +113,13 @@ int main(int argc, char** argv) {
       cl::init(qcc::TargetOptions{}.qubitElementWidth), cl::value_desc("bits"), cl::cat(qccCategory));
   const cl::opt<Stage> compileTo(
       "compile-to", cl::desc("Stage to lower to and emit"), cl::init(Stage::LlvmIr),
-      cl::values(clEnumValN(Stage::Mlir, "mlir", "MLIR in the LLVM dialect"),
+      cl::values(clEnumValN(Stage::Mlir, "mlir",
+                            "MLIR after all lowering (the LLVM dialect, unless --target=none: then the level the "
+                            "quantum device lowering ends at)"),
                  clEnumValN(Stage::LlvmIr, "llvmir", "LLVM IR (QIR for the QIR target)"),
-                 clEnumValN(Stage::Native, "native", "Native target code (QISA; requires a target with a backend)")),
+                 clEnumValN(Stage::Native, "native", "Native target code (QISA; requires a target with a backend)"),
+                 clEnumValN(Stage::CustomMagic, "custom-magic",
+                            "Temporary OpenQASM-like text format for MAGIC devices (requires --quantum-device=magic)")),
       cl::cat(qccCategory));
   const cl::opt<bool> binary("binary", cl::desc("Emit the binary encoding (obj/bytecode/bitcode) instead of text"),
                              cl::init(false), cl::cat(qccCategory));
@@ -104,19 +131,66 @@ int main(int argc, char** argv) {
     return 0;
   }
 
+  if (listQuantumDevices) {
+    printQuantumDevices();
+    return 0;
+  }
+
   if (inputFilename.empty()) {
     llvm::errs() << "error: no input file specified\n";
     return 1;
   }
 
+  const qcc::QuantumDevice* quantumDevice = qcc::lookupQuantumDevice(quantumDeviceName);
+  if (quantumDevice == nullptr) {
+    llvm::errs() << "error: unknown quantum device '" << quantumDeviceName << "' (see --list-quantum-devices)\n";
+    return 1;
+  }
+  const bool hasQuantumDevice = quantumDevice->name != qcc::noQuantumDeviceName;
+
+  // A quantum device is lowered for without a QISA so far, so it implies the target "none".
+  const bool targetGiven = targetOption.getNumOccurrences() > 0;
+  const std::string targetName = (hasQuantumDevice && !targetGiven) ? qcc::noTargetName.str() : targetOption.getValue();
   const qcc::Target* target = qcc::lookupTarget(targetName);
   if (target == nullptr) {
     llvm::errs() << "error: unknown target '" << targetName << "' (see --list-targets)\n";
     return 1;
   }
 
+  if (hasQuantumDevice && target->name != qcc::noTargetName) {
+    llvm::errs() << "error: --quantum-device=" << quantumDeviceName << " and --target=" << targetName
+                 << " are not supported together (use --target=" << qcc::noTargetName << ")\n";
+    return 1;
+  }
+
+  if (!hasQuantumDevice && deviceDescription.getNumOccurrences() > 0) {
+    llvm::errs() << "error: --device-description requires a quantum device (see --quantum-device)\n";
+    return 1;
+  }
+
+  if (compileTo == Stage::CustomMagic && quantumDevice->name != "magic") {
+    llvm::errs() << "error: --compile-to=custom-magic requires --quantum-device=magic\n";
+    return 1;
+  }
+
+  if (compileTo == Stage::CustomMagic && binary) {
+    llvm::errs() << "error: --binary is not supported for --compile-to=custom-magic\n";
+    return 1;
+  }
+
   if (compileTo == Stage::Native && !target->emitNative) {
     llvm::errs() << "error: native output is not supported for --target=" << targetName << "\n";
+    return 1;
+  }
+
+  if (compileTo == Stage::LlvmIr && !target->lowersToLLVM) {
+    // LLVM IR is the default stage, so this is what a run without --compile-to ends in.
+    llvm::errs() << "error: LLVM IR output (--compile-to=llvmir, the default) is not supported for --target="
+                 << targetName << "; choose the stage explicitly: --compile-to=mlir";
+    if (quantumDevice->name == "magic") {
+      llvm::errs() << " or --compile-to=custom-magic";
+    }
+    llvm::errs() << "\n";
     return 1;
   }
 
@@ -180,7 +254,7 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  qcc::buildPipeline(pm, target, targetOptions);
+  qcc::buildPipeline(pm, target, targetOptions, quantumDevice, deviceDescription);
 
   if (mlir::failed(pm.run(*module))) {
     return 1;
@@ -236,6 +310,11 @@ int main(int argc, char** argv) {
     }
     break;
   }
+  case Stage::CustomMagic:
+    if (mlir::failed(quantumDevice->emitProgram(*module, outFile->os()))) {
+      return 1;
+    }
+    break;
   default:
     llvm_unreachable("--compile-to should always have a value (default value if nothing is set explicitly)");
   }

@@ -36,6 +36,10 @@ llvm::ArrayRef<Target> getTargets() {
               const TargetOptions& targetOptions) { return emitNativeHiSEPQ(module, os, options, targetOptions); },
        .usesMachineOptions = true},
 #endif
+      {.name = noTargetName,
+       .description = "No QISA: no lowering for control electronics and no code generation",
+       .addLoweringPasses = [](mlir::PassManager& /*pm*/, const TargetOptions& /*targetOptions*/) {},
+       .lowersToLLVM = false},
   };
 
   return targets;

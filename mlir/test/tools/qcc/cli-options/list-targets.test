@@ -2,4 +2,5 @@
 // RUN: %if hisepq %{ qcc --list-targets | FileCheck %s --check-prefix=CHECK-LIST-HISEPQ %}
 
 // CHECK-LIST: qir
+// CHECK-LIST: none
 // CHECK-LIST-HISEPQ: hisepq

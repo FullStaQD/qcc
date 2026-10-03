@@ -65,6 +65,19 @@ func.func @partly_observed() {
 
 // -----
 
+!t0 = !magic.ion_chain<0, [0:1, 1:1]>
+
+// Garbage results are recorded last (see `magic-measure-and-record-garbage`).
+func.func @garbage_last() {
+  %a0 = magic.init : !t0
+  %m0, %m1 = magic.mzd %a0 : !t0 -> i1, i1
+  aux.record_int %m1 : i1
+  aux.record_int %m0 {magic.garbage_result} : i1
+  return
+}
+
+// -----
+
 // A module without magic code.
 func.func @no_magic() {
   return
@@ -168,5 +181,19 @@ func.func @other_record() {
   %c = arith.constant 7 : i64
   // expected-error @+1 {{records a value that is not a 'magic.mzd' result; a program records its measurements}}
   aux.record_int %c : i64
+  return
+}
+
+// -----
+
+!t0 = !magic.ion_chain<0, [0:1, 1:1]>
+
+func.func @garbage_not_last() {
+  %a0 = magic.init : !t0
+  %m0, %m1 = magic.mzd %a0 : !t0 -> i1, i1
+  // expected-note @+1 {{the first garbage result is recorded here}}
+  aux.record_int %m0 {magic.garbage_result} : i1
+  // expected-error @+1 {{'aux.record_int' op records a result of the program after a garbage result: the records marked 'magic.garbage_result' come last}}
+  aux.record_int %m1 : i1
   return
 }

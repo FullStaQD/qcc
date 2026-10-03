@@ -9,13 +9,20 @@
 
 #pragma once
 
+#include "qcc/QuantumDevice/QuantumDeviceRegistry.h"
 #include "qcc/Target/TargetRegistry.h"
 
+#include <llvm/ADT/StringRef.h>
 #include <mlir/Pass/PassManager.h>
 
 namespace qcc {
 
-/// Assembles the whole compilation pipeline for qcc.
-void buildPipeline(mlir::PassManager& pm, const Target* target, const TargetOptions& targetOptions);
+/// Assembles the whole compilation pipeline for qcc: the frontend lowering, then the lowering for the quantum device
+/// and finally the lowering for the target.
+///
+/// A non-empty `deviceDescription` is the path of a device file. Its device description is attached to the module
+/// (`qcc.device`) before anything else runs.
+void buildPipeline(mlir::PassManager& pm, const Target* target, const TargetOptions& targetOptions,
+                   const QuantumDevice* quantumDevice, llvm::StringRef deviceDescription);
 
 } // namespace qcc

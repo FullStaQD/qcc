@@ -41,6 +41,11 @@ def Magic_Dialect : Dialect {
         its chain since the program start. A `magic.shuttle` is a *sync point* for its two traps: in a valid program
         both have spent the same time when it happens. `magic-pad-timing` establishes this and `magic-verify` checks it.
 
+        **Garbage results.** `magic.garbage_result` is a discardable unit attribute on an `aux.record_int`. It marks a
+        recorded bit that is no result of the program: the device reports the measurement of every ion, so the
+        compiler records the ions the program does not (`magic-measure-and-record-garbage`). A consumer of the output
+        drops these bits.
+
         Example:
         ```mlir
         // A chain *type* with with ions 3 and 8, both activated.
@@ -62,6 +67,9 @@ def Magic_Dialect : Dialect {
 
     let useDefaultTypePrinterParser = 1;
     let useDefaultAttributePrinterParser = 1;
+
+    let discardableAttrs = (ins "::mlir::UnitAttr":$garbage_result);
+    let hasOperationAttrVerify = 1;
 
     let extraClassDeclaration = [{
         /// Registers the dialect's attributes (implemented next to the attribute definitions).

@@ -83,6 +83,56 @@ def MagicFinalizeZXZ : Pass<"magic-finalize-zxz", "mlir::func::FuncOp"> {
   let dependentDialects = ["qcc::magic::MagicDialect"];
 }
 
+def MagicMeasureAndRecordGarbage : Pass<"magic-measure-and-record-garbage", "mlir::func::FuncOp"> {
+  let summary = "Measures every ion and records every measurement, marking the added records as garbage.";
+
+  let description = [{
+      A program may measure and record less than it loads, but the device measures every ion and reports every result.
+      This pass completes the program:
+
+      - Every non-empty chain that is not measured gets a `magic.mzd`.
+      - Every measurement result that is not recorded gets an `aux.record_int` carrying the unit attribute
+        `magic.garbage_result`. These records come after all records of the program, ordered by ion id.
+
+      ```mlir
+      aux.record_int %m {magic.garbage_result} : i1
+      ```
+
+      Not output-preserving: the program records more bits than before. The added ones are at the end and marked, so
+      a consumer of the output can drop them.
+
+      Run it after dead code elimination (`canonicalize`), which removes what does not contribute to a recorded
+      result, so that only ions the program really needs cost a garbage bit.
+  }];
+
+  let dependentDialects = ["qcc::magic::MagicDialect", "qcc::aux::AuxDialect"];
+}
+
+def MagicCompactIonIds : Pass<"magic-compact-ion-ids", "mlir::func::FuncOp"> {
+  let summary = "Renumbers the ions to 0..N-1, trap by trap.";
+
+  let description = [{
+      Ion ids need not be dense: canonicalization removes a trap whose chain is unused from `magic.init`, and the ids
+      of the remaining ions stay as they are. This pass renumbers the ions in the order `magic.init` lists them, i.e.
+      trap by trap and front to back, so that a program with `N` ions uses the ids `0..N-1`. It rewrites the chain
+      types and the `ions` lists of all ops. The order of the ids is preserved.
+
+      Trap ids are not touched: they name the traps of the device.
+
+      ```mlir
+      %b0 = magic.init : !magic.ion_chain<1, [2:1, 5:1]>
+      %b1 = magic.rz %b0 ions [5] {angles = [0.5]} : !magic.ion_chain<1, [2:1, 5:1]>
+      ```
+      becomes
+      ```mlir
+      %b0 = magic.init : !magic.ion_chain<1, [0:1, 1:1]>
+      %b1 = magic.rz %b0 ions [1] {angles = [0.5]} : !magic.ion_chain<1, [0:1, 1:1]>
+      ```
+  }];
+
+  let dependentDialects = ["qcc::magic::MagicDialect"];
+}
+
 def MagicPadTiming : Pass<"magic-pad-timing", "mlir::func::FuncOp"> {
   let summary = "Balances the delays of the two traps of every shuttle.";
 
@@ -113,6 +163,7 @@ def MagicVerify : Pass<"magic-verify", "mlir::func::FuncOp"> {
         up to the same.
       - Every measurement result is recorded by at most one `aux.record_int` and used nowhere else, and nothing
         else is recorded.
+      - The records marked `magic.garbage_result` come last: no record without the mark follows one with it.
   }];
 
   let dependentDialects = ["qcc::magic::MagicDialect"];
