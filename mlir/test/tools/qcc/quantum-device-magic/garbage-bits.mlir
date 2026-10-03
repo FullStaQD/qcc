@@ -4,19 +4,16 @@
 // RUN: magic-runner --file %t.txt --device %S/Inputs/device-2x3-500ns.mlir -s 5 | FileCheck %s --check-prefix=CHECK-SIM
 // RUN: magic-runner --file %t.txt --device %S/Inputs/device-2x3-500ns.mlir -s 5 --keep-garbage-bits | FileCheck %s --check-prefix=CHECK-ALL-BITS
 
-// A program in the QC dialect that uses less than it allocates and records less than it uses: a Bell pair on the
-// qubits 2 and 3 of which only qubit 2 is measured.
+// A program that formally uses 4 qubits, of which only 2 are relevant for the program, and only one is measured.
 //
-// Four qubits spread over both traps. The qubits 0 and 1 (trap 0) do nothing, so trap 0 is not loaded at all, and the
-// remaining ions 2 and 3 are renumbered to 0 and 1. The device reports every ion, so the second ion of the pair is
-// measured and recorded as well, as a garbage result.
+// QCC should compile it down to two qubits, add a measure to the unmeasured qubit but mark its result as garbage.
 
 func.func @main() {
   %q0 = qc.static 0 : !qc.qubit
   %q1 = qc.static 1 : !qc.qubit
   %q2 = qc.static 2 : !qc.qubit
   %q3 = qc.static 3 : !qc.qubit
-  qc.h %q0 : !qc.qubit
+  qc.h %q0 : !qc.qubit  // qubit never used later (dead)
   qc.h %q2 : !qc.qubit
   qc.ctrl(%q2) targets (%target = %q3) {
     qc.x %target : !qc.qubit

@@ -1,4 +1,11 @@
-set(MLIR_COMPILER_TEST_DEPENDS FileCheck count not qcc-opt qcc qcc-lsp-server)
+set(MLIR_COMPILER_TEST_DEPENDS
+    FileCheck
+    count
+    not
+    split-file
+    qcc-opt
+    qcc
+    qcc-lsp-server)
 
 if(QCC_ENABLE_HISEPQ)
   set(QCC_ENABLE_HISEPQ_PY True) # for lit config
