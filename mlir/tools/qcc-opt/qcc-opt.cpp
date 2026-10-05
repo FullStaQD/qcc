@@ -19,6 +19,7 @@
 #include "qcc/Dialect/Jasp/IR/Jasp.h"
 #include "qcc/Dialect/Magic/IR/Magic.h"
 #include "qcc/Dialect/Magic/Transforms/Passes.h"
+#include "qcc/Dialect/QCirc/IR/QCirc.h"
 #include "qcc/Dialect/QVec/IR/QVec.h"
 #include "qcc/Dialect/QVec/Transforms/Passes.h"
 #include "qcc/Dialect/Qcc/IR/Qcc.h"
@@ -83,6 +84,7 @@ int main(int argc, char** argv) {
     qcc::aux::AuxDialect,
     qcc::magic::MagicDialect,
     qcc::QccDialect,
+    qcc::qcirc::QCircDialect,
     qcc::qvec::QVecDialect
       // clang-format on
       >();

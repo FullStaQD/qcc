@@ -23,6 +23,7 @@ target_link_libraries(
           QCCAuxDialect
           QCCMagicDialect
           QCCQccDialect
+          QCCQCircDialect
           QCCQVecDialect
           # Passes
           MLIRMemRefTransforms

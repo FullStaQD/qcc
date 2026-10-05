@@ -19,9 +19,29 @@ include "mlir/IR/OpBase.td" // the dialect doc generator needs `Op`, even for a 
 //===----------------------------------------------------------------------===//
 
 def Qcc_Dialect : Dialect {
-    let summary = "Project-wide metadata: e.g. device description and the entry point marker.";
+    let summary = "Shared by all quantum dialects: the qubit type, its source and project-wide metadata.";
     let description = [{
-        The `qcc` dialect owns the metadata that is meaningful across all quantum dialects of this project.
+        The `qcc` dialect is to this project what the builtin dialect is to MLIR: it owns what is meaningful across all
+        of its quantum dialects.
+
+        **Qubits.** `!qcc.qubit` is the qubit type for a value-semantics context, and `qcc.static` creates the qubits
+        of a function. Below, "qubit" means a value of type `!qcc.qubit` or a vector of them.
+
+        **Qubits are affine values.** A qubit value may be consumed at most once on any execution path (no-cloning). It
+        may also be left unused, which traces the qubit out. The type cannot enforce this, so the operations that work
+        on qubits do: `qcc.static` and e.g. the operations of `qcirc` carry the `SingleUseQubits` trait, which imposes
+        the following constraints.
+
+        - The operation sits directly in a function (`func.func` or any other `FunctionOpInterface` operation) with a
+          single block, and that function has no qubits among its arguments and results.
+        - Each scalar qubit result of the operation is used at most once.
+        - Each qubit operand of the operation, scalar or vector, has no other use.
+
+        A vector *result* may have several uses, since a vector of qubits is legitimately taken apart
+        (`vector.extract`, slices). So the constraints leave gaps: the parts of a vector, operations of other dialects
+        that consume qubits, and functions that hold none of our operations.
+
+        **Metadata.**
 
         - `qcc.entry_point` is a discardable unit attribute on a function (`func.func`, `llvm.func`) that marks *a*
           starting point of a quantum program.
@@ -35,6 +55,7 @@ def Qcc_Dialect : Dialect {
                                                        dense<[[0.0, 297.4], [297.4, 0.0]]> : tensor<2x2xf64>]>
         module attributes {qcc.device = #magic.device<name = "two-trap", time_unit_ns = 1000, traps = [#trap, #trap]>} {
           func.func @main() attributes {qcc.entry_point} {
+            %q0, %q1 = qcc.static [0, 1] : !qcc.qubit
             return
           }
         }
@@ -44,7 +65,7 @@ def Qcc_Dialect : Dialect {
     let name = "qcc";
     let cppNamespace = "::qcc";
 
-    let useDefaultTypePrinterParser = 0;      // set to 1 once we define types of our own.
+    let useDefaultTypePrinterParser = 1;
     let useDefaultAttributePrinterParser = 0; // set to 1 once we define attributes of our own.
 
     let discardableAttrs = (ins "::mlir::Attribute":$device,
