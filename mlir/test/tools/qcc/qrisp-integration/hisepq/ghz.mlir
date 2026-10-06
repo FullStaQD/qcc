@@ -1,6 +1,4 @@
-// RUN: qcc %s -o %t.ll
-// RUN: FileCheck %s --check-prefix=CHECK-QIR < %t.ll
-// RUN: qir-runner --file %t.ll -s 5 | FileCheck %s --check-prefix=CHECK-SIM
+// RUN: qcc --target=hisepq --min-vlen=64 --qubit-element-width=8 --compile-to=native %s | FileCheck %s
 
 // GENERATED FROM QRISP VERSION 0.9.6
 
@@ -37,17 +35,17 @@ builtin.module @jasp_module {
   }
 }
 
-// CHECK-QIR:  call void @__quantum__qis__h__body(ptr null)
-// CHECK-QIR:  call void @__quantum__qis__cx__body(ptr null, ptr inttoptr (i64 1 to ptr))
-// CHECK-QIR:  call void @__quantum__qis__cx__body(ptr inttoptr (i64 1 to ptr), ptr inttoptr (i64 2 to ptr))
-// CHECK-QIR:  call void @__quantum__qis__mz__body(ptr null, ptr null)
+// On HiSEP-Q the `scf.while` above is unrolled into the two `cx` gates, one per qubit index vector, and the three
+// measurements -- being independent of each other -- are packed into as few instructions as the ordering allows.
+// The measurement results are lost on this target (there is no QISA operation to read them back), so nothing of the
+// classical tail survives.
 
-// CHECK-SIM:  METADATA    required_num_qubits     3
-// CHECK-SIM:  METADATA    required_num_results    3
-
-// We expect values 0 (|000> state) or 7 (|111> state).
-// CHECK-SIM:  OUTPUT      INT     {{[07]}}
-// CHECK-SIM:  OUTPUT      INT     {{[07]}}
-// CHECK-SIM:  OUTPUT      INT     {{[07]}}
-// CHECK-SIM:  OUTPUT      INT     {{[07]}}
-// CHECK-SIM:  OUTPUT      INT     {{[07]}}
+// CHECK-LABEL: main:
+// CHECK:         qv.h  [[Q0:v[0-9]+]], zero, 0
+// CHECK:         qv.cx [[Q0]], [[Q1:v[0-9]+]], 0
+// CHECK:         qv.cx [[Q1]], {{v[0-9]+}}, 0
+// CHECK:         qv.mz [[Q0]], zero, 0
+// Qubits 1 and 2 measured by a single instruction -- note the `vl` of 2.
+// CHECK:         vsetivli zero, 2, e8, mf4, ta, ma
+// CHECK:         qv.mz {{v[0-9]+}}, zero, 0
+// CHECK:         ret
