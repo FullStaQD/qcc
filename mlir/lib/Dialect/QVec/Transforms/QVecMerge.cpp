@@ -239,7 +239,8 @@ static void mergeGroup(const Group& group) {
 ///
 /// 1. The enlarged group still respects `limitVF` once merged.
 /// 2. All qubits of the candidate can be traced back to static ops, which condition 3 compares.
-/// 3. All new qubits are disjoint from the ones the group already operates on. This is not guaranteed by layering, but promised by affine semantics.
+/// 3. All new qubits are disjoint from the ones the group already operates on. This is not guaranteed by layering, but
+/// promised by affine semantics.
 ///    The check is performed as a rigidity measure against non-affine context
 /// 4. The qubit operands of the candidate are already defined before the first member, or can be hoisted "easily"
 ///    (which is then done, and kept even if another operand violates this condition). See `makeAvailableBefore` for
