@@ -60,4 +60,11 @@ builtin.module @jasp_module {
 // CHECK-NEXT:  vsetivli zero, 16, e8, m1, ta, ma
 // CHECK-NEXT:  vid.v [[ALL:v[0-9]+]]
 // CHECK-NEXT:  qv.mz [[ALL]], zero, 0
+
+// One read returns all 16 outcomes; the program returns whether the controls (bits 0-7) equal the targets (bits 8-15).
+// CHECK-NEXT:  csrr [[OUTCOMES:a[0-9]+]], qv.mres
+// CHECK-NEXT:  srli [[TARGETS:a[0-9]+]], [[OUTCOMES]], 8
+// CHECK-NEXT:  xor {{a[0-9]+}}, [[OUTCOMES]], [[TARGETS]]
+// CHECK-NEXT:  zext.b
+// CHECK-NEXT:  seqz
 // CHECK-NEXT:  ret
