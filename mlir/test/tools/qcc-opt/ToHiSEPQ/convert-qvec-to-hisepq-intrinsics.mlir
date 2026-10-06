@@ -59,8 +59,7 @@ func.func @pair_gates() {
 
 // -----
 
-// TODO: Currently the QISA does not provide the measurement result to us. Here we replace it by poison. Needs fixing
-// upstream ASAP.
+// Bit `k` of what `llvm.riscv.qv.mres` reads is the outcome of element `k`.
 
 // CHECK-LABEL: func.func @measurement
 func.func @measurement() -> vector<2xi1> {
@@ -73,14 +72,20 @@ func.func @measurement() -> vector<2xi1> {
 }
 
 // CHECK-NOT:     qvec.measure
-// CHECK:         %[[RES:.*]] = llvm.mlir.poison : vector<2xi1>
+// CHECK-DAG:     %[[ONE:.*]] = llvm.mlir.constant(1 : i32) : i32
+// CHECK-DAG:     %[[ZERO:.*]] = llvm.mlir.constant(0 : i32) : i32
 // CHECK:         llvm.call_intrinsic "llvm.riscv.qv.mz"(%{{.*}}, %{{.*}}, %{{.*}}, %{{.*}})
-// CHECK:         return %[[RES]] : vector<2xi1>
+// CHECK-NEXT:    %[[QMRES:.*]] = llvm.call_intrinsic "llvm.riscv.qv.mres"() : () -> i32
+// CHECK-NEXT:    %[[S0:.*]] = llvm.lshr %[[QMRES]], %[[ZERO]] : i32
+// CHECK-NEXT:    %[[B0:.*]] = llvm.trunc %[[S0]] : i32 to i1
+// CHECK-NEXT:    %[[S1:.*]] = llvm.lshr %[[QMRES]], %[[ONE]] : i32
+// CHECK-NEXT:    %[[B1:.*]] = llvm.trunc %[[S1]] : i32 to i1
+// CHECK-NEXT:    %[[RES:.*]] = vector.from_elements %[[B0]], %[[B1]] : vector<2xi1>
+// CHECK-NEXT:    return %[[RES]] : vector<2xi1>
 
 // -----
 
 // There is no reset instruction: the qubits are measured, and each one is flipped on its own if it measured |1⟩.
-// The flips branch on poison as long as the measurement results are lost.
 
 // CHECK-LABEL: func.func @reset
 func.func @reset() {
@@ -97,15 +102,19 @@ func.func @reset() {
 // CHECK-DAG:     %[[IDX:.*]] = llvm.mlir.constant(dense<[0, 1]> : vector<2xi8>) : vector<2xi8>
 // CHECK-DAG:     %[[IDX0:.*]] = llvm.mlir.constant(dense<0> : vector<1xi8>) : vector<1xi8>
 // CHECK-DAG:     %[[IDX1:.*]] = llvm.mlir.constant(dense<1> : vector<1xi8>) : vector<1xi8>
-// CHECK-DAG:     %[[BITS:.*]] = llvm.mlir.poison : vector<2xi1>
+// CHECK-DAG:     %[[ZERO:.*]] = llvm.mlir.constant(0 : i32) : i32
+// CHECK-DAG:     %[[ONE:.*]] = llvm.mlir.constant(1 : i32) : i32
 // CHECK:         %[[V:.*]] = llvm.intr.vector.insert %[[IDX]]
 // CHECK:         llvm.call_intrinsic "llvm.riscv.qv.mz"(%[[V]], %{{.*}}, %{{.*}}, %{{.*}})
-// CHECK:         %[[BIT0:.*]] = vector.extract %[[BITS]][0] : i1 from vector<2xi1>
+// CHECK-NEXT:    %[[QMRES:.*]] = llvm.call_intrinsic "llvm.riscv.qv.mres"() : () -> i32
+// CHECK-NEXT:    %[[S0:.*]] = llvm.lshr %[[QMRES]], %[[ZERO]] : i32
+// CHECK-NEXT:    %[[BIT0:.*]] = llvm.trunc %[[S0]] : i32 to i1
+// CHECK-NEXT:    %[[S1:.*]] = llvm.lshr %[[QMRES]], %[[ONE]] : i32
+// CHECK-NEXT:    %[[BIT1:.*]] = llvm.trunc %[[S1]] : i32 to i1
 // CHECK:         scf.if %[[BIT0]] {
 // CHECK:           %[[V0:.*]] = llvm.intr.vector.insert %[[IDX0]]
 // CHECK:           llvm.call_intrinsic "llvm.riscv.qv.x"(%[[V0]], %{{.*}}, %{{.*}}, %{{.*}})
 // CHECK:         }
-// CHECK:         %[[BIT1:.*]] = vector.extract %[[BITS]][1] : i1 from vector<2xi1>
 // CHECK:         scf.if %[[BIT1]] {
 // CHECK:           %[[V1:.*]] = llvm.intr.vector.insert %[[IDX1]]
 // CHECK:           llvm.call_intrinsic "llvm.riscv.qv.x"(%[[V1]], %{{.*}}, %{{.*}}, %{{.*}})
@@ -113,6 +122,43 @@ func.func @reset() {
 // The qubits after the reset are the ones before.
 // CHECK:         %[[W:.*]] = llvm.intr.vector.insert %[[IDX]]
 // CHECK:         llvm.call_intrinsic "llvm.riscv.qv.h"(%[[W]], %{{.*}}, %{{.*}}, %{{.*}})
+
+// -----
+
+// `qv.mres` holds the outcomes of only 32 qubits, a stopgap explained in `mlir/lib/Target/HiSEPQ/README.md`. So the
+// measurement of 33 qubits is split into one of the first 32 qubits and one of the last, each read back on its own.
+
+// CHECK-LABEL: func.func @measurement_over_32_qubits
+func.func @measurement_over_32_qubits() -> vector<33xi1> {
+    %q:33 = qcc.static [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
+                        26, 27, 28, 29, 30, 31, 32] : !qcc.qubit
+    %qs = vector.from_elements %q#0, %q#1, %q#2, %q#3, %q#4, %q#5, %q#6, %q#7, %q#8, %q#9, %q#10, %q#11, %q#12, %q#13,
+        %q#14, %q#15, %q#16, %q#17, %q#18, %q#19, %q#20, %q#21, %q#22, %q#23, %q#24, %q#25, %q#26, %q#27, %q#28, %q#29,
+        %q#30, %q#31, %q#32 : vector<33x!qcc.qubit>
+
+    %qs_out, %result = qvec.measure z %qs : vector<33x!qcc.qubit> -> vector<33xi1>
+
+    func.return %result : vector<33xi1>
+}
+
+// CHECK-DAG:     %[[FIRST:.*]] = llvm.mlir.constant(dense<[0, 1, {{.*}}, 30, 31]> : vector<32xi8>) : vector<32xi8>
+// CHECK-DAG:     %[[LAST:.*]] = llvm.mlir.constant(dense<32> : vector<1xi8>) : vector<1xi8>
+// CHECK-DAG:     %[[N32:.*]] = llvm.mlir.constant(32 : i32) : i32
+// CHECK-DAG:     %[[N1:.*]] = llvm.mlir.constant(1 : i32) : i32
+// CHECK-DAG:     %[[N31:.*]] = llvm.mlir.constant(31 : i32) : i32
+// CHECK-DAG:     %[[N0:.*]] = llvm.mlir.constant(0 : i32) : i32
+// CHECK:         %[[V0:.*]] = llvm.intr.vector.insert %[[FIRST]]
+// CHECK:         llvm.call_intrinsic "llvm.riscv.qv.mz"(%[[V0]], %{{.*}}, %{{.*}}, %[[N32]])
+// CHECK-NEXT:    %[[RES0:.*]] = llvm.call_intrinsic "llvm.riscv.qv.mres"() : () -> i32
+// CHECK-NEXT:    %[[S0:.*]] = llvm.lshr %[[RES0]], %[[N0]] : i32
+// CHECK:         %[[S31:.*]] = llvm.lshr %[[RES0]], %[[N31]] : i32
+// CHECK-NEXT:    %[[B31:.*]] = llvm.trunc %[[S31]] : i32 to i1
+// CHECK-NEXT:    %[[V1:.*]] = llvm.intr.vector.insert %[[LAST]]
+// CHECK:         llvm.call_intrinsic "llvm.riscv.qv.mz"(%[[V1]], %{{.*}}, %{{.*}}, %[[N1]])
+// CHECK-NEXT:    %[[RES1:.*]] = llvm.call_intrinsic "llvm.riscv.qv.mres"() : () -> i32
+// CHECK-NEXT:    %[[S32:.*]] = llvm.lshr %[[RES1]], %[[N0]] : i32
+// CHECK-NEXT:    %[[B32:.*]] = llvm.trunc %[[S32]] : i32 to i1
+// CHECK-NEXT:    vector.from_elements {{.*}}, %[[B31]], %[[B32]] : vector<33xi1>
 
 // -----
 

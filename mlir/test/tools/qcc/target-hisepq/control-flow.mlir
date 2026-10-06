@@ -19,13 +19,13 @@ func.func @main() attributes { qcc.entry_point } {
 // CHECK:           vsetivli    zero, 1, e8, mf4, ta, ma
 // CHECK:           vmv.v.i    [[V1:v[0-9]+]], 1
 // CHECK:           qv.h    [[V1]], zero, 0
-// TODO: qv.mz and bnez are not connected so far. ISA spec says that
-// hardware leaves this unimplemented. Also unclear how to exactly handle the
-// measurement-halt-resume protocol.
-// Related issue: https://github.com/caps-tum/HiSEP-Q-2.0/issues/8
-// CHECK:           qv.mz   [[V1]], {{.*}}, 0
-// CHECK:           bnez    {{.*}}, [[JOIN:\.L[a-zA-Z0-9_]+]]
-// CHECK:           qv.x    [[V1]], zero, 0
-// CHECK:       [[JOIN]]:
-// CHECK:           qv.mz   [[V1]], {{.*}}, 0
+// The outcome is read from `qv.mres`.
+// CHECK-NEXT:      qv.mz   [[V1]], {{.*}}, 0
+// CHECK-NEXT:      csrr    [[R:a[0-9]+]], qv.mres
+// CHECK-NEXT:      andi    [[R]], [[R]], 1
+// CHECK-NEXT:      beqz    [[R]], [[JOIN:\.L[a-zA-Z0-9_]+]]
+// CHECK-NEXT:      qv.x    [[V1]], zero, 0
+// CHECK-NEXT:  [[JOIN]]:
+// CHECK-NEXT:      qv.mz   [[V1]], {{.*}}, 0
+// CHECK-NEXT:      csrr    {{[a-z0-9]+}}, qv.mres
 // CHECK:           ret

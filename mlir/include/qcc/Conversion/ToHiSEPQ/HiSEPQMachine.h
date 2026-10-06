@@ -66,6 +66,15 @@ public:
   /// The highest qubit index the machine accepts.
   [[nodiscard]] uint64_t maxQubitIndex() const { return numQubitControlLines - 1; }
 
+  /// The most qubits whose outcomes one measurement can read back: CSR `qv.mres` holds one bit per qubit in a single
+  /// 32-bit word.
+  ///
+  /// TODO: This is no limit of the machine as intended. HiSEP-Q added `qv.mres` only as a stopgap to make measurement
+  /// feedback work at all, and silently drops the outcomes beyond bit 31. Splitting larger measurements into chunks of
+  /// at most this many qubits is all that keeps us from reading wrong outcomes. Revisit once HiSEP-Q provides a proper
+  /// readback, see `mlir/lib/Target/HiSEPQ/README.md`.
+  static constexpr unsigned maxMeasuredQubits() { return 32; }
+
   /// The narrowest scalable vector type that carries `numQubits` qubit indices. Or nullopt if capacity is exceeded.
   [[nodiscard]] std::optional<mlir::VectorType> qubitVectorType(mlir::MLIRContext* ctx, unsigned numQubits) const;
 

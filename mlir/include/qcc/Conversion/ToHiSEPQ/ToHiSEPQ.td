@@ -23,11 +23,11 @@ def ConvertQIRToHiSEPQIntrinsics : Pass<"convert-qir-to-hisepq-intrinsics", "mli
       carrying that index in element 0, matching the `anyvector` operand that the
       QVSingle / QVPair intrinsics expect.
 
-      The QIR runtime calls below have no HiSEP-Q QISA counterpart yet, so they
-      are dropped:
+      The QIR runtime calls below are dropped:
       - `__quantum__rt__initialize` calls are erased.
       - `__quantum__rt__read_result` calls are replaced with `poison : i1`,
-        i.e. the measurement result is lost.
+        i.e. the measurement result is lost. Use
+        `convert-qvec-to-hisepq-intrinsics` instead, which reads it back.
       - `__quantum__rt__bool_record_output` and `__quantum__rt__int_record_output`
         calls are erased, so program output is not recorded.
       TODO: Support these once HiSEP-Q specifies the corresponding QISA
@@ -111,12 +111,15 @@ def ConvertQVecToHiSEPQIntrinsics : Pass<"convert-qvec-to-hisepq-intrinsics", "m
       example `qvec.reset z` becomes a measurement followed by an `llvm.riscv.qv.x` on each qubit measured in |1⟩. This
       is because HiSEP-Q has no reset operation.
 
-      - `llvm.riscv.qv.mz` returns void and the QISA specifies no way to read a measurement back, so the classical
-        result of `qvec.measure` is replaced with `poison`, i.e. the measurement result is lost. The flips of a reset
-        depend on such a result too.
-      - `aux.record_int` and `aux.record_memref` are erased, so the program produces no output.
+      The outcomes of a measurement are read back with `llvm.riscv.qv.mres` from CSR `qv.mres` right after its
+      `llvm.riscv.qv.mz`. Bit `k` is the outcome of element `k`.
+      TODO: `qv.mres` is a stopgap that HiSEP-Q added only to make measurement feedback work at all. It holds the
+      outcomes of just 32 qubits and silently drops the rest. `qvec-merge` merges measurements regardless, so a
+      measurement of more qubits is split into several `llvm.riscv.qv.mz` of at most 32 qubits each. Revisit once
+      HiSEP-Q provides a proper readback, see `mlir/lib/Target/HiSEPQ/README.md`.
 
-      TODO: Support both once HiSEP-Q specifies the corresponding QISA operations.
+      `aux.record_int` and `aux.record_memref` are erased, so the program produces no output.
+      TODO: Support them once HiSEP-Q specifies the corresponding QISA operations.
   }];
 
   let options = [
