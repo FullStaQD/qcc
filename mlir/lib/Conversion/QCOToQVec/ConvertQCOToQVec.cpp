@@ -11,6 +11,7 @@
 
 #include "mlir/Dialect/QCO/IR/QCODialect.h"
 #include "mlir/Dialect/QCO/IR/QCOOps.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/Block.h"
 #include "mlir/IR/Builders.h"
@@ -212,6 +213,58 @@ struct SinkLowering final : public OpConversionPattern<qco::SinkOp> {
   }
 };
 
+/// Rewrites `qco.if` into `scf.if`, keeping qubit results so later users stay ordered after it.
+///
+/// Correctness: The semantics of `qco.if` are identical to `scf.if`. `qco.if` explicitly uses qubits
+/// as operands and sends them to the blocks via block arguments. This is necessary for linearity
+/// checking. Coming from `qco`, we can assume that linearity holds, and allow `scf.if` to simply
+/// capture the qubit values, consuming them in each branch.
+struct IfLowering final : public OpConversionPattern<qco::IfOp> {
+  using OpConversionPattern::OpConversionPattern;
+
+  LogicalResult matchAndRewrite(qco::IfOp op, OpAdaptor adaptor, ConversionPatternRewriter& rewriter) const override {
+    auto ifOp = scf::IfOp::create(rewriter, op.getLoc(), op.getResultTypes(), adaptor.getCondition(),
+                                  /*withElseRegion=*/true);
+
+    rewriter.eraseBlock(&ifOp.getThenRegion().front());
+    inlineBranch(op.getThenRegion(), ifOp.getThenRegion(), adaptor.getQubits(), rewriter);
+    rewriter.eraseBlock(&ifOp.getElseRegion().front());
+    inlineBranch(op.getElseRegion(), ifOp.getElseRegion(), adaptor.getQubits(), rewriter);
+
+    rewriter.replaceOp(op, ifOp.getResults());
+    return success();
+  }
+
+private:
+  /// Moves `branch` into `target`, replacing its block arguments with `qubits`.
+  static void inlineBranch(Region& branch, Region& target, ValueRange qubits, ConversionPatternRewriter& rewriter) {
+    rewriter.inlineRegionBefore(branch, target, target.end());
+
+    Block& block = target.front();
+    assert(block.getNumArguments() == qubits.size() && "a `qco.if` branch takes exactly the op's qubits");
+    TypeConverter::SignatureConversion signature(block.getNumArguments());
+    for (auto [argument, qubit] : llvm::zip_equal(block.getArguments(), qubits)) {
+      signature.remapInput(argument.getArgNumber(), qubit);
+    }
+    rewriter.applySignatureConversion(&block, signature);
+  }
+};
+
+/// Rewrites a `qco.yield` inside an `scf.if` into `scf.yield`.
+struct YieldLowering final : public OpConversionPattern<qco::YieldOp> {
+  using OpConversionPattern::OpConversionPattern;
+
+  LogicalResult matchAndRewrite(qco::YieldOp op, OpAdaptor adaptor,
+                                ConversionPatternRewriter& rewriter) const override {
+    if (!isa<scf::IfOp>(op->getParentOp())) {
+      return failure();
+    }
+
+    rewriter.replaceOpWithNewOp<scf::YieldOp>(op, adaptor.getTargets());
+    return success();
+  }
+};
+
 /// Rewrites `qco.measure` into a one-element `qvec.mz`.
 struct MeasureLowering final : public OpConversionPattern<qco::MeasureOp> {
   using OpConversionPattern::OpConversionPattern;
@@ -227,6 +280,34 @@ struct MeasureLowering final : public OpConversionPattern<qco::MeasureOp> {
                                vector::ExtractOp::create(rewriter, loc, mzOp.getQubitsOut(), 0),
                                vector::ExtractOp::create(rewriter, loc, mzOp.getBits(), 0),
                            });
+    return success();
+  }
+};
+
+/// Rewrites `qco.reset` into a measurement followed by an `x` if the qubit was measured in |1⟩.
+///
+/// TODO: Replace with a real reset once QVec and HiSEP-Q provide one.
+struct ResetLowering final : public OpConversionPattern<qco::ResetOp> {
+  using OpConversionPattern::OpConversionPattern;
+
+  LogicalResult matchAndRewrite(qco::ResetOp op, OpAdaptor adaptor,
+                                ConversionPatternRewriter& rewriter) const override {
+    Location loc = op.getLoc();
+    Value qubits = buildVector(rewriter, loc, adaptor.getQubitIn());
+    auto bitsType = VectorType::get({1}, rewriter.getI1Type());
+    auto mzOp = MZOp::create(rewriter, loc, qubits.getType(), bitsType, qubits);
+    Value measured = mzOp.getQubitsOut();
+    Value one = vector::ExtractOp::create(rewriter, loc, mzOp.getBits(), 0);
+
+    auto ifOp = scf::IfOp::create(
+        rewriter, loc, one,
+        [&](OpBuilder& builder, Location branchLoc) {
+          auto flipOp = SingleOp::create(builder, branchLoc, SingleGateKind::X, measured, ValueRange{});
+          scf::YieldOp::create(builder, branchLoc, flipOp.getQubitsOut());
+        },
+        [&](OpBuilder& builder, Location branchLoc) { scf::YieldOp::create(builder, branchLoc, measured); });
+
+    rewriter.replaceOp(op, vector::ExtractOp::create(rewriter, loc, ifOp.getResult(0), 0));
     return success();
   }
 };
@@ -249,7 +330,7 @@ protected:
     auto* ctx = moduleOp.getContext();
 
     ConversionTarget target(*ctx);
-    target.addLegalDialect<QVecDialect, vector::VectorDialect>();
+    target.addLegalDialect<QVecDialect, vector::VectorDialect, scf::SCFDialect>();
     target.addIllegalDialect<qco::QCODialect>();
     target.addLegalOp<qco::StaticOp>(); // still needed as qubit source
 
@@ -267,7 +348,8 @@ protected:
                  RotationLowering<qco::RYOp, SingleGateKind::RY>,     //
                  RotationLowering<qco::RZOp, SingleGateKind::RZ>,     //
                  RotationLowering<qco::POp, SingleGateKind::RZ>,      //
-                 ISwapLowering, RZZLowering, GPhaseLowering, CtrlLowering, MeasureLowering, SinkLowering>(ctx);
+                 ISwapLowering, RZZLowering, GPhaseLowering, CtrlLowering, MeasureLowering, ResetLowering, SinkLowering,
+                 IfLowering, YieldLowering>(ctx);
 
     if (failed(applyPartialConversion(moduleOp, target, std::move(patterns)))) {
       signalPassFailure();

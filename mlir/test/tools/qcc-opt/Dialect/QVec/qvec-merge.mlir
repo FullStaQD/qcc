@@ -229,3 +229,89 @@ func.func @wide_member_slice_is_one_op() {
 // CHECK:         %[[S1:.*]] = vector.extract_strided_slice %[[H]] {offsets = [2], sizes = [2], strides = [1]}
 // CHECK:         qvec.single x %[[S0]] : vector<2x!qco.qubit>
 // CHECK:         qvec.single y %[[S1]] : vector<2x!qco.qubit>
+
+// -----
+
+// CHECK-LABEL: func.func @no_merge_across_if
+func.func @no_merge_across_if(%cond: i1) {
+    %q0 = qco.static 0 : !qco.qubit
+    %q1 = qco.static 1 : !qco.qubit
+    %v0 = vector.from_elements %q0 : vector<1x!qco.qubit>
+    %v1 = vector.from_elements %q1 : vector<1x!qco.qubit>
+
+    %h1 = qvec.single h %v1 : vector<1x!qco.qubit>
+    %x0 = scf.if %cond -> (vector<1x!qco.qubit>) {
+      %x = qvec.single x %v0 : vector<1x!qco.qubit>
+      scf.yield %x : vector<1x!qco.qubit>
+    } else {
+      scf.yield %v0 : vector<1x!qco.qubit>
+    }
+    %h0 = qvec.single h %x0 : vector<1x!qco.qubit>
+
+    func.return
+}
+
+// CHECK:         qvec.single h %{{.*}} : vector<1x!qco.qubit>
+// CHECK:         scf.if
+// CHECK:           qvec.single x
+// CHECK:         }
+// CHECK:         qvec.single h %{{.*}} : vector<1x!qco.qubit>
+
+// -----
+
+// CHECK-LABEL: func.func @merge_behind_ifs
+func.func @merge_behind_ifs() {
+    %q0 = qco.static 0 : !qco.qubit
+    %q1 = qco.static 1 : !qco.qubit
+    %q2 = qco.static 2 : !qco.qubit
+    %v0 = vector.from_elements %q0 : vector<1x!qco.qubit>
+    %v1 = vector.from_elements %q1 : vector<1x!qco.qubit>
+    %v2 = vector.from_elements %q2 : vector<1x!qco.qubit>
+
+    %h0 = qvec.single h %v0 : vector<1x!qco.qubit>
+    %m2, %bits = qvec.mz %v2 : vector<1x!qco.qubit> -> vector<1xi1>
+    %cond = vector.extract %bits[0] : i1 from vector<1xi1>
+
+    %a0 = scf.if %cond -> (vector<1x!qco.qubit>) {
+      %x = qvec.single x %h0 : vector<1x!qco.qubit>
+      scf.yield %x : vector<1x!qco.qubit>
+    } else {
+      scf.yield %h0 : vector<1x!qco.qubit>
+    }
+    %a1 = scf.if %cond -> (vector<1x!qco.qubit>) {
+      %x = qvec.single x %v1 : vector<1x!qco.qubit>
+      scf.yield %x : vector<1x!qco.qubit>
+    } else {
+      scf.yield %v1 : vector<1x!qco.qubit>
+    }
+
+    %y0 = qvec.single y %a0 : vector<1x!qco.qubit>
+    %y1 = qvec.single y %a1 : vector<1x!qco.qubit>
+
+    func.return
+}
+
+// CHECK:         %[[A0:.*]] = scf.if %{{.*}} -> (vector<1x!qco.qubit>)
+// CHECK:         %[[A1:.*]] = scf.if %{{.*}} -> (vector<1x!qco.qubit>)
+// CHECK:         %[[E0:.*]] = vector.extract %[[A0]][0]
+// CHECK:         %[[E1:.*]] = vector.extract %[[A1]][0]
+// CHECK:         %[[V:.*]] = vector.from_elements %[[E0]], %[[E1]] : vector<2x!qco.qubit>
+// CHECK:         qvec.single y %[[V]] : vector<2x!qco.qubit>
+// CHECK-NOT:     qvec.single y
+
+// -----
+
+// `%q0` is used twice, so both gates are in layer 0 although they act on the same qubit.
+
+// CHECK-LABEL: func.func @no_merge_on_same_qubit
+func.func @no_merge_on_same_qubit() {
+    %q0 = qco.static 0 : !qco.qubit
+    %v1 = vector.from_elements %q0 : vector<1x!qco.qubit>
+    %h1 = qvec.single h %v1 : vector<1x!qco.qubit>
+    %v2 = vector.from_elements %q0 : vector<1x!qco.qubit>
+    %h2 = qvec.single h %v2 : vector<1x!qco.qubit>
+    func.return
+}
+
+// CHECK:         qvec.single h %{{.*}} : vector<1x!qco.qubit>
+// CHECK:         qvec.single h %{{.*}} : vector<1x!qco.qubit>

@@ -1,4 +1,4 @@
-// RUN: qcc-opt %s --convert-memref-to-static-qubits | FileCheck %s
+// RUN: qcc-opt %s --convert-memref-to-static-qubits --split-input-file | FileCheck %s
 
 // Test that the constant size `memref.alloc` are successfully converted to `qc.static` calls.
 func.func public @test(){
@@ -44,3 +44,70 @@ func.func public @test(){
 // CHECK:     return
 // CHECK:   }
 // CHECK: }
+
+// -----
+
+// A deallocated qubit is reset and reused by the next allocation.
+func.func public @dealloc() {
+    %c0 = arith.constant 0 : index
+    %anc = memref.alloc() : memref<1x!qc.qubit>
+    %0 = memref.load %anc[%c0] : memref<1x!qc.qubit>
+    qc.h %0 : !qc.qubit
+    memref.dealloc %anc : memref<1x!qc.qubit>
+    %anc2 = memref.alloc() : memref<1x!qc.qubit>
+    %1 = memref.load %anc2[%c0] : memref<1x!qc.qubit>
+    qc.x %1 : !qc.qubit
+    memref.dealloc %anc2 : memref<1x!qc.qubit>
+    return
+  }
+
+// CHECK-LABEL:   func.func public @dealloc() {
+// CHECK-NOT:     memref.
+// CHECK:     %[[Q0:.*]] = qc.static 0 : !qc.qubit
+// CHECK:     qc.h %[[Q0]] : !qc.qubit
+// CHECK:     qc.reset %[[Q0]] : !qc.qubit
+// CHECK:     qc.x %[[Q0]] : !qc.qubit
+// CHECK-NOT:     qc.static
+// CHECK-NOT:     memref.
+// CHECK:     return
+
+// -----
+
+// The dealloc of a `memref.cast` result is erased before the cast.
+func.func public @dealloc_through_cast() {
+    %c0 = arith.constant 0 : index
+    %anc = memref.alloc() : memref<1x!qc.qubit>
+    %0 = memref.load %anc[%c0] : memref<1x!qc.qubit>
+    qc.h %0 : !qc.qubit
+    %cast = memref.cast %anc : memref<1x!qc.qubit> to memref<?x!qc.qubit>
+    memref.dealloc %cast : memref<?x!qc.qubit>
+    return
+  }
+
+// CHECK-LABEL:   func.func public @dealloc_through_cast() {
+// CHECK-NOT:     memref.
+// CHECK:     %[[Q0:.*]] = qc.static 0 : !qc.qubit
+// CHECK:     qc.h %[[Q0]] : !qc.qubit
+// CHECK-NOT:     memref.
+// CHECK:     return
+
+// -----
+
+// A dealloc inside one branch does not dominate the alloc after the `if`, so its qubit is not reused.
+func.func public @dealloc_in_branch(%cond: i1) {
+    %c0 = arith.constant 0 : index
+    %anc = memref.alloc() : memref<1x!qc.qubit>
+    scf.if %cond {
+      memref.dealloc %anc : memref<1x!qc.qubit>
+    }
+    %anc2 = memref.alloc() : memref<1x!qc.qubit>
+    %0 = memref.load %anc2[%c0] : memref<1x!qc.qubit>
+    qc.x %0 : !qc.qubit
+    return
+  }
+
+// CHECK-LABEL:   func.func public @dealloc_in_branch(
+// CHECK:     qc.static 0 : !qc.qubit
+// CHECK:     %[[Q1:.*]] = qc.static 1 : !qc.qubit
+// CHECK-NOT: qc.reset
+// CHECK:     qc.x %[[Q1]] : !qc.qubit
