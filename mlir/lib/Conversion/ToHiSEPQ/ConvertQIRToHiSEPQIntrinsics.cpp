@@ -18,6 +18,7 @@
 #include "mlir/Support/LogicalResult.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
@@ -63,9 +64,9 @@ static std::optional<QISOpInfo> getQISOpInfo(StringRef qisName) {
 /// Returns true when `name` is a QIR runtime / QIS symbol.
 static bool isQIRSymbol(StringRef name) { return name.starts_with("__quantum__"); }
 
-/// Tries to extract the qubit index encoded in a ptr obtained via:
+/// Tries to extract the qubit or result index encoded in a ptr obtained via:
 ///   `llvm.inttoptr (llvm.mlir.constant N : i64) : !llvm.ptr`
-static std::optional<int64_t> getQubitIndexFromPtr(Value ptrValue) {
+static std::optional<int64_t> getIndexFromPtr(Value ptrValue) {
   auto intToPtrOp = ptrValue.getDefiningOp<LLVM::IntToPtrOp>();
   if (!intToPtrOp) {
     return std::nullopt;
@@ -148,7 +149,7 @@ struct QISCallLowering : public OpRewritePattern<LLVM::CallOp> {
 
     SmallVector<int64_t> qubitIndices;
     for (unsigned i = 0; i < numQubitOperands; ++i) {
-      auto idx = getQubitIndexFromPtr(operands[i]);
+      auto idx = getIndexFromPtr(operands[i]);
       if (!idx) {
         callOp.emitError("cannot extract qubit index from ptr for '") << *callee << "'";
         *hadError = true;
@@ -172,7 +173,7 @@ struct QISCallLowering : public OpRewritePattern<LLVM::CallOp> {
     switch (info->qvClass) {
     case QVClass::Single: {
       // (vs1: vec<[8]xi8>, rs2: i32, block_imm: i32, vl: i32)
-      // For mz__body: operands[0] = qubit_ptr, operands[1] = result_ptr (unused here; see ReadResultLowering).
+      // For mz__body: operands[0] = qubit_ptr, operands[1] = result_ptr (see lowerMeasurementResults).
       Value tag = LLVM::ConstantOp::create(rewriter, loc, i32Type, rewriter.getI32IntegerAttr(0));
       args.push_back(qubitIndexToVec(rewriter, loc, qubitIndices[0]));
       args.push_back(tag);
@@ -195,23 +196,6 @@ struct QISCallLowering : public OpRewritePattern<LLVM::CallOp> {
   }
 
   bool* hadError;
-};
-
-/// Replaces `llvm.call @__quantum__rt__read_result(%result_ptr)` with `poison : i1`.
-///
-/// TODO: A proper `qv.read_result` intrinsic is not yet defined in IntrinsicsRISCVXQV.td.
-struct ReadResultLowering : public OpRewritePattern<LLVM::CallOp> {
-  using OpRewritePattern<LLVM::CallOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(LLVM::CallOp callOp, PatternRewriter& rewriter) const override {
-    auto callee = callOp.getCallee();
-    if (!callee || *callee != qcc::qirRtReadResult) {
-      return failure();
-    }
-
-    rewriter.replaceOpWithNewOp<LLVM::PoisonOp>(callOp, rewriter.getI1Type());
-    return success();
-  }
 };
 
 /// Erases `llvm.call @__quantum__rt__initialize(ptr)`.
@@ -255,6 +239,81 @@ struct RecordOutputLowering : public OpRewritePattern<LLVM::CallOp> {
 
 } // namespace
 
+/// Gives every measurement result of `funcOp` a stack slot, initially `false`. After each
+/// `__quantum__qis__mz__body`, the outcome is read back from CSR `qv.mres` and stored in the slot of its
+/// result, from which `__quantum__rt__read_result` then loads it. The `mz` call itself is left for
+/// `QISCallLowering`.
+static LogicalResult lowerMeasurementResults(LLVM::LLVMFuncOp funcOp) {
+  SmallVector<LLVM::CallOp> measurements;
+  SmallVector<LLVM::CallOp> reads;
+  funcOp.walk([&](LLVM::CallOp callOp) {
+    auto callee = callOp.getCallee();
+    if (callee && *callee == qcc::qirQisMZ) {
+      measurements.push_back(callOp);
+    } else if (callee && *callee == qcc::qirRtReadResult) {
+      reads.push_back(callOp);
+    }
+  });
+  if (measurements.empty() && reads.empty()) {
+    return success();
+  }
+
+  MLIRContext* ctx = funcOp.getContext();
+  auto i1Type = IntegerType::get(ctx, 1);
+  auto ptrType = LLVM::LLVMPointerType::get(ctx);
+
+  // Slots are created at the start of the entry block, so that they dominate every use.
+  OpBuilder entryBuilder = OpBuilder::atBlockBegin(&funcOp.getBody().front());
+  Location loc = funcOp.getLoc();
+  Value one = LLVM::ConstantOp::create(entryBuilder, loc, entryBuilder.getI64Type(), entryBuilder.getI64IntegerAttr(1));
+  Value falseValue = LLVM::ConstantOp::create(entryBuilder, loc, i1Type, entryBuilder.getBoolAttr(false));
+
+  llvm::DenseMap<int64_t, Value> slots;
+  auto getSlot = [&](LLVM::CallOp callOp, Value resultPtr) -> Value {
+    auto index = getIndexFromPtr(resultPtr);
+    if (!index) {
+      callOp.emitError("cannot extract result index from ptr for '") << *callOp.getCallee() << "'";
+      return nullptr;
+    }
+    auto [it, inserted] = slots.try_emplace(*index);
+    if (inserted) {
+      it->second = LLVM::AllocaOp::create(entryBuilder, loc, ptrType, i1Type, one);
+      LLVM::StoreOp::create(entryBuilder, loc, falseValue, it->second);
+    }
+    return it->second;
+  };
+
+  OpBuilder builder(ctx);
+  for (LLVM::CallOp callOp : measurements) {
+    if (callOp.getArgOperands().size() != 2) {
+      return callOp.emitError("'") << qcc::qirQisMZ << "' expects a qubit and a result operand";
+    }
+    Value slot = getSlot(callOp, callOp.getArgOperands()[1]);
+    if (!slot) {
+      return failure();
+    }
+    // Read right away: the next measurement overwrites `qv.mres`. The `mz` measures one qubit, so its outcome is bit 0.
+    builder.setInsertionPointAfter(callOp);
+    Value outcome = LLVM::CallIntrinsicOp::create(builder, callOp.getLoc(), builder.getI32Type(),
+                                                  builder.getStringAttr("llvm.riscv.qv.mres"), ValueRange{})
+                        .getResult(0);
+    Value bit = LLVM::TruncOp::create(builder, callOp.getLoc(), i1Type, outcome);
+    LLVM::StoreOp::create(builder, callOp.getLoc(), bit, slot);
+  }
+
+  for (LLVM::CallOp callOp : reads) {
+    Value slot = getSlot(callOp, callOp.getArgOperands().front());
+    if (!slot) {
+      return failure();
+    }
+    builder.setInsertionPoint(callOp);
+    Value bit = LLVM::LoadOp::create(builder, callOp.getLoc(), i1Type, slot);
+    callOp.getResult().replaceAllUsesWith(bit);
+    callOp.erase();
+  }
+  return success();
+}
+
 namespace qcc {
 
 #define GEN_PASS_DEF_CONVERTQIRTOHISEPQINTRINSICS
@@ -271,9 +330,18 @@ protected:
     auto* ctx = moduleOp.getContext();
 
     bool hadError = false;
+    moduleOp.walk([&](LLVM::LLVMFuncOp funcOp) {
+      if (!funcOp.isExternal() && failed(lowerMeasurementResults(funcOp))) {
+        hadError = true;
+      }
+    });
+    if (hadError) {
+      return signalPassFailure();
+    }
+
     RewritePatternSet patterns(ctx);
     patterns.add<QISCallLowering>(ctx, &hadError);
-    patterns.add<ReadResultLowering, RtInitLowering, RecordOutputLowering>(ctx);
+    patterns.add<RtInitLowering, RecordOutputLowering>(ctx);
 
     if (failed(applyPatternsGreedily(moduleOp, std::move(patterns))) || hadError) {
       return signalPassFailure();

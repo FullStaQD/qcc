@@ -23,11 +23,15 @@ def ConvertQIRToHiSEPQIntrinsics : Pass<"convert-qir-to-hisepq-intrinsics", "mli
       carrying that index in element 0, matching the `anyvector` operand that the
       QVSingle / QVPair intrinsics expect.
 
-      The QIR runtime calls below are dropped:
+      Each measurement result gets a stack slot. After every
+      `__quantum__qis__mz__body`, the outcome is read back from CSR `qv.mres`
+      with `llvm.riscv.qv.mres` and stored in the slot of its result, from
+      which `__quantum__rt__read_result` loads it. A result read before it is
+      measured is `false`.
+
+      The QIR runtime calls below have no HiSEP-Q QISA counterpart yet, so they
+      are dropped:
       - `__quantum__rt__initialize` calls are erased.
-      - `__quantum__rt__read_result` calls are replaced with `poison : i1`,
-        i.e. the measurement result is lost. Use
-        `convert-qvec-to-hisepq-intrinsics` instead, which reads it back.
       - `__quantum__rt__bool_record_output` and `__quantum__rt__int_record_output`
         calls are erased, so program output is not recorded.
       TODO: Support these once HiSEP-Q specifies the corresponding QISA
@@ -40,7 +44,7 @@ def ConvertQIRToHiSEPQIntrinsics : Pass<"convert-qir-to-hisepq-intrinsics", "mli
       - The module has been fully lowered by the ToQIR pipeline
         (`prep-to-qir`, `convert-qc-to-qir`, `finalize-to-qir`) so all gate
         ops appear as `llvm.call` with a statically-known callee symbol.
-      - Qubit pointers were produced by `llvm.inttoptr(llvm.mlir.constant(N : i64))`,
+      - Qubit and result pointers were produced by `llvm.inttoptr(llvm.mlir.constant(N : i64))`,
         i.e. the static qubit management scheme used by `convert-qc-to-qir`.
    }];
 
