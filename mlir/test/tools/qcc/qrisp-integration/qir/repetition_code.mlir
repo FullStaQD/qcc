@@ -90,7 +90,7 @@ builtin.module @jasp_module {
   }
 }
 
-// Three unrolled rounds, each on two fresh ancillas: nine qubits in total.
+// Three unrolled rounds share two ancillas, reset between rounds: five qubits in total.
 
 // CHECK-QIR:      call void @__quantum__qis__x__body(ptr inttoptr (i64 1 to ptr))
 
@@ -113,17 +113,19 @@ builtin.module @jasp_module {
 // CHECK-QIR-NEXT: br i1
 // CHECK-QIR:      call void @__quantum__qis__x__body(ptr inttoptr (i64 2 to ptr))
 
-// Rounds 1 and 2: ancillas 5-6 and 7-8.
-// CHECK-QIR:      call void @__quantum__qis__cx__body(ptr null, ptr inttoptr (i64 5 to ptr))
-// CHECK-QIR:      call void @__quantum__qis__mz__body(ptr inttoptr (i64 6 to ptr), ptr inttoptr (i64 6 to ptr))
-// CHECK-QIR:      call void @__quantum__qis__cx__body(ptr null, ptr inttoptr (i64 7 to ptr))
-// CHECK-QIR:      call void @__quantum__qis__mz__body(ptr inttoptr (i64 8 to ptr), ptr inttoptr (i64 8 to ptr))
+// Rounds 1 and 2: ancillas 3 and 4 again, reset first.
+// CHECK-QIR-COUNT-2: call void @__quantum__qis__reset__body(ptr inttoptr (i64 {{[34]}} to ptr))
+// CHECK-QIR:         call void @__quantum__qis__cx__body(ptr null, ptr inttoptr (i64 3 to ptr))
+// CHECK-QIR:         call void @__quantum__qis__mz__body(ptr inttoptr (i64 4 to ptr), ptr inttoptr (i64 4 to ptr))
+// CHECK-QIR-COUNT-2: call void @__quantum__qis__reset__body(ptr inttoptr (i64 {{[34]}} to ptr))
+// CHECK-QIR:         call void @__quantum__qis__cx__body(ptr null, ptr inttoptr (i64 3 to ptr))
+// CHECK-QIR:         call void @__quantum__qis__mz__body(ptr inttoptr (i64 4 to ptr), ptr inttoptr (i64 4 to ptr))
 
 // CHECK-QIR:      call void @__quantum__qis__mz__body(ptr null, ptr null)
 // CHECK-QIR:      call void @__quantum__qis__mz__body(ptr inttoptr (i64 1 to ptr), ptr inttoptr (i64 1 to ptr))
 // CHECK-QIR:      call void @__quantum__qis__mz__body(ptr inttoptr (i64 2 to ptr), ptr inttoptr (i64 2 to ptr))
 
-// CHECK-SIM:      METADATA required_num_qubits 9
+// CHECK-SIM:      METADATA required_num_qubits 5
 
 // Syndrome history 0b000011, data 0.
 // CHECK-SIM:      OUTPUT TUPLE 2

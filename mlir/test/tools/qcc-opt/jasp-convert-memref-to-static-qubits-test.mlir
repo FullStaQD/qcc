@@ -47,7 +47,7 @@ func.func public @test(){
 
 // -----
 
-// Deallocated qubits are not reused: reusing them would need a reset, which not every target has.
+// A deallocated qubit is reset and reused by the next allocation.
 func.func public @dealloc() {
     %c0 = arith.constant 0 : index
     %anc = memref.alloc() : memref<1x!qc.qubit>
@@ -65,8 +65,9 @@ func.func public @dealloc() {
 // CHECK-NOT:     memref.
 // CHECK:     %[[Q0:.*]] = qc.static 0 : !qc.qubit
 // CHECK:     qc.h %[[Q0]] : !qc.qubit
-// CHECK:     %[[Q1:.*]] = qc.static 1 : !qc.qubit
-// CHECK:     qc.x %[[Q1]] : !qc.qubit
+// CHECK:     qc.reset %[[Q0]] : !qc.qubit
+// CHECK:     qc.x %[[Q0]] : !qc.qubit
+// CHECK-NOT:     qc.static
 // CHECK-NOT:     memref.
 // CHECK:     return
 
@@ -89,3 +90,24 @@ func.func public @dealloc_through_cast() {
 // CHECK:     qc.h %[[Q0]] : !qc.qubit
 // CHECK-NOT:     memref.
 // CHECK:     return
+
+// -----
+
+// A dealloc inside one branch does not dominate the alloc after the `if`, so its qubit is not reused.
+func.func public @dealloc_in_branch(%cond: i1) {
+    %c0 = arith.constant 0 : index
+    %anc = memref.alloc() : memref<1x!qc.qubit>
+    scf.if %cond {
+      memref.dealloc %anc : memref<1x!qc.qubit>
+    }
+    %anc2 = memref.alloc() : memref<1x!qc.qubit>
+    %0 = memref.load %anc2[%c0] : memref<1x!qc.qubit>
+    qc.x %0 : !qc.qubit
+    return
+  }
+
+// CHECK-LABEL:   func.func public @dealloc_in_branch(
+// CHECK:     qc.static 0 : !qc.qubit
+// CHECK:     %[[Q1:.*]] = qc.static 1 : !qc.qubit
+// CHECK-NOT: qc.reset
+// CHECK:     qc.x %[[Q1]] : !qc.qubit

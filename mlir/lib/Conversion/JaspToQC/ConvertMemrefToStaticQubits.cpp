@@ -13,6 +13,7 @@
 #include "mlir/Dialect/QC/IR/QCDialect.h"
 #include "mlir/Dialect/QC/IR/QCOps.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/Dominance.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Types.h"
 #include "mlir/Support/LLVM.h"
@@ -55,11 +56,40 @@ protected:
     // A global counter to ensure every physical qubit in the circuit gets a unique hardware ID.
     int64_t nextGlobalQubitIdx = 0;
 
+    // The qubits each dealloc frees. An alloc reuses them only if that dealloc dominates it.
+    DominanceInfo dominance(op);
+    SmallVector<std::pair<memref::DeallocOp, SmallVector<Value>>> freed;
+    auto takeFreedQubit = [&](memref::AllocOp allocOp) -> Value {
+      for (auto& [deallocOp, qubits] : freed) {
+        if (!qubits.empty() && dominance.properlyDominates(deallocOp, allocOp)) {
+          return qubits.pop_back_val();
+        }
+      }
+      return {};
+    };
+
     // --- Step 1: Lower Allocations to Static Hardware Qubits ---
     // We treat every 'alloc' as a request for N physical qubits.
     // We generate these qubits immediately and store them in our map.
-    WalkResult result = op->walk([&](memref::AllocOp allocOp) {
-      if (!isQubitMemref(allocOp.getType())) {
+    WalkResult result = op->walk([&](Operation* memrefOp) {
+      if (auto deallocOp = dyn_cast<memref::DeallocOp>(memrefOp)) {
+        Value memref = deallocOp.getMemref();
+        while (auto castOp = memref.getDefiningOp<memref::CastOp>()) {
+          memref = castOp.getSource();
+        }
+        auto freedAlloc = memref.getDefiningOp<memref::AllocOp>();
+        if (freedAlloc && isQubitMemref(freedAlloc.getType())) {
+          SmallVector<Value> qubits;
+          for (int64_t i = freedAlloc.getType().getDimSize(0) - 1; i >= 0; --i) {
+            qubits.push_back(qubitMap.lookup({freedAlloc.getResult(), i}));
+          }
+          freed.emplace_back(deallocOp, std::move(qubits));
+        }
+        return WalkResult::advance();
+      }
+
+      auto allocOp = dyn_cast<memref::AllocOp>(memrefOp);
+      if (!allocOp || !isQubitMemref(allocOp.getType())) {
         return WalkResult::advance();
       }
 
@@ -72,10 +102,15 @@ protected:
       int64_t size = memrefType.getDimSize(0);
       builder.setInsertionPoint(allocOp);
 
-      // Create a unique 'static' op for every slot in the memref.
+      // Reuse a freed qubit after resetting it, or create a new 'static' op for the slot.
       for (int64_t i = 0; i < size; i++) {
-        auto staticQubit = qc::StaticOp::create(builder, allocOp->getLoc(), nextGlobalQubitIdx++);
-        qubitMap[{allocOp.getResult(), i}] = staticQubit.getResult();
+        Value qubit = takeFreedQubit(allocOp);
+        if (qubit) {
+          qc::ResetOp::create(builder, allocOp->getLoc(), qubit);
+        } else {
+          qubit = qc::StaticOp::create(builder, allocOp->getLoc(), nextGlobalQubitIdx++).getResult();
+        }
+        qubitMap[{allocOp.getResult(), i}] = qubit;
       }
 
       return WalkResult::advance();

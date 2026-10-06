@@ -98,6 +98,6 @@ builtin.module @jasp_module {
 // CHECK:         qv.mz
 // CHECK:         qv.mz
 // CHECK:         beqz
-// Out-of-line correction blocks, three per round.
-// CHECK-COUNT-9: qv.x{{.*}}, zero, 0
-// CHECK-NOT:     qv.x
+// Conditional flips: three corrections per round, plus one per ancilla reset before rounds 1 and 2.
+// CHECK-COUNT-13: qv.x{{.*}}, zero, 0
+// CHECK-NOT:      qv.x

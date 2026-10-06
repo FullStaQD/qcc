@@ -226,8 +226,8 @@ builtin.module @jasp_module {
 
 // CHECK-QIR:      call void @__quantum__rt__tuple_record_output(i64 4
 
-// 6 data qubits + 4 rounds x 2 ancillas.
-// CHECK-SIM:      METADATA required_num_qubits 14
+// 6 data qubits + 2 ancillas, reset and reused by every round.
+// CHECK-SIM:      METADATA required_num_qubits 8
 
 // Blocks agree (XOR 0); syndromes report the injected errors.
 // CHECK-SIM:      OUTPUT TUPLE 4
