@@ -102,7 +102,11 @@ bool emitNativeHiSEPQ(llvm::Module& module, llvm::raw_pwrite_stream& os, const N
   LLVMInitializeRISCVAsmPrinter();
   LLVMInitializeRISCVAsmParser();
 
-  const std::string attrsStr = "+experimental-xqv,+zvl" + std::to_string(targetOptions.minVLen) + "b";
+  // `enable-vsetvli-sched-heuristic` lets the machine scheduler break ties in favour of the current vector
+  // configuration. Alone it changes nothing, but it keeps `generic-ooo` (see below) from adding `vsetvli`s when qubit
+  // indices and their gate differ in LMUL, as at the default `--min-vlen`.
+  const std::string attrsStr =
+      "+experimental-xqv,+zvl" + std::to_string(targetOptions.minVLen) + "b,+enable-vsetvli-sched-heuristic";
   llvm::Triple triple(llvm::Triple::normalize("riscv32-unknown-unknown"));
 
   std::string errorStr;
@@ -121,8 +125,14 @@ bool emitNativeHiSEPQ(llvm::Module& module, llvm::raw_pwrite_stream& os, const N
 
   // Nothing unwinds on HiSEP-Q. Without `nounwind` LLVM emits things like
   // `.cfi_startproc` (which is garbage for us).
+  //
+  // The default tuning (`generic-rv32`) schedules for an in-order application core: to avoid a pipeline stall it moves
+  // a vector's definition away from its use, e.g. the qubit indices of a measurement above gates of another vector
+  // configuration, which costs extra `vsetvli`s. `generic-ooo` models no such stall and keeps them together.
+  // TODO: Tune for a dedicated HiSEP-Q CPU model once the LLVM fork defines one.
   for (llvm::Function& func : module) {
     func.setDoesNotThrow(); // adds nounwind attribute
+    func.addFnAttr("tune-cpu", "generic-ooo");
   }
 
   module.setDataLayout(targetMachine->createDataLayout());
