@@ -23,11 +23,11 @@ def ConvertQIRToHiSEPQIntrinsics : Pass<"convert-qir-to-hisepq-intrinsics", "mli
       carrying that index in element 0, matching the `anyvector` operand that the
       QVSingle / QVPair intrinsics expect.
 
-      The QIR runtime calls below have no HiSEP-Q QISA counterpart yet, so they
-      are dropped:
+      The QIR runtime calls below are dropped:
       - `__quantum__rt__initialize` calls are erased.
       - `__quantum__rt__read_result` calls are replaced with `poison : i1`,
-        i.e. the measurement result is lost.
+        i.e. the measurement result is lost. Use
+        `convert-qvec-to-hisepq-intrinsics` instead, which reads it back.
       - `__quantum__rt__bool_record_output` and `__quantum__rt__int_record_output`
         calls are erased, so program output is not recorded.
       TODO: Support these once HiSEP-Q specifies the corresponding QISA
@@ -106,11 +106,11 @@ def ConvertQVecToHiSEPQIntrinsics : Pass<"convert-qvec-to-hisepq-intrinsics", "m
 
       Gates without an intrinsic are rejected (error).
 
-      - `llvm.riscv.qv.mz` returns void and the QISA specifies no way to read a measurement back, so the classical
-        result of `qvec.mz` is replaced with `poison`, i.e. the measurement result is lost.
-      - `aux.record_int` and `aux.record_memref` are erased, so the program produces no output.
+      The outcomes of `qvec.mz` are read back with `llvm.riscv.qv.mres` from CSR `qmres`, whose bit `k` is element `k`
+      of the latest measurement. It holds 32 bits, so a `qvec.mz` on more than 32 qubits is rejected (error).
 
-      TODO: Support both once HiSEP-Q specifies the corresponding QISA operations.
+      `aux.record_int` and `aux.record_memref` are erased, so the program produces no output.
+      TODO: Support them once HiSEP-Q specifies the corresponding QISA operations.
   }];
 
   let options = [

@@ -55,6 +55,10 @@ public:
   /// The highest qubit index QEW can represent, i.e. `2^QEW - 1`.
   [[nodiscard]] uint64_t maxQubitIndex() const;
 
+  /// The most qubits one measurement can measure: its outcomes are read back from CSR `qmres`, one bit per qubit in a
+  /// single XLEN-bit word (QV 0.1 on RV32).
+  static constexpr unsigned maxMeasuredQubits() { return 32; }
+
   /// The narrowest scalable vector type that carries `numQubits` qubit indices. Or nullopt if capacity is exceeded.
   [[nodiscard]] std::optional<mlir::VectorType> qubitVectorType(mlir::MLIRContext* ctx, unsigned numQubits) const;
 
