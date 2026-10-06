@@ -51,6 +51,7 @@ builtin.module @jasp_module {
 
 // Eight Bell pairs, written out one gate at a time, arrive as three QV instructions. They need only two vector
 // configurations: one for the gates, one for the measurements.
+// CHECK-LABEL: main:
 // CHECK-NEXT:  vsetivli zero, 8, e8, mf2, ta, ma
 // CHECK-NEXT:  vid.v [[CTRLS:v[0-9]+]]
 // CHECK-NEXT:  qv.h [[CTRLS]], zero, 0
