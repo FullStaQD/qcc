@@ -18,3 +18,10 @@ module {
     llvm.return
   }
 }
+
+// -----
+
+// expected-error @+1 {{expected the entry point to take no arguments, as nothing provides them}}
+llvm.func @takes_arguments(%arg0: i64) attributes { qcc.entry_point } {
+  llvm.return
+}

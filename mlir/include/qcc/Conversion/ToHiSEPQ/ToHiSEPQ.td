@@ -59,8 +59,11 @@ def EmitHiSEPQStart : Pass<"emit-hisepq-start", "mlir::ModuleOp"> {
   let description = [{
       Appends a `_start` function that supersedes the module's entry point as
       the entry point of the hardware. It sets the stack pointer to
-      `__stack_top`, jumps to the original entry point and loops forever when
-      that returns.
+      `__stack_top`, calls `__qcc_call_entry_point` and loops forever when
+      that returns. `__qcc_call_entry_point` calls the original entry point
+      as an ordinary call, which provides what the calling convention needs,
+      such as the memory for results returned indirectly, and discards the
+      results.
 
       TODO: Check with HiSEP-Q Team if looping forever is the only thing we can
       do at the end.
@@ -69,7 +72,8 @@ def EmitHiSEPQStart : Pass<"emit-hisepq-start", "mlir::ModuleOp"> {
       (`hisepq.ld`), which declares `ENTRY(_start)`, pulls `.text._start` to
       the boot address and provides `__stack_top`.
 
-      Assumes that *exactly* one function is tagged entry point.
+      Assumes that *exactly* one function is tagged entry point, and that it
+      takes no arguments.
 
       TODO: Drop this pass once HiSEP-Q ships a crt0. Then qcc can emit a plain
       `main` and leave the startup code to the runtime.
