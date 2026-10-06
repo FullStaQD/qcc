@@ -262,3 +262,27 @@ func.func @conditional_with_classical_result(%cond: i1, %lhs: i64, %rhs: i64) ->
 // CHECK:           scf.yield %{{.*}}, %{{.*}} : i64, !qco.qubit
 // CHECK:         }
 // CHECK:         return %[[RES]]#0 : i64
+
+// -----
+
+// Until QVec and HiSEP-Q have a reset, it is emulated by flipping the qubit if it measures |1>.
+
+// CHECK-LABEL: func.func @reset
+func.func @reset() {
+    %q0 = qco.static 0 : !qco.qubit
+    %r = qco.reset %q0 : !qco.qubit -> !qco.qubit
+    %x = qco.x %r : !qco.qubit -> !qco.qubit
+    func.return
+}
+
+// CHECK:         %[[V:.*]] = vector.from_elements %{{.*}} : vector<1x!qco.qubit>
+// CHECK:         %[[M:.*]], %[[BITS:.*]] = qvec.mz %[[V]] : vector<1x!qco.qubit> -> vector<1xi1>
+// CHECK:         %[[ONE:.*]] = vector.extract %[[BITS]][0] : i1 from vector<1xi1>
+// CHECK:         %[[R:.*]] = scf.if %[[ONE]] -> (vector<1x!qco.qubit>) {
+// CHECK:           %[[F:.*]] = qvec.single x %[[M]] : vector<1x!qco.qubit>
+// CHECK:           scf.yield %[[F]] : vector<1x!qco.qubit>
+// CHECK:         } else {
+// CHECK:           scf.yield %[[M]] : vector<1x!qco.qubit>
+// CHECK:         }
+// CHECK:         vector.extract %[[R]][0]
+// CHECK:         qvec.single x

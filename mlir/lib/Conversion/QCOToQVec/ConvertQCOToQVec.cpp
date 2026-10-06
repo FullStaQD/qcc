@@ -284,6 +284,34 @@ struct MeasureLowering final : public OpConversionPattern<qco::MeasureOp> {
   }
 };
 
+/// Rewrites `qco.reset` into a measurement followed by an `x` if the qubit was measured in |1⟩.
+///
+/// TODO: Replace with a real reset once QVec and HiSEP-Q provide one.
+struct ResetLowering final : public OpConversionPattern<qco::ResetOp> {
+  using OpConversionPattern::OpConversionPattern;
+
+  LogicalResult matchAndRewrite(qco::ResetOp op, OpAdaptor adaptor,
+                                ConversionPatternRewriter& rewriter) const override {
+    Location loc = op.getLoc();
+    Value qubits = buildVector(rewriter, loc, adaptor.getQubitIn());
+    auto bitsType = VectorType::get({1}, rewriter.getI1Type());
+    auto mzOp = MZOp::create(rewriter, loc, qubits.getType(), bitsType, qubits);
+    Value measured = mzOp.getQubitsOut();
+    Value one = vector::ExtractOp::create(rewriter, loc, mzOp.getBits(), 0);
+
+    auto ifOp = scf::IfOp::create(
+        rewriter, loc, one,
+        [&](OpBuilder& builder, Location branchLoc) {
+          auto flipOp = SingleOp::create(builder, branchLoc, SingleGateKind::X, measured, ValueRange{});
+          scf::YieldOp::create(builder, branchLoc, flipOp.getQubitsOut());
+        },
+        [&](OpBuilder& builder, Location branchLoc) { scf::YieldOp::create(builder, branchLoc, measured); });
+
+    rewriter.replaceOp(op, vector::ExtractOp::create(rewriter, loc, ifOp.getResult(0), 0));
+    return success();
+  }
+};
+
 } // namespace
 
 namespace qcc {
@@ -320,8 +348,8 @@ protected:
                  RotationLowering<qco::RYOp, SingleGateKind::RY>,     //
                  RotationLowering<qco::RZOp, SingleGateKind::RZ>,     //
                  RotationLowering<qco::POp, SingleGateKind::RZ>,      //
-                 ISwapLowering, RZZLowering, GPhaseLowering, CtrlLowering, MeasureLowering, SinkLowering, IfLowering,
-                 YieldLowering>(ctx);
+                 ISwapLowering, RZZLowering, GPhaseLowering, CtrlLowering, MeasureLowering, ResetLowering, SinkLowering,
+                 IfLowering, YieldLowering>(ctx);
 
     if (failed(applyPartialConversion(moduleOp, target, std::move(patterns)))) {
       signalPassFailure();
