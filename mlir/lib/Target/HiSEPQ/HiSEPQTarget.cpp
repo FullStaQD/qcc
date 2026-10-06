@@ -61,6 +61,8 @@ static unsigned maxVectorizationFactor(const TargetOptions& targetOptions) {
 void addLoweringPassesHiSEPQViaQIR(mlir::PassManager& pm) {
   addLoweringPassesQIR(pm);
   pm.addPass(qcc::createConvertQIRToHiSEPQIntrinsics());
+  // Promotes the stack slots that hold measurement results to SSA values.
+  pm.addPass(mlir::createMem2Reg());
   pm.addPass(qcc::createEmitHiSEPQStart());
 }
 
