@@ -1,5 +1,15 @@
 // RUN: qcc --target=hisepq --compile-to=native %s | FileCheck %s
 
+// Where the simulator is available, the program also runs on it, with the outcomes of an ideal device: syndrome 11 in
+// round 1, both ancillas still 1 when reset, syndrome 00 in round 2 and 000 for the data qubits. The testbench fails
+// unless the pulses are exactly those listed: the error, two rounds of four CX, the correction of qubit 1, the
+// ancilla resets and the measurements.
+// RUN: %if lld && sim-hisepq %{ qcc --target=hisepq --compile-to=native --binary %s -o %t.o %}
+// RUN: %if lld && sim-hisepq %{ ld.lld -T %project_source_dir/mlir/lib/Target/HiSEPQ/Scripts/hisepq.ld %t.o -o %t.elf %}
+// RUN: %if lld && sim-hisepq %{ hisepq-elf2mem %t.elf -o %t.mem %}
+// RUN: %if lld && sim-hisepq %{ sim_hisepq +MEM_FILE=%t.mem +MEASURE_FILE=%S/Inputs/repetition_code.outcomes \
+// RUN:     +AWG_EXPECT=%S/Inputs/repetition_code.expect | FileCheck %s --check-prefix=CHECK-SIM %}
+
 // GENERATED FROM QRISP VERSION 0.9.6
 
 builtin.module @jasp_module {
@@ -147,3 +157,7 @@ builtin.module @jasp_module {
 // CHECK:         qv.x [[D0]], zero, 0
 // CHECK:       [[FLIP1]]:
 // CHECK:         qv.x [[D1]], zero, 0
+
+// CHECK-SIM: [PASS][AWG_EXPECT] all 29 expected fires matched exactly
+// CHECK-SIM: measurements   : 7
+// CHECK-SIM: RESULT : PASS
