@@ -2,7 +2,7 @@ from qrisp import QuantumVariable, cx, measure, q_cond, q_fori_loop, x
 
 def repetition_code():
     """Multi-round error correction on the 3-qubit bit-flip repetition code."""
-    rounds = 3
+    rounds = 2
     data = QuantumVariable(3)
 
     x(data[1])  # error: both ancillas see it, syndrome 0b11

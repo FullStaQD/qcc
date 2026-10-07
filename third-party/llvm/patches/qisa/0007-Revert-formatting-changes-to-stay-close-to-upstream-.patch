@@ -1,0 +1,9 @@
+From f1b23a39dd6571c07fd3f03844cddd4e2d366341 Mon Sep 17 00:00:00 2001
+From: Reinhard Stahn <rainij36@proton.me>
+Date: Tue, 6 Oct 2026 14:26:51 +0200
+Subject: [PATCH 7/8] Revert formatting changes to stay close to upstream (#10)
+
+This reduces the diff with respect to existing files to a minimum.
+-- 
+2.51.1
+

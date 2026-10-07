@@ -66,9 +66,8 @@ llvm.func @two_qubit_gates() {
 // CHECK:         %[[TVEC:.*]] = llvm.insertelement %[[TIDX]], %[[POISON_VEC]][%[[ZERO]] : i32] : vector<[8]xi8>
 // CHECK:         llvm.call_intrinsic "llvm.riscv.qv.cx"(%[[CVEC]], %[[TVEC]], %[[ZERO]], %[[ONE]])
 
-// TODO: HiSEP-Q doesn't yet have a `qv.read_result` intrinsic, so the `__quantum__rt__read_result`
-// call is replaced with `poison : i1` for now. Once the intrinsic is available, this test should be
-// updated to check for it.
+// The outcome is read back from `qmres` right after the measurement and kept in a stack slot of its result, from
+// which `read_result` loads it.
 llvm.func @measurement() -> i1 {
   %c0 = llvm.mlir.constant(0 : i64) : i64
   %qptr = llvm.inttoptr %c0 : i64 to !llvm.ptr
@@ -82,14 +81,52 @@ llvm.func @measurement() -> i1 {
 // CHECK-LABEL: llvm.func @measurement()
 // CHECK-NOT:     llvm.call @__quantum__qis__mz__body
 // CHECK-NOT:     llvm.call @__quantum__rt__read_result
-// CHECK-DAG:     %[[IDX:.*]] = llvm.mlir.constant(0 : i8) : i8
-// CHECK-DAG:     %[[ZERO:.*]] = llvm.mlir.constant(0 : i32) : i32
-// CHECK-DAG:     %[[ONE:.*]] = llvm.mlir.constant(1 : i32) : i32
-// CHECK-DAG:     %[[POISON_VEC:.*]] = llvm.mlir.poison : vector<[8]xi8>
-// CHECK-DAG:     %[[POISON_I1:.*]] = llvm.mlir.poison : i1
-// CHECK:         %[[VEC:.*]] = llvm.insertelement %[[IDX]], %[[POISON_VEC]][%[[ZERO]] : i32] : vector<[8]xi8>
-// CHECK:         llvm.call_intrinsic "llvm.riscv.qv.mz"(%[[VEC]], %[[ZERO]], %[[ZERO]], %[[ONE]])
-// CHECK:         llvm.return %[[POISON_I1]] : i1
+// CHECK-DAG:     %[[FALSE:.*]] = llvm.mlir.constant(false) : i1
+// CHECK:         %[[SLOT:.*]] = llvm.alloca %{{.*}} x i1 : (i64) -> !llvm.ptr
+// CHECK-NEXT:    llvm.store %[[FALSE]], %[[SLOT]] : i1, !llvm.ptr
+// CHECK:         llvm.call_intrinsic "llvm.riscv.qv.mz"
+// CHECK-NEXT:    %[[QMRES:.*]] = llvm.call_intrinsic "llvm.riscv.qv.mres"() : () -> i32
+// CHECK-NEXT:    %[[BIT:.*]] = llvm.trunc %[[QMRES]] : i32 to i1
+// CHECK-NEXT:    llvm.store %[[BIT]], %[[SLOT]] : i1, !llvm.ptr
+// CHECK-NEXT:    %[[RES:.*]] = llvm.load %[[SLOT]] : !llvm.ptr -> i1
+// CHECK-NEXT:    llvm.return %[[RES]] : i1
+
+
+// Results are kept apart, and a measurement in one block can be read in another.
+llvm.func @measurements_read_later(%cond: i1) -> i1 {
+  %c0 = llvm.mlir.constant(0 : i64) : i64
+  %c1 = llvm.mlir.constant(1 : i64) : i64
+  %q0 = llvm.inttoptr %c0 : i64 to !llvm.ptr
+  %q1 = llvm.inttoptr %c1 : i64 to !llvm.ptr
+  %r0 = llvm.inttoptr %c0 : i64 to !llvm.ptr
+  %r1 = llvm.inttoptr %c1 : i64 to !llvm.ptr
+  llvm.call @__quantum__qis__mz__body(%q0, %r0) : (!llvm.ptr, !llvm.ptr) -> ()
+  llvm.cond_br %cond, ^measure, ^read
+^measure:
+  llvm.call @__quantum__qis__mz__body(%q1, %r1) : (!llvm.ptr, !llvm.ptr) -> ()
+  llvm.br ^read
+^read:
+  %b0 = llvm.call @__quantum__rt__read_result(%r0) : (!llvm.ptr) -> i1
+  %b1 = llvm.call @__quantum__rt__read_result(%r1) : (!llvm.ptr) -> i1
+  %both = llvm.and %b0, %b1 : i1
+  llvm.return %both : i1
+}
+
+// CHECK-LABEL: llvm.func @measurements_read_later(
+// CHECK:         %[[SLOT0:.*]] = llvm.alloca %{{.*}} x i1 : (i64) -> !llvm.ptr
+// CHECK:         %[[SLOT1:.*]] = llvm.alloca %{{.*}} x i1 : (i64) -> !llvm.ptr
+// CHECK:         llvm.call_intrinsic "llvm.riscv.qv.mz"
+// CHECK-NEXT:    %[[QMRES0:.*]] = llvm.call_intrinsic "llvm.riscv.qv.mres"() : () -> i32
+// CHECK-NEXT:    %[[BIT0:.*]] = llvm.trunc %[[QMRES0]] : i32 to i1
+// CHECK-NEXT:    llvm.store %[[BIT0]], %[[SLOT0]] : i1, !llvm.ptr
+// CHECK:       ^bb1:
+// CHECK:         llvm.call_intrinsic "llvm.riscv.qv.mz"
+// CHECK-NEXT:    %[[QMRES1:.*]] = llvm.call_intrinsic "llvm.riscv.qv.mres"() : () -> i32
+// CHECK-NEXT:    %[[BIT1:.*]] = llvm.trunc %[[QMRES1]] : i32 to i1
+// CHECK-NEXT:    llvm.store %[[BIT1]], %[[SLOT1]] : i1, !llvm.ptr
+// CHECK:       ^bb2:
+// CHECK-NEXT:    llvm.load %[[SLOT0]] : !llvm.ptr -> i1
+// CHECK-NEXT:    llvm.load %[[SLOT1]] : !llvm.ptr -> i1
 
 
 llvm.func @rt_calls_erased() {
