@@ -4,11 +4,11 @@ End-to-end tests that start from a [Qrisp](https://qrisp.eu/) program: the progr
 dialect once, checked in, and compiled by `qcc` in the test. Where a simulator is available the compiled program is
 also run.
 
-| Folder    | Compiled for                              | Simulator       |
-| --------- | ----------------------------------------- | --------------- |
-| `qir/`    | QIR                                       | `qir-runner`    |
-| `hisepq/` | HiSEP-Q QISA (`--target=hisepq`)          | none, see below |
-| `magic/`  | a MAGIC device (`--quantum-device=magic`) | `magic-runner`  |
+| Folder    | Compiled for                              | Simulator               |
+| --------- | ----------------------------------------- | ----------------------- |
+| `qir/`    | QIR                                       | `qir-runner`            |
+| `hisepq/` | HiSEP-Q QISA (`--target=hisepq`)          | `sim_hisepq`, see below |
+| `magic/`  | a MAGIC device (`--quantum-device=magic`) | `magic-runner`          |
 
 Each test consists of the Qrisp source `<name>.py` and the test `<name>.mlir` generated from it.
 
@@ -56,9 +56,15 @@ The tests simulate the compiled program with `mlir/utils/magic-runner` (see its 
 
 ### Notes for `hisepq/`
 
-These tests run only in builds with the HiSEP-Q target, and they check the generated instructions. The RTL testbench
-`sim_hisepq` (used by `target-hisepq/simulate.mlir`) shows the issued instructions and the pulses per qubit control
-line, but it has no quantum state and stops at the first measurement, so it cannot check a program's outcome.
+These tests run only in builds with the HiSEP-Q target, and they check the generated instructions. Where the RTL
+testbench `sim_hisepq` is available (see `utils/provision-sim-hisepq`), a test can also run the program on it, guarded
+by `%if lld && sim-hisepq`.
+
+`sim_hisepq` has no quantum state: the test supplies the measurement outcomes (`+MEASURE_RESULT=<hex>`, or one line
+per measurement in `+MEASURE_FILE=<file>`), and the testbench compares the pulses per qubit control line with an exact
+list (`+AWG_EXPECT=<file>`). So it checks that the processor accepts the program and how the program reacts to given
+outcomes, not which outcomes the program produces. There is no simulator for HiSEP-Q programs like `qir-runner` that
+samples outcomes from a quantum state.
 
 ## Performance considerations for simulation
 
