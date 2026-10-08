@@ -18,18 +18,10 @@ include "mlir/IR/AttrTypeBase.td"
 //===----------------------------------------------------------------------===//
 
 def QCirc_Dialect : Dialect {
-    let summary = "Quantum circuits on individual qubits: gates, measurements and resets.";
+    let summary = "Quantum circuits dialect in value semantics.";
     let description = [{
-        The `qcirc` dialect expresses a quantum circuit one operation at a time: gates, measurements and resets on
-        individual qubits (`!qcc.qubit`). It leaves control flow to other dialects, and gates across whole vectors of
-        qubits to `qvec`.
-
-        The dialect has **value semantics**: an operation consumes its qubits and returns them as new values. Qubit
-        values are affine, which every operation enforces on the qubits it touches (see the `qcc` dialect). In
-        particular the qubits of one operation are distinct.
-
-        The operations are free of memory effects, but not `Pure`: an operation whose results are unused may be
-        erased, but folding or hoisting must never duplicate a qubit value.
+        The `qcirc` dialect represents the traditional quantum circuit model in value semantics. Qubit values are
+        affine, which the `SingleUseQubits` trait on each operation enforces.
 
         The dialect does not model a global phase: gates are equal if they agree up to a global phase, and a lowering
         into `qcirc` may drop one.

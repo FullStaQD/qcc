@@ -26,8 +26,7 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 // An angle in radians.
 def QCirc_Angle : AnyTypeOf<[F64], "64-bit float angle">;
 
-// `tensor<NxNxf64>` - one angle (radians) per pair of qubits. The shape is static, so that it can be checked against
-// the number of qubits.
+// `tensor<NxNxf64>` - one angle (radians) per pair of qubits.
 def QCirc_AngleMatrix : RankedTensorOf<[F64], [HasAnyRankOfPred<[2]>, HasStaticShapePred],
                                        "statically shaped 2D tensor">;
 
@@ -35,8 +34,7 @@ def QCirc_AngleMatrix : RankedTensorOf<[F64], [HasAnyRankOfPred<[2]>, HasStaticS
 // QCirc operations
 //===----------------------------------------------------------------------===//
 
-// All ops are free of memory effects, but deliberately not `Pure`: the qubit values are affine, so folding or hoisting
-// must never duplicate them.
+// No memory effects, but deliberately not `Pure`: qubit values must never be duplicated.
 class QCirc_Op<string mnemonic, list<Trait> traits = []>
     : Op<QCirc_Dialect, mnemonic,
          !listconcat(traits, [NoMemoryEffect, Qcc_SingleUseQubits, Qcc_QubitLaneOpInterface])>;
@@ -47,7 +45,7 @@ def QCirc_SingleOp : QCirc_Op<"single", [AllTypesMatch<["qubit_in", "qubit_out"]
         Applies a single-qubit gate to a qubit.
 
         A parametrised gate takes its angles (radians) as operands. How many it takes is fixed per gate kind (see the
-        `SingleGateKind` enum). The angles share one type, which is spelled once.
+        `SingleGateKind` enum).
 
         Example:
         ```mlir
@@ -88,8 +86,7 @@ def QCirc_PairOp : QCirc_Op<"pair", [AllTypesMatch<["lhs_in", "rhs_in", "lhs_out
   let description = [{
         Applies a two-qubit gate to the qubits `lhs` and `rhs`. For controlled gates `lhs` is the control.
 
-        A parametrised gate takes its angles (radians) as operands, exactly as `qcirc.single` does (see also the
-        `PairGateKind` enum). The two qubits share one type, which is spelled once.
+        A parametrised gate takes its angles (radians) as operands (see also the `PairGateKind` enum).
 
         Example:
         ```mlir
@@ -129,8 +126,8 @@ def QCirc_PairOp : QCirc_Op<"pair", [AllTypesMatch<["lhs_in", "rhs_in", "lhs_out
 def QCirc_GlobalOp : QCirc_Op<"global"> {
   let summary = "gate acting on several qubits jointly";
   let description = [{
-        Unlike `single` and `pair`, a `global` gate acts on any number of qubits *jointly*. The gate is parametrised by
-        a square matrix over its qubits, in operand order.
+        A `global` gate acts on any number of qubits *jointly*. The gate is parametrised by a square matrix over its
+        qubits, in operand order.
 
         For example the `zz` global gate with the `n x n` angle matrix `A` applies
 
@@ -138,9 +135,6 @@ def QCirc_GlobalOp : QCirc_Op<"global"> {
 
         `A` must be symmetric with a zero diagonal; the verifier checks this for constant matrices. Note that
         `rzz(theta)` between the qubits `i` and `j` corresponds to `A_ij = A_ji = theta`.
-
-        The matrix is a statically shaped tensor, so that its shape is checked against the number of qubits. The
-        qubits share one type, which is spelled once.
 
         Example:
         ```mlir
@@ -212,8 +206,7 @@ def QCirc_MeasureOp : QCirc_Op<"measure", [AllTypesMatch<["qubit_in", "qubit_out
 def QCirc_ResetOp : QCirc_Op<"reset", [AllTypesMatch<["qubit_in", "qubit_out"]>]> {
   let summary = "resets a qubit to a basis state";
   let description = [{
-        Resets a qubit to the first state of the given basis, whatever its state was: `z` sends it to |0⟩, `x` to
-        |+⟩.
+        Resets a qubit to the first state of the given basis: `z` sends it to |0⟩, `x` to |+⟩.
 
         Example:
         ```mlir

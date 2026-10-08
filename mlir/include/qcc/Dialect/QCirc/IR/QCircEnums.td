@@ -16,14 +16,13 @@ include "mlir/IR/EnumAttr.td"
 // Gate kinds
 //===----------------------------------------------------------------------===//
 
-// There is no identity gate on purpose. A lowering that needs one uses `rz(0)`.
-
 class QCirc_GateCase<string sym, int val, string str, int arity> : I32EnumCase<sym, val, str> {
   int numParams = arity;
 }
 
 def QCirc_SingleGateKind : I32Enum<"SingleGateKind", "single-qubit gate kind", [
     // C++ name, id, IR name, num params
+    // No identity gate on purpose. We recommend to "decompose" it into `rz(0)`.
     QCirc_GateCase<"X", 0, "x", 0>,
     QCirc_GateCase<"Y", 1, "y", 0>,
     QCirc_GateCase<"Z", 2, "z", 0>,
@@ -32,7 +31,7 @@ def QCirc_SingleGateKind : I32Enum<"SingleGateKind", "single-qubit gate kind", [
     QCirc_GateCase<"Sdg", 5, "sdg", 0>,
     QCirc_GateCase<"T", 6, "t", 0>,
     QCirc_GateCase<"Tdg", 7, "tdg", 0>,
-    QCirc_GateCase<"SX", 8, "sx", 0>,       // sx * sx = x
+    QCirc_GateCase<"SX", 8, "sx", 0>,       // sx = sqrt(x)
     QCirc_GateCase<"SXdg", 9, "sxdg", 0>,
     QCirc_GateCase<"RX", 10, "rx", 1>,      // rx(theta) = exp(-i * theta/2 * X)
     QCirc_GateCase<"RY", 11, "ry", 1>,
@@ -59,8 +58,6 @@ def QCirc_PairGateKind : I32Enum<"PairGateKind", "two-qubit gate kind", [
   let cppNamespace = "::qcc::qcirc";
 }
 
-// Global gates act on several qubits jointly. Their parameter is not one angle per gate but a matrix over the qubits
-// (see `qcirc.global`), so they carry no arity here.
 def QCirc_GlobalGateKind : I32Enum<"GlobalGateKind", "global gate kind", [
     // C++ name, id, IR name
     I32EnumCase<"ZZ", 0, "zz">,

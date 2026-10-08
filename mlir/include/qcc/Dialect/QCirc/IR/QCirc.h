@@ -11,14 +11,9 @@
 
 #include "qcc/Dialect/Qcc/IR/Qcc.h" // IWYU pragma: keep
 
-#include "mlir/Bytecode/BytecodeOpInterface.h" // IWYU pragma: keep
-#include "mlir/IR/Builders.h"                  // IWYU pragma: keep
-#include "mlir/IR/BuiltinAttributes.h"
-#include "mlir/IR/BuiltinTypes.h"
-#include "mlir/IR/Dialect.h" // IWYU pragma: keep
-#include "mlir/IR/OpDefinition.h"
-#include "mlir/IR/Operation.h"
-#include "mlir/IR/ValueRange.h"
+#include "mlir/Bytecode/BytecodeOpInterface.h"    // IWYU pragma: keep
+#include "mlir/IR/Builders.h"                     // IWYU pragma: keep
+#include "mlir/IR/Dialect.h"                      // IWYU pragma: keep
 #include "mlir/Interfaces/SideEffectInterfaces.h" // IWYU pragma: keep
 
 //===----------------------------------------------------------------------===//
