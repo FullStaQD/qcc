@@ -124,9 +124,7 @@ def Qcc_QubitLaneOpInterface : OpInterface<"QubitLaneOpInterface"> {
 // Traits
 //===----------------------------------------------------------------------===//
 
-// Qubit values are affine, which their type cannot enforce on its own. An op with this trait enforces it on the qubits
-// it touches, by counting uses. Counting is enough because the op sits directly in a single-block function that takes
-// and returns no qubits. See the description of the `qcc` dialect for the rules.
+// Enforces the affine constraint on `!qcc.qubit` by usage counting. Only use where this is appropriate.
 def Qcc_SingleUseQubits : NativeOpTrait<"SingleUseQubits"> {
   let cppNamespace = "::qcc";
 }

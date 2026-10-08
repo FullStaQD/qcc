@@ -22,8 +22,7 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 // Qcc operations
 //===----------------------------------------------------------------------===//
 
-// Free of memory effects, but deliberately not `Pure`: the qubit values are affine, so folding or hoisting must never
-// duplicate them.
+// No memory effects, but deliberately not `Pure`: qubit values must never be duplicated.
 def Qcc_StaticOp : Op<Qcc_Dialect, "static", [NoMemoryEffect, Qcc_SingleUseQubits]> {
   let summary = "the qubits of a function, by static index";
   let description = [{
