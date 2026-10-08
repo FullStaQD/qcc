@@ -25,8 +25,6 @@ func.func @not_a_unit() attributes {qcc.entry_point = true} {
 
 // -----
 
-// The qubit type and its source.
-
 // A qubit has value semantics, so it is no memref element.
 // expected-error @+1 {{invalid memref element type}}
 func.func @qubit_memref(%m: memref<2x!qcc.qubit>) {

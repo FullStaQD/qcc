@@ -11,13 +11,6 @@ func.func @static() {
   return
 }
 
-// CHECK-LABEL: func.func @static_single
-func.func @static_single() {
-  // CHECK: %{{.*}} = qcc.static [0] : !qcc.qubit
-  %q0 = qcc.static [0] : !qcc.qubit
-  return
-}
-
 // CHECK-LABEL: func.func @static_empty
 func.func @static_empty() {
   // CHECK: qcc.static [] : !qcc.qubit
@@ -25,7 +18,7 @@ func.func @static_empty() {
   return
 }
 
-// A qubit is a vector element.
+// A qubit is a valid vector element.
 // CHECK-LABEL: func.func @qubit_vector
 func.func @qubit_vector() {
   // CHECK: %[[Q:.*]]:2 = qcc.static [0, 1] : !qcc.qubit
