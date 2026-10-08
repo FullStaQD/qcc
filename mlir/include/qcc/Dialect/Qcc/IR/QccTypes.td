@@ -19,7 +19,6 @@ include "mlir/IR/BuiltinTypeInterfaces.td"
 // Qcc types
 //===----------------------------------------------------------------------===//
 
-// A vector element (`vector<4x!qcc.qubit>`), but deliberately no memref element: the type has value semantics.
 def Qcc_QubitType : TypeDef<Qcc_Dialect, "Qubit", [VectorElementTypeInterface]> {
   let mnemonic = "qubit";
   let summary = "qubit value";
@@ -28,7 +27,7 @@ def Qcc_QubitType : TypeDef<Qcc_Dialect, "Qubit", [VectorElementTypeInterface]> 
         the value and returns the qubit as a new value.
 
         The type is *affine*: each value may be consumed at most once on any execution path (no-cloning). A value that
-        is never consumed is discarded, which traces the qubit out. See the dialect description on how this is enforced.
+        is never consumed is discarded, which traces the qubit out.
 
         Example:
         ```mlir

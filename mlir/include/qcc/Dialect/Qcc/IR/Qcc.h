@@ -22,7 +22,6 @@
 #include "mlir/IR/Operation.h" // IWYU pragma: keep
 #include "mlir/IR/Types.h"
 #include "mlir/IR/Value.h"
-#include "mlir/IR/ValueRange.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h" // IWYU pragma: keep
 #include "mlir/Support/LLVM.h"
 
@@ -76,12 +75,14 @@ llvm::LogicalResult verifyQubitLaneOpInterface(mlir::Operation* op);
 
 namespace qcc {
 
-/// Verifies that `op` sits directly in a single-block function without qubit arguments and results, and that the
-/// qubits `op` touches are used at most once. See the dialect description on affine qubit values.
+/// Imposes the following constraints:
+/// - The operation sits directly in a function (`func.func` or any other `FunctionOpInterface` operation) with a
+///   single block, and that function has no qubits among its arguments and results.
+/// - Each scalar qubit result of the operation is used at most once.
+/// - Each qubit operand of the operation, scalar or vector, has no other use.
 llvm::LogicalResult verifySingleUseQubits(mlir::Operation* op);
 
-/// Corresponds to `Qcc_SingleUseQubits` in tablegen. An op trait mixin in the style of `mlir::OpTrait`, hence the
-/// public constructor.
+/// Corresponds to `Qcc_SingleUseQubits` in tablegen.
 template <typename ConcreteType>
 class SingleUseQubits // NOLINT(bugprone-crtp-constructor-accessibility)
     : public mlir::OpTrait::TraitBase<ConcreteType, SingleUseQubits> {
