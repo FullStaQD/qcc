@@ -39,7 +39,6 @@ using namespace qcc;
 // Dialect
 //===----------------------------------------------------------------------===//
 
-// The module and function attributes declared in `QccDialect.td` need no registration.
 void QccDialect::initialize() {
   addTypes<
 #define GET_TYPEDEF_LIST

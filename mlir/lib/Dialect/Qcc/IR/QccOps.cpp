@@ -64,8 +64,6 @@ static void printStaticTypes(OpAsmPrinter& printer, Operation* op, TypeRange qub
 //===----------------------------------------------------------------------===//
 
 LogicalResult qcc::verifySingleUseQubits(Operation* op) {
-  // Counting uses checks the affine rule only in straight-line code: a function with a single block, whose qubit ops
-  // sit directly in that block. Without qubit arguments and results, no qubit enters or leaves the function either.
   auto function = dyn_cast_if_present<FunctionOpInterface>(op->getParentOp());
   if (!function) {
     return op->emitOpError() << "must be directly inside a function";
@@ -78,16 +76,17 @@ LogicalResult qcc::verifySingleUseQubits(Operation* op) {
     return op->emitOpError() << "must be in a function without qubit arguments and results";
   }
 
+  // Result qubits must only be used at most once.
   for (OpResult result : op->getResults()) {
-    // A vector result is exempt: it is legitimately taken apart (`vector.extract`, slices).
+    // A vector can legitimately be used multiple times: e.g. by taking it apart (`vector.extract`, slices).
     if (isa<QubitType>(result.getType()) && !result.use_empty() && !result.hasOneUse()) {
       return op->emitOpError() << "qubit result #" << result.getResultNumber() << " has " << result.getNumUses()
                                << " uses, but qubit values are affine";
     }
   }
 
-  // The op consumes its qubit operands, a vector as a whole. This also covers the qubits that come from an op without
-  // this trait (e.g. `vector.from_elements`), where only the consumer can see a second use.
+  // Operand qubits must only be used once. This is not redundant with the result-rule above because qubits need not
+  // come from ops carrying our trait.
   for (OpOperand& operand : op->getOpOperands()) {
     Value qubit = operand.get();
     if (isQubitOrQubitVector(qubit.getType()) && !qubit.hasOneUse()) {
@@ -123,7 +122,7 @@ LogicalResult qcc::detail::verifyQubitLaneOpInterface(Operation* op) {
     }
   }
 
-  // Every lane has both ends, so a qubit outside the lanes would start or end at this op.
+  // The lanes are all the qubits of the op: no other operand or result is a qubit.
   const unsigned firstOperand = numLanes == 0 ? 0 : operands.getBeginOperandIndex();
   for (OpOperand& operand : op->getOpOperands()) {
     const unsigned number = operand.getOperandNumber();
@@ -170,8 +169,6 @@ LogicalResult StaticOp::verify() {
     return emitOpError() << "must be directly inside a 'func.func'";
   }
 
-  // One op creates all qubits of a function. The function has a single block (see `SingleUseQubits`), so an earlier
-  // op of the same kind is found in this block.
   for (Operation* previous = getOperation()->getPrevNode(); previous != nullptr; previous = previous->getPrevNode()) {
     if (isa<StaticOp>(previous)) {
       InFlightDiagnostic diag = emitOpError()
