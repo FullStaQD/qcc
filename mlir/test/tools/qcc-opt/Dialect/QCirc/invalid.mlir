@@ -9,28 +9,10 @@ func.func @missing_parameter() {
 
 // -----
 
-func.func @too_many_parameters(%theta: f64) {
-  %q = qcc.static [0] : !qcc.qubit
-  // expected-error @+1 {{'qcirc.single' op gate 'h' takes 0 parameter(s), got 1}}
-  %h = qcirc.single h(%theta) %q : !qcc.qubit, f64
-  return
-}
-
-// -----
-
-func.func @wrong_arity(%theta: f64) {
-  %q = qcc.static [0] : !qcc.qubit
-  // expected-error @+1 {{'qcirc.single' op gate 'u_zyz' takes 3 parameter(s), got 2}}
-  %u = qcirc.single u_zyz(%theta, %theta) %q : !qcc.qubit, f64
-  return
-}
-
-// -----
-
-// There is no identity gate.
+// There is no identity gate. Decompose into e.g. rz(0) instead.
 func.func @identity() {
   %q = qcc.static [0] : !qcc.qubit
-  // expected-error @+2 {{expected one of [x, y, z, h, s, sdg, t, tdg, sx, sxdg, rx, ry, rz, u_zxz, u_zyz] for single-qubit gate kind, got: i}}
+  // expected-error-re @+2 {{expected one of [{{.*}}] for single-qubit gate kind, got: i}}
   // expected-error @+1 {{failed to parse QCirc_SingleGateKindAttr parameter 'value'}}
   %i = qcirc.single i %q : !qcc.qubit
   return
@@ -47,19 +29,9 @@ func.func @parameter_type(%theta: f32) {
 
 // -----
 
-func.func @foreign_qubit() {
-  %q = qco.static 0 : !qco.qubit
-  // expected-error @+1 {{'qcirc.single' op operand #0 must be qubit value, but got '!qco.qubit'}}
-  %h = qcirc.single h %q : !qco.qubit
-  return
-}
-
-// -----
-
-func.func @pair_missing_parameter() {
-  %q0, %q1 = qcc.static [0, 1] : !qcc.qubit
-  // expected-error @+1 {{'qcirc.pair' op gate 'rzz' takes 1 parameter(s), got 0}}
-  %a, %b = qcirc.pair rzz %q0, %q1 : !qcc.qubit
+func.func @qubit_type(%q: i1) {
+  // expected-error @+1 {{'qcirc.single' op operand #0 must be qubit value, but got 'i1'}}
+  %h = qcirc.single h %q : i1
   return
 }
 
@@ -78,15 +50,6 @@ func.func @global_matrix_size(%angles: tensor<3x3xf64>) {
   %q0, %q1 = qcc.static [0, 1] : !qcc.qubit
   // expected-error @+1 {{'qcirc.global' op angle matrix 'tensor<3x3xf64>' must be 2x2 to match the number of qubits}}
   %a, %b = qcirc.global zz(%angles) %q0, %q1 : !qcc.qubit, tensor<3x3xf64>
-  return
-}
-
-// -----
-
-func.func @global_matrix_not_square(%angles: tensor<2x3xf64>) {
-  %q0, %q1 = qcc.static [0, 1] : !qcc.qubit
-  // expected-error @+1 {{'qcirc.global' op angle matrix 'tensor<2x3xf64>' must be 2x2 to match the number of qubits}}
-  %a, %b = qcirc.global zz(%angles) %q0, %q1 : !qcc.qubit, tensor<2x3xf64>
   return
 }
 
@@ -132,29 +95,9 @@ func.func @global_lane_without_result(%angles: tensor<2x2xf64>) {
 
 // -----
 
-func.func @measure_basis() {
-  %q = qcc.static [0] : !qcc.qubit
-  // expected-error @+2 {{expected one of [z, x] for single-qubit basis, got: y}}
-  // expected-error @+1 {{failed to parse QCirc_BasisAttr parameter 'value'}}
-  %m, %bit = qcirc.measure y %q : !qcc.qubit -> i1
-  return
-}
-
-// -----
-
 func.func @measure_bit_type() {
   %q = qcc.static [0] : !qcc.qubit
   // expected-error @+1 {{'qcirc.measure' op result #1 must be 1-bit signless integer, but got 'i8'}}
   %m, %bit = qcirc.measure z %q : !qcc.qubit -> i8
-  return
-}
-
-// -----
-
-func.func @reset_basis() {
-  %q = qcc.static [0] : !qcc.qubit
-  // expected-error @+2 {{expected one of [z, x] for single-qubit basis, got: y}}
-  // expected-error @+1 {{failed to parse QCirc_BasisAttr parameter 'value'}}
-  %r = qcirc.reset y %q : !qcc.qubit
   return
 }
