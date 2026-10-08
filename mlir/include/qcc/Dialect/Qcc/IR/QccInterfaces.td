@@ -43,15 +43,14 @@ def QCC_DeviceAttrInterface : AttrInterface<"DeviceAttrInterface"> {
 
 def Qcc_QubitLaneOpInterface : OpInterface<"QubitLaneOpInterface"> {
   let description = [{
-        A qubit lane is a qubit, or a vector of qubits, on its way through an operation: lane `i` is qubit operand `i`
-        together with qubit result `i`, the same qubit before and after the operation (element by element for a
-        vector). A `qcirc.single` has one lane, a `qcirc.pair` has two.
+        An operation with this interface returns exactly the qubits it takes as operands in the same order: qubit result
+        `i` is qubit operand `i` after the operation. Such an operand/result pair is a *lane*, and it may also be a
+        vector of qubits. A `qcirc.single` has one lane, a `qcirc.pair` has two. Qubit sources (`qcc.static`) and sinks
+        therefore do not implement the interface.
 
         A lane follows the identity of a qubit, not its state: `qcirc.pair swap` does not exchange its lanes.
 
-        Every lane has both ends, so qubit sources (`qcc.static`) and sinks do not implement the interface. An
-        implementing operation has no qubit operand or result outside its lanes: the qubit operands form one contiguous
-        group, and the qubit results are the leading results.
+        The qubit operands form one contiguous group, and the qubit results are the leading results.
     }];
   let cppNamespace = "::qcc";
 
