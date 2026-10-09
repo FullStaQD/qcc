@@ -1,7 +1,7 @@
 From c3be8f83012c6c23ec57055654f4809b6e4af9c7 Mon Sep 17 00:00:00 2001
 From: Reinhard Stahn <rainij36@proton.me>
 Date: Thu, 3 Sep 2026 15:24:12 +0200
-Subject: [PATCH 4/4] Fix double re-configuration issue (#9)
+Subject: [PATCH 4/7] Fix double re-configuration issue (#9)
 
 In QCC we suffer from double configurations like this (note that the two configurations are identical):
 
