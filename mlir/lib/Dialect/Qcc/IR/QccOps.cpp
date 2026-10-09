@@ -97,43 +97,46 @@ LogicalResult qcc::verifySingleUseQubits(Operation* op) {
   return success();
 }
 
-LogicalResult qcc::detail::verifyQubitLaneOpInterface(Operation* op) {
-  auto laneOp = cast<QubitLaneOpInterface>(op);
-  OperandRange operands = laneOp.getQubitOperands();
-  ResultRange results = laneOp.getQubitResults();
-  const unsigned numLanes = results.size();
+unsigned qcc::detail::getNumLeadingQubits(TypeRange types) {
+  unsigned numQubits = 0;
+  for (Type type : types) {
+    if (!isQubitOrQubitVector(type)) {
+      break;
+    }
+    ++numQubits;
+  }
+  return numQubits;
+}
 
-  if (operands.size() != numLanes) {
-    return op->emitOpError() << "has " << operands.size() << " qubit operand(s) but " << numLanes
+LogicalResult qcc::detail::verifyQubitLaneOpInterface(Operation* op) {
+  const unsigned numQubitOperands = getNumLeadingQubits(op->getOperandTypes());
+  const unsigned numQubitResults = getNumLeadingQubits(op->getResultTypes());
+
+  // The qubits lead: no qubit follows a non-qubit.
+  for (OpOperand& operand : op->getOpOperands().drop_front(numQubitOperands)) {
+    if (isQubitOrQubitVector(operand.get().getType())) {
+      return op->emitOpError() << "qubit operand #" << operand.getOperandNumber()
+                               << " follows a non-qubit operand: the qubit operands must be the leading operands";
+    }
+  }
+  for (OpResult result : op->getResults().drop_front(numQubitResults)) {
+    if (isQubitOrQubitVector(result.getType())) {
+      return op->emitOpError() << "qubit result #" << result.getResultNumber()
+                               << " follows a non-qubit result: the qubit results must be the leading results";
+    }
+  }
+
+  if (numQubitOperands != numQubitResults) {
+    return op->emitOpError() << "has " << numQubitOperands << " qubit operand(s) but " << numQubitResults
                              << " qubit result(s): every qubit lane has both ends";
   }
-  if (numLanes != 0 && results.front().getResultNumber() != 0) {
-    return op->emitOpError() << "qubit results must be the leading results";
-  }
 
-  for (unsigned lane = 0; lane < numLanes; ++lane) {
-    Type type = operands[lane].getType();
-    if (!isQubitOrQubitVector(type)) {
-      return op->emitOpError() << "qubit lane #" << lane << " must be a qubit or a vector of qubits, got " << type;
-    }
-    if (results[lane].getType() != type) {
-      return op->emitOpError() << "qubit lane #" << lane << " enters as " << type << " but leaves as "
-                               << results[lane].getType();
-    }
-  }
-
-  // The lanes are all the qubits of the op: no other operand or result is a qubit.
-  const unsigned firstOperand = numLanes == 0 ? 0 : operands.getBeginOperandIndex();
-  for (OpOperand& operand : op->getOpOperands()) {
-    const unsigned number = operand.getOperandNumber();
-    const bool isInLane = number >= firstOperand && number - firstOperand < numLanes;
-    if (!isInLane && isQubitOrQubitVector(operand.get().getType())) {
-      return op->emitOpError() << "qubit operand #" << number << " is outside the qubit lanes";
-    }
-  }
-  for (OpResult result : op->getResults().drop_front(numLanes)) {
-    if (isQubitOrQubitVector(result.getType())) {
-      return op->emitOpError() << "qubit result #" << result.getResultNumber() << " is outside the qubit lanes";
+  for (unsigned lane = 0; lane < numQubitResults; ++lane) {
+    Type operandType = op->getOperand(lane).getType();
+    Type resultType = op->getResult(lane).getType();
+    if (operandType != resultType) {
+      return op->emitOpError() << "qubit lane #" << lane << " enters as " << operandType << " but leaves as "
+                               << resultType;
     }
   }
   return success();

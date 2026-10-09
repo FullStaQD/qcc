@@ -43,28 +43,16 @@ def QCC_DeviceAttrInterface : AttrInterface<"DeviceAttrInterface"> {
 
 def Qcc_QubitLaneOpInterface : OpInterface<"QubitLaneOpInterface"> {
   let description = [{
-        An operation with this interface returns exactly the qubits it takes as operands in the same order: qubit result
-        `i` is qubit operand `i` after the operation. Such an operand/result pair is a *lane*, and it may also be a
-        vector of qubits. A `qcirc.single` has one lane, a `qcirc.pair` has two. Qubit sources (`qcc.static`) and sinks
-        therefore do not implement the interface.
+        An operation with this interface takes its qubits as its leading operands and returns exactly these qubits as
+        its leading results, in the same order: result `i` is operand `i` after the operation. Such an operand/result
+        pair is a *lane*, and it may also be a vector of qubits. A `qcirc.single` has one lane, a `qcirc.pair` has two.
+        Qubit sources (`qcc.static`) and sinks therefore do not implement the interface.
 
         A lane follows the identity of a qubit, not its state: `qcirc.pair swap` does not exchange its lanes.
-
-        The qubit operands form one contiguous group, and the qubit results are the leading results.
     }];
   let cppNamespace = "::qcc";
 
   let methods = [
-    InterfaceMethod<
-      /*desc=*/"Returns the qubit operands of this operation, in lane order.",
-      /*retTy=*/"::mlir::OperandRange",
-      /*methodName=*/"getQubitOperands"
-    >,
-    InterfaceMethod<
-      /*desc=*/"Returns the qubit results of this operation, in lane order.",
-      /*retTy=*/"::mlir::ResultRange",
-      /*methodName=*/"getQubitResults"
-    >,
     InterfaceMethod<
       /*desc=*/"Returns the number of qubit lanes of this operation.",
       /*retTy=*/"unsigned",
@@ -72,7 +60,27 @@ def Qcc_QubitLaneOpInterface : OpInterface<"QubitLaneOpInterface"> {
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        return $_op.getQubitResults().size();
+        return ::qcc::detail::getNumLeadingQubits($_op->getResultTypes());
+      }]
+    >,
+    InterfaceMethod<
+      /*desc=*/"Returns the qubit operands of this operation, in lane order.",
+      /*retTy=*/"::mlir::OperandRange",
+      /*methodName=*/"getQubitOperands",
+      /*args=*/(ins),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        return $_op->getOperands().take_front($_op.getNumQubitLanes());
+      }]
+    >,
+    InterfaceMethod<
+      /*desc=*/"Returns the qubit results of this operation, in lane order.",
+      /*retTy=*/"::mlir::ResultRange",
+      /*methodName=*/"getQubitResults",
+      /*args=*/(ins),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        return $_op->getResults().take_front($_op.getNumQubitLanes());
       }]
     >,
     InterfaceMethod<
@@ -82,9 +90,8 @@ def Qcc_QubitLaneOpInterface : OpInterface<"QubitLaneOpInterface"> {
       /*args=*/(ins "unsigned":$lane),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        ::mlir::OperandRange operands = $_op.getQubitOperands();
-        assert(lane < operands.size() && "no such qubit lane");
-        return operands[lane];
+        assert(lane < $_op.getNumQubitLanes() && "no such qubit lane");
+        return $_op->getOperand(lane);
       }]
     >,
     InterfaceMethod<
@@ -94,9 +101,8 @@ def Qcc_QubitLaneOpInterface : OpInterface<"QubitLaneOpInterface"> {
       /*args=*/(ins "unsigned":$lane),
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
-        ::mlir::ResultRange results = $_op.getQubitResults();
-        assert(lane < results.size() && "no such qubit lane");
-        return results[lane];
+        assert(lane < $_op.getNumQubitLanes() && "no such qubit lane");
+        return $_op->getResult(lane);
       }]
     >,
     InterfaceMethod<
@@ -110,7 +116,7 @@ def Qcc_QubitLaneOpInterface : OpInterface<"QubitLaneOpInterface"> {
       /*methodBody=*/"",
       /*defaultImplementation=*/[{
         assert(result.getOwner() == $_op.getOperation() && "result belongs to a different operation");
-        // The qubit results are the leading results, so the result number is the lane.
+        // The result number is the lane.
         return $_op.getQubitOperand(result.getResultNumber());
       }]
     >

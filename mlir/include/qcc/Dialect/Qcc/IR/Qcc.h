@@ -20,6 +20,7 @@
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/Operation.h" // IWYU pragma: keep
+#include "mlir/IR/TypeRange.h"
 #include "mlir/IR/Types.h"
 #include "mlir/IR/Value.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h" // IWYU pragma: keep
@@ -60,8 +61,11 @@ bool isQubitOrQubitVector(mlir::Type type);
 
 namespace qcc::detail {
 
-/// Verifies the lanes of `op`, which implements the `QubitLaneOpInterface`: every lane has both ends and both are of
-/// the same qubit type, the qubit results are the leading results, and there is no qubit outside the lanes.
+/// Returns how many of the leading `types` are qubits or vectors of qubits.
+unsigned getNumLeadingQubits(mlir::TypeRange types);
+
+/// Verifies the lanes of `op`, which implements the `QubitLaneOpInterface`: the qubits are the leading operands and
+/// the leading results, there are equally many of both, and operand `i` has the type of result `i`.
 llvm::LogicalResult verifyQubitLaneOpInterface(mlir::Operation* op);
 
 } // namespace qcc::detail

@@ -73,12 +73,6 @@ def QCirc_SingleOp : QCirc_Op<"single", [AllTypesMatch<["qubit_in", "qubit_out"]
   ];
 
   let hasVerifier = 1;
-
-  let extraClassDeclaration = [{
-        /// One lane: the qubit the gate acts on.
-        ::mlir::OperandRange getQubitOperands() { return getODSOperands(0); }
-        ::mlir::ResultRange getQubitResults() { return getODSResults(0); }
-    }];
 }
 
 def QCirc_PairOp : QCirc_Op<"pair", [AllTypesMatch<["lhs_in", "rhs_in", "lhs_out", "rhs_out"]>]> {
@@ -115,12 +109,6 @@ def QCirc_PairOp : QCirc_Op<"pair", [AllTypesMatch<["lhs_in", "rhs_in", "lhs_out
   ];
 
   let hasVerifier = 1;
-
-  let extraClassDeclaration = [{
-        /// Two lanes: lane 0 is `lhs`, lane 1 is `rhs`.
-        ::mlir::OperandRange getQubitOperands() { return getOperation()->getOperands().take_front(2); }
-        ::mlir::ResultRange getQubitResults() { return getOperation()->getResults(); }
-    }];
 }
 
 def QCirc_GlobalOp : QCirc_Op<"global"> {
@@ -160,12 +148,6 @@ def QCirc_GlobalOp : QCirc_Op<"global"> {
   ];
 
   let hasVerifier = 1;
-
-  let extraClassDeclaration = [{
-        /// One lane per qubit, in operand order.
-        ::mlir::OperandRange getQubitOperands() { return getQubitsIn(); }
-        ::mlir::ResultRange getQubitResults() { return getQubitsOut(); }
-    }];
 }
 
 def QCirc_MeasureOp : QCirc_Op<"measure", [AllTypesMatch<["qubit_in", "qubit_out"]>]> {
@@ -195,12 +177,6 @@ def QCirc_MeasureOp : QCirc_Op<"measure", [AllTypesMatch<["qubit_in", "qubit_out
       build($_builder, $_state, qubitIn.getType(), $_builder.getI1Type(), basis, qubitIn);
     }]>
   ];
-
-  let extraClassDeclaration = [{
-        /// One lane: the measured qubit. `bit` is classical and hence outside the lanes.
-        ::mlir::OperandRange getQubitOperands() { return getODSOperands(0); }
-        ::mlir::ResultRange getQubitResults() { return getODSResults(0); }
-    }];
 }
 
 def QCirc_ResetOp : QCirc_Op<"reset", [AllTypesMatch<["qubit_in", "qubit_out"]>]> {
@@ -227,12 +203,6 @@ def QCirc_ResetOp : QCirc_Op<"reset", [AllTypesMatch<["qubit_in", "qubit_out"]>]
       build($_builder, $_state, qubitIn.getType(), basis, qubitIn);
     }]>
   ];
-
-  let extraClassDeclaration = [{
-        /// One lane: the qubit that is reset.
-        ::mlir::OperandRange getQubitOperands() { return getODSOperands(0); }
-        ::mlir::ResultRange getQubitResults() { return getODSResults(0); }
-    }];
 }
 
 #endif // INCLUDE_QCC_DIALECT_QCIRC_IR_QCIRCOPS_TD_
