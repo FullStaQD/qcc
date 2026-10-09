@@ -59,14 +59,14 @@ static constexpr auto hisepqFeatureTable = std::to_array<Feature>({
     {"zvl16384b", "VLEN of at least 16384 bits"},
     {"zvl32768b", "VLEN of at least 32768 bits"},
     {"zvl65536b", "VLEN of at least 65536 bits"},
-    {"xqve8", "Qubit indices of up to 8 bits, aka QELEN"},
-    {"xqve16", "Qubit indices of up to 16 bits, aka QELEN"},
+    {"xqvel8b", "Qubit indices of up to 8 bits, aka QELEN"},
+    {"xqvel16b", "Qubit indices of up to 16 bits, aka QELEN"},
 });
 // clang-format on
 const llvm::ArrayRef<Feature> hisepqFeatures = hisepqFeatureTable;
 
 // TODO: Add CPUs for concrete HiSEP-Q builds, e.g. one with a VLEN of 128 and 16 qubit control lines.
-static constexpr auto genericFeatures = std::to_array<llvm::StringRef>({"zvl64b", "xqve8"});
+static constexpr auto genericFeatures = std::to_array<llvm::StringRef>({"zvl64b", "xqvel8b"});
 static constexpr auto hisepqCpuTable = std::to_array<Cpu>({
     {.name = "generic",
      .description = "VLEN of at least 64 and the 256 qubit control lines that 8-bit indices address",
@@ -124,9 +124,9 @@ static std::optional<hisepq::HiSEPQMachine> machineFor(llvm::ArrayRef<FeatureFla
   }
 
   // QELEN, the widest qubit index the machine reads.
-  const std::optional<unsigned> maxQubitElementWidth = largestEnabledFor(features, "xqve", "");
+  const std::optional<unsigned> maxQubitElementWidth = largestEnabledFor(features, "xqvel", "b");
   if (!maxQubitElementWidth) {
-    llvm::errs() << "error: -mcpu and -mattr leave no 'xqve<N>' feature enabled\n";
+    llvm::errs() << "error: -mcpu and -mattr leave no 'xqvel<N>b' feature enabled\n";
     return std::nullopt;
   }
 
@@ -135,7 +135,7 @@ static std::optional<hisepq::HiSEPQMachine> machineFor(llvm::ArrayRef<FeatureFla
     llvm::errs() << "error: -mqcl expects 1 to " << maxLines << " qubit control lines for a QELEN of "
                  << *maxQubitElementWidth << ", got " << numQubitControlLines;
     if (*maxQubitElementWidth < 16 && numQubitControlLines > maxLines) {
-      llvm::errs() << " (16-bit qubit indices need -mattr=+xqve16)";
+      llvm::errs() << " (16-bit qubit indices need -mattr=+xqvel16b)";
     }
     llvm::errs() << "\n";
     return std::nullopt;

@@ -2,7 +2,7 @@
 // RUN: qcc --target=hisepq -mcpu=generic --compile-to=mlir %s | FileCheck %s --check-prefix=CHECK-DEFAULT
 // RUN: qcc --target=hisepq -mattr=+zvl128b --compile-to=mlir %s | FileCheck %s --check-prefix=CHECK-VLEN128
 // RUN: qcc --target=hisepq -mattr=+zvl512b --compile-to=mlir %s | FileCheck %s --check-prefix=CHECK-VLEN512
-// RUN: qcc --target=hisepq -mattr=+xqve16 -mqcl=257 --compile-to=mlir %s | FileCheck %s --check-prefix=CHECK-QEW16
+// RUN: qcc --target=hisepq -mattr=+xqvel16b -mqcl=257 --compile-to=mlir %s | FileCheck %s --check-prefix=CHECK-QEW16
 
 // As in LLVM: a bare name enables, the largest bound wins, and `-zvl<N>b` also drops every larger one.
 // RUN: qcc --target=hisepq -mattr=zvl512b --compile-to=mlir %s | FileCheck %s --check-prefix=CHECK-VLEN512
