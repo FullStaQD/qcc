@@ -48,7 +48,8 @@ namespace qcc {
 
 // NOTE: LLVM uses tablegen for this, we are a bit more low-tech here and use macros.
 #define HISEPQ_ZVL(N) {.name = "zvl" #N "b", .description = "VLEN of at least " #N " bits"}
-#define HISEPQ_XQVEL(N) {.name = "xqvel" #N "b", .description = "Qubit indices of up to " #N " bits, aka QELEN"}
+#define HISEPQ_XQVEL(N)                                                                                                \
+  {.name = "xqvel" #N "b", .description = "Qubit element length of at least " #N " bits, aka QELEN"}
 static constexpr auto hisepqFeatureTable = std::to_array<Feature>({
     HISEPQ_ZVL(64),
     HISEPQ_ZVL(128),
