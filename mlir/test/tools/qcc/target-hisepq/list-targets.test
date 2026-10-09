@@ -1,0 +1,8 @@
+// RUN: qcc --list-targets | FileCheck %s
+
+// CHECK: hisepq
+// CHECK-NEXT: -mcpu=generic - {{.*}} (-mattr=+zvl64b,+xqve8) (-mqcl=256) [default]
+// A family of numbered features is printed in its general form, followed by the supported numbers.
+// CHECK-NEXT: -mattr=+zvl<N>b - VLEN of at least N bits (N = 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536)
+// CHECK-NEXT: -mattr=+xqve<N> - Qubit indices of up to N bits, aka QELEN (N = 8, 16)
+// CHECK-NOT: qew

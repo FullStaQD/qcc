@@ -1,12 +1,5 @@
 // RUN: qcc --list-targets | FileCheck %s --check-prefix=CHECK-LIST
-// RUN: %if hisepq %{ qcc --list-targets | FileCheck %s --check-prefix=CHECK-LIST-HISEPQ %}
 
 // CHECK-LIST: qir
 // CHECK-LIST-NEXT: -mcpu=generic - {{.*}} [default]
 // CHECK-LIST: none
-// CHECK-LIST-HISEPQ: hisepq
-// CHECK-LIST-HISEPQ-NEXT: -mcpu=generic - {{.*}} (-mattr=+zvl64b) (-mqcl=256) [default]
-// Numbered features are printed in their general form, followed by the supported numbers.
-// CHECK-LIST-HISEPQ-NEXT: -mattr=+zvl<N>b - Minimum vector length N bits (N = 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536)
-// CHECK-LIST-HISEPQ-NEXT: -mattr=+xqve<N> - Maximum qubit element length (QELEN) of N bits (N = 16)
-// CHECK-LIST-HISEPQ-NOT: qew

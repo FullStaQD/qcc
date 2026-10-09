@@ -78,8 +78,8 @@ static std::pair<std::string, std::string> abstractFirstNumber(llvm::StringRef t
   return {(text.take_front(begin) + placeholder + text.drop_front(end)).str(), text.slice(begin, end).str()};
 }
 
-/// Prints `features`. A feature whose name and description contain the same number, like `zvl64b`, is printed in its
-/// general form, `zvl<N>b`, with the supported values of N. Consecutive features of the same form share that line.
+/// Prints `features`. Consecutive features that differ only in a number their name and description share, like `zvl64b`
+/// and `zvl128b`, are printed on one line in their general form, `zvl<N>b`, with the supported values of N.
 static void printFeatures(llvm::ArrayRef<qcc::Feature> features) {
   size_t first = 0;
   while (first < features.size()) {
@@ -97,7 +97,7 @@ static void printFeatures(llvm::ArrayRef<qcc::Feature> features) {
       ++last;
     }
 
-    if (value.empty() || value != descriptionValue) {
+    if (values.size() == 1) {
       llvm::outs() << "    -mattr=+" << features[first].name << " - " << features[first].description << "\n";
     } else {
       llvm::outs() << "    -mattr=+" << name << " - " << description << " (N = " << llvm::join(values, ", ") << ")\n";
@@ -167,7 +167,7 @@ int main(int argc, char** argv) {
                          cl::desc("Number of qubit control lines the machine drives (default: the CPU's, see "
                                   "--list-targets)"),
                          cl::value_desc("N"), cl::cat(qccCategory));
-  const cl::alias mqclAlias("mqubit-control-lines", cl::desc("Alias for -mqcl"), cl::aliasopt(mqcl),
+  const cl::alias mqclAlias("mqubit-control-lines", cl::desc("Alias for -mqcl"), cl::aliasopt(mqcl), cl::NotHidden,
                             cl::cat(qccCategory));
   const cl::opt<Stage> compileTo(
       "compile-to", cl::desc("Stage to lower to and emit"), cl::init(Stage::LlvmIr),

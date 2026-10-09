@@ -53,7 +53,7 @@ func.func @main() attributes { qcc.entry_point } {
 // CHECK-VLEN512:  llvm.call_intrinsic "llvm.riscv.qv.h"(%{{.*}}) : (vector<[2]xi8>, i32, i32, i32) -> ()
 // CHECK-QEW16:    llvm.call_intrinsic "llvm.riscv.qv.h"(%{{.*}}) : (vector<[8]xi16>, i32, i32, i32) -> ()
 
-// TODO: QEW 16 gets this far but not past instruction selection: the LLVM fork doesn't cover i16 element types.
+// TODO(#174): QEW 16 gets this far but not past instruction selection: the LLVM fork doesn't cover i16 element types.
 
 // CHECK-ASM: .attribute 5, "{{.*}}_zvl512b{{.*}}_xqv0p1"
 

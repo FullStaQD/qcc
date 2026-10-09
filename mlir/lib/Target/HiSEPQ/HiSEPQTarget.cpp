@@ -22,7 +22,7 @@
 #include "qcc/Target/QIR/QIRTarget.h"
 #include "qcc/Target/TargetRegistry.h"
 
-#include "mlir/Conversion/Passes.h"
+#include "mlir/Conversion/Passes.h" // IWYU pragma: keep
 #include "mlir/Conversion/QCToQCO/QCToQCO.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/Passes.h"
@@ -32,7 +32,6 @@
 #include "llvm/IR/Module.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/CodeGen.h"
-#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
@@ -49,24 +48,25 @@ namespace qcc {
 
 // clang-format off
 static constexpr auto hisepqFeatureTable = std::to_array<Feature>({
-    {"zvl64b", "Minimum vector length 64 bits"},
-    {"zvl128b", "Minimum vector length 128 bits"},
-    {"zvl256b", "Minimum vector length 256 bits"},
-    {"zvl512b", "Minimum vector length 512 bits"},
-    {"zvl1024b", "Minimum vector length 1024 bits"},
-    {"zvl2048b", "Minimum vector length 2048 bits"},
-    {"zvl4096b", "Minimum vector length 4096 bits"},
-    {"zvl8192b", "Minimum vector length 8192 bits"},
-    {"zvl16384b", "Minimum vector length 16384 bits"},
-    {"zvl32768b", "Minimum vector length 32768 bits"},
-    {"zvl65536b", "Minimum vector length 65536 bits"},
-    {"xqve16", "Maximum qubit element length (QELEN) of 16 bits"},
+    {"zvl64b", "VLEN of at least 64 bits"},
+    {"zvl128b", "VLEN of at least 128 bits"},
+    {"zvl256b", "VLEN of at least 256 bits"},
+    {"zvl512b", "VLEN of at least 512 bits"},
+    {"zvl1024b", "VLEN of at least 1024 bits"},
+    {"zvl2048b", "VLEN of at least 2048 bits"},
+    {"zvl4096b", "VLEN of at least 4096 bits"},
+    {"zvl8192b", "VLEN of at least 8192 bits"},
+    {"zvl16384b", "VLEN of at least 16384 bits"},
+    {"zvl32768b", "VLEN of at least 32768 bits"},
+    {"zvl65536b", "VLEN of at least 65536 bits"},
+    {"xqve8", "Qubit indices of up to 8 bits, aka QELEN"},
+    {"xqve16", "Qubit indices of up to 16 bits, aka QELEN"},
 });
 // clang-format on
 const llvm::ArrayRef<Feature> hisepqFeatures = hisepqFeatureTable;
 
 // TODO: Add CPUs for concrete HiSEP-Q builds, e.g. one with a VLEN of 128 and 16 qubit control lines.
-static constexpr auto genericFeatures = std::to_array<llvm::StringRef>({"zvl64b"});
+static constexpr auto genericFeatures = std::to_array<llvm::StringRef>({"zvl64b", "xqve8"});
 static constexpr auto hisepqCpuTable = std::to_array<Cpu>({
     {.name = "generic",
      .description = "VLEN of at least 64 and the 256 qubit control lines that 8-bit indices address",
@@ -74,17 +74,6 @@ static constexpr auto hisepqCpuTable = std::to_array<Cpu>({
      .numQubitControlLines = 256},
 });
 const llvm::ArrayRef<Cpu> hisepqCpus = hisepqCpuTable;
-
-/// QELEN, the widest qubit index the machine reads: 16 bits with `xqve16`, 8 otherwise.
-static unsigned maxQubitElementWidthFor(llvm::ArrayRef<FeatureFlag> features) {
-  unsigned maxQubitElementWidth = 8;
-  for (const FeatureFlag& feature : features) {
-    if (feature.name == "xqve16") {
-      maxQubitElementWidth = feature.enable ? 16 : 8;
-    }
-  }
-  return maxQubitElementWidth;
-}
 
 /// Parses `N` out of a feature name of the form `<prefix><N><suffix>`.
 static std::optional<unsigned> boundOf(llvm::StringRef name, llvm::StringRef prefix, llvm::StringRef suffix) {
@@ -95,9 +84,10 @@ static std::optional<unsigned> boundOf(llvm::StringRef name, llvm::StringRef pre
   return value;
 }
 
-/// Applies `features` in order, as LLVM does for `zvl<N>b`, and returns the largest `<prefix><N><suffix>` enabled.
-static std::optional<unsigned> lowerBoundFor(llvm::ArrayRef<FeatureFlag> features, llvm::StringRef prefix,
-                                             llvm::StringRef suffix) {
+/// Applies `features` in order and returns the largest `<prefix><N><suffix>` enabled. As in LLVM for `zvl<N>b`, a
+/// feature implies every one with a smaller N, so disabling it disables every one with a larger N too.
+static std::optional<unsigned> largestEnabledFor(llvm::ArrayRef<FeatureFlag> features, llvm::StringRef prefix,
+                                                 llvm::StringRef suffix) {
   std::optional<unsigned> bound;
   for (const FeatureFlag& feature : features) {
     const std::optional<unsigned> value = boundOf(feature.name, prefix, suffix);
@@ -127,18 +117,24 @@ static std::optional<unsigned> lowerBoundFor(llvm::ArrayRef<FeatureFlag> feature
 /// none.
 static std::optional<hisepq::HiSEPQMachine> machineFor(llvm::ArrayRef<FeatureFlag> features,
                                                        unsigned numQubitControlLines) {
-  const std::optional<unsigned> minVLen = lowerBoundFor(features, "zvl", "b");
+  const std::optional<unsigned> minVLen = largestEnabledFor(features, "zvl", "b");
   if (!minVLen) {
     llvm::errs() << "error: -mcpu and -mattr leave no 'zvl<N>b' feature enabled\n";
     return std::nullopt;
   }
 
-  const unsigned maxQubitElementWidth = maxQubitElementWidthFor(features);
-  const unsigned maxLines = hisepq::HiSEPQMachine::maxNumQubitControlLinesFor(maxQubitElementWidth);
+  // QELEN, the widest qubit index the machine reads.
+  const std::optional<unsigned> maxQubitElementWidth = largestEnabledFor(features, "xqve", "");
+  if (!maxQubitElementWidth) {
+    llvm::errs() << "error: -mcpu and -mattr leave no 'xqve<N>' feature enabled\n";
+    return std::nullopt;
+  }
+
+  const unsigned maxLines = hisepq::HiSEPQMachine::maxNumQubitControlLinesFor(*maxQubitElementWidth);
   if (numQubitControlLines < 1 || numQubitControlLines > maxLines) {
     llvm::errs() << "error: -mqcl expects 1 to " << maxLines << " qubit control lines for a QELEN of "
-                 << maxQubitElementWidth << ", got " << numQubitControlLines;
-    if (maxQubitElementWidth < 16 && numQubitControlLines > maxLines) {
+                 << *maxQubitElementWidth << ", got " << numQubitControlLines;
+    if (*maxQubitElementWidth < 16 && numQubitControlLines > maxLines) {
       llvm::errs() << " (16-bit qubit indices need -mattr=+xqve16)";
     }
     llvm::errs() << "\n";
