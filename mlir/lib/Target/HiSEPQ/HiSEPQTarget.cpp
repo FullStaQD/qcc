@@ -46,23 +46,26 @@
 
 namespace qcc {
 
-// clang-format off
+// NOTE: LLVM uses tablegen for this, we are a bit more low-tech here and use macros.
+#define HISEPQ_ZVL(N) {.name = "zvl" #N "b", .description = "VLEN of at least " #N " bits"}
+#define HISEPQ_XQVEL(N) {.name = "xqvel" #N "b", .description = "Qubit indices of up to " #N " bits, aka QELEN"}
 static constexpr auto hisepqFeatureTable = std::to_array<Feature>({
-    {"zvl64b", "VLEN of at least 64 bits"},
-    {"zvl128b", "VLEN of at least 128 bits"},
-    {"zvl256b", "VLEN of at least 256 bits"},
-    {"zvl512b", "VLEN of at least 512 bits"},
-    {"zvl1024b", "VLEN of at least 1024 bits"},
-    {"zvl2048b", "VLEN of at least 2048 bits"},
-    {"zvl4096b", "VLEN of at least 4096 bits"},
-    {"zvl8192b", "VLEN of at least 8192 bits"},
-    {"zvl16384b", "VLEN of at least 16384 bits"},
-    {"zvl32768b", "VLEN of at least 32768 bits"},
-    {"zvl65536b", "VLEN of at least 65536 bits"},
-    {"xqvel8b", "Qubit indices of up to 8 bits, aka QELEN"},
-    {"xqvel16b", "Qubit indices of up to 16 bits, aka QELEN"},
+    HISEPQ_ZVL(64),
+    HISEPQ_ZVL(128),
+    HISEPQ_ZVL(256),
+    HISEPQ_ZVL(512),
+    HISEPQ_ZVL(1024),
+    HISEPQ_ZVL(2048),
+    HISEPQ_ZVL(4096),
+    HISEPQ_ZVL(8192),
+    HISEPQ_ZVL(16384),
+    HISEPQ_ZVL(32768),
+    HISEPQ_ZVL(65536),
+    HISEPQ_XQVEL(8),
+    HISEPQ_XQVEL(16),
 });
-// clang-format on
+#undef HISEPQ_ZVL
+#undef HISEPQ_XQVEL
 const llvm::ArrayRef<Feature> hisepqFeatures = hisepqFeatureTable;
 
 // TODO: Add CPUs for concrete HiSEP-Q builds, e.g. one with a VLEN of 128 and 16 qubit control lines.
