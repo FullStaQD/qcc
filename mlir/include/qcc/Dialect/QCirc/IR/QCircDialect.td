@@ -21,7 +21,7 @@ def QCirc_Dialect : Dialect {
     let summary = "Quantum circuits dialect in value semantics.";
     let description = [{
         The `qcirc` dialect represents the traditional quantum circuit model in value semantics. Qubit values are
-        affine, which the `SingleUseQubits` trait on each operation enforces.
+        affine, which the `NoMultiUseQubits` trait on each operation enforces.
 
         The dialect does not model a global phase: gates are equal if they agree up to a global phase, and a lowering
         into `qcirc` may drop one.

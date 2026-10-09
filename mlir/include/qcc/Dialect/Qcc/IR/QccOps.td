@@ -23,7 +23,7 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 //===----------------------------------------------------------------------===//
 
 // No memory effects, but deliberately not `Pure`: qubit values must never be duplicated.
-def Qcc_StaticOp : Op<Qcc_Dialect, "static", [NoMemoryEffect, Qcc_SingleUseQubits]> {
+def Qcc_StaticOp : Op<Qcc_Dialect, "static", [NoMemoryEffect, Qcc_NoMultiUseQubits]> {
   let summary = "the qubits of a function, by static index";
   let description = [{
         Creates the qubits a function works on, one result per index, each initialized in |0⟩. The indices are

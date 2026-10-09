@@ -84,14 +84,14 @@ namespace qcc {
 ///   single block, and that function has no qubits among its arguments and results.
 /// - Each scalar qubit result of the operation is used at most once.
 /// - Each qubit operand of the operation, scalar or vector, has no other use.
-llvm::LogicalResult verifySingleUseQubits(mlir::Operation* op);
+llvm::LogicalResult verifyNoMultiUseQubits(mlir::Operation* op);
 
-/// Corresponds to `Qcc_SingleUseQubits` in tablegen.
+/// Corresponds to `Qcc_NoMultiUseQubits` in tablegen.
 template <typename ConcreteType>
-class SingleUseQubits // NOLINT(bugprone-crtp-constructor-accessibility)
-    : public mlir::OpTrait::TraitBase<ConcreteType, SingleUseQubits> {
+class NoMultiUseQubits // NOLINT(bugprone-crtp-constructor-accessibility)
+    : public mlir::OpTrait::TraitBase<ConcreteType, NoMultiUseQubits> {
 public:
-  static llvm::LogicalResult verifyTrait(mlir::Operation* op) { return verifySingleUseQubits(op); }
+  static llvm::LogicalResult verifyTrait(mlir::Operation* op) { return verifyNoMultiUseQubits(op); }
 };
 
 } // namespace qcc

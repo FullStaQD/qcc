@@ -37,7 +37,7 @@ def QCirc_AngleMatrix : RankedTensorOf<[F64], [HasAnyRankOfPred<[2]>, HasStaticS
 // No memory effects, but deliberately not `Pure`: qubit values must never be duplicated.
 class QCirc_Op<string mnemonic, list<Trait> traits = []>
     : Op<QCirc_Dialect, mnemonic,
-         !listconcat(traits, [NoMemoryEffect, Qcc_SingleUseQubits, Qcc_QubitLaneOpInterface])>;
+         !listconcat(traits, [NoMemoryEffect, Qcc_NoMultiUseQubits, Qcc_QubitLaneOpInterface])>;
 
 def QCirc_SingleOp : QCirc_Op<"single", [AllTypesMatch<["qubit_in", "qubit_out"]>]> {
   let summary = "single-qubit gate";

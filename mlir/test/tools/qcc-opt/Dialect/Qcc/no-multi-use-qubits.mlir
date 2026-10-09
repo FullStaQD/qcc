@@ -1,6 +1,6 @@
 // RUN: qcc-opt %s --split-input-file --verify-diagnostics
 
-// The `SingleUseQubits` trait, on the ops that carry it: `qcc.static` and the `qcirc` ops.
+// The `NoMultiUseQubits` trait, on the ops that carry it: `qcc.static` and the `qcirc` ops.
 
 // A qubit may go unused, and an op of another dialect may consume it.
 func.func @valid() -> i1 {

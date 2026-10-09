@@ -63,7 +63,7 @@ static void printStaticTypes(OpAsmPrinter& printer, Operation* op, TypeRange qub
 // Shared verification
 //===----------------------------------------------------------------------===//
 
-LogicalResult qcc::verifySingleUseQubits(Operation* op) {
+LogicalResult qcc::verifyNoMultiUseQubits(Operation* op) {
   auto function = dyn_cast_if_present<FunctionOpInterface>(op->getParentOp());
   if (!function) {
     return op->emitOpError() << "must be directly inside a function";

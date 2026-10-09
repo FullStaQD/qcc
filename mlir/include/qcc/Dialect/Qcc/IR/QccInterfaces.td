@@ -130,7 +130,7 @@ def Qcc_QubitLaneOpInterface : OpInterface<"QubitLaneOpInterface"> {
 //===----------------------------------------------------------------------===//
 
 // Enforces the affine constraint on `!qcc.qubit` by usage counting. Only use where this is appropriate.
-def Qcc_SingleUseQubits : NativeOpTrait<"SingleUseQubits"> {
+def Qcc_NoMultiUseQubits : NativeOpTrait<"NoMultiUseQubits"> {
   let cppNamespace = "::qcc";
 }
 
