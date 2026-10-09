@@ -1,0 +1,165 @@
+From 9fb836cfc26d189e80573ca503e89675dba386be Mon Sep 17 00:00:00 2001
+From: Enrique NB <26630022+EnriqueNB@users.noreply.github.com>
+Date: Fri, 9 Oct 2026 18:07:51 +0200
+Subject: [PATCH 7/7] Add the XQV measurement result CSR qmres (#12)
+
+HiSEP-Q latches the outcome of the latest qv.mz into the read-only CSR 0xCC0, bit k holding element k of the measured qubit vector.
+
+Name it qmres (available with XQV) and add llvm.riscv.qv.mres, which reads it with csrr.
+
+NOTE: The register can only hold 32 measurement results. If more are measured they are currently just dropped, and in the future lead to a trap. This is a workaround on the hardware end to make measurement feedback work at all. QCC has to be extra careful due to this.
+
+---------
+
+Co-authored-by: Reinhard Stahn <rainij36@proton.me>
+---
+ llvm/include/llvm/IR/IntrinsicsRISCVXQV.td    | 10 +++++
+ llvm/lib/Target/RISCV/RISCVInstrInfoXQV.td    |  7 +++
+ .../RISCV/{rv32xqv-bell.ll => rv32xqv.ll}     | 25 +++++++++++
+ llvm/test/MC/RISCV/rv32xqv-invalid.s          | 44 +++++++++++++++++++
+ llvm/test/MC/RISCV/rv32xqv-valid.s            | 10 +++++
+ 5 files changed, 96 insertions(+)
+ rename llvm/test/CodeGen/RISCV/{rv32xqv-bell.ll => rv32xqv.ll} (68%)
+ create mode 100644 llvm/test/MC/RISCV/rv32xqv-invalid.s
+
+diff --git a/llvm/include/llvm/IR/IntrinsicsRISCVXQV.td b/llvm/include/llvm/IR/IntrinsicsRISCVXQV.td
+index 2324fee0049f..4f8b28c3230a 100644
+--- a/llvm/include/llvm/IR/IntrinsicsRISCVXQV.td
++++ b/llvm/include/llvm/IR/IntrinsicsRISCVXQV.td
+@@ -33,4 +33,14 @@ let TargetPrefix = "riscv" in {
+     def int_riscv_qv_mz : QVSingleIntrinsic;
+ 
+     def int_riscv_qv_cx : QVPairIntrinsic;
++
++    // Reads CSR qv.mres: bit k is the outcome of element k of the latest qv.mz.
++    // TODO: The hardware stores the outcomes of a measurement in qv.mres, a
++    // single 32-bit register. A qv.mz with VL > 32 still measures all elements,
++    // but the outcomes of elements 32 and up are silently dropped (HiSEP-Q
++    // plans to trap instead). This is a workaround on their side for now. For
++    // QCC this means we have to be careful: our workaround likely has to check
++    // for a static VL <= 32 when measuring.
++    def int_riscv_qv_mres : Intrinsic<[llvm_anyint_ty], [],
++                                      [IntrHasSideEffects, IntrNoMem]>;
+ }
+diff --git a/llvm/lib/Target/RISCV/RISCVInstrInfoXQV.td b/llvm/lib/Target/RISCV/RISCVInstrInfoXQV.td
+index d7d0cfe08352..22f65d98cff3 100644
+--- a/llvm/lib/Target/RISCV/RISCVInstrInfoXQV.td
++++ b/llvm/lib/Target/RISCV/RISCVInstrInfoXQV.td
+@@ -84,3 +84,10 @@ foreach g = QVPairGates in {
+   defm : RVPatQVPair<g.IntrinsicRecord, "PseudoQV_" # g.Suffix>;
+ }
+ }
++
++// Read-only CSR holding the outcome of the latest measurement.
++let FeaturesRequired = [{ {RISCV::FeatureVendorXQV} }] in
++def SysRegQVMRES : SysReg<"qv.mres", 0xCC0>;
++
++let Predicates = [HasVendorXQV] in
++def : Pat<(XLenVT (int_riscv_qv_mres)), (CSRRS SysRegQVMRES.Encoding, (XLenVT X0))>;
+diff --git a/llvm/test/CodeGen/RISCV/rv32xqv-bell.ll b/llvm/test/CodeGen/RISCV/rv32xqv.ll
+similarity index 68%
+rename from llvm/test/CodeGen/RISCV/rv32xqv-bell.ll
+rename to llvm/test/CodeGen/RISCV/rv32xqv.ll
+index 2a3abdfe104b..ac32e89dced6 100644
+--- a/llvm/test/CodeGen/RISCV/rv32xqv-bell.ll
++++ b/llvm/test/CodeGen/RISCV/rv32xqv.ll
+@@ -48,3 +48,28 @@ attributes #0 = { "target-features"="+experimental-xqv" }
+ ; CHECK-NEXT:    qv.mz [[VCTRL]], [[RS2]], 12
+ ; CHECK-NEXT:    qv.mz [[VTGT]], [[RS2]], 12
+ ; CHECK-NEXT:    ret
++
++; Each read of qv.mres stays right after its own measurement.
++declare i32 @llvm.riscv.qv.mres.i32()
++
++define i32 @read_measurements(<vscale x 8 x i8> %qubits) #0 {
++entry:
++  call void @llvm.riscv.qv.mz.nxv8i8.i32.i32.i32(<vscale x 8 x i8> %qubits, i32 0, i32 0, i32 4)
++  %first = call i32 @llvm.riscv.qv.mres.i32()
++  call void @llvm.riscv.qv.h.nxv8i8.i32.i32.i32(<vscale x 8 x i8> %qubits, i32 0, i32 0, i32 4)
++  call void @llvm.riscv.qv.mz.nxv8i8.i32.i32.i32(<vscale x 8 x i8> %qubits, i32 0, i32 0, i32 4)
++  %second = call i32 @llvm.riscv.qv.mres.i32()
++  %both = xor i32 %first, %second
++  ret i32 %both
++}
++
++; CHECK-LABEL: read_measurements:
++; CHECK:       # %bb.0: # %entry
++; CHECK-NEXT:    vsetivli zero, 4, e8, m1, ta, ma
++; CHECK-NEXT:    qv.mz v8, zero, 0
++; CHECK-NEXT:    csrr [[FIRST:a[0-9]+]], qv.mres
++; CHECK-NEXT:    qv.h v8, zero, 0
++; CHECK-NEXT:    qv.mz v8, zero, 0
++; CHECK-NEXT:    csrr [[SECOND:a[0-9]+]], qv.mres
++; CHECK-NEXT:    xor a0, [[FIRST]], [[SECOND]]
++; CHECK-NEXT:    ret
+diff --git a/llvm/test/MC/RISCV/rv32xqv-invalid.s b/llvm/test/MC/RISCV/rv32xqv-invalid.s
+new file mode 100644
+index 000000000000..5f4fdc2a28cc
+--- /dev/null
++++ b/llvm/test/MC/RISCV/rv32xqv-invalid.s
+@@ -0,0 +1,44 @@
++# RUN: not llvm-mc -triple riscv32 -mattr=+experimental-xqv < %s 2>&1 \
++# RUN:     | FileCheck -check-prefixes=CHECK,CHECK-PLUS %s
++# RUN: not llvm-mc -triple riscv32 -mattr=-experimental-xqv < %s 2>&1 \
++# RUN:     | FileCheck -check-prefixes=CHECK,CHECK-MINUS %s
++
++# XQV - QV Quantum Extension (HiSEP-Q 2.0)
++
++# CHECK-MINUS: :[[@LINE+1]]:1: error: instruction requires the following: 'XQV' (QV Quantum Extension)
++qv.h v8, a0, 12
++
++# CHECK-MINUS: :[[@LINE+1]]:1: error: instruction requires the following: 'XQV' (QV Quantum Extension)
++qv.x v8, a0, 12
++
++# CHECK-MINUS: :[[@LINE+1]]:1: error: instruction requires the following: 'XQV' (QV Quantum Extension)
++qv.mz v8, a0, 12
++
++# CHECK-MINUS: :[[@LINE+1]]:1: error: instruction requires the following: 'XQV' (QV Quantum Extension)
++qv.cx v8, v9, 12
++
++# CHECK-MINUS: :[[@LINE+1]]:10: error: system register 'qv.mres' requires 'experimental-xqv' to be enabled
++csrr a0, qv.mres
++
++# CHECK-PLUS: :[[@LINE+2]]:14: error: immediate must be an integer in the range [0, 31]
++# CHECK-MINUS: :[[@LINE+1]]:1: error: invalid instruction
++qv.h v8, a0, 32
++
++# CHECK-PLUS: :[[@LINE+2]]:15: error: immediate must be an integer in the range [0, 31]
++# CHECK-MINUS: :[[@LINE+1]]:1: error: invalid instruction
++qv.cx v8, v9, -1
++
++# CHECK-PLUS: :[[@LINE+2]]:6: error: invalid operand for instruction
++# CHECK-MINUS: :[[@LINE+1]]:1: error: invalid instruction
++qv.h a1, a0, 12
++
++# CHECK-PLUS: :[[@LINE+2]]:10: error: invalid operand for instruction
++# CHECK-MINUS: :[[@LINE+1]]:1: error: invalid instruction
++qv.h v8, v9, 12
++
++# CHECK-PLUS: :[[@LINE+2]]:11: error: invalid operand for instruction
++# CHECK-MINUS: :[[@LINE+1]]:1: error: invalid instruction
++qv.cx v8, a0, 12
++
++# CHECK: :[[@LINE+1]]:{{12: error: too few operands for instruction|1: error: invalid instruction}}
++qv.h v8, a0
+diff --git a/llvm/test/MC/RISCV/rv32xqv-valid.s b/llvm/test/MC/RISCV/rv32xqv-valid.s
+index 3e29388b191c..fe7d7fca22ad 100644
+--- a/llvm/test/MC/RISCV/rv32xqv-valid.s
++++ b/llvm/test/MC/RISCV/rv32xqv-valid.s
+@@ -32,3 +32,13 @@ qv.mz v8, a0, 12
+ # CHECK-INST:     qv.cx v8, v9, 12
+ # CHECK-ENCODING: [0x0b,0x16,0x94,0xcc]
+ qv.cx v8, v9, 12
++
++# qv.mres: read-only CSR 0xCC0 holding the outcome of the latest qv.mz
++
++# CHECK-INST:     csrr a0, qv.mres
++# CHECK-ENCODING: [0x73,0x25,0x00,0xcc]
++csrr a0, qv.mres
++
++# CHECK-INST:     csrr a0, qv.mres
++# CHECK-ENCODING: [0x73,0x25,0x00,0xcc]
++csrr a0, 0xcc0
+-- 
+2.51.1
+
