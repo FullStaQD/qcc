@@ -23,11 +23,15 @@ def ConvertQIRToHiSEPQIntrinsics : Pass<"convert-qir-to-hisepq-intrinsics", "mli
       carrying that index in element 0, matching the `anyvector` operand that the
       QVSingle / QVPair intrinsics expect.
 
+      Each measurement result gets a stack slot. After every
+      `__quantum__qis__mz__body`, the outcome is read back from CSR `qv.mres`
+      with `llvm.riscv.qv.mres` and stored in the slot of its result, from
+      which `__quantum__rt__read_result` loads it. A result read before it is
+      measured is `false`.
+
       The QIR runtime calls below have no HiSEP-Q QISA counterpart yet, so they
       are dropped:
       - `__quantum__rt__initialize` calls are erased.
-      - `__quantum__rt__read_result` calls are replaced with `poison : i1`,
-        i.e. the measurement result is lost.
       - `__quantum__rt__bool_record_output` and `__quantum__rt__int_record_output`
         calls are erased, so program output is not recorded.
       TODO: Support these once HiSEP-Q specifies the corresponding QISA
@@ -40,7 +44,7 @@ def ConvertQIRToHiSEPQIntrinsics : Pass<"convert-qir-to-hisepq-intrinsics", "mli
       - The module has been fully lowered by the ToQIR pipeline
         (`prep-to-qir`, `convert-qc-to-qir`, `finalize-to-qir`) so all gate
         ops appear as `llvm.call` with a statically-known callee symbol.
-      - Qubit pointers were produced by `llvm.inttoptr(llvm.mlir.constant(N : i64))`,
+      - Qubit and result pointers were produced by `llvm.inttoptr(llvm.mlir.constant(N : i64))`,
         i.e. the static qubit management scheme used by `convert-qc-to-qir`.
    }];
 
@@ -55,8 +59,11 @@ def EmitHiSEPQStart : Pass<"emit-hisepq-start", "mlir::ModuleOp"> {
   let description = [{
       Appends a `_start` function that supersedes the module's entry point as
       the entry point of the hardware. It sets the stack pointer to
-      `__stack_top`, jumps to the original entry point and loops forever when
-      that returns.
+      `__stack_top`, calls `__qcc_call_entry_point` and loops forever when
+      that returns. `__qcc_call_entry_point` calls the original entry point
+      as an ordinary call, which provides what the calling convention needs,
+      such as the memory for results returned indirectly, and discards the
+      results.
 
       TODO: Check with HiSEP-Q Team if looping forever is the only thing we can
       do at the end.
@@ -65,7 +72,8 @@ def EmitHiSEPQStart : Pass<"emit-hisepq-start", "mlir::ModuleOp"> {
       (`hisepq.ld`), which declares `ENTRY(_start)`, pulls `.text._start` to
       the boot address and provides `__stack_top`.
 
-      Assumes that *exactly* one function is tagged entry point.
+      Assumes that *exactly* one function is tagged entry point, and that it
+      takes no arguments.
 
       TODO: Drop this pass once HiSEP-Q ships a crt0. Then qcc can emit a plain
       `main` and leave the startup code to the runtime.
@@ -109,11 +117,11 @@ def ConvertQVecToHiSEPQIntrinsics : Pass<"convert-qvec-to-hisepq-intrinsics", "m
 
       Gates without an intrinsic are rejected (error).
 
-      - `llvm.riscv.qv.mz` returns void and the QISA specifies no way to read a measurement back, so the classical
-        result of `qvec.mz` is replaced with `poison`, i.e. the measurement result is lost.
-      - `aux.record_int` and `aux.record_memref` are erased, so the program produces no output.
+      The outcomes of `qvec.mz` are read back with `llvm.riscv.qv.mres` from CSR `qv.mres`, whose bit `k` is element `k`
+      of the latest measurement. It holds 32 bits, so a `qvec.mz` on more than 32 qubits is rejected (error).
 
-      TODO: Support both once HiSEP-Q specifies the corresponding QISA operations.
+      `aux.record_int` and `aux.record_memref` are erased, so the program produces no output.
+      TODO: Support them once HiSEP-Q specifies the corresponding QISA operations.
   }];
 
   let options = [

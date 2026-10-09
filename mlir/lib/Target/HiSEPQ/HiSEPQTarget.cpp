@@ -150,6 +150,8 @@ static std::optional<hisepq::HiSEPQMachine> machineFor(llvm::ArrayRef<FeatureFla
 void addLoweringPassesHiSEPQViaQIR(mlir::PassManager& pm) {
   addLoweringPassesQIR(pm);
   pm.addPass(qcc::createConvertQIRToHiSEPQIntrinsics());
+  // Promotes the stack slots that hold measurement results to SSA values.
+  pm.addPass(mlir::createMem2Reg());
   pm.addPass(qcc::createEmitHiSEPQStart());
 }
 

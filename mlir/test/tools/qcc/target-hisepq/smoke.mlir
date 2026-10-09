@@ -35,17 +35,21 @@ func.func @main() attributes { qcc.entry_point } {
 // One qubit index per vector; at the default VLEN of 64 they fit the narrowest register group, `vector<[2]xi8>`,
 // i.e. LMUL 1/4.
 // CHECK:         vsetivli zero, 1, e8, mf4, ta, ma
-// CHECK-DAG:     vmv.s.x  [[V1:v[0-9]+]], zero
-// CHECK-DAG:     vmv.v.i  [[V2:v[0-9]+]], 1
-// CHECK-DAG:     vmv.v.i  [[V3:v[0-9]+]], 2
-// CHECK:         qv.h     [[V1]], zero, 0
-// CHECK:         qv.cx    [[V1]], [[V2]], 0
-// CHECK:         qv.cx    [[V2]], [[V3]], 0
-// CHECK:         qv.mz    [[V1]], zero, 0
+// CHECK-NEXT:    vmv.s.x  [[V1:v[0-9]+]], zero
+// CHECK-NEXT:    qv.h     [[V1]], zero, 0
+// CHECK-NEXT:    vmv.v.i  [[V2:v[0-9]+]], 1
+// CHECK-NEXT:    qv.cx    [[V1]], [[V2]], 0
+// CHECK-NEXT:    vmv.v.i  [[V3:v[0-9]+]], 2
+// CHECK-NEXT:    qv.cx    [[V2]], [[V3]], 0
+// CHECK-NEXT:    qv.mz    [[V1]], zero, 0
 
 // CHECK:         vsetivli zero, 2, e8, mf4, ta, ma
 // CHECK:         qv.mz    {{v[0-9]+}}, zero, 0
 // CHECK:         ret
+
+// The entry point is called as an ordinary call, which follows the calling convention.
+// CHECK:      __qcc_call_entry_point:
+// CHECK:         call    main
 
 // Two preconditions that the linker script hisepq.ld depends on silently.
 // CHECK:      .section .text._start,"ax",@progbits
@@ -54,8 +58,8 @@ func.func @main() attributes { qcc.entry_point } {
 // CHECK:      _start:
 // CHECK-NEXT:    lui     [[R1:a[0-9]+]], %hi(__stack_top)
 // CHECK-NEXT:    addi    [[R1]], [[R1]], %lo(__stack_top)
-// CHECK-NEXT:    lui     [[R2:a[0-9]+]], %hi(main)
-// CHECK-NEXT:    addi    [[R2]], [[R2]], %lo(main)
+// CHECK-NEXT:    lui     [[R2:a[0-9]+]], %hi(__qcc_call_entry_point)
+// CHECK-NEXT:    addi    [[R2]], [[R2]], %lo(__qcc_call_entry_point)
 // CHECK:         mv      sp, [[R1]]
 // CHECK:         jalr    [[R2]]
 // Infinite loop:

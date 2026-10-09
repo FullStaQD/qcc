@@ -160,3 +160,50 @@ func.func @too_many_qubits() {
   %h = qvec.single h %qs : vector<65x!qco.qubit>
   func.return
 }
+
+// -----
+
+// `qv.mres` holds the outcomes of at most 32 qubits.
+
+func.func @measurement_over_32_qubits() {
+  %q0 = qco.static 0 : !qco.qubit
+  %q1 = qco.static 1 : !qco.qubit
+  %q2 = qco.static 2 : !qco.qubit
+  %q3 = qco.static 3 : !qco.qubit
+  %q4 = qco.static 4 : !qco.qubit
+  %q5 = qco.static 5 : !qco.qubit
+  %q6 = qco.static 6 : !qco.qubit
+  %q7 = qco.static 7 : !qco.qubit
+  %q8 = qco.static 8 : !qco.qubit
+  %q9 = qco.static 9 : !qco.qubit
+  %q10 = qco.static 10 : !qco.qubit
+  %q11 = qco.static 11 : !qco.qubit
+  %q12 = qco.static 12 : !qco.qubit
+  %q13 = qco.static 13 : !qco.qubit
+  %q14 = qco.static 14 : !qco.qubit
+  %q15 = qco.static 15 : !qco.qubit
+  %q16 = qco.static 16 : !qco.qubit
+  %q17 = qco.static 17 : !qco.qubit
+  %q18 = qco.static 18 : !qco.qubit
+  %q19 = qco.static 19 : !qco.qubit
+  %q20 = qco.static 20 : !qco.qubit
+  %q21 = qco.static 21 : !qco.qubit
+  %q22 = qco.static 22 : !qco.qubit
+  %q23 = qco.static 23 : !qco.qubit
+  %q24 = qco.static 24 : !qco.qubit
+  %q25 = qco.static 25 : !qco.qubit
+  %q26 = qco.static 26 : !qco.qubit
+  %q27 = qco.static 27 : !qco.qubit
+  %q28 = qco.static 28 : !qco.qubit
+  %q29 = qco.static 29 : !qco.qubit
+  %q30 = qco.static 30 : !qco.qubit
+  %q31 = qco.static 31 : !qco.qubit
+  %q32 = qco.static 32 : !qco.qubit
+  %qs = vector.from_elements
+      %q0, %q1, %q2, %q3, %q4, %q5, %q6, %q7, %q8, %q9, %q10, %q11, %q12, %q13, %q14, %q15, %q16,
+      %q17, %q18, %q19, %q20, %q21, %q22, %q23, %q24, %q25, %q26, %q27, %q28, %q29, %q30, %q31, %q32
+      : vector<33x!qco.qubit>
+  // expected-error @+1 {{'qvec.mz' op measures 33 qubits, but 'qv.mres' holds at most 32 outcomes}}
+  %qs_out, %result = qvec.mz %qs : vector<33x!qco.qubit> -> vector<33xi1>
+  func.return
+}
