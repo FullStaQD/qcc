@@ -1,4 +1,5 @@
-// RUN: qcc-opt %s -convert-qvec-to-hisepq-intrinsics=min-vlen=128 --split-input-file | FileCheck %s
+// RUN: qcc-opt %s -convert-qvec-to-hisepq-intrinsics="min-vlen=128 num-qubit-control-lines=256" --split-input-file \
+// RUN:   | FileCheck %s
 
 // The two qubits have to occupy the two front entries of an otherwise poison
 // `vector<[N]xi8>`. Poison means "we don't care".

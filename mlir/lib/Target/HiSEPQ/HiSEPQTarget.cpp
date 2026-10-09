@@ -22,7 +22,7 @@
 #include "qcc/Target/QIR/QIRTarget.h"
 #include "qcc/Target/TargetRegistry.h"
 
-#include "mlir/Conversion/Passes.h"
+#include "mlir/Conversion/Passes.h" // IWYU pragma: keep
 #include "mlir/Conversion/QCToQCO/QCToQCO.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/Passes.h"
@@ -32,30 +32,119 @@
 #include "llvm/IR/Module.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/CodeGen.h"
-#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
 #include "llvm/TargetParser/Triple.h"
 
+#include <algorithm>
+#include <array>
 #include <memory>
 #include <optional>
 #include <string>
 
 namespace qcc {
 
-/// Max qubits per QV instruction
-static unsigned maxVectorizationFactor(const TargetOptions& targetOptions) {
-  using hisepq::HiSEPQMachine;
-  if (!HiSEPQMachine::isSupportedMinVLen(targetOptions.minVLen) ||
-      !HiSEPQMachine::isSupportedQubitElementWidth(targetOptions.qubitElementWidth)) {
-    // TODO: that this branch is possible means the function has a design flaw. Returning "unlimited" here is plainly
-    // wrong.
-    return 0;
+// NOTE: LLVM uses tablegen for this, we are a bit more low-tech here and use macros.
+#define HISEPQ_ZVL(N) {.name = "zvl" #N "b", .description = "VLEN of at least " #N " bits"}
+#define HISEPQ_XQVEL(N)                                                                                                \
+  {.name = "xqvel" #N "b", .description = "Qubit element length of at least " #N " bits, aka QELEN"}
+static constexpr auto hisepqFeatureTable = std::to_array<Feature>({
+    HISEPQ_ZVL(64),
+    HISEPQ_ZVL(128),
+    HISEPQ_ZVL(256),
+    HISEPQ_ZVL(512),
+    HISEPQ_ZVL(1024),
+    HISEPQ_ZVL(2048),
+    HISEPQ_ZVL(4096),
+    HISEPQ_ZVL(8192),
+    HISEPQ_ZVL(16384),
+    HISEPQ_ZVL(32768),
+    HISEPQ_ZVL(65536),
+    HISEPQ_XQVEL(8),
+    HISEPQ_XQVEL(16),
+});
+#undef HISEPQ_ZVL
+#undef HISEPQ_XQVEL
+const llvm::ArrayRef<Feature> hisepqFeatures = hisepqFeatureTable;
+
+// TODO: Add CPUs for concrete HiSEP-Q builds, e.g. one with a VLEN of 128 and 16 qubit control lines.
+static constexpr auto genericFeatures = std::to_array<llvm::StringRef>({"zvl64b", "xqvel8b"});
+static constexpr auto hisepqCpuTable = std::to_array<Cpu>({
+    {.name = "generic",
+     .description = "VLEN of at least 64 and the 256 qubit control lines that 8-bit indices address",
+     .features = genericFeatures,
+     .numQubitControlLines = 256},
+});
+const llvm::ArrayRef<Cpu> hisepqCpus = hisepqCpuTable;
+
+/// Parses `N` out of a feature name of the form `<prefix><N><suffix>`.
+static std::optional<unsigned> boundOf(llvm::StringRef name, llvm::StringRef prefix, llvm::StringRef suffix) {
+  unsigned value = 0;
+  if (!name.consume_front(prefix) || !name.consume_back(suffix) || name.getAsInteger(10, value)) {
+    return std::nullopt;
+  }
+  return value;
+}
+
+/// Applies `features` in order and returns the largest `<prefix><N><suffix>` enabled. As in LLVM for `zvl<N>b`, a
+/// feature implies every one with a smaller N, so disabling it disables every one with a larger N too.
+static std::optional<unsigned> largestEnabledFor(llvm::ArrayRef<FeatureFlag> features, llvm::StringRef prefix,
+                                                 llvm::StringRef suffix) {
+  std::optional<unsigned> bound;
+  for (const FeatureFlag& feature : features) {
+    const std::optional<unsigned> value = boundOf(feature.name, prefix, suffix);
+    if (!value) {
+      continue;
+    }
+    if (feature.enable) {
+      bound = std::max(bound.value_or(0), *value);
+      continue;
+    }
+    if (!bound || *bound < *value) {
+      continue;
+    }
+    // Disabling `value` disables every larger bound too, leaving the largest known one below it.
+    bound.reset();
+    for (const Feature& known : hisepqFeatureTable) {
+      const std::optional<unsigned> knownValue = boundOf(known.name, prefix, suffix);
+      if (knownValue && *knownValue < *value) {
+        bound = std::max(bound.value_or(0), *knownValue);
+      }
+    }
+  }
+  return bound;
+}
+
+/// The machine `features` and `numQubitControlLines` describe; reports an error and returns nullopt if they describe
+/// none.
+static std::optional<hisepq::HiSEPQMachine> machineFor(llvm::ArrayRef<FeatureFlag> features,
+                                                       unsigned numQubitControlLines) {
+  const std::optional<unsigned> minVLen = largestEnabledFor(features, "zvl", "b");
+  if (!minVLen) {
+    llvm::errs() << "error: -mcpu and -mattr leave no 'zvl<N>b' feature enabled\n";
+    return std::nullopt;
   }
 
-  return HiSEPQMachine(targetOptions.minVLen, targetOptions.qubitElementWidth).maxQubits();
+  // QELEN, the widest qubit index the machine reads.
+  const std::optional<unsigned> maxQubitElementWidth = largestEnabledFor(features, "xqvel", "b");
+  if (!maxQubitElementWidth) {
+    llvm::errs() << "error: -mcpu and -mattr leave no 'xqvel<N>b' feature enabled\n";
+    return std::nullopt;
+  }
+
+  const unsigned maxLines = hisepq::HiSEPQMachine::maxNumQubitControlLinesFor(*maxQubitElementWidth);
+  if (numQubitControlLines < 1 || numQubitControlLines > maxLines) {
+    llvm::errs() << "error: -mqcl expects 1 to " << maxLines << " qubit control lines for a QELEN of "
+                 << *maxQubitElementWidth << ", got " << numQubitControlLines;
+    if (*maxQubitElementWidth < 16 && numQubitControlLines > maxLines) {
+      llvm::errs() << " (16-bit qubit indices need -mattr=+xqvel16b)";
+    }
+    llvm::errs() << "\n";
+    return std::nullopt;
+  }
+  return hisepq::HiSEPQMachine(*minVLen, numQubitControlLines);
 }
 
 void addLoweringPassesHiSEPQViaQIR(mlir::PassManager& pm) {
@@ -64,18 +153,24 @@ void addLoweringPassesHiSEPQViaQIR(mlir::PassManager& pm) {
   pm.addPass(qcc::createEmitHiSEPQStart());
 }
 
-void addLoweringPassesHiSEPQ(mlir::PassManager& pm, const TargetOptions& targetOptions) {
+mlir::LogicalResult addLoweringPassesHiSEPQ(mlir::PassManager& pm, llvm::ArrayRef<FeatureFlag> features,
+                                            unsigned numQubitControlLines) {
+  const std::optional<hisepq::HiSEPQMachine> machine = machineFor(features, numQubitControlLines);
+  if (!machine) {
+    return mlir::failure();
+  }
+
   // qc -> qco -> qvec -> QV intrinsics
   pm.addPass(mlir::createQCToQCO());
   pm.addPass(qcc::createConvertQCOToQVec());
 
   QVecMergeOptions mergeOptions;
-  mergeOptions.maxVF = maxVectorizationFactor(targetOptions);
+  mergeOptions.maxVF = machine->maxQubits();
   pm.addPass(qcc::createQVecMerge(mergeOptions));
 
   ConvertQVecToHiSEPQIntrinsicsOptions intrinsicsOptions;
-  intrinsicsOptions.minVLen = targetOptions.minVLen;
-  intrinsicsOptions.qubitElementWidth = targetOptions.qubitElementWidth;
+  intrinsicsOptions.minVLen = machine->getMinVLen();
+  intrinsicsOptions.numQubitControlLines = machine->getNumQubitControlLines();
   pm.addPass(qcc::createConvertQVecToHiSEPQIntrinsics(intrinsicsOptions));
 
   // Classical remainder to LLVM
@@ -90,10 +185,11 @@ void addLoweringPassesHiSEPQ(mlir::PassManager& pm, const TargetOptions& targetO
   // cleanup
   pm.addPass(mlir::createCanonicalizerPass());
   pm.addPass(mlir::createCSEPass());
+  return mlir::success();
 }
 
 bool emitNativeHiSEPQ(llvm::Module& module, llvm::raw_pwrite_stream& os, const NativeCodegenOptions& options,
-                      const TargetOptions& targetOptions) {
+                      llvm::ArrayRef<FeatureFlag> features, unsigned numQubitControlLines) {
   // HiSEP-Q QISA is encoded as the experimental "xqv" RISC-V vector extension,
   // provided by the HiSEP-Q LLVM fork.
   LLVMInitializeRISCVTargetInfo();
@@ -102,11 +198,15 @@ bool emitNativeHiSEPQ(llvm::Module& module, llvm::raw_pwrite_stream& os, const N
   LLVMInitializeRISCVAsmPrinter();
   LLVMInitializeRISCVAsmParser();
 
+  const std::optional<hisepq::HiSEPQMachine> machine = machineFor(features, numQubitControlLines);
+  if (!machine) {
+    return true;
+  }
   // `enable-vsetvli-sched-heuristic` lets the machine scheduler break ties in favour of the current vector
   // configuration. Alone it changes nothing, but it keeps `generic-ooo` (see below) from adding `vsetvli`s when qubit
-  // indices and their gate differ in LMUL, as at the default `--min-vlen`.
+  // indices and their gate differ in LMUL, as at the default `zvl64b`.
   const std::string attrsStr =
-      "+experimental-xqv,+zvl" + std::to_string(targetOptions.minVLen) + "b,+enable-vsetvli-sched-heuristic";
+      "+experimental-xqv,+zvl" + std::to_string(machine->getMinVLen()) + "b,+enable-vsetvli-sched-heuristic";
   llvm::Triple triple(llvm::Triple::normalize("riscv32-unknown-unknown"));
 
   std::string errorStr;

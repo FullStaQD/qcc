@@ -1,4 +1,4 @@
-// RUN: qcc --target=hisepq --min-vlen=128 --qubit-element-width=8 --compile-to=native %s | FileCheck %s
+// RUN: qcc --target=hisepq -mattr=+zvl128b --compile-to=native %s | FileCheck %s
 
 // GENERATED FROM QRISP VERSION 0.9.6
 

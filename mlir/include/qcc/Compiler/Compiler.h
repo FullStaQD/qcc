@@ -22,7 +22,10 @@ namespace qcc {
 ///
 /// A non-empty `deviceDescription` is the path of a device file. Its device description is attached to the module
 /// (`qcc.device`) before anything else runs.
-void buildPipeline(mlir::PassManager& pm, const Target* target, const TargetOptions& targetOptions,
-                   const QuantumDeviceKind* quantumDevice, llvm::StringRef deviceDescription);
+///
+/// Fails if `features` and `numQubitControlLines` describe no machine of `target`.
+mlir::LogicalResult buildPipeline(mlir::PassManager& pm, const Target* target, llvm::ArrayRef<FeatureFlag> features,
+                                  unsigned numQubitControlLines, const QuantumDeviceKind* quantumDevice,
+                                  llvm::StringRef deviceDescription);
 
 } // namespace qcc

@@ -10,8 +10,10 @@
 #pragma once
 
 #include "mlir/Pass/PassManager.h"
+#include "mlir/Support/LLVM.h"
 
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -33,15 +35,25 @@ struct NativeCodegenOptions {
 // entry carrying metadata plus a factory (`addLoweringPasses`) for the target's
 // behavior. If our implementation must be augmented follow LLVM's lead.
 
-/// Description of the machine a target lowers for, as selected on the command line.
-/// The defaults describe the smallest machine we accept.
-///
-/// TODO: These are HiSEP-Q's parameters. Move them behind an `-mattr` string (`+zvl<N>b`).
-struct TargetOptions {
-  /// Guaranteed lower bound on VLEN, the vector register length in bits.
-  unsigned minVLen = 64;
-  /// QEW: how many bits one qubit index occupies in a qubit vector.
-  unsigned qubitElementWidth = 8;
+/// A `-mattr` feature.
+struct Feature {
+  llvm::StringRef name;
+  llvm::StringRef description;
+};
+
+/// One `-mattr` entry: `+<name>` (or a bare `<name>`) enables a feature, `-<name>` disables it.
+struct FeatureFlag {
+  llvm::StringRef name;
+  bool enable;
+};
+
+/// A `-mcpu` processor and the features it enables.
+struct Cpu {
+  llvm::StringRef name;
+  llvm::StringRef description;
+  llvm::ArrayRef<llvm::StringRef> features;
+  /// Qubit control lines the processor drives unless `-mqcl` overrides it; 0 if the target has none.
+  unsigned numQubitControlLines = 0;
 };
 
 /// Describes a compilation target selectable via `qcc --target=<name>`.
@@ -50,22 +62,33 @@ struct Target {
   llvm::StringRef name;
   /// Human-readable description shown by `--list-targets`.
   llvm::StringRef description;
-  /// Assembles the lowering pipeline for this target.
-  std::function<void(mlir::PassManager&, const TargetOptions&)> addLoweringPasses;
+  /// The features this target accepts in `-mattr`.
+  llvm::ArrayRef<Feature> features;
+  /// The processors this target accepts in `-mcpu`; `generic` is the default and must exist.
+  llvm::ArrayRef<Cpu> cpus;
+  /// Assembles the lowering pipeline for this target, the features and the number of qubit control lines; fails if
+  /// they describe no machine.
+  std::function<mlir::LogicalResult(mlir::PassManager&, llvm::ArrayRef<FeatureFlag> features,
+                                    unsigned numQubitControlLines)>
+      addLoweringPasses;
   /// Emits native code for an already-lowered, LLVM-translated module. Null when
   /// the target has no native backend (e.g. QIR). Returns true on failure.
-  std::function<bool(llvm::Module&, llvm::raw_pwrite_stream&, const NativeCodegenOptions&, const TargetOptions&)>
+  std::function<bool(llvm::Module&, llvm::raw_pwrite_stream&, const NativeCodegenOptions&,
+                     llvm::ArrayRef<FeatureFlag> features, unsigned numQubitControlLines)>
       emitNative;
   /// Whether the lowering ends in the LLVM dialect.
   bool lowersToLLVM = false;
-  /// Whether `addLoweringPasses` reads the machine parameters in `TargetOptions`.
-  /// `qcc` rejects the corresponding flags for a target that does not, rather
-  /// than silently ignoring them.
-  bool usesMachineOptions = false; // TODO: this option is a workaround, should not exist.
 };
 
 /// A (pseudo) target for when we have no control hardware (QISA) to target.
 inline constexpr llvm::StringLiteral noTargetName = "none";
+
+/// Looks up a CPU of `target` by its name (as expected by `-mcpu`), or returns nullptr if `target` has none such.
+const Cpu* lookupCpu(const Target& target, llvm::StringRef name);
+
+/// The features `cpu` enables, followed by `mattr` (`+<name>,-<name>,...`); fails on names unknown to `target`.
+mlir::FailureOr<llvm::SmallVector<FeatureFlag>> parseFeatures(const Target& target, const Cpu& cpu,
+                                                              llvm::StringRef mattr);
 
 /// Returns the targets compiled into this build.
 llvm::ArrayRef<Target> getTargets();

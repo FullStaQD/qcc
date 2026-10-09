@@ -118,7 +118,9 @@ static std::optional<ResolvedQubits> resolveQubitVector(Operation* op, TypedValu
   const unsigned qew = machine.getQubitElementWidth();
   for (int64_t index : *indices) {
     if (std::cmp_greater(index, machine.maxQubitIndex())) {
-      (void)diags.report(op, "qubit index " + Twine(index) + " does not fit in i" + Twine(qew));
+      (void)diags.report(op, "qubit index " + Twine(index) + " exceeds the maximum of " +
+                                 Twine(machine.maxQubitIndex()) + " for " + Twine(machine.getNumQubitControlLines()) +
+                                 " qubit control lines");
       return std::nullopt;
     }
   }
@@ -325,12 +327,14 @@ protected:
       return signalPassFailure();
     }
 
-    if (!HiSEPQMachine::isSupportedQubitElementWidth(qubitElementWidth)) {
-      emitError(moduleOp.getLoc()) << "'qubit-element-width' expects 8 or 16, got " << Twine(qubitElementWidth);
+    if (!HiSEPQMachine::isSupportedNumQubitControlLines(numQubitControlLines)) {
+      emitError(moduleOp.getLoc()) << "'num-qubit-control-lines' expects 1 to "
+                                   << Twine(HiSEPQMachine::maxNumQubitControlLines()) << ", got "
+                                   << Twine(numQubitControlLines);
       return signalPassFailure();
     }
 
-    const HiSEPQMachine machine(minVLen, qubitElementWidth);
+    const HiSEPQMachine machine(minVLen, numQubitControlLines);
 
     Diagnostics diags;
     RewritePatternSet patterns(ctx);
