@@ -1,0 +1,15 @@
+add_mlir_dialect_library(
+  QCCHLEPGateDialect
+  HLEPGateDialect.cpp
+  DEPENDS
+  QCCHLEPGateDialectIncGen
+  QCCHLEPGateAttrsIncGen
+  QCCHLEPGateOpsIncGen
+  LINK_LIBS
+  PRIVATE
+  MLIRIR
+  MLIRSupport
+  MLIRSideEffectInterfaces
+  MLIRInferTypeOpInterface
+  PUBLIC
+  QCCPrelimHLEPDialect)

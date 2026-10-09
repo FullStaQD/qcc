@@ -1,0 +1,16 @@
+set(LLVM_TARGET_DEFINITIONS HLEPGateDialect.td)
+mlir_tablegen(HLEPGateDialect.h.inc -gen-dialect-decls -dialect=hlepgate)
+mlir_tablegen(HLEPGateDialect.cpp.inc -gen-dialect-defs -dialect=hlepgate)
+add_public_tablegen_target(QCCHLEPGateDialectIncGen)
+
+set(LLVM_TARGET_DEFINITIONS HLEPGateAttrs.td)
+mlir_tablegen(HLEPGateEnums.h.inc -gen-enum-decls)
+mlir_tablegen(HLEPGateEnums.cpp.inc -gen-enum-defs)
+mlir_tablegen(HLEPGateAttrs.h.inc -gen-attrdef-decls -attrdefs-dialect=hlepgate)
+mlir_tablegen(HLEPGateAttrs.cpp.inc -gen-attrdef-defs -attrdefs-dialect=hlepgate)
+add_public_tablegen_target(QCCHLEPGateAttrsIncGen)
+
+set(LLVM_TARGET_DEFINITIONS HLEPGateOps.td)
+mlir_tablegen(HLEPGateOps.h.inc -gen-op-decls)
+mlir_tablegen(HLEPGateOps.cpp.inc -gen-op-defs)
+add_public_tablegen_target(QCCHLEPGateOpsIncGen)
