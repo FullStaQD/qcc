@@ -11,6 +11,7 @@
 #define INCLUDE_QCC_DIALECT_QCC_IR_QCCINTERFACES_TD_
 
 include "mlir/IR/Interfaces.td"
+include "mlir/IR/OpBase.td"
 
 //===----------------------------------------------------------------------===//
 // DeviceAttrInterface
@@ -34,6 +35,97 @@ def QCC_DeviceAttrInterface : AttrInterface<"DeviceAttrInterface"> {
       /*methodName=*/"getName"
     >
   ];
+}
+
+//===----------------------------------------------------------------------===//
+// QubitLaneOpInterface
+//===----------------------------------------------------------------------===//
+
+def Qcc_QubitLaneOpInterface : OpInterface<"QubitLaneOpInterface"> {
+  let description = [{
+        An operation with this interface returns exactly the qubits it takes as operands in the same order: qubit result
+        `i` is qubit operand `i` after the operation. Such an operand/result pair is a *lane*, and it may also be a
+        vector of qubits. A `qcirc.single` has one lane, a `qcirc.pair` has two. Qubit sources (`qcc.static`) and sinks
+        therefore do not implement the interface.
+
+        A lane follows the identity of a qubit, not its state: `qcirc.pair swap` does not exchange its lanes.
+
+        The qubit operands form one contiguous group, and the qubit results are the leading results.
+    }];
+  let cppNamespace = "::qcc";
+
+  let methods = [
+    InterfaceMethod<
+      /*desc=*/"Returns the qubit operands of this operation, in lane order.",
+      /*retTy=*/"::mlir::OperandRange",
+      /*methodName=*/"getQubitOperands"
+    >,
+    InterfaceMethod<
+      /*desc=*/"Returns the qubit results of this operation, in lane order.",
+      /*retTy=*/"::mlir::ResultRange",
+      /*methodName=*/"getQubitResults"
+    >,
+    InterfaceMethod<
+      /*desc=*/"Returns the number of qubit lanes of this operation.",
+      /*retTy=*/"unsigned",
+      /*methodName=*/"getNumQubitLanes",
+      /*args=*/(ins),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        return $_op.getQubitResults().size();
+      }]
+    >,
+    InterfaceMethod<
+      /*desc=*/"Returns the qubit operand of `lane`, which must be a lane of this operation.",
+      /*retTy=*/"::mlir::Value",
+      /*methodName=*/"getQubitOperand",
+      /*args=*/(ins "unsigned":$lane),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        ::mlir::OperandRange operands = $_op.getQubitOperands();
+        assert(lane < operands.size() && "no such qubit lane");
+        return operands[lane];
+      }]
+    >,
+    InterfaceMethod<
+      /*desc=*/"Returns the qubit result of `lane`, which must be a lane of this operation.",
+      /*retTy=*/"::mlir::Value",
+      /*methodName=*/"getQubitResult",
+      /*args=*/(ins "unsigned":$lane),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        ::mlir::ResultRange results = $_op.getQubitResults();
+        assert(lane < results.size() && "no such qubit lane");
+        return results[lane];
+      }]
+    >,
+    InterfaceMethod<
+      /*desc=*/[{
+        Returns the operand in the lane of `result`, which must be a qubit result of this operation: the same qubit
+        before the operation.
+      }],
+      /*retTy=*/"::mlir::Value",
+      /*methodName=*/"getTiedQubitOperand",
+      /*args=*/(ins "::mlir::OpResult":$result),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{
+        assert(result.getOwner() == $_op.getOperation() && "result belongs to a different operation");
+        // The qubit results are the leading results, so the result number is the lane.
+        return $_op.getQubitOperand(result.getResultNumber());
+      }]
+    >
+  ];
+
+  let verify = [{ return ::qcc::detail::verifyQubitLaneOpInterface($_op); }];
+}
+
+//===----------------------------------------------------------------------===//
+// Traits
+//===----------------------------------------------------------------------===//
+
+// Enforces the affine constraint on `!qcc.qubit` by usage counting. Only use where this is appropriate.
+def Qcc_SingleUseQubits : NativeOpTrait<"SingleUseQubits"> {
+  let cppNamespace = "::qcc";
 }
 
 #endif // INCLUDE_QCC_DIALECT_QCC_IR_QCCINTERFACES_TD_

@@ -9,13 +9,20 @@
 
 #pragma once
 
+#include "mlir/Bytecode/BytecodeOpInterface.h" // IWYU pragma: keep
 #include "mlir/IR/Attributes.h"
+#include "mlir/IR/Builders.h" // IWYU pragma: keep
 #include "mlir/IR/BuiltinAttributes.h"
-#include "mlir/IR/Dialect.h" // IWYU pragma: keep
+#include "mlir/IR/BuiltinTypeInterfaces.h" // IWYU pragma: keep
+#include "mlir/IR/Dialect.h"               // IWYU pragma: keep
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/MLIRContext.h"
+#include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/Operation.h" // IWYU pragma: keep
+#include "mlir/IR/Types.h"
+#include "mlir/IR/Value.h"
+#include "mlir/Interfaces/SideEffectInterfaces.h" // IWYU pragma: keep
 #include "mlir/Support/LLVM.h"
 
 #include "llvm/ADT/ArrayRef.h"
@@ -24,6 +31,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/LogicalResult.h" // IWYU pragma: keep
 
+#include <cassert>
 #include <cstdint> // IWYU pragma: keep
 
 //===----------------------------------------------------------------------===//
@@ -33,10 +41,63 @@
 #include "qcc/Dialect/Qcc/IR/QccDialect.h.inc"
 
 //===----------------------------------------------------------------------===//
+// Qcc Types
+//===----------------------------------------------------------------------===//
+
+#define GET_TYPEDEF_CLASSES
+#include "qcc/Dialect/Qcc/IR/QccTypes.h.inc"
+
+namespace qcc {
+
+/// Whether `type` is `!qcc.qubit` or a vector of them.
+bool isQubitOrQubitVector(mlir::Type type);
+
+} // namespace qcc
+
+//===----------------------------------------------------------------------===//
 // Qcc Interfaces
 //===----------------------------------------------------------------------===//
 
-#include "qcc/Dialect/Qcc/IR/QccInterfaces.h.inc"
+namespace qcc::detail {
+
+/// Verifies the lanes of `op`, which implements the `QubitLaneOpInterface`: every lane has both ends and both are of
+/// the same qubit type, the qubit results are the leading results, and there is no qubit outside the lanes.
+llvm::LogicalResult verifyQubitLaneOpInterface(mlir::Operation* op);
+
+} // namespace qcc::detail
+
+#include "qcc/Dialect/Qcc/IR/QccAttrInterfaces.h.inc"
+#include "qcc/Dialect/Qcc/IR/QccOpInterfaces.h.inc"
+
+//===----------------------------------------------------------------------===//
+// Qcc Traits
+//===----------------------------------------------------------------------===//
+
+namespace qcc {
+
+/// Imposes the following constraints:
+/// - The operation sits directly in a function (`func.func` or any other `FunctionOpInterface` operation) with a
+///   single block, and that function has no qubits among its arguments and results.
+/// - Each scalar qubit result of the operation is used at most once.
+/// - Each qubit operand of the operation, scalar or vector, has no other use.
+llvm::LogicalResult verifySingleUseQubits(mlir::Operation* op);
+
+/// Corresponds to `Qcc_SingleUseQubits` in tablegen.
+template <typename ConcreteType>
+class SingleUseQubits // NOLINT(bugprone-crtp-constructor-accessibility)
+    : public mlir::OpTrait::TraitBase<ConcreteType, SingleUseQubits> {
+public:
+  static llvm::LogicalResult verifyTrait(mlir::Operation* op) { return verifySingleUseQubits(op); }
+};
+
+} // namespace qcc
+
+//===----------------------------------------------------------------------===//
+// Qcc Operations
+//===----------------------------------------------------------------------===//
+
+#define GET_OP_CLASSES
+#include "qcc/Dialect/Qcc/IR/QccOps.h.inc"
 
 //===----------------------------------------------------------------------===//
 // Shared ODS helpers

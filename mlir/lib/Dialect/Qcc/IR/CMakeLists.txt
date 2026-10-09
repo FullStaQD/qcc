@@ -1,12 +1,17 @@
 add_mlir_dialect_library(
   QCCQccDialect
   QccDialect.cpp
+  QccOps.cpp
   DEPENDS
   QCCQccDialectIncGen
   QCCQccInterfacesIncGen
+  QCCQccTypesIncGen
+  QCCQccOpsIncGen
   LINK_LIBS
   PRIVATE
   MLIRIR
   MLIRSupport
   MLIRParser
-  MLIRFunctionInterfaces)
+  MLIRFuncDialect
+  MLIRFunctionInterfaces
+  MLIRSideEffectInterfaces)

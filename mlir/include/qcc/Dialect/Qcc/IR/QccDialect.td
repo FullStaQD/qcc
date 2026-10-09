@@ -12,29 +12,32 @@
 
 include "mlir/IR/DialectBase.td"
 include "mlir/IR/AttrTypeBase.td"
-include "mlir/IR/OpBase.td" // the dialect doc generator needs `Op`, even for a dialect without ops.
+include "mlir/IR/OpBase.td"
 
 //===----------------------------------------------------------------------===//
 // Qcc dialect
 //===----------------------------------------------------------------------===//
 
 def Qcc_Dialect : Dialect {
-    let summary = "Project-wide metadata: e.g. device description and the entry point marker.";
+    let summary = "Shared metadata, types, etc throughout all of our dialects.";
     let description = [{
-        The `qcc` dialect owns the metadata that is meaningful across all quantum dialects of this project.
+        The `qcc` dialect is to this project what the builtin dialect is to MLIR: it owns what is meaningful across all
+        of its quantum dialects.
 
-        - `qcc.entry_point` is a discardable unit attribute on a function (`func.func`, `llvm.func`) that marks *a*
-          starting point of a quantum program.
-        - `qcc.device` is a discardable attribute on the module that describes the device the program is compiled for.
-          Its value can be any attribute implementing the `DeviceAttrInterface`. A concrete device description belongs
-          to the dialect of its architecture, e.g. `#magic.device`.
+        `!qcc.qubit` is the qubit type for a value-semantics context. It follows an affine type discipline: A qubit
+        value may be consumed at most once on any execution path (no-cloning). It may also be left unused, which traces
+        the qubit out. *A* way to enforce this is the `SingleUseQubits` trait which is designed for use with IR centered
+        around the `qcirc` dialect.
 
-        Example:
+        The following IR snippet shows a module with an attached MAGIC (Ions) device and a function marked as the entry
+        point.
+
         ```mlir
         #trap = #magic.trap<capacity = 2, couplings = [dense<0.0> : tensor<1x1xf64>,
                                                        dense<[[0.0, 297.4], [297.4, 0.0]]> : tensor<2x2xf64>]>
         module attributes {qcc.device = #magic.device<name = "two-trap", time_unit_ns = 1000, traps = [#trap, #trap]>} {
           func.func @main() attributes {qcc.entry_point} {
+            %q0, %q1 = qcc.static [0, 1] : !qcc.qubit
             return
           }
         }
@@ -44,7 +47,7 @@ def Qcc_Dialect : Dialect {
     let name = "qcc";
     let cppNamespace = "::qcc";
 
-    let useDefaultTypePrinterParser = 0;      // set to 1 once we define types of our own.
+    let useDefaultTypePrinterParser = 1;
     let useDefaultAttributePrinterParser = 0; // set to 1 once we define attributes of our own.
 
     let discardableAttrs = (ins "::mlir::Attribute":$device,
