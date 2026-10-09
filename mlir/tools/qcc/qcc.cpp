@@ -53,8 +53,6 @@
 #include "llvm/Support/SystemUtils.h"
 #include "llvm/Support/ToolOutputFile.h"
 
-#include <algorithm>
-#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <utility>
@@ -67,44 +65,6 @@ namespace {
 /// The stage to compile to and emit.
 enum class Stage : uint8_t { Mlir, LlvmIr, Native, CustomMagic };
 } // namespace
-
-/// Returns `text` with its first number replaced by `placeholder`, and that number (empty if there is none).
-static std::pair<std::string, std::string> abstractFirstNumber(llvm::StringRef text, llvm::StringRef placeholder) {
-  const size_t begin = text.find_first_of("0123456789");
-  if (begin == llvm::StringRef::npos) {
-    return {text.str(), ""};
-  }
-  const size_t end = std::min(text.find_first_not_of("0123456789", begin), text.size());
-  return {(text.take_front(begin) + placeholder + text.drop_front(end)).str(), text.slice(begin, end).str()};
-}
-
-/// Prints `features`. Consecutive features that differ only in a number their name and description share, like `zvl64b`
-/// and `zvl128b`, are printed on one line in their general form, `zvl<N>b`, with the supported values of N.
-static void printFeatures(llvm::ArrayRef<qcc::Feature> features) {
-  size_t first = 0;
-  while (first < features.size()) {
-    const auto [name, value] = abstractFirstNumber(features[first].name, "<N>");
-    const auto [description, descriptionValue] = abstractFirstNumber(features[first].description, "N");
-    llvm::SmallVector<std::string> values{value};
-    size_t last = first + 1;
-    while (!value.empty() && value == descriptionValue && last < features.size()) {
-      const auto [nextName, nextValue] = abstractFirstNumber(features[last].name, "<N>");
-      const auto [nextDescription, nextDescriptionValue] = abstractFirstNumber(features[last].description, "N");
-      if (nextName != name || nextDescription != description || nextValue != nextDescriptionValue) {
-        break;
-      }
-      values.push_back(nextValue);
-      ++last;
-    }
-
-    if (values.size() == 1) {
-      llvm::outs() << "    -mattr=+" << features[first].name << " - " << features[first].description << "\n";
-    } else {
-      llvm::outs() << "    -mattr=+" << name << " - " << description << " (N = " << llvm::join(values, ", ") << ")\n";
-    }
-    first = last;
-  }
-}
 
 /// Prints the targets compiled into this build.
 static void printTargets() {
@@ -121,7 +81,9 @@ static void printTargets() {
       }
       llvm::outs() << (cpu.name == "generic" ? " [default]\n" : "\n");
     }
-    printFeatures(backend.features);
+    for (const qcc::Feature& feature : backend.features) {
+      llvm::outs() << "    -mattr=+" << feature.name << " - " << feature.description << "\n";
+    }
   }
 }
 

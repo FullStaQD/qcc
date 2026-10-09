@@ -2,7 +2,9 @@
 
 // CHECK: hisepq
 // CHECK-NEXT: -mcpu=generic - {{.*}} (-mattr=+zvl64b,+xqvel8b) (-mqcl=256) [default]
-// A family of numbered features is printed in its general form, followed by the supported numbers.
-// CHECK-NEXT: -mattr=+zvl<N>b - VLEN of at least N bits (N = 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536)
-// CHECK-NEXT: -mattr=+xqvel<N>b - Qubit indices of up to N bits, aka QELEN (N = 8, 16)
-// CHECK-NOT: qew
+// One line per feature, as `llc -mattr=help` prints them.
+// CHECK-NEXT: -mattr=+zvl64b - VLEN of at least 64 bits
+// CHECK-NEXT: -mattr=+zvl128b - VLEN of at least 128 bits
+// CHECK:      -mattr=+zvl65536b - VLEN of at least 65536 bits
+// CHECK-NEXT: -mattr=+xqvel8b - Qubit element length of at least 8 bits, aka QELEN
+// CHECK-NEXT: -mattr=+xqvel16b - Qubit element length of at least 16 bits, aka QELEN
