@@ -35,10 +35,9 @@ func.func @main() attributes { qcc.entry_point } {
 // TODO(HiSEP-Q): In addition, there should be two [INSTR] lines here for the two gates (H and MZ). Unfortunately, the
 // simulator only matches the *full* 32-bit instruction words (containing specific operands) as in their own Bell demo.
 
-// TODO(HiSEP-Q): qvsg_meas=1 start actually freezes the core until measure_done arrives, and it never does. The
-// testbench sends it only once the measure stream reaches qsg_measure_elem_budget(lmul), which is 8 events even at the
-// smallest LMUL, whereas a single-qubit measure emits one. So the run ends on "200 idle cycles after last event"
-// instead of resuming. Their own demo/bell_generic.mem stops at the same point.
+// The measurement freezes the core until the testbench reports it done, then the program resumes.
+// CHECK-ISSUE: [MEASURE] measure_done=1
+// CHECK-ISSUE: [MEASURE] qvsg_meas=0 resume
 
 // Event stream leaving vproc, gate id in `elem3[31:25]` (7 uppermost bits). Note that the first seven bits of
 // 0xc8 are indeed 0x64 (Hadamard).
@@ -52,4 +51,4 @@ func.func @main() attributes { qcc.entry_point } {
 // CHECK-AWG:      [AWG]{{.*}} qubit[00]  gate=0x64  role=CTRL
 // CHECK-AWG:      [AWG]{{.*}} qubit[00]  gate=0x68  role=CTRL
 // CHECK-AWG:      qubit fires    : 2
-// CHECK-AWG-NEXT: FIFO errors    : 0
+// CHECK-AWG:      FIFO-overflow : 0
