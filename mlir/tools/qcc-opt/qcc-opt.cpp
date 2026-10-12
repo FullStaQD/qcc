@@ -19,6 +19,7 @@
 #include "qcc/Dialect/Jasp/IR/Jasp.h"
 #include "qcc/Dialect/Magic/IR/Magic.h"
 #include "qcc/Dialect/Magic/Transforms/Passes.h"
+#include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEP.h"
 #include "qcc/Dialect/QVec/IR/QVec.h"
 #include "qcc/Dialect/QVec/Transforms/Passes.h"
 #include "qcc/Dialect/Qcc/IR/Qcc.h"
@@ -35,6 +36,7 @@
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
 #include "mlir/Dialect/Bufferization/Transforms/FuncBufferizableOpInterfaceImpl.h"
 #include "mlir/Dialect/Bufferization/Transforms/Passes.h"
+#include "mlir/Dialect/Complex/IR/Complex.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlow.h"
 #include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Dialect/Func/Extensions/InlinerExtension.h"
@@ -70,6 +72,7 @@ int main(int argc, char** argv) {
     mlir::arith::ArithDialect,
     mlir::tensor::TensorDialect,
     mlir::bufferization::BufferizationDialect,
+    mlir::complex::ComplexDialect,
     mlir::linalg::LinalgDialect,
     mlir::cf::ControlFlowDialect,
     mlir::scf::SCFDialect,
@@ -83,13 +86,15 @@ int main(int argc, char** argv) {
     qcc::aux::AuxDialect,
     qcc::magic::MagicDialect,
     qcc::QccDialect,
-    qcc::qvec::QVecDialect
+    qcc::qvec::QVecDialect,
+    qcc::prelimhlep::PrelimHLEPDialect
       // clang-format on
       >();
 
   // Builtin passes:
   mlir::registerCanonicalizerPass();
   mlir::registerCSEPass();
+  mlir::registerLoopInvariantCodeMotionPass();
   mlir::registerArithToLLVMConversionPass();
   mlir::registerConvertControlFlowToLLVMPass();
   mlir::registerConvertVectorToLLVMPass();
