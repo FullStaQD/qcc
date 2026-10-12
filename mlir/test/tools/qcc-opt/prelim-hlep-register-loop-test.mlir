@@ -223,17 +223,19 @@ func.func @cnot_ladder(%state : !prelimhlep.lin<i4>) -> !prelimhlep.lin<i4> attr
 
 // Nested loops: two rounds of a Hadamard on every qubit followed by an X on
 // qubit 1 (at a constant index). The inner loop comes from inlining
-// @hadamard_all; both levels are unrolled.
+// @hadamard_all; both levels are unrolled. The Hadamards of the two rounds
+// cancel on every qubit but the one the X gates act on, because the base
+// changes of consecutive Hadamards cancel.
 
 // CHECK-LABEL: func.func @nested
 // CHECK-SAME:      (%[[REG:.*]]: !prelimhlep.lin<i4>)
 // CHECK-NOT:     affine.for
 // CHECK:         %[[Q:.*]]:4 = hlepgate.split %[[REG]] : !prelimhlep.lin<i4>
-// CHECK-COUNT-4: hlepgate.single h
-// CHECK:         hlepgate.single x
-// CHECK-COUNT-4: hlepgate.single h
-// CHECK:         hlepgate.single x
-// CHECK:         %[[OUT:.*]] = hlepgate.join {{.*}} : !prelimhlep.lin<i4>
+// CHECK:         %[[H0:.*]] = hlepgate.single h %[[Q]]#1
+// CHECK:         %[[X0:.*]] = hlepgate.single x %[[H0]]
+// CHECK:         %[[H1:.*]] = hlepgate.single h %[[X0]]
+// CHECK:         %[[X1:.*]] = hlepgate.single x %[[H1]]
+// CHECK:         %[[OUT:.*]] = hlepgate.join %[[Q]]#0, %[[X1]], %[[Q]]#2, %[[Q]]#3 : !prelimhlep.lin<i4>
 // CHECK-NOT:     hlepgate
 // CHECK:         return %[[OUT]]
 func.func @nested(%state : !prelimhlep.lin<i4>) -> !prelimhlep.lin<i4> attributes { prelimhlep.halo } {

@@ -49,4 +49,38 @@ def PrelimHLEPLinToGates : Pass<"prelim-hlep-lin-to-gates", "mlir::ModuleOp"> {
                            "qcc::prelimhlep::PrelimHLEPDialect"];
 }
 
+def PrelimHLEPMergeLin : Pass<"prelim-hlep-merge-lin", "mlir::ModuleOp"> {
+  let summary = "Merges chains of `prelimhlep.lin` ops and simplifies their bodies classically.";
+
+  let description = [{
+      By the composition theorem, a
+      `lin` op consuming a linearized result of another `lin` op may be
+      replaced by a single `lin` op whose body is the two bodies spliced
+      together. This pass merges such chains as far as possible, so that the
+      classical canonicalization of the dialects used in the bodies (`arith`,
+      `scf`, ...) can simplify the combined classical function: for example,
+      two consecutive X gates become `xori(xori(%b, 1), 1)`, which folds to
+      `%b`. The `lin` canonicalization patterns then peel off wires that no
+      longer pass through any gate and erase ops that do nothing.
+
+      Captured linear values (for example the target of a controlled gate
+      written as an `scf.if` over nested `lin` ops) are promoted to
+      delinearized operands when their uses in the body are nested `lin` ops,
+      `scf.if` yields, and the terminator's `carrying` operands only. The
+      nested `lin` ops are inlined, which turns the body into a purely
+      classical function and exposes the value to merging.
+
+      The result is generally not in the fragment accepted by
+      `prelim-hlep-lin-to-gates`.
+  }];
+
+  let options = [
+    Option<"promoteCaptures", "promote-captures", "bool", /*default=*/"true",
+           "Promote captured linear values to delinearized operands where possible">,
+  ];
+
+  let dependentDialects = ["mlir::arith::ArithDialect", "mlir::scf::SCFDialect",
+                           "qcc::prelimhlep::PrelimHLEPDialect"];
+}
+
 #endif // INCLUDE_QCC_DIALECT_PRELIMHLEP_TRANSFORMS_PASSES_TD_

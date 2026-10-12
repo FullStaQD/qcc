@@ -140,6 +140,7 @@ int main(int argc, char** argv) {
   mlir::registerQCToQCO();
   qcc::registerPrelimHLEPToQCO();
   qcc::registerPrelimHLEPLinToGates();
+  qcc::registerPrelimHLEPMergeLin();
 
   // Extension registration
   mlir::arith::registerBufferizableOpInterfaceExternalModels(registry);

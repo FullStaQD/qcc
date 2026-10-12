@@ -119,6 +119,11 @@ def LinOp : PrelimHLEPOp<"lin", [SingleBlock, RecursiveMemoryEffects, Recursivel
           `%out_lin`'s `!prelimhlep.lin<i1>` type),
         - `%out_aux` is of type `i1` (the same as `%out_auxiliary`'s type).
 
+        Canonicalization peels off wires that pass through the body
+        untouched, forwards `carrying` results that are captured values or
+        constants, and erases ops left with no operands, results, or
+        captured linear values.
+
         Side effects are computed from the op: the effects of the body, plus
         - a read and a write of the world resource if a classical
           `carrying` result may depend on a delinearized value (the op involves
@@ -137,6 +142,7 @@ def LinOp : PrelimHLEPOp<"lin", [SingleBlock, RecursiveMemoryEffects, Recursivel
     let regions = (region SizedRegion<1>:$body);
     let hasVerifier = 1;
     let hasCustomAssemblyFormat = 1;
+    let hasCanonicalizer = 1;
 }
 
 def OutputOp : PrelimHLEPOp<"output", [Pure, Terminator, AttrSizedOperandSegments, HasParent<"LinOp">]> {
@@ -212,6 +218,11 @@ def BaseChangeOp : PrelimHLEPOp<"base_change", [Pure]> {
         within a `prelimhlep.halo`-attributed function, and that operand
         and result types are `!prelimhlep.lin<...>` over `i<n>`/`x<n>`/
         `y<n>` of matching `n`.
+
+        Base changes are isomorphisms that compose, so folding and
+        canonicalization drop a base change to the same type, cancel a base
+        change that undoes the one feeding it, and merge a chain of base
+        changes into a single one.
     }];
 
     let arguments = (ins AnyType:$input);
@@ -219,6 +230,8 @@ def BaseChangeOp : PrelimHLEPOp<"base_change", [Pure]> {
 
     let assemblyFormat = "$input attr-dict `:` type($input) `->` type($result)";
     let hasVerifier = 1;
+    let hasFolder = 1;
+    let hasCanonicalizer = 1;
 }
 
 def ConstantOp : PrelimHLEPOp<"constant", [Pure, ConstantLike]> {
