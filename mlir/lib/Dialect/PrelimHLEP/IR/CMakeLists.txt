@@ -2,6 +2,7 @@ add_mlir_dialect_library(
   QCCPrelimHLEPDialect
   PrelimHLEPDialect.cpp
   LinearityChecker.cpp
+  LinBitEvaluator.cpp
   DEPENDS
   QCCPrelimHLEPDialectIncGen
   QCCPrelimHLEPTypesIncGen

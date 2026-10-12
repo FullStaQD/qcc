@@ -1,0 +1,17 @@
+add_mlir_dialect_library(
+  QCCPrelimHLEPTransforms
+  LinToGates.cpp
+  DEPENDS
+  QCCPrelimHLEPTransformsIncGen
+  LINK_LIBS
+  PRIVATE
+  MLIRIR
+  MLIRPass
+  MLIRSupport
+  MLIRTransforms
+  MLIRArithDialect
+  MLIRComplexDialect
+  MLIRFuncDialect
+  MLIRSCFDialect
+  QCCPrelimHLEPDialect
+  QCCHLEPGateDialect)

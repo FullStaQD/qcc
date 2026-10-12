@@ -13,6 +13,7 @@ target_link_libraries(
           QCCQccDialect
           QCCQVecDialect
           QCCPrelimHLEPDialect
+          QCCHLEPGateDialect
           MLIRQCDialect
           MLIRQCODialect
           MLIRQTensorDialect)

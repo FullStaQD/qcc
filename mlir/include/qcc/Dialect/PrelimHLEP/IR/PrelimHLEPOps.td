@@ -102,6 +102,9 @@ def LinOp : PrelimHLEPOp<"lin", [SingleBlock, RecursiveMemoryEffects, Recursivel
         source operand's `!prelimhlep.lin<...>` type are independently
         parsed and are related by `LinOp`'s verifier.
 
+        The `--prelim-hlep-lin-to-gates` pass lowers `lin` ops by peeling
+        `hlepgate` gates out of them until nothing is left.
+
         The verifier checks that the op is nested (directly or indirectly)
         within a `prelimhlep.halo`-attributed function, that the
         block's argument types match the `delinearizedOperands` base
