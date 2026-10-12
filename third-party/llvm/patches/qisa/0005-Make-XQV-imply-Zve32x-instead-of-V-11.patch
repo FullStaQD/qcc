@@ -1,0 +1,26 @@
+From 75a38a2f0c343d0645099cbf73d1f09601213da7 Mon Sep 17 00:00:00 2001
+From: Enrique NB <26630022+EnriqueNB@users.noreply.github.com>
+Date: Tue, 6 Oct 2026 14:06:59 +0200
+Subject: [PATCH 5/7] Make XQV imply Zve32x instead of V (#11)
+
+We shorten the RISCV extensions string to the one actually use by HiSEPQ: `rv32i2p1_zicsr2p0_zve32x1p0_zvl32b1p0_xqv0p1`.
+---
+ llvm/lib/Target/RISCV/RISCVFeaturesXQV.td | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/llvm/lib/Target/RISCV/RISCVFeaturesXQV.td b/llvm/lib/Target/RISCV/RISCVFeaturesXQV.td
+index 42c2d3418faf..fff06335021d 100644
+--- a/llvm/lib/Target/RISCV/RISCVFeaturesXQV.td
++++ b/llvm/lib/Target/RISCV/RISCVFeaturesXQV.td
+@@ -12,7 +12,7 @@
+ 
+ def FeatureVendorXQV
+     : RISCVExperimentalExtension<0, 1, "QV Quantum Extension (HiSEP-Q 2.0)",
+-                                [FeatureStdExtV]>;
++                                [FeatureStdExtZve32x]>;
+ 
+ def HasVendorXQV
+     : Predicate<"Subtarget->hasVendorXQV()">,
+-- 
+2.51.1
+

@@ -35,11 +35,11 @@ func.func @main() attributes { qcc.entry_point } {
 // One qubit index per vector; at the default VLEN of 64 they fit the narrowest register group, `vector<[2]xi8>`,
 // i.e. LMUL 1/4.
 // CHECK:         vsetivli zero, 1, e8, mf4, ta, ma
-// CHECK-DAG:     vmv.s.x  [[V1:v[0-9]+]], zero
-// CHECK-DAG:     vmv.v.i  [[V2:v[0-9]+]], 1
-// CHECK-DAG:     vmv.v.i  [[V3:v[0-9]+]], 2
+// CHECK:         vmv.s.x  [[V1:v[0-9]+]], zero
 // CHECK:         qv.h     [[V1]], zero, 0
+// CHECK:         vmv.v.i  [[V2:v[0-9]+]], 1
 // CHECK:         qv.cx    [[V1]], [[V2]], 0
+// CHECK:         vmv.v.i  [[V3:v[0-9]+]], 2
 // CHECK:         qv.cx    [[V2]], [[V3]], 0
 // CHECK:         qv.mz    [[V1]], zero, 0
 
