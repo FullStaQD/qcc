@@ -29,6 +29,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <utility>
@@ -263,11 +264,8 @@ struct PairOpLowering : public OpRewritePattern<PairOp> {
   HiSEPQMachine machine;
 };
 
-/// Rewrites `qvec.mz` into `llvm.call_intrinsic "llvm.riscv.qv.mz"` plus a poison result.
-///
-/// TODO: The QISA specifies no way to read a measurement back, so the classical bits are lost
-/// here. Replace the poison with a real read once `IntrinsicsRISCVXQV.td` gains an intrinsic for
-/// it. Until then a program that branches on a measurement silently gets garbage.
+/// Rewrites `qvec.mz` into `llvm.call_intrinsic "llvm.riscv.qv.mz"`, followed by `llvm.riscv.qv.mres`, which reads
+/// the outcomes back from CSR `qv.mres`. Bit `k` is the outcome of element `k`.
 struct MZOpLowering : public OpRewritePattern<MZOp> {
   MZOpLowering(MLIRContext* ctx, Diagnostics* diags, HiSEPQMachine machine)
       : OpRewritePattern(ctx), diags(diags), machine(machine) {}
@@ -278,14 +276,31 @@ struct MZOpLowering : public OpRewritePattern<MZOp> {
       return failure();
     }
 
-    SmallVector<Value> args{buildQubitVector(rewriter, op.getLoc(), *qubits)};
-    llvm::append_range(args, buildScalarOperands(rewriter, op.getLoc(), static_cast<unsigned>(qubits->indices.size()),
-                                                 /*withTag=*/true));
+    const size_t numQubits = qubits->indices.size();
+    if (numQubits > HiSEPQMachine::maxMeasuredQubits()) {
+      return diags->report(op, "measures " + Twine(numQubits) + " qubits, but 'qv.mres' holds at most " +
+                                   Twine(HiSEPQMachine::maxMeasuredQubits()) + " outcomes");
+    }
 
-    LLVM::CallIntrinsicOp::create(rewriter, op.getLoc(), rewriter.getStringAttr("llvm.riscv.qv.mz"), args);
+    Location loc = op.getLoc();
+    SmallVector<Value> args{buildQubitVector(rewriter, loc, *qubits)};
+    llvm::append_range(args, buildScalarOperands(rewriter, loc, static_cast<unsigned>(numQubits), /*withTag=*/true));
+    LLVM::CallIntrinsicOp::create(rewriter, loc, rewriter.getStringAttr("llvm.riscv.qv.mz"), args);
 
-    Value bits = LLVM::PoisonOp::create(rewriter, op.getLoc(), op.getBits().getType()); // Workaround
-    rewriter.replaceOp(op, ValueRange{op.getQubitsIn(), bits});
+    // Read right away: the next measurement overwrites `qv.mres`.
+    Value result = LLVM::CallIntrinsicOp::create(rewriter, loc, rewriter.getI32Type(),
+                                                 rewriter.getStringAttr("llvm.riscv.qv.mres"), ValueRange{})
+                       .getResult(0);
+    SmallVector<Value> bits;
+    for (size_t element = 0; element < numQubits; ++element) {
+      Value shift = LLVM::ConstantOp::create(rewriter, loc, rewriter.getI32Type(),
+                                             rewriter.getI32IntegerAttr(static_cast<int32_t>(element)));
+      Value shifted = LLVM::LShrOp::create(rewriter, loc, result, shift);
+      bits.push_back(LLVM::TruncOp::create(rewriter, loc, rewriter.getI1Type(), shifted));
+    }
+
+    Value bitVector = vector::FromElementsOp::create(rewriter, loc, op.getBits().getType(), bits);
+    rewriter.replaceOp(op, ValueRange{op.getQubitsIn(), bitVector});
     return success();
   }
 

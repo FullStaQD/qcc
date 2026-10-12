@@ -64,8 +64,7 @@ func.func @pair_gates() {
 
 // -----
 
-// TODO: Currently the QISA does not provide the measurement result to us. Here we replace it by poison. Needs fixing
-// upstream ASAP.
+// Bit `k` of what `llvm.riscv.qv.mres` reads is the outcome of element `k`.
 
 // CHECK-LABEL: func.func @measurement
 func.func @measurement() -> vector<2xi1> {
@@ -79,9 +78,16 @@ func.func @measurement() -> vector<2xi1> {
 }
 
 // CHECK-NOT:     qvec.mz
-// CHECK:         %[[RES:.*]] = llvm.mlir.poison : vector<2xi1>
+// CHECK-DAG:     %[[ONE:.*]] = llvm.mlir.constant(1 : i32) : i32
+// CHECK-DAG:     %[[ZERO:.*]] = llvm.mlir.constant(0 : i32) : i32
 // CHECK:         llvm.call_intrinsic "llvm.riscv.qv.mz"(%{{.*}}, %{{.*}}, %{{.*}}, %{{.*}})
-// CHECK:         return %[[RES]] : vector<2xi1>
+// CHECK-NEXT:    %[[QMRES:.*]] = llvm.call_intrinsic "llvm.riscv.qv.mres"() : () -> i32
+// CHECK-NEXT:    %[[S0:.*]] = llvm.lshr %[[QMRES]], %[[ZERO]] : i32
+// CHECK-NEXT:    %[[B0:.*]] = llvm.trunc %[[S0]] : i32 to i1
+// CHECK-NEXT:    %[[S1:.*]] = llvm.lshr %[[QMRES]], %[[ONE]] : i32
+// CHECK-NEXT:    %[[B1:.*]] = llvm.trunc %[[S1]] : i32 to i1
+// CHECK-NEXT:    %[[RES:.*]] = vector.from_elements %[[B0]], %[[B1]] : vector<2xi1>
+// CHECK-NEXT:    return %[[RES]] : vector<2xi1>
 
 // -----
 

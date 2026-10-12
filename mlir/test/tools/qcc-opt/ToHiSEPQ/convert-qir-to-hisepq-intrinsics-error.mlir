@@ -31,3 +31,15 @@ llvm.func @too_few_qubit_operands() {
   llvm.call @__quantum__qis__cx__body(%q) : (!llvm.ptr) -> ()
   llvm.return
 }
+
+// -----
+
+llvm.func @__quantum__qis__mz__body(!llvm.ptr, !llvm.ptr) -> ()
+
+llvm.func @non_constant_result_ptr(%r: !llvm.ptr) {
+  %c0 = llvm.mlir.constant(0 : i64) : i64
+  %q = llvm.inttoptr %c0 : i64 to !llvm.ptr
+  // expected-error @+1 {{cannot extract result index from ptr for '__quantum__qis__mz__body'}}
+  llvm.call @__quantum__qis__mz__body(%q, %r) : (!llvm.ptr, !llvm.ptr) -> ()
+  llvm.return
+}
