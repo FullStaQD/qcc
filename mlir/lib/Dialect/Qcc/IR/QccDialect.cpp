@@ -77,6 +77,22 @@ LogicalResult QccDialect::verifyOperationAttribute(Operation* op, NamedAttribute
   return success();
 }
 
+// TODO: Use `isEntryPoint` / `getEntryPoints` where the code still checks `entryPointAttrName` by hand:
+// `AuxOutputRecording`, `ConvertQCToQIR`, `FinalizeToQIR`, `EmitHiSEPQStart`, and the Magic exporter.
+bool qcc::isEntryPoint(Operation* op) {
+  return isa_and_present<FunctionOpInterface>(op) && op->hasAttr(QccDialect::EntryPointAttrHelper::getNameStr());
+}
+
+SmallVector<FunctionOpInterface> qcc::getEntryPoints(ModuleOp module) {
+  SmallVector<FunctionOpInterface> entryPoints;
+  for (Operation& op : *module.getBody()) {
+    if (isEntryPoint(&op)) {
+      entryPoints.push_back(cast<FunctionOpInterface>(op));
+    }
+  }
+  return entryPoints;
+}
+
 //===----------------------------------------------------------------------===//
 // Types
 //===----------------------------------------------------------------------===//
@@ -84,6 +100,14 @@ LogicalResult QccDialect::verifyOperationAttribute(Operation* op, NamedAttribute
 bool qcc::isQubitOrQubitVector(Type type) {
   auto vectorType = dyn_cast<VectorType>(type);
   return isa<QubitType>(vectorType ? vectorType.getElementType() : type);
+}
+
+LogicalResult RefType::verify(function_ref<InFlightDiagnostic()> emitError, Type elementType) {
+  // Qubits are no classical data, and a reference to a reference has no use (yet).
+  if (isQubitOrQubitVector(elementType) || isa<QubitRefType, RefType>(elementType)) {
+    return emitError() << "'!qcc.ref' holds classical values only, got " << elementType;
+  }
+  return success();
 }
 
 //===----------------------------------------------------------------------===//

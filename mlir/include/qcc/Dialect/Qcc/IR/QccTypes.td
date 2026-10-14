@@ -37,4 +37,58 @@ def Qcc_QubitType : TypeDef<Qcc_Dialect, "Qubit", [VectorElementTypeInterface]> 
     }];
 }
 
+def Qcc_QubitRefType : TypeDef<Qcc_Dialect, "QubitRef"> {
+  let mnemonic = "qubit_ref";
+  let summary = "reference to a qubit";
+  let description = [{
+        A value of type `!qcc.qubit_ref` names a qubit in a reference-semantics context, the way a pointer names an
+        object: an operation that acts on the qubit takes the reference and leaves it valid. Unlike `!qcc.qubit`, the
+        type is not affine, so a reference may be used any number of times.
+
+        Example:
+        ```mlir
+        %q = oq3.qubit_decl "q" : !qcc.qubit_ref
+        ```
+    }];
+}
+
+def Qcc_AngleType : TypeDef<Qcc_Dialect, "Angle"> {
+  let mnemonic = "angle";
+  let summary = "angle of unspecified precision";
+  let description = [{
+        An angle, a fraction of 2π, whose precision the target defines. This is OpenQASM's unsized `angle` and the type
+        of all gate parameters there.
+
+        Example:
+        ```mlir
+        %theta = oq3.cast %f implicit : !oq3.float -> !qcc.angle
+        ```
+    }];
+}
+
+def Qcc_RefType : TypeDef<Qcc_Dialect, "Ref"> {
+  let mnemonic = "ref";
+  let summary = "mutable classical storage";
+  let description = [{
+        A reference to storage that holds one value of type `T`, much like `&mut T` in Rust. `qcc.ref.load` reads the
+        value and `qcc.ref.store` replaces it. Operations on values of type `T` never see the storage.
+
+        The type is for classical storage only: qubits are referenced through `!qcc.qubit_ref`.
+
+        Example:
+        ```mlir
+        %c = oq3.declare "c" : !qcc.ref<!oq3.bit>
+        ```
+    }];
+
+  let parameters = (ins "::mlir::Type":$elementType);
+  let assemblyFormat = "`<` $elementType `>`";
+  let builders = [
+    TypeBuilderWithInferredContext<(ins "::mlir::Type":$elementType), [{
+      return $_get(elementType.getContext(), elementType);
+    }]>
+  ];
+  let genVerifyDecl = 1;
+}
+
 #endif // INCLUDE_QCC_DIALECT_QCC_IR_QCCTYPES_TD_

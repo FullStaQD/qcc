@@ -4,6 +4,7 @@ set(MLIR_COMPILER_TEST_DEPENDS
     not
     split-file
     qcc-opt
+    qcc-translate
     qcc
     qcc-lsp-server)
 
