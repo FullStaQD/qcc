@@ -156,7 +156,7 @@ private:
 
   LogicalResult verifyIncludes() {
     WalkResult result = module.walk([&](IncludeOp include) {
-      auto [it, inserted] = includes.try_emplace(include.getId(), include);
+      auto [it, inserted] = includes.try_emplace(include.getIdAttr().getInt(), include);
       if (!inserted) {
         InFlightDiagnostic diag = include.emitOpError() << "has the id " << include.getId() << " of another include";
         diag.attachNote(it->second.getLoc()) << "the other include is here";
@@ -569,6 +569,8 @@ void IntLiteralAttr::print(AsmPrinter& printer) const {
   printer << "<" << llvm::toString(getValue(), 10, /*Signed=*/false) << ">";
 }
 
+// The signature is generated, so the parameter cannot be taken by reference.
+// NOLINTNEXTLINE(performance-unnecessary-value-param)
 LogicalResult IntLiteralAttr::verify(function_ref<InFlightDiagnostic()> emitError, APInt /*value*/, Type type) {
   if (!isa<UnsizedIntType>(type)) {
     return emitError() << "an integer literal has type '!oq3.int', got " << type;

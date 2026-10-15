@@ -135,8 +135,8 @@ struct Token {
   llvm::StringRef message;
 
   [[nodiscard]] bool is(TokenKind other) const { return kind == other; }
-  [[nodiscard]] llvm::SMLoc getLoc() const { return llvm::SMLoc::getFromPointer(spelling.data()); }
-  [[nodiscard]] llvm::SMLoc getEndLoc() const { return llvm::SMLoc::getFromPointer(spelling.data() + spelling.size()); }
+  [[nodiscard]] llvm::SMLoc getLoc() const { return llvm::SMLoc::getFromPointer(spelling.begin()); }
+  [[nodiscard]] llvm::SMLoc getEndLoc() const { return llvm::SMLoc::getFromPointer(spelling.end()); }
 };
 
 /// Splits OpenQASM 3 source text into tokens. Comments are no tokens; the lexer collects them instead, so that the
@@ -165,7 +165,10 @@ private:
     return Token{.kind = TokenKind::Error, .spelling = llvm::StringRef(start, current - start), .message = message};
   }
   [[nodiscard]] bool atEnd() const { return current == buffer.end(); }
-  [[nodiscard]] char peek(size_t offset = 0) const { return current + offset < buffer.end() ? current[offset] : '\0'; }
+  [[nodiscard]] char peek(size_t offset = 0) const {
+    const size_t index = static_cast<size_t>(current - buffer.begin()) + offset;
+    return index < buffer.size() ? buffer[index] : '\0';
+  }
 
   /// Skips whitespace and comments. Returns an error token for an unterminated block comment.
   std::optional<Token> skipWhitespaceAndComments();

@@ -39,7 +39,7 @@ using namespace qcc::oq3;
 namespace {
 
 /// Binding strength of a printed expression, see the precedence table of the spec. Higher binds tighter.
-enum Precedence : unsigned {
+enum class Precedence : uint8_t {
   Additive = 1,
   Multiplicative = 2,
   Unary = 3,
@@ -49,7 +49,7 @@ enum Precedence : unsigned {
 /// A printed expression.
 struct Printed {
   std::string text;
-  unsigned precedence = Atom;
+  Precedence precedence = Precedence::Atom;
 };
 
 class Exporter {
@@ -65,11 +65,14 @@ private:
   FailureOr<std::string> printList(ValueRange values);
   FailureOr<std::string> printDesignator(Value designator, int64_t size);
 
+  // NOLINTNEXTLINE(cppcoreguidelines-avoid-const-or-ref-data-members): non-owning, outlived by the stream.
   llvm::raw_ostream& os;
 };
 
+} // namespace
+
 /// Whether `op` is printed as a statement of its own, rather than as part of the statements that use its result.
-bool isStatement(Operation* op) {
+static bool isStatement(Operation* op) {
   if (isa<MeasureOp, UnresolvedCallOp>(op)) {
     return op->use_empty();
   }
@@ -78,18 +81,18 @@ bool isStatement(Operation* op) {
 }
 
 /// Whether `op` computes a value that its users print.
-bool isExpression(Operation* op) {
+static bool isExpression(Operation* op) {
   return isa<ConstantOp, MathConstantOp, UnaryOp, BinaryOp, CastOp, RefLoadOp, SubrefOp, QubitIndexOp, PhysicalQubitOp,
              UnresolvedOp, MeasureOp, UnresolvedCallOp>(op);
 }
 
 /// Prints `path` in quotes. A path can contain one kind of quote, so the other one delimits it.
-std::string quotePath(StringRef path) {
+static std::string quotePath(StringRef path) {
   const char quote = path.contains('"') ? '\'' : '"';
   return (Twine(quote) + path + Twine(quote)).str();
 }
 
-std::string printMathConstant(MathConstantOp constant) {
+static std::string printMathConstant(MathConstantOp constant) {
   const bool unicode = constant.getUnicode();
   switch (constant.getKind()) {
   case MathConstantKind::Pi:
@@ -102,7 +105,7 @@ std::string printMathConstant(MathConstantOp constant) {
   llvm_unreachable("unknown math constant");
 }
 
-FailureOr<std::string> printLiteral(ConstantOp constant) {
+static FailureOr<std::string> printLiteral(ConstantOp constant) {
   if (auto literal = dyn_cast<IntLiteralAttr>(constant.getValue())) {
     const IntegerRadix radix = constant.getRadix().value_or(IntegerRadix::Dec);
     StringRef prefix;
@@ -134,7 +137,7 @@ FailureOr<std::string> printLiteral(ConstantOp constant) {
 }
 
 /// The OpenQASM spelling of a type an explicit cast converts to.
-FailureOr<std::string> printCastType(CastOp cast) {
+static FailureOr<std::string> printCastType(CastOp cast) {
   return TypeSwitch<Type, FailureOr<std::string>>(cast.getType())
       .Case([](UnsizedFloatType) { return std::string("float"); })
       .Case([](AngleType) { return std::string("angle"); })
@@ -143,8 +146,6 @@ FailureOr<std::string> printCastType(CastOp cast) {
         return cast.emitOpError() << "cannot export a cast to " << type << " to OpenQASM";
       });
 }
-
-} // namespace
 
 LogicalResult Exporter::run(Operation* op) {
   auto module = dyn_cast<ModuleOp>(op);
@@ -360,7 +361,7 @@ FailureOr<std::string> Exporter::printStatementBody(Operation* op) {
 
 FailureOr<Printed> Exporter::printExpr(Value value) {
   Operation* op = value.getDefiningOp();
-  if (!op) {
+  if (op == nullptr) {
     return emitError(value.getLoc()) << "cannot export a block argument to OpenQASM";
   }
   auto atom = [](std::string text) -> FailureOr<Printed> { return Printed{.text = std::move(text)}; };
@@ -379,8 +380,8 @@ FailureOr<Printed> Exporter::printExpr(Value value) {
         if (failed(operand)) {
           return failure();
         }
-        const std::string text = operand->precedence < Unary ? "(" + operand->text + ")" : operand->text;
-        return Printed{.text = "-" + text, .precedence = Unary};
+        const std::string text = operand->precedence < Precedence::Unary ? "(" + operand->text + ")" : operand->text;
+        return Printed{.text = "-" + text, .precedence = Precedence::Unary};
       })
       .Case([&](BinaryOp binary) -> FailureOr<Printed> {
         FailureOr<Printed> lhs = printExpr(binary.getLhs());
@@ -388,7 +389,7 @@ FailureOr<Printed> Exporter::printExpr(Value value) {
         if (failed(lhs) || failed(rhs)) {
           return failure();
         }
-        unsigned precedence = Additive;
+        Precedence precedence = Precedence::Additive;
         StringRef symbol;
         switch (binary.getKind()) {
         case BinaryKind::Add:
@@ -399,11 +400,11 @@ FailureOr<Printed> Exporter::printExpr(Value value) {
           break;
         case BinaryKind::Mul:
           symbol = "*";
-          precedence = Multiplicative;
+          precedence = Precedence::Multiplicative;
           break;
         case BinaryKind::Div:
           symbol = "/";
-          precedence = Multiplicative;
+          precedence = Precedence::Multiplicative;
           break;
         }
         // The operators are left-associative, so a right operand of the same precedence needs parentheses.

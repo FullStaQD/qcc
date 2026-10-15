@@ -18,6 +18,10 @@
 using namespace qcc::oq3::detail;
 using llvm::StringRef;
 
+// The lexer advances a cursor through the buffer, as LLVM's and MLIR's lexers do. `atEnd()` and `peek()` keep it in
+// bounds.
+// NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+
 std::optional<Token> Lexer::skipWhitespaceAndComments() {
   while (!atEnd()) {
     const char c = peek();
@@ -307,9 +311,14 @@ Token Lexer::lexNumber(const char* start) {
   const char next = peek(1);
   if (peek() == '0' && (next == 'b' || next == 'B' || next == 'o' || next == 'x' || next == 'X')) {
     current += 2;
-    const bool valid = (next == 'b' || next == 'B') ? consumeDigits(current, end, isBinary)
-                       : next == 'o'                ? consumeDigits(current, end, isOctal)
-                                                    : consumeDigits(current, end, isHex);
+    bool valid = false;
+    if (next == 'b' || next == 'B') {
+      valid = consumeDigits(current, end, isBinary);
+    } else if (next == 'o') {
+      valid = consumeDigits(current, end, isOctal);
+    } else {
+      valid = consumeDigits(current, end, isHex);
+    }
     if (!valid || isIdentifierChar(peek())) {
       while (isIdentifierChar(peek())) {
         ++current;
@@ -380,3 +389,5 @@ Token Lexer::lexString(const char* start) {
   ++current;
   return makeToken(TokenKind::StringLiteral, start);
 }
+
+// NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)

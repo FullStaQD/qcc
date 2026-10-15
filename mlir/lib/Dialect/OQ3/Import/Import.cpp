@@ -71,11 +71,13 @@ struct Expr {
   Value value;
   SMLoc loc;
 
-  Type getType() const { return value.getType(); }
+  [[nodiscard]] Type getType() const { return value.getType(); }
 };
 
+} // namespace
+
 /// Returns the OpenQASM spelling of `type`, for diagnostics.
-std::string describeType(Type type) {
+static std::string describeType(Type type) {
   auto withSize = [](StringRef base, int64_t size) {
     return (base + "[" + (ShapedType::isDynamic(size) ? std::string("?") : std::to_string(size)) + "]").str();
   };
@@ -97,7 +99,7 @@ std::string describeType(Type type) {
 }
 
 /// Returns the math constant that `name` spells, and whether it is the Unicode spelling.
-std::optional<std::pair<MathConstantKind, bool>> lookupMathConstant(StringRef name) {
+static std::optional<std::pair<MathConstantKind, bool>> lookupMathConstant(StringRef name) {
   return llvm::StringSwitch<std::optional<std::pair<MathConstantKind, bool>>>(name)
       .Case("pi", std::pair{MathConstantKind::Pi, false})
       .Case("π", std::pair{MathConstantKind::Pi, true})
@@ -109,18 +111,20 @@ std::optional<std::pair<MathConstantKind, bool>> lookupMathConstant(StringRef na
 }
 
 /// Whether `name` is one of the spec's built-in functions.
-bool isBuiltinFunction(StringRef name) {
+static bool isBuiltinFunction(StringRef name) {
   return llvm::is_contained({"arccos", "arcsin", "arctan", "ceiling", "cos", "exp", "floor", "log", "mod", "popcount",
                              "pow", "rotl", "rotr", "sin", "sqrt", "tan", "real", "imag", "sizeof"},
                             name);
 }
 
 /// Returns `text` without the digit separators `_`.
-std::string withoutSeparators(StringRef text) {
+static std::string withoutSeparators(StringRef text) {
   std::string result;
   llvm::copy_if(text, std::back_inserter(result), [](char c) { return c != '_'; });
   return result;
 }
+
+namespace {
 
 /// Imports one OpenQASM program, including the files it includes.
 class Importer {
@@ -283,9 +287,10 @@ private:
     return UnresolvedOp::create(builder, getLoc(loc), UnknownType::get(context), name);
   }
 
-  llvm::SourceMgr& sourceMgr;
+  // The importer is a short-lived helper that its caller outlives, so it refers to the caller's state.
+  llvm::SourceMgr& sourceMgr; // NOLINT(cppcoreguidelines-avoid-const-or-ref-data-members)
   MLIRContext* context;
-  const ImportOptions& options;
+  const ImportOptions& options; // NOLINT(cppcoreguidelines-avoid-const-or-ref-data-members)
   OpBuilder builder;
 
   ModuleOp module;
@@ -316,7 +321,7 @@ OwningOpRef<ModuleOp> Importer::run() {
   file.bufferId = mainBuffer;
   file.lexer = std::make_unique<Lexer>(sourceMgr.getMemoryBuffer(mainBuffer)->getBuffer());
 
-  const Location startLoc = getLoc(SMLoc::getFromPointer(file.lexer->getBuffer().data()));
+  const Location startLoc = getLoc(SMLoc::getFromPointer(file.lexer->getBuffer().begin()));
   OwningOpRef<ModuleOp> owningModule = ModuleOp::create(startLoc);
   module = *owningModule;
 
@@ -411,9 +416,9 @@ static bool hasLineBreakBetween(SMLoc from, SMLoc to) {
 void Importer::flushComments(bool header) {
   const StringRef trailingName = OQ3Dialect::TrailingCommentAttrHelper::getNameStr();
   for (const StringRef comment : file.pendingComments) {
-    const SMLoc loc = SMLoc::getFromPointer(comment.data());
+    const SMLoc loc = SMLoc::getFromPointer(comment.begin());
     Operation* last = file.lastStatement;
-    if (last && !hasLineBreakBetween(file.lastStatementEnd, loc)) {
+    if (last != nullptr && !hasLineBreakBetween(file.lastStatementEnd, loc)) {
       auto existing = last->getAttrOfType<StringAttr>(trailingName);
       const std::string text = existing ? (existing.getValue() + " " + comment).str() : comment.str();
       last->setAttr(trailingName, builder.getStringAttr(text));
@@ -431,13 +436,13 @@ void Importer::insertCommentsInside(Operation* before, SMLoc statementEnd) {
     return;
   }
   OpBuilder::InsertionGuard guard(builder);
-  if (before) {
+  if (before != nullptr) {
     builder.setInsertionPointAfter(before);
   } else {
     builder.setInsertionPointToStart(body);
   }
   for (auto it = file.pendingComments.begin(); it != inside; ++it) {
-    CommentOp::create(builder, getLoc(SMLoc::getFromPointer(it->data())), *it, /*header=*/false);
+    CommentOp::create(builder, getLoc(SMLoc::getFromPointer(it->begin())), *it, /*header=*/false);
   }
   file.pendingComments.erase(file.pendingComments.begin(), inside);
 }
@@ -607,7 +612,7 @@ FailureOr<Operation*> Importer::parseInclude() {
     return failure();
   }
   // The include op is the first one after `before`; the included file's statements follow it.
-  return before ? before->getNextNode() : &body->front();
+  return before != nullptr ? before->getNextNode() : &body->front();
 }
 
 LogicalResult Importer::includeStandardGates(StringRef path, SMLoc loc) {
@@ -620,7 +625,7 @@ LogicalResult Importer::includeStandardGates(StringRef path, SMLoc loc) {
     const unsigned line = isa<FileLineColLoc>(first) ? cast<FileLineColLoc>(first).getLine() : 0;
     InFlightDiagnostic diag = emitError(loc) << "'" << path << "' was already included at line " << line
                                              << "; its definitions would be redeclared";
-    diag.attachNote(*standardGatesIncludeLoc) << "the first include is here";
+    diag.attachNote(standardGatesIncludeLoc) << "the first include is here";
     return diag;
   }
   for (const auto& entry : scope) {
@@ -705,7 +710,7 @@ LogicalResult Importer::includeFile(StringRef path, SMLoc loc) {
 
   // Everything the file produced comes from this include. Nested includes have tagged their own statements already.
   const StringRef tagName = OQ3Dialect::FromIncludeAttrHelper::getNameStr();
-  for (Operation* op = include->getNextNode(); op; op = op->getNextNode()) {
+  for (Operation* op = include->getNextNode(); op != nullptr; op = op->getNextNode()) {
     if (!op->hasAttr(tagName)) {
       op->setAttr(tagName, builder.getI64IntegerAttr(id));
     }
@@ -1162,15 +1167,16 @@ FailureOr<Expr> Importer::buildBinary(BinaryKind kind, Expr lhs, Expr rhs, SMLoc
 
   if (isa<UnknownType>(lhsType) || isa<UnknownType>(rhsType)) {
     resultType = UnknownType::get(context);
-  } else if (lhsType == rhsType && isa<UnsizedIntType, UnsizedFloatType>(lhsType)) {
+  } else if (lhsType == rhsType &&
+             (isa<UnsizedIntType, UnsizedFloatType>(lhsType) ||
+              (isa<AngleType>(lhsType) && (kind == BinaryKind::Add || kind == BinaryKind::Sub)))) {
+    // Angles only add to and subtract from angles.
     resultType = lhsType;
   } else if (isa<UnsizedIntType>(lhsType) && isa<UnsizedFloatType>(rhsType)) {
     lhs.value = CastOp::create(builder, loc, rhsType, lhs.value, /*implicit=*/true);
     resultType = rhsType;
   } else if (isa<UnsizedFloatType>(lhsType) && isa<UnsizedIntType>(rhsType)) {
     rhs.value = CastOp::create(builder, loc, lhsType, rhs.value, /*implicit=*/true);
-    resultType = lhsType;
-  } else if (isa<AngleType>(lhsType) && lhsType == rhsType && (kind == BinaryKind::Add || kind == BinaryKind::Sub)) {
     resultType = lhsType;
   } else if ((kind == BinaryKind::Mul && isa<AngleType>(lhsType) && isa<UnsizedIntType>(rhsType)) ||
              (kind == BinaryKind::Mul && isa<UnsizedIntType>(lhsType) && isa<AngleType>(rhsType)) ||
