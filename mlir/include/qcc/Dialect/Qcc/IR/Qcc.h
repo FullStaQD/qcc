@@ -82,6 +82,7 @@ namespace qcc {
 /// Imposes the following constraints:
 /// - The operation sits directly in a function (`func.func` or any other `FunctionOpInterface` operation) with a
 ///   single block, and that function has no qubits among its arguments and results.
+///   TODO: needs generalization once qcf.if is added.
 /// - Each scalar qubit result of the operation is used at most once.
 /// - Each qubit operand of the operation, scalar or vector, has no other use.
 llvm::LogicalResult verifyNoMultiUseQubits(mlir::Operation* op);
