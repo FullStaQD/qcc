@@ -26,10 +26,6 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 // An angle in radians.
 def QCirc_Angle : AnyTypeOf<[F64], "64-bit float angle">;
 
-// `tensor<NxNxf64>` - one angle (radians) per pair of qubits.
-def QCirc_AngleMatrix : RankedTensorOf<[F64], [HasAnyRankOfPred<[2]>, HasStaticShapePred],
-                                       "statically shaped 2D tensor">;
-
 //===----------------------------------------------------------------------===//
 // QCirc operations
 //===----------------------------------------------------------------------===//
@@ -105,45 +101,6 @@ def QCirc_PairOp : QCirc_Op<"pair", [AllTypesMatch<["lhs_in", "rhs_in", "lhs_out
     OpBuilder<(ins "::qcc::qcirc::PairGateKind":$gateKind, "::mlir::Value":$lhsIn, "::mlir::Value":$rhsIn,
                    CArg<"::mlir::ValueRange", "{}">:$params), [{
       build($_builder, $_state, lhsIn.getType(), rhsIn.getType(), gateKind, lhsIn, rhsIn, params);
-    }]>
-  ];
-
-  let hasVerifier = 1;
-}
-
-def QCirc_GlobalOp : QCirc_Op<"global"> {
-  let summary = "gate acting on several qubits jointly";
-  let description = [{
-        A `global` gate acts on any number of qubits *jointly*. The gate is parametrised by a square matrix over its
-        qubits, in operand order.
-
-        For example the `zz` global gate with the `n x n` angle matrix `A` applies
-
-            exp(-i/4 * sum_{i != j} A_ij Z_i Z_j).
-
-        `A` must be symmetric with a zero diagonal; the verifier checks this for constant matrices. Note that
-        `rzz(theta)` between the qubits `i` and `j` corresponds to `A_ij = A_ji = theta`.
-
-        Example:
-        ```mlir
-        %a1, %b1, %c1 = qcirc.global zz(%A) %a0, %b0, %c0 : !qcc.qubit, tensor<3x3xf64>
-        ```
-    }];
-
-  let arguments = (ins QCirc_GlobalGateKindAttr:$gate_kind,
-                       Variadic<Qcc_QubitType>:$qubits_in,
-                       QCirc_AngleMatrix:$angles);
-  let results = (outs Variadic<Qcc_QubitType>:$qubits_out);
-
-  let assemblyFormat = [{
-        $gate_kind `(` $angles `)` $qubits_in attr-dict `:`
-        custom<GlobalQubitTypes>(type($qubits_in), type($qubits_out), ref($qubits_in)) `,` type($angles)
-    }];
-
-  let builders = [
-    OpBuilder<(ins "::qcc::qcirc::GlobalGateKind":$gateKind, "::mlir::ValueRange":$qubitsIn,
-                   "::mlir::Value":$angles), [{
-      build($_builder, $_state, qubitsIn.getTypes(), gateKind, qubitsIn, angles);
     }]>
   ];
 

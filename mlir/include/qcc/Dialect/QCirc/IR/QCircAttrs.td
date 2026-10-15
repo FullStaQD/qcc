@@ -52,10 +52,6 @@ def QCirc_PairGateKindAttr : EnumAttr<QCirc_Dialect, QCirc_PairGateKind, "pair_g
   }];
 }
 
-def QCirc_GlobalGateKindAttr : EnumAttr<QCirc_Dialect, QCirc_GlobalGateKind, "global_gate"> {
-  let assemblyFormat = "$value";
-}
-
 //===----------------------------------------------------------------------===//
 // Basis attribute
 //===----------------------------------------------------------------------===//

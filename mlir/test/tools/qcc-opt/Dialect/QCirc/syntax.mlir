@@ -76,21 +76,6 @@ func.func @pair_gates(%theta: f64) {
   return
 }
 
-// CHECK-LABEL: func.func @global_gates
-// CHECK-SAME: (%[[ANGLES:.*]]: tensor<3x3xf64>)
-func.func @global_gates(%angles: tensor<3x3xf64>) {
-  // CHECK: %[[Q:.*]]:3 = qcc.static [0, 1, 2] : !qcc.qubit
-  %q0, %q1, %q2 = qcc.static [0, 1, 2] : !qcc.qubit
-  // CHECK: %[[G:.*]]:3 = qcirc.global zz(%[[ANGLES]]) %[[Q]]#0, %[[Q]]#1, %[[Q]]#2 : !qcc.qubit, tensor<3x3xf64>
-  %a, %b, %c = qcirc.global zz(%angles) %q0, %q1, %q2 : !qcc.qubit, tensor<3x3xf64>
-  // A constant matrix must be symmetric with a zero diagonal. The gate may act on a subset of the qubits.
-  // CHECK: %[[CST:.*]] = arith.constant dense<{{\[\[}}0.000000e+00, 5.000000e-01], [5.000000e-01, 0.000000e+00]]> : tensor<2x2xf64>
-  %cst = arith.constant dense<[[0.0, 0.5], [0.5, 0.0]]> : tensor<2x2xf64>
-  // CHECK: qcirc.global zz(%[[CST]]) %[[G]]#2, %[[G]]#0 : !qcc.qubit, tensor<2x2xf64>
-  %c1, %a1 = qcirc.global zz(%cst) %c, %a : !qcc.qubit, tensor<2x2xf64>
-  return
-}
-
 // CHECK-LABEL: func.func @measure_and_reset
 func.func @measure_and_reset() -> (i1, i1) {
   // CHECK: %[[Q:.*]] = qcc.static [0] : !qcc.qubit

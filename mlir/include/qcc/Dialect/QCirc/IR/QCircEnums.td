@@ -16,8 +16,8 @@ include "mlir/IR/EnumAttr.td"
 // Gate kinds
 //===----------------------------------------------------------------------===//
 
-class QCirc_GateCase<string sym, int val, string str, int arity> : I32EnumCase<sym, val, str> {
-  int numParams = arity;
+class QCirc_GateCase<string sym, int val, string str, int numParamsVal> : I32EnumCase<sym, val, str> {
+  int numParams = numParamsVal;
 }
 
 def QCirc_SingleGateKind : I32Enum<"SingleGateKind", "single-qubit gate kind", [
@@ -54,13 +54,6 @@ def QCirc_PairGateKind : I32Enum<"PairGateKind", "two-qubit gate kind", [
     QCirc_GateCase<"RXX", 7, "rxx", 1>,     // rxx(theta) = exp(-i * theta/2 * X (x) X)
     QCirc_GateCase<"RYY", 8, "ryy", 1>,
     QCirc_GateCase<"RZZ", 9, "rzz", 1>,
-]> {
-  let cppNamespace = "::qcc::qcirc";
-}
-
-def QCirc_GlobalGateKind : I32Enum<"GlobalGateKind", "global gate kind", [
-    // C++ name, id, IR name
-    I32EnumCase<"ZZ", 0, "zz">,
 ]> {
   let cppNamespace = "::qcc::qcirc";
 }
