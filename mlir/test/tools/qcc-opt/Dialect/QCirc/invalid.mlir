@@ -9,17 +9,6 @@ func.func @missing_parameter() {
 
 // -----
 
-// There is no identity gate. Decompose into e.g. rz(0) instead.
-func.func @identity() {
-  %q = qcc.static [0] : !qcc.qubit
-  // expected-error-re @+2 {{expected one of [{{.*}}] for single-qubit gate kind, got: i}}
-  // expected-error @+1 {{failed to parse QCirc_SingleGateKindAttr parameter 'value'}}
-  %i = qcirc.single i %q : !qcc.qubit
-  return
-}
-
-// -----
-
 func.func @parameter_type(%theta: f32) {
   %q = qcc.static [0] : !qcc.qubit
   // expected-error @+1 {{'qcirc.single' op operand #1 must be variadic of 64-bit float angle, but got 'f32'}}

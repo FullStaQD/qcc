@@ -25,7 +25,7 @@ func.func @not_a_unit() attributes {qcc.entry_point = true} {
 
 // -----
 
-// A qubit has value semantics, so it is no memref element.
+// A memref element could be loaded twice, this would violate the affine constraint of qubits.
 // expected-error @+1 {{invalid memref element type}}
 func.func @qubit_memref(%m: memref<2x!qcc.qubit>) {
   return
@@ -42,6 +42,8 @@ func.func @static_wrong_type() {
 // -----
 
 func.func @static_result_count() {
+  // Note: the custom format cannot express this error, the parser already rejects it. But a e.g. a builder could
+  // produce this error.
   // expected-error @+1 {{'qcc.static' op expected one qubit per index, got 1 qubit(s) for 2 indices}}
   %q = "qcc.static"() {indices = array<i64: 0, 1>} : () -> (!qcc.qubit)
   return
