@@ -177,7 +177,7 @@ private:
     return emitError(file.token.getLoc()) << "expected " << expected << ", got '" << file.token.spelling << "'";
   }
 
-  const Token& token() const { return file.token; }
+  [[nodiscard]] const Token& token() const { return file.token; }
 
   void consume() {
     file.previousEnd = file.token.getEndLoc();
@@ -631,7 +631,8 @@ LogicalResult Importer::includeStandardGates(StringRef path, SMLoc loc) {
       return diag;
     }
   }
-  IncludeOp::create(builder, getLoc(loc), path, nextIncludeId++, /*content_hash=*/nullptr, /*unresolved=*/false);
+  // Reading stdgates.inc is not supported yet, so it is always unresolved and the built-in signature table is used.
+  IncludeOp::create(builder, getLoc(loc), path, nextIncludeId++, /*content_hash=*/nullptr, /*unresolved=*/true);
   standardGatesIncludeLoc = getLoc(loc);
   return success();
 }

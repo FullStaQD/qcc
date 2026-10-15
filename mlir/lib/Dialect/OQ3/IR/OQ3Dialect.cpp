@@ -94,6 +94,7 @@ bool qcc::oq3::isValidTrailingCommentText(StringRef text) {
     return false;
   }
   while (!text.empty()) {
+    // Loop is needed to support silly things like `/* A */ /* B */   // C`.
     if (text.starts_with("//")) {
       return isValidCommentText(text);
     }
@@ -101,7 +102,6 @@ bool qcc::oq3::isValidTrailingCommentText(StringRef text) {
     if (!text.starts_with("/*") || end == StringRef::npos) {
       return false;
     }
-    // Only a line break inside a block comment keeps the comments on the line of the statement.
     text = text.drop_front(end + 2);
     const StringRef separator = text.take_while([](char c) { return c == ' ' || c == '\t'; });
     text = text.drop_front(separator.size());
@@ -111,12 +111,13 @@ bool qcc::oq3::isValidTrailingCommentText(StringRef text) {
 
 namespace {
 
-/// Checks an OpenQASM program as a whole: what no single operation can check by itself.
 class ProgramVerifier {
 public:
   explicit ProgramVerifier(ModuleOp module) : module(module) {}
 
   LogicalResult verify() {
+    // TODO: Currently each verification has one or more walks of the entire module.
+    // We may want to restructure into fewer or a single walk.
     if (failed(verifyEntryFunction()) || failed(verifyIncludes()) || failed(verifyMarkers()) ||
         failed(verifyDefineBeforeUse())) {
       return failure();
@@ -214,6 +215,7 @@ private:
   }
 
   /// Calls `callback` for every global symbol that an attribute of `op` refers to.
+  /// Used for verifying that a symbol is defined before it is used.
   void forEachGlobalUse(Operation* op, llvm::function_ref<void(StringRef, Operation*)> callback) {
     if (isa<DefinedOp>(op)) {
       return;
@@ -230,6 +232,9 @@ private:
     LogicalResult result = success();
     // A statement may use what is defined before it.
     for (Operation& statement : entry.getBody().front()) {
+      // We need to walk the statement, because it may contain nested operations that use globals.
+      // Still, only the order of statement against the order of the definition matters.
+      // Commonly the walk will only visit `user = statement`.
       statement.walk([&](Operation* user) {
         forEachGlobalUse(user, [&](StringRef name, Operation*) {
           DefinedOp marker = markers.lookup(name);
@@ -245,6 +250,9 @@ private:
     // A definition may use what is defined before it, and itself.
     for (auto& [definitionName, definition] : globals) {
       DefinedOp definitionMarker = markers.lookup(definitionName);
+      // Here `definition` is usually a `func.func` or `oq3.gate` (TODO) at global scope.
+      // If a symbol appears in **the function body**, then the definition markers must
+      // be appropriately ordered in the main function.
       definition->walk([&](Operation* user) {
         forEachGlobalUse(user, [&](StringRef name, Operation*) {
           DefinedOp marker = markers.lookup(name);
@@ -267,6 +275,10 @@ private:
         return WalkResult::interrupt();
       }
       for (Value result : op->getResults()) {
+        // Results are enough:
+        //  - Entry function has no arguments.
+        //  - A gate or subroutine with unknowns in signature is not allowed.
+        //  - Block arguments come from other typed values.
         if (isUnknownOrHasUnknownSize(result.getType())) {
           op->emitOpError() << "has a result of type " << result.getType()
                             << ", which is only valid in a program with an unresolved include";
@@ -281,7 +293,7 @@ private:
   /// All calls of the same unknown gate or subroutine agree on its signature.
   LogicalResult verifyUnresolvedConsistency() {
     const bool hasStandardGates = llvm::any_of(entry.getBody().getOps<IncludeOp>(), [](IncludeOp include) {
-      return include.getPath() == standardGatesInclude && !include.getUnresolved();
+      return include.getPath() == standardGatesInclude && include.getUnresolved();
     });
 
     llvm::StringMap<GateCallOp> gateCalls;
@@ -330,12 +342,14 @@ private:
 
 } // namespace
 
-/// Whether `op` is a statement: an operation directly in a list of statements.
+/// For our purposes, a statement is an op in a function body.
+/// TODO: Don't forget gate bodies here.
 static bool isStatement(Operation* op) { return isa_and_present<func::FuncOp>(op->getParentOp()); }
 
 LogicalResult OQ3Dialect::verifyOperationAttribute(Operation* op, NamedAttribute attr) {
   const StringRef name = attr.getName().getValue();
 
+  // OpenQASM version
   if (name == VersionAttrHelper::getNameStr()) {
     auto module = dyn_cast<ModuleOp>(op);
     if (!module) {
@@ -347,6 +361,7 @@ LogicalResult OQ3Dialect::verifyOperationAttribute(Operation* op, NamedAttribute
     return ProgramVerifier(module).verify();
   }
 
+  // Include tag
   if (name == FromIncludeAttrHelper::getNameStr()) {
     if (!isa<IntegerAttr>(attr.getValue())) {
       return op->emitOpError() << "attribute '" << name << "' must be an include id, got " << attr.getValue();
@@ -354,6 +369,7 @@ LogicalResult OQ3Dialect::verifyOperationAttribute(Operation* op, NamedAttribute
     return success();
   }
 
+  // Trailing comment
   if (name == TrailingCommentAttrHelper::getNameStr()) {
     auto text = dyn_cast<StringAttr>(attr.getValue());
     if (!text || !isValidTrailingCommentText(text.getValue())) {
@@ -366,6 +382,7 @@ LogicalResult OQ3Dialect::verifyOperationAttribute(Operation* op, NamedAttribute
     return success();
   }
 
+  // Annotations
   if (name == AnnotationsAttrHelper::getNameStr()) {
     auto annotations = dyn_cast<ArrayAttr>(attr.getValue());
     if (!annotations || !llvm::all_of(annotations, llvm::IsaPred<AnnotationAttr>)) {
@@ -378,6 +395,7 @@ LogicalResult OQ3Dialect::verifyOperationAttribute(Operation* op, NamedAttribute
     return success();
   }
 
+  // Arrow (for legacy measurement syntax)
   if (name == ArrowAttrHelper::getNameStr()) {
     if (!isa<UnitAttr>(attr.getValue())) {
       return op->emitOpError() << "attribute '" << name << "' must be a unit attribute, got " << attr.getValue();
@@ -505,6 +523,8 @@ LogicalResult VersionAttr::verify(function_ref<InFlightDiagnostic()> emitError, 
   if (major != 3 || minor.value_or(0) > 2) {
     return emitError() << "unsupported OpenQASM version " << major << "." << minor.value_or(0)
                        << ", supported are 3.0, 3.1, and 3.2";
+    // TODO: By 3.2, we mean the current live version, which has improvements over 3.1.
+    // Hopefully there will be a release soon so that we can eliminate the inaccuracy.
   }
   return success();
 }

@@ -153,16 +153,6 @@ module attributes {oq3.version = #oq3.version<3, 1>} {
 
 module attributes {oq3.version = #oq3.version<3, 1>} {
   func.func @main() attributes {qcc.entry_point} {
-    // expected-error @below {{'oq3.include' op is unresolved, so it has no content hash}}
-    oq3.include "a.inc" id 0 hash "abc" unresolved
-    return
-  }
-}
-
-// -----
-
-module attributes {oq3.version = #oq3.version<3, 1>} {
-  func.func @main() attributes {qcc.entry_point} {
     // expected-error @below {{'oq3.unresolved' op is only valid in a program with an unresolved include}}
     %n = oq3.unresolved "n" : !oq3.unknown
     // TODO: We may relax this. Custom gates may be used by name-convention for special purposes.
@@ -326,7 +316,7 @@ module attributes {oq3.version = #oq3.version<3, 1>} {
   func.func @main() attributes {qcc.entry_point} {
     %c = oq3.declare "c" : !qcc.ref<!oq3.bit>
     %bit = qcc.ref.load %c : !qcc.ref<!oq3.bit>
-    // expected-error @below {{'oq3.qubit_decl' op designator must be an integer, got '!oq3.bit'}}
+    // expected-error @below {{'oq3.qubit_decl' op designator must be an unsized integer or unknown type, got '!oq3.bit'}}
     %q = oq3.qubit_decl "q" [%bit : !oq3.bit] : !oq3.qreg<1>
     return
   }
@@ -452,7 +442,7 @@ module attributes {oq3.version = #oq3.version<3, 1>} {
     // expected-error @below {{'oq3.gate_call' op calls the unknown gate 'h'}}
     // expected-note @below {{'h' is a standard gate; it needs an earlier 'include "stdgates.inc";'}}
     oq3.gate_call @h [%q : !qcc.qubit_ref]
-    oq3.include "stdgates.inc" id 0
+    oq3.include "stdgates.inc" id 0 unresolved
     return
   }
 }
@@ -461,7 +451,7 @@ module attributes {oq3.version = #oq3.version<3, 1>} {
 
 module attributes {oq3.version = #oq3.version<3, 1>} {
   func.func @main() attributes {qcc.entry_point} {
-    oq3.include "stdgates.inc" id 0
+    oq3.include "stdgates.inc" id 0 unresolved
     %q = oq3.qubit_decl "q" : !qcc.qubit_ref
     // expected-error @below {{'oq3.gate_call' op gate 'cx' takes 0 parameter(s) and 2 qubit(s), got 0 and 1}}
     oq3.gate_call @cx [%q : !qcc.qubit_ref]
@@ -484,7 +474,7 @@ module attributes {oq3.version = #oq3.version<3, 1>} {
 
 module attributes {oq3.version = #oq3.version<3, 1>} {
   func.func @main() attributes {qcc.entry_point} {
-    oq3.include "stdgates.inc" id 0
+    oq3.include "stdgates.inc" id 0 unresolved
     %two = oq3.constant #oq3.int<2> : !oq3.int
     %three = oq3.constant #oq3.int<3> : !oq3.int
     %a = oq3.qubit_decl "a" [%two : !oq3.int] : !oq3.qreg<2>

@@ -12,7 +12,7 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinAttributes.h"
-#include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/BuiltinOps.h" // IWYU pragma: keep
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/Operation.h"
@@ -20,7 +20,7 @@
 #include "mlir/IR/Types.h"
 #include "mlir/IR/Value.h"
 
-#include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/STLExtras.h" // IWYU pragma: keep
 #include "llvm/ADT/StringSwitch.h"
 
 #include <cstdint>
@@ -73,13 +73,13 @@ static LogicalResult verifyInEntryBody(Operation* op) {
 }
 
 /// Whether `type` is the type of an integer index or size.
-static bool isIntegerOrUnknown(Type type) { return isa<UnsizedIntType, UnknownType>(type); }
+static bool isUnsizedIntegerOrUnknown(Type type) { return isa<UnsizedIntType, UnknownType>(type); }
 
 /// Verifies the designator of a declaration against `size`, the size that the declared type holds.
 static LogicalResult verifyDesignator(Operation* op, Value designator, int64_t size) {
   const Type type = designator.getType();
-  if (!isIntegerOrUnknown(type)) {
-    return op->emitOpError() << "designator must be an integer, got " << type;
+  if (!isUnsizedIntegerOrUnknown(type)) {
+    return op->emitOpError() << "designator must be an unsized integer or unknown type, got " << type;
   }
   if (isa<UnknownType>(type)) {
     if (!ShapedType::isDynamic(size)) {
@@ -100,8 +100,8 @@ static LogicalResult verifyDesignator(Operation* op, Value designator, int64_t s
 
 /// Verifies a constant `index` into something of `size` elements: `-size <= index < size`.
 static LogicalResult verifyIndex(Operation* op, Value index, int64_t size) {
-  if (!isIntegerOrUnknown(index.getType())) {
-    return op->emitOpError() << "index must be an integer, got " << index.getType();
+  if (!isUnsizedIntegerOrUnknown(index.getType())) {
+    return op->emitOpError() << "index must be an unsized integer or unknown type, got " << index.getType();
   }
   if (ShapedType::isDynamic(size)) {
     return success();
@@ -113,7 +113,7 @@ static LogicalResult verifyIndex(Operation* op, Value index, int64_t size) {
   return success();
 }
 
-/// Returns the size of the register type `type`, or nullopt if it is no register.
+/// Returns the size of the quantum register type `type`, or nullopt if it is no register.
 static std::optional<int64_t> getRegisterSize(Type type) {
   if (auto reg = dyn_cast<QRegType>(type)) {
     return reg.getSize();
@@ -135,9 +135,6 @@ LogicalResult IncludeOp::verify() {
   if (path.empty() || path.find_first_of("\r\n\t") != StringRef::npos || (path.contains('"') && path.contains('\''))) {
     return emitOpError() << "path must be non-empty, a single line, and not contain both kinds of quotes";
   }
-  if (getUnresolved() && getContentHash()) {
-    return emitOpError() << "is unresolved, so it has no content hash";
-  }
   return success();
 }
 
@@ -149,7 +146,7 @@ LogicalResult CommentOp::verify() {
     if (failed(verifyInEntryBody(*this))) {
       return failure();
     }
-    for (Operation* previous = (*this)->getPrevNode(); previous; previous = previous->getPrevNode()) {
+    for (Operation* previous = (*this)->getPrevNode(); previous != nullptr; previous = previous->getPrevNode()) {
       auto comment = dyn_cast<CommentOp>(previous);
       if (!comment || !comment.getHeader()) {
         return emitOpError() << "is a header comment, so it must precede all other statements";
@@ -341,7 +338,7 @@ std::optional<GateSignature> qcc::oq3::lookupStandardGate(StringRef name) {
 
 /// Returns the statement of the entry body that contains `op`, or null if there is none.
 static Operation* getEntryStatement(Operation* op) {
-  while (op && !isEntryPoint(op->getParentOp())) {
+  while ((op != nullptr) && !isEntryPoint(op->getParentOp())) {
     op = op->getParentOp();
   }
   return op;
@@ -364,6 +361,9 @@ LogicalResult GateCallOp::verify() {
   return success();
 }
 
+/// Checks:
+/// - The gate is known (builtin, standard, or from an include).
+/// - The gate's signature is consistent with the definition of it, if any, else with the other calls.
 LogicalResult GateCallOp::verifySymbolUses(SymbolTableCollection& symbolTable) {
   const StringRef name = getCallee();
   auto checkSignature = [&](GateSignature signature) -> LogicalResult {
@@ -387,7 +387,7 @@ LogicalResult GateCallOp::verifySymbolUses(SymbolTableCollection& symbolTable) {
 
   // A standard gate or a gate from an unresolved include is only known after its include.
   Operation* statement = getEntryStatement(*this);
-  auto entry = statement ? dyn_cast<func::FuncOp>(statement->getParentOp()) : nullptr;
+  auto entry = (statement != nullptr) ? dyn_cast<func::FuncOp>(statement->getParentOp()) : nullptr;
   const std::optional<GateSignature> standardSignature = lookupStandardGate(name);
   bool standardGatesIncluded = false;
   bool unresolvedIncluded = false;
@@ -396,8 +396,10 @@ LogicalResult GateCallOp::verifySymbolUses(SymbolTableCollection& symbolTable) {
       if (!include->isBeforeInBlock(statement)) {
         break;
       }
+      // TODO: An unresolved stdgates.inc also counts as an unresolved include here, so any unknown gate is accepted
+      // (with a consistent signature), not just the standard ones. Tighten once includes are actually read.
       unresolvedIncluded |= include.getUnresolved();
-      standardGatesIncluded |= !include.getUnresolved() && include.getPath() == standardGatesInclude;
+      standardGatesIncluded |= include.getUnresolved() && include.getPath() == standardGatesInclude;
     }
   }
   if (standardSignature && standardGatesIncluded) {

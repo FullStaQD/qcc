@@ -33,7 +33,7 @@ public:
 
   FailureOr<ConstantValue> evaluate(Value value) {
     Operation* op = value.getDefiningOp();
-    if (!op) {
+    if (op == nullptr) {
       return fail(nullptr, "not a constant expression");
     }
     return TypeSwitch<Operation*, FailureOr<ConstantValue>>(op)
@@ -47,7 +47,7 @@ public:
 
 private:
   FailureOr<ConstantValue> fail(Operation* op, const Twine& message) {
-    if (emitError && op) {
+    if (emitError && (op != nullptr)) {
       emitError(op) << message;
     }
     return failure();
@@ -181,7 +181,7 @@ FailureOr<int64_t> qcc::oq3::evaluateConstantInt(Value value, function_ref<InFli
     return failure();
   }
   if (!result->isInt()) {
-    if (emitError && value.getDefiningOp()) {
+    if (emitError && (value.getDefiningOp() != nullptr)) {
       emitError(value.getDefiningOp()) << "not an integer constant expression";
     }
     return failure();

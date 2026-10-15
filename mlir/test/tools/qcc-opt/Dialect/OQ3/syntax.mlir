@@ -12,8 +12,8 @@ module attributes {oq3.version = #oq3.version<3, 1>} {
     oq3.comment "/* header */" header
     // CHECK: oq3.pragma "ns.name text" hash_prefix
     oq3.pragma "ns.name text" hash_prefix
-    // CHECK: oq3.include "stdgates.inc" id 0 {oq3.trailing_comment = "// gates"}
-    oq3.include "stdgates.inc" id 0 {oq3.trailing_comment = "// gates"}
+    // CHECK: oq3.include "stdgates.inc" id 0 unresolved {oq3.trailing_comment = "// gates"}
+    oq3.include "stdgates.inc" id 0 unresolved {oq3.trailing_comment = "// gates"}
     // CHECK: oq3.include "other.inc" id 1 hash "abc"
     oq3.include "other.inc" id 1 hash "abc"
     // CHECK: oq3.comment "// from other.inc" {oq3.from_include = 1 : i64}

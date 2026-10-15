@@ -134,9 +134,9 @@ struct Token {
   /// For an `Error` token: what is wrong.
   llvm::StringRef message;
 
-  bool is(TokenKind other) const { return kind == other; }
-  llvm::SMLoc getLoc() const { return llvm::SMLoc::getFromPointer(spelling.data()); }
-  llvm::SMLoc getEndLoc() const { return llvm::SMLoc::getFromPointer(spelling.data() + spelling.size()); }
+  [[nodiscard]] bool is(TokenKind other) const { return kind == other; }
+  [[nodiscard]] llvm::SMLoc getLoc() const { return llvm::SMLoc::getFromPointer(spelling.data()); }
+  [[nodiscard]] llvm::SMLoc getEndLoc() const { return llvm::SMLoc::getFromPointer(spelling.data() + spelling.size()); }
 };
 
 /// Splits OpenQASM 3 source text into tokens. Comments are no tokens; the lexer collects them instead, so that the
@@ -155,7 +155,7 @@ public:
   std::vector<llvm::StringRef> takeComments() { return std::move(comments); }
 
   /// The text of the whole buffer.
-  llvm::StringRef getBuffer() const { return buffer; }
+  [[nodiscard]] llvm::StringRef getBuffer() const { return buffer; }
 
 private:
   Token makeToken(TokenKind kind, const char* start) const {
@@ -164,8 +164,8 @@ private:
   Token makeError(const char* start, llvm::StringRef message) const {
     return Token{.kind = TokenKind::Error, .spelling = llvm::StringRef(start, current - start), .message = message};
   }
-  bool atEnd() const { return current == buffer.end(); }
-  char peek(size_t offset = 0) const { return current + offset < buffer.end() ? current[offset] : '\0'; }
+  [[nodiscard]] bool atEnd() const { return current == buffer.end(); }
+  [[nodiscard]] char peek(size_t offset = 0) const { return current + offset < buffer.end() ? current[offset] : '\0'; }
 
   /// Skips whitespace and comments. Returns an error token for an unterminated block comment.
   std::optional<Token> skipWhitespaceAndComments();

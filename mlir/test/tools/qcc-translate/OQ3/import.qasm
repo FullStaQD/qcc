@@ -9,7 +9,7 @@
 
 // PROGRAM:      module attributes {oq3.version = #oq3.version<3, 1>} {
 // PROGRAM-NEXT:   func.func @main() attributes {qcc.entry_point} {
-// PROGRAM-NEXT:     oq3.include "stdgates.inc" id 0
+// PROGRAM-NEXT:     oq3.include "stdgates.inc" id 0 unresolved
 // PROGRAM-NEXT:     %[[TWO:.*]] = oq3.constant #oq3.int<2> : !oq3.int
 // PROGRAM-NEXT:     %[[Q:.*]] = oq3.qubit_decl "q" [%[[TWO]] : !oq3.int] : !oq3.qreg<2>
 // PROGRAM-NEXT:     %[[C:.*]] = oq3.declare "c" : !qcc.ref<!oq3.bit>
@@ -57,7 +57,7 @@
 // EXPR-NEXT: oq3.declare "c" = %[[ONE_BIT]] : !oq3.bit : !qcc.ref<!oq3.bit>
 
 // COMMENTS:      oq3.comment "/* before the\0A   version line */" header
-// COMMENTS-NEXT: oq3.include "stdgates.inc" id 0 {oq3.trailing_comment = "// the standard gates"}
+// COMMENTS-NEXT: oq3.include "stdgates.inc" id 0 unresolved {oq3.trailing_comment = "// the standard gates"}
 // COMMENTS-NEXT: oq3.comment "// Standalone"{{$}}
 // COMMENTS-NEXT: oq3.qubit_decl "q" {oq3.trailing_comment = "/* one */ // and two"}
 // Comments inside a statement, or between its annotation and the rest, go before it.
