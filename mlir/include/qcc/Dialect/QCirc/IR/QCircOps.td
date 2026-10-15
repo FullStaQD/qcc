@@ -46,8 +46,8 @@ def QCirc_SingleOp : QCirc_Op<"single", [AllTypesMatch<["qubit_in", "qubit_out"]
         Example:
         ```mlir
         %q1 = qcirc.single h %q0 : !qcc.qubit
-        %q2 = qcirc.single rz(%theta) %q1 : !qcc.qubit, f64
-        %q3 = qcirc.single u_zxz(%z1, %x, %z2) %q2 : !qcc.qubit, f64
+        %q2 = qcirc.single rz(%theta) %q1 : f64, !qcc.qubit
+        %q3 = qcirc.single u_zxz(%z1, %x, %z2) %q2 : f64, !qcc.qubit
         ```
     }];
 
@@ -58,7 +58,7 @@ def QCirc_SingleOp : QCirc_Op<"single", [AllTypesMatch<["qubit_in", "qubit_out"]
 
   let assemblyFormat = [{
         $gate_kind (`(` $params^ `)`)? $qubit_in attr-dict `:`
-        custom<GateTypes>(type($qubit_in), type($params), ref($params))
+        custom<GateTypes>(type($params), ref($params), type($qubit_in))
     }];
 
   let builders = [
@@ -81,7 +81,7 @@ def QCirc_PairOp : QCirc_Op<"pair", [AllTypesMatch<["lhs_in", "rhs_in", "lhs_out
         Example:
         ```mlir
         %c1, %t1 = qcirc.pair cx %c0, %t0 : !qcc.qubit
-        %a1, %b1 = qcirc.pair rzz(%theta) %a0, %b0 : !qcc.qubit, f64
+        %a1, %b1 = qcirc.pair rzz(%theta) %a0, %b0 : f64, !qcc.qubit
         ```
     }];
 
@@ -94,7 +94,7 @@ def QCirc_PairOp : QCirc_Op<"pair", [AllTypesMatch<["lhs_in", "rhs_in", "lhs_out
 
   let assemblyFormat = [{
         $gate_kind (`(` $params^ `)`)? $lhs_in `,` $rhs_in attr-dict `:`
-        custom<GateTypes>(type($lhs_in), type($params), ref($params))
+        custom<GateTypes>(type($params), ref($params), type($lhs_in))
     }];
 
   let builders = [

@@ -33,17 +33,17 @@ func.func @single_gates() {
 func.func @parametrised_single_gates(%a: f64, %b: f64, %c: f64) {
   // CHECK: %[[Q:.*]] = qcc.static [0] : !qcc.qubit
   %q = qcc.static [0] : !qcc.qubit
-  // CHECK: %[[RX:.*]] = qcirc.single rx(%[[A]]) %[[Q]] : !qcc.qubit, f64
-  %rx = qcirc.single rx(%a) %q : !qcc.qubit, f64
-  // CHECK: %[[RY:.*]] = qcirc.single ry(%[[A]]) %[[RX]] : !qcc.qubit, f64
-  %ry = qcirc.single ry(%a) %rx : !qcc.qubit, f64
-  // CHECK: %[[RZ:.*]] = qcirc.single rz(%[[A]]) %[[RY]] : !qcc.qubit, f64
-  %rz = qcirc.single rz(%a) %ry : !qcc.qubit, f64
+  // CHECK: %[[RX:.*]] = qcirc.single rx(%[[A]]) %[[Q]] : f64, !qcc.qubit
+  %rx = qcirc.single rx(%a) %q : f64, !qcc.qubit
+  // CHECK: %[[RY:.*]] = qcirc.single ry(%[[A]]) %[[RX]] : f64, !qcc.qubit
+  %ry = qcirc.single ry(%a) %rx : f64, !qcc.qubit
+  // CHECK: %[[RZ:.*]] = qcirc.single rz(%[[A]]) %[[RY]] : f64, !qcc.qubit
+  %rz = qcirc.single rz(%a) %ry : f64, !qcc.qubit
   // Three parameters share one type.
-  // CHECK: %[[ZXZ:.*]] = qcirc.single u_zxz(%[[A]], %[[B]], %[[C]]) %[[RZ]] : !qcc.qubit, f64
-  %zxz = qcirc.single u_zxz(%a, %b, %c) %rz : !qcc.qubit, f64
-  // CHECK: qcirc.single u_zyz(%[[A]], %[[B]], %[[C]]) %[[ZXZ]] : !qcc.qubit, f64
-  %zyz = qcirc.single u_zyz(%a, %b, %c) %zxz : !qcc.qubit, f64
+  // CHECK: %[[ZXZ:.*]] = qcirc.single u_zxz(%[[A]], %[[B]], %[[C]]) %[[RZ]] : f64, !qcc.qubit
+  %zxz = qcirc.single u_zxz(%a, %b, %c) %rz : f64, !qcc.qubit
+  // CHECK: qcirc.single u_zyz(%[[A]], %[[B]], %[[C]]) %[[ZXZ]] : f64, !qcc.qubit
+  %zyz = qcirc.single u_zyz(%a, %b, %c) %zxz : f64, !qcc.qubit
   return
 }
 
@@ -63,16 +63,16 @@ func.func @pair_gates(%theta: f64) {
   %b3, %a3 = qcirc.pair swap %b2, %a2 : !qcc.qubit
   // CHECK: %[[A4:.*]], %[[B4:.*]] = qcirc.pair iswap %[[A3]], %[[B3]] : !qcc.qubit
   %a4, %b4 = qcirc.pair iswap %a3, %b3 : !qcc.qubit
-  // CHECK: %[[A5:.*]], %[[B5:.*]] = qcirc.pair cp(%[[THETA]]) %[[A4]], %[[B4]] : !qcc.qubit, f64
-  %a5, %b5 = qcirc.pair cp(%theta) %a4, %b4 : !qcc.qubit, f64
-  // CHECK: %[[A6:.*]], %[[B6:.*]] = qcirc.pair crz(%[[THETA]]) %[[A5]], %[[B5]] : !qcc.qubit, f64
-  %a6, %b6 = qcirc.pair crz(%theta) %a5, %b5 : !qcc.qubit, f64
-  // CHECK: %[[A7:.*]], %[[B7:.*]] = qcirc.pair rxx(%[[THETA]]) %[[A6]], %[[B6]] : !qcc.qubit, f64
-  %a7, %b7 = qcirc.pair rxx(%theta) %a6, %b6 : !qcc.qubit, f64
-  // CHECK: %[[A8:.*]], %[[B8:.*]] = qcirc.pair ryy(%[[THETA]]) %[[A7]], %[[B7]] : !qcc.qubit, f64
-  %a8, %b8 = qcirc.pair ryy(%theta) %a7, %b7 : !qcc.qubit, f64
-  // CHECK: qcirc.pair rzz(%[[THETA]]) %[[A8]], %[[B8]] : !qcc.qubit, f64
-  %a9, %b9 = qcirc.pair rzz(%theta) %a8, %b8 : !qcc.qubit, f64
+  // CHECK: %[[A5:.*]], %[[B5:.*]] = qcirc.pair cp(%[[THETA]]) %[[A4]], %[[B4]] : f64, !qcc.qubit
+  %a5, %b5 = qcirc.pair cp(%theta) %a4, %b4 : f64, !qcc.qubit
+  // CHECK: %[[A6:.*]], %[[B6:.*]] = qcirc.pair crz(%[[THETA]]) %[[A5]], %[[B5]] : f64, !qcc.qubit
+  %a6, %b6 = qcirc.pair crz(%theta) %a5, %b5 : f64, !qcc.qubit
+  // CHECK: %[[A7:.*]], %[[B7:.*]] = qcirc.pair rxx(%[[THETA]]) %[[A6]], %[[B6]] : f64, !qcc.qubit
+  %a7, %b7 = qcirc.pair rxx(%theta) %a6, %b6 : f64, !qcc.qubit
+  // CHECK: %[[A8:.*]], %[[B8:.*]] = qcirc.pair ryy(%[[THETA]]) %[[A7]], %[[B7]] : f64, !qcc.qubit
+  %a8, %b8 = qcirc.pair ryy(%theta) %a7, %b7 : f64, !qcc.qubit
+  // CHECK: qcirc.pair rzz(%[[THETA]]) %[[A8]], %[[B8]] : f64, !qcc.qubit
+  %a9, %b9 = qcirc.pair rzz(%theta) %a8, %b8 : f64, !qcc.qubit
   return
 }
 

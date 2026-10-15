@@ -36,30 +36,26 @@ using namespace qcc::qcirc;
 // Custom directives
 //===----------------------------------------------------------------------===//
 
-/// Parses the types of a `single` / `pair`: `<qubit type>[, <angle type>]`, the angle type once for all angles.
-static ParseResult parseGateTypes(OpAsmParser& parser, Type& qubitType, SmallVectorImpl<Type>& paramTypes,
-                                  ArrayRef<OpAsmParser::UnresolvedOperand> params) {
-  if (parser.parseType(qubitType)) {
-    return failure();
+/// Parses the types of a `single` / `pair`: `[<angle type>, ]<qubit type>`, the angle type once for all angles.
+static ParseResult parseGateTypes(OpAsmParser& parser, SmallVectorImpl<Type>& paramTypes,
+                                  ArrayRef<OpAsmParser::UnresolvedOperand> params, Type& qubitType) {
+  if (!params.empty()) {
+    Type paramType;
+    if (parser.parseType(paramType) || parser.parseComma()) {
+      return failure();
+    }
+    paramTypes.assign(params.size(), paramType);
   }
-  if (params.empty()) {
-    return success();
-  }
-  Type paramType;
-  if (parser.parseComma() || parser.parseType(paramType)) {
-    return failure();
-  }
-  paramTypes.assign(params.size(), paramType);
-  return success();
+  return parser.parseType(qubitType);
 }
 
-/// Prints the types of a `single` / `pair`: `<qubit type>[, <angle type>]`.
-static void printGateTypes(OpAsmPrinter& printer, Operation* /*op*/, Type qubitType, TypeRange paramTypes,
-                           OperandRange /*params*/) {
-  printer << qubitType;
+/// Prints the types of a `single` / `pair`: `[<angle type>, ]<qubit type>`.
+static void printGateTypes(OpAsmPrinter& printer, Operation* /*op*/, TypeRange paramTypes, OperandRange /*params*/,
+                           Type qubitType) {
   if (!paramTypes.empty()) {
-    printer << ", " << paramTypes.front(); // The type constraints guarantee they are all equal.
+    printer << paramTypes.front() << ", "; // The type constraints guarantee they are all equal.
   }
+  printer << qubitType;
 }
 
 #define GET_OP_CLASSES
