@@ -79,7 +79,7 @@ LogicalResult qcc::verifyNoMultiUseQubits(Operation* op) {
   // Result qubits must only be used at most once.
   for (OpResult result : op->getResults()) {
     // A vector can legitimately be used multiple times: e.g. by taking it apart (`vector.extract`, slices).
-    if (isa<QubitType>(result.getType()) && !result.use_empty() && !result.hasOneUse()) {
+    if (isa<QubitType>(result.getType()) && result.hasNUsesOrMore(2)) {
       return op->emitOpError() << "qubit result #" << result.getResultNumber() << " has " << result.getNumUses()
                                << " uses, but qubit values are affine";
     }
