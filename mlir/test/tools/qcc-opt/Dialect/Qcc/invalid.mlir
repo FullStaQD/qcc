@@ -25,7 +25,7 @@ func.func @not_a_unit() attributes {qcc.entry_point = true} {
 
 // -----
 
-// A memref element could be loaded twice, this would violate the affine constraint of qubits.
+// Qubits as memref element types are not supported.
 // expected-error @+1 {{invalid memref element type}}
 func.func @qubit_memref(%m: memref<2x!qcc.qubit>) {
   return
