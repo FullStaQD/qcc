@@ -11,6 +11,7 @@ target_link_libraries(
           QCCAuxDialect
           QCCMagicDialect
           QCCQccDialect
+          QCCQCircDialect
           QCCQVecDialect
           MLIRQCDialect
           MLIRQCODialect

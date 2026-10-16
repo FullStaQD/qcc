@@ -10,12 +10,16 @@
 #include "qcc/Dialect/Qcc/IR/Qcc.h"
 
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Diagnostics.h"
+#include "mlir/IR/DialectImplementation.h" // IWYU pragma: keep
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/OwningOpRef.h"
+#include "mlir/IR/Types.h"
 #include "mlir/Interfaces/FunctionInterfaces.h"
 #include "mlir/Parser/Parser.h"
 
+#include "llvm/ADT/TypeSwitch.h" // IWYU pragma: keep
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/SourceMgr.h"
 
@@ -25,16 +29,27 @@
 using namespace mlir;
 using namespace qcc;
 
+#include "qcc/Dialect/Qcc/IR/QccAttrInterfaces.cpp.inc"
 #include "qcc/Dialect/Qcc/IR/QccDialect.cpp.inc"
-#include "qcc/Dialect/Qcc/IR/QccInterfaces.cpp.inc"
+
+#define GET_TYPEDEF_CLASSES
+#include "qcc/Dialect/Qcc/IR/QccTypes.cpp.inc"
 
 //===----------------------------------------------------------------------===//
 // Dialect
 //===----------------------------------------------------------------------===//
 
-// The dialect defines no attributes and no types of its own: it only names the module and function attributes
-// declared in `QccDialect.td`, which need no registration.
-void QccDialect::initialize() {}
+void QccDialect::initialize() {
+  addTypes<
+#define GET_TYPEDEF_LIST
+#include "qcc/Dialect/Qcc/IR/QccTypes.cpp.inc"
+      >();
+
+  addOperations<
+#define GET_OP_LIST
+#include "qcc/Dialect/Qcc/IR/QccOps.cpp.inc"
+      >();
+}
 
 LogicalResult QccDialect::verifyOperationAttribute(Operation* op, NamedAttribute attr) {
   const StringRef name = attr.getName().getValue();
@@ -60,6 +75,15 @@ LogicalResult QccDialect::verifyOperationAttribute(Operation* op, NamedAttribute
   }
 
   return success();
+}
+
+//===----------------------------------------------------------------------===//
+// Types
+//===----------------------------------------------------------------------===//
+
+bool qcc::isQubitOrQubitVector(Type type) {
+  auto vectorType = dyn_cast<VectorType>(type);
+  return isa<QubitType>(vectorType ? vectorType.getElementType() : type);
 }
 
 //===----------------------------------------------------------------------===//
