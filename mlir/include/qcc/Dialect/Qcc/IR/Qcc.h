@@ -13,6 +13,7 @@
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Builders.h" // IWYU pragma: keep
 #include "mlir/IR/BuiltinAttributes.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/BuiltinTypeInterfaces.h" // IWYU pragma: keep
 #include "mlir/IR/Dialect.h"               // IWYU pragma: keep
 #include "mlir/IR/DialectImplementation.h"
@@ -23,6 +24,7 @@
 #include "mlir/IR/TypeRange.h"
 #include "mlir/IR/Types.h"
 #include "mlir/IR/Value.h"
+#include "mlir/Interfaces/FunctionInterfaces.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h" // IWYU pragma: keep
 #include "mlir/Support/LLVM.h"
 
@@ -138,6 +140,12 @@ template <typename T> void printArray(mlir::AsmPrinter& printer, llvm::ArrayRef<
 } // namespace qcc::detail
 
 namespace qcc {
+
+/// Whether `op` is an entry point of a program: a function marked `qcc.entry_point`.
+bool isEntryPoint(mlir::Operation* op);
+
+/// Returns the entry points of `module` in order. A module may have any number of them.
+llvm::SmallVector<mlir::FunctionOpInterface> getEntryPoints(mlir::ModuleOp module);
 
 /// Reads the device description from a device file.
 ///

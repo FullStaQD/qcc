@@ -1,0 +1,3 @@
+# Round-trip tests diff exporter output (LF) byte-for-byte against checked-in files. (Needed For Windows CI.)
+*.qasm text eol=lf
+*.inc text eol=lf

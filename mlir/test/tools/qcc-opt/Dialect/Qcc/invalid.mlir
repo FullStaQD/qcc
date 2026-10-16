@@ -83,3 +83,34 @@ func.func @static_twice() {
   %q1 = qcc.static [1] : !qcc.qubit
   return
 }
+
+// -----
+
+// A reference holds classical values only.
+// expected-error @below {{'!qcc.ref' holds classical values only, got '!qcc.qubit'}}
+func.func @ref_of_qubit(%r: !qcc.ref<!qcc.qubit>) {
+  return
+}
+
+// -----
+
+// expected-error @below {{'!qcc.ref' holds classical values only, got '!qcc.qubit_ref'}}
+func.func @ref_of_qubit_ref(%r: !qcc.ref<!qcc.qubit_ref>) {
+  return
+}
+
+// -----
+
+func.func @store_mismatch(%r: !qcc.ref<i1>, %v: i32) {
+  // expected-error @below {{'qcc.ref.store' op failed to verify that value type is the element type of the reference}}
+  "qcc.ref.store"(%v, %r) : (i32, !qcc.ref<i1>) -> ()
+  return
+}
+
+// -----
+
+func.func @load_mismatch(%r: !qcc.ref<i1>) {
+  // expected-error @below {{'qcc.ref.load' op failed to verify that result type is the element type of the reference}}
+  %v = "qcc.ref.load"(%r) : (!qcc.ref<i1>) -> i32
+  return
+}
