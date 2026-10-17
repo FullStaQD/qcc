@@ -39,6 +39,7 @@ cmake -G Ninja -S llvm -B build/dev \
   -DLLVM_ENABLE_PROJECTS="mlir;llvm;clang;clang-tools-extra" \
   -DLLVM_ENABLE_ASSERTIONS=ON \
   -DLLVM_INSTALL_UTILS=ON \
+  -DLLVM_INSTALL_GTEST=ON \
   -DLLVM_OPTIMIZED_TABLEGEN=ON \
   -DLLVM_TARGETS_TO_BUILD="Native;RISCV" \
   -DCMAKE_BUILD_TYPE=RelWithDebInfo
@@ -48,7 +49,9 @@ cmake --build build/dev
 ```
 
 Finally make sure to use this build when building `qcc` (set `LLVM_DIR` and
-`MLIR_DIR` appropriately).
+`MLIR_DIR` appropriately). If you use the install instead of the build tree,
+`LLVM_INSTALL_GTEST` makes sure it contains the gtest library that `qcc`'s unit
+tests need.
 
 ## Developing QISA backends
 

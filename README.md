@@ -127,6 +127,23 @@ cmake --build build/dev --target check-qcc
 lit build/dev/mlir/test/ -v --filter "convert"
 ```
 
+Besides the lit tests in `mlir/test/` there are a few [GoogleTest](https://google.github.io/googletest/) unit tests in `mlir/unittests/`.
+`check-qcc` builds and runs them too; lit sees each test binary as a test:
+
+```shell
+# Run only the unit tests, or the ones of one binary:
+lit build/dev/mlir/test/Unit -v
+lit build/dev/mlir/test/ -v --filter "QCCQVecTests"
+
+# Run a test binary directly, e.g. to select single tests:
+cmake --build build/dev --target QCCUnitTests
+build/dev/mlir/unittests/Dialect/QVec/QCCQVecTests --gtest_filter="ZXZTest.*"
+```
+
+The unit tests need LLVM's gtest library (`llvm_gtest`).
+LLVM build trees provide it, LLVM installs only if LLVM was configured with `-DLLVM_INSTALL_GTEST=ON`.
+Otherwise the unit tests are skipped with a CMake warning (see the `QCC_INCLUDE_UNITTESTS` option).
+
 ---
 
 ## Docs

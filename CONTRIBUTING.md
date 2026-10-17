@@ -72,6 +72,17 @@ The slightly simplified gist is as follows:
 That being said: do not take this guideline as a justification to drop const correctness in _other_ projects.
 This is a particular quirk of MLIR based projects.
 
+### Testing guidelines
+
+Our primary way of testing is [lit](https://llvm.org/docs/CommandGuide/lit.html) tests with
+[FileCheck](https://llvm.org/docs/CommandGuide/FileCheck.html) in `mlir/test/`, as in LLVM/MLIR.
+Write a lit test whenever you can.
+
+Unit tests with [GoogleTest](https://google.github.io/googletest/) in `mlir/unittests/` are the exception.
+Use them only for functionality that should be tested but that lit tests cannot reasonably cover,
+e.g. numerical helpers in plain C++ whose results are hard to check through printed IR.
+See the [README](README.md#testing) for how to run them.
+
 ### Pull Request Workflow
 
 - Create PRs early.

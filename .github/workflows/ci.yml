@@ -89,8 +89,8 @@ jobs:
       files-changed-only: true
       cpp-linter-extra-args: "-std=c++20"
       # The HiSEP-Q backend does not parse without the HiSEP-Q LLVM fork, which
-      # this job does not have.
-      cpp-linter-ignore-extra: "mlir/lib/Target/HiSEPQ/**"
+      # this job does not have. Likewise the unit tests need LLVM's gtest.
+      cpp-linter-ignore-extra: "mlir/lib/Target/HiSEPQ/**|mlir/unittests/**"
       setup-mlir: true
       llvm-version: 23.1.0
     permissions:

@@ -1,0 +1,2 @@
+add_qcc_unittest(QCCQVecTests ZXZTest.cpp)
+target_link_libraries(QCCQVecTests PRIVATE QCCQVecTransforms)

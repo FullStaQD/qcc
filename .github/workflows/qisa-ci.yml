@@ -17,7 +17,7 @@ permissions:
 env:
   # Bump this to invalidate the LLVM install cache when the LLVM CMake flags
   # below change (the cache key does not track them).
-  LLVM_CACHE_VERSION: v1
+  LLVM_CACHE_VERSION: v2
   # Do not set ccache max size too high. Total cache limit at the time of
   # writing this is 10GB. Note that LLVM install cache competes with this one.
   # See also
@@ -26,10 +26,11 @@ env:
 
 jobs:
   # Builds qcc with QCC_ENABLE_HISEPQ=ON and runs the lit suite, which then
-  # includes the `REQUIRES: hisepq` tests. The HiSEP-Q target needs a patched
-  # LLVM (see third-party/llvm/README.md) that no prebuilt package provides, so
-  # this job builds LLVM from source and caches the install prefix. On a warm
-  # cache the LLVM build is skipped entirely and only qcc is rebuilt.
+  # includes the `REQUIRES: hisepq` tests and the gtest unit tests. The HiSEP-Q
+  # target needs a patched LLVM (see third-party/llvm/README.md) that no
+  # prebuilt package provides, so this job builds LLVM from source and caches
+  # the install prefix. On a warm cache the LLVM build is skipped entirely and
+  # only qcc is rebuilt.
   qisa-tests:
     name: 🇨‌ Test QISA 🐧
     runs-on: ubuntu-24.04
@@ -114,6 +115,8 @@ jobs:
       # Derived from the configuration in third-party/llvm/README.md, trimmed
       # for CI. HiSEP-Q is a RISCV subtarget. LLVM_INSTALL_UTILS installs and
       # exports FileCheck, count, and not, which check-qcc depends on.
+      # LLVM_INSTALL_GTEST does the same for llvm_gtest, which the unit tests
+      # link against.
       - name: Configure LLVM
         if: steps.llvm-cache.outputs.cache-hit != 'true'
         run: |
@@ -124,6 +127,7 @@ jobs:
             -DLLVM_ENABLE_PROJECTS=mlir \
             -DLLVM_TARGETS_TO_BUILD="Native;RISCV" \
             -DLLVM_INSTALL_UTILS=ON \
+            -DLLVM_INSTALL_GTEST=ON \
             -DLLVM_OPTIMIZED_TABLEGEN=ON \
             -DLLVM_BUILD_EXAMPLES=OFF \
             -DLLVM_CCACHE_BUILD=ON \
@@ -162,8 +166,10 @@ jobs:
         run: |
           ./utils/provision-sim-hisepq --prefix $HOME/.local
 
+      # QCC_INCLUDE_UNITTESTS=ON turns a missing llvm_gtest into an error
+      # instead of silently skipping the unit tests.
       - name: Configure qcc
-        run: cmake --preset release -DQCC_ENABLE_HISEPQ=ON -DLLVM_ENABLE_ASSERTIONS=ON
+        run: cmake --preset release -DQCC_ENABLE_HISEPQ=ON -DLLVM_ENABLE_ASSERTIONS=ON -DQCC_INCLUDE_UNITTESTS=ON
 
       - name: Build qcc
         run: cmake --build build/release
