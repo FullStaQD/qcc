@@ -21,6 +21,7 @@
 #include "mlir/IR/Types.h"
 #include "mlir/IR/Value.h"
 #include "mlir/IR/ValueRange.h"
+#include "mlir/IR/Visitors.h"
 #include "mlir/Interfaces/FunctionInterfaces.h"
 
 #include "llvm/ADT/STLExtras.h"
@@ -64,16 +65,20 @@ static void printStaticTypes(OpAsmPrinter& printer, Operation* op, TypeRange qub
 //===----------------------------------------------------------------------===//
 
 LogicalResult qcc::verifyNoMultiUseQubits(Operation* op) {
-  auto function = dyn_cast_if_present<FunctionOpInterface>(op->getParentOp());
-  if (!function) {
-    return op->emitOpError() << "must be directly inside a function";
-  }
-  if (!op->getParentRegion()->hasOneBlock()) {
-    return op->emitOpError() << "must be in a single-block function";
-  }
-  if (llvm::any_of(function.getArgumentTypes(), isQubitOrQubitVector) ||
-      llvm::any_of(function.getResultTypes(), isQubitOrQubitVector)) {
-    return op->emitOpError() << "must be in a function without qubit arguments and results";
+  // A qubit scope verifies its regions itself (see `verifyQubitScope`).
+  Operation* parent = op->getParentOp();
+  if (parent == nullptr || !parent->hasTrait<QubitScope>()) {
+    auto function = dyn_cast_if_present<FunctionOpInterface>(parent);
+    if (!function) {
+      return op->emitOpError() << "must be directly inside a function or a qubit scope";
+    }
+    if (!op->getParentRegion()->hasOneBlock()) {
+      return op->emitOpError() << "must be in a single-block function";
+    }
+    if (llvm::any_of(function.getArgumentTypes(), isQubitOrQubitVector) ||
+        llvm::any_of(function.getResultTypes(), isQubitOrQubitVector)) {
+      return op->emitOpError() << "must be in a function without qubit arguments and results";
+    }
   }
 
   // Result qubits must only be used at most once.
@@ -92,6 +97,40 @@ LogicalResult qcc::verifyNoMultiUseQubits(Operation* op) {
     if (isQubitOrQubitVector(qubit.getType()) && !qubit.hasOneUse()) {
       return op->emitOpError() << "qubit operand #" << operand.getOperandNumber() << " has " << qubit.getNumUses()
                                << " uses, but qubit values are affine";
+    }
+  }
+  return success();
+}
+
+LogicalResult qcc::verifyQubitScope(Operation* op) {
+  // No capture. A nested qubit scope verifies its own regions, which suffices: a qubit from outside of `op` is also
+  // from outside of the nested scope.
+  for (Region& region : op->getRegions()) {
+    const WalkResult walk = region.walk<WalkOrder::PreOrder>([&](Operation* nested) {
+      for (OpOperand& operand : nested->getOpOperands()) {
+        Value value = operand.get();
+        if (isQubitOrQubitVector(value.getType()) && !op->isAncestor(value.getParentRegion()->getParentOp())) {
+          InFlightDiagnostic diag = op->emitOpError()
+                                    << "captures a qubit, but qubits enter a qubit scope only through its bindings";
+          diag.attachNote(nested->getLoc()) << "operand #" << operand.getOperandNumber() << " is from outside";
+          return WalkResult::interrupt();
+        }
+      }
+      return nested->hasTrait<QubitScope>() ? WalkResult::skip() : WalkResult::advance();
+    });
+    if (walk.wasInterrupted()) {
+      return failure();
+    }
+  }
+
+  // Like a qubit result of an op (see `verifyNoMultiUseQubits`), a vector binding may be taken apart.
+  for (Region& region : op->getRegions()) {
+    for (BlockArgument binding : region.getArguments()) {
+      if (isa<QubitType>(binding.getType()) && binding.hasNUsesOrMore(2)) {
+        return op->emitOpError() << "qubit binding #" << binding.getArgNumber() << " of region #"
+                                 << region.getRegionNumber() << " has " << binding.getNumUses()
+                                 << " uses, but qubit values are affine";
+      }
     }
   }
   return success();

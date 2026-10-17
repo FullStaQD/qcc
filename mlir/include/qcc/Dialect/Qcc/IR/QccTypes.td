@@ -37,4 +37,11 @@ def Qcc_QubitType : TypeDef<Qcc_Dialect, "Qubit", [VectorElementTypeInterface]> 
     }];
 }
 
+//===----------------------------------------------------------------------===//
+// Qcc type constraints
+//===----------------------------------------------------------------------===//
+
+// What a qubit lane carries: `!qcc.qubit` or a vector of them.
+def Qcc_QubitOrQubitVector : Type<CPred<"::qcc::isQubitOrQubitVector($_self)">, "qubit or vector of qubits">;
+
 #endif // INCLUDE_QCC_DIALECT_QCC_IR_QCCTYPES_TD_

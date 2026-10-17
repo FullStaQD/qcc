@@ -134,4 +134,13 @@ def Qcc_NoMultiUseQubits : NativeOpTrait<"NoMultiUseQubits"> {
   let cppNamespace = "::qcc";
 }
 
+// The native part of `Qcc_QubitScope`; use the trait list instead. `NoMultiUseQubits` looks for this trait.
+def Qcc_QubitScopeImpl : NativeOpTrait<"QubitScope", [SingleBlock]> {
+  let cppNamespace = "::qcc";
+}
+
+// An op whose regions may hold ops with `NoMultiUseQubits`. Qubits enter its regions only as arguments of their entry
+// blocks, the *bindings*, never by capture. Each region has at most one block.
+def Qcc_QubitScope : TraitList<[SingleBlock, Qcc_QubitScopeImpl]>;
+
 #endif // INCLUDE_QCC_DIALECT_QCC_IR_QCCINTERFACES_TD_

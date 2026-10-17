@@ -80,9 +80,9 @@ llvm::LogicalResult verifyQubitLaneOpInterface(mlir::Operation* op);
 namespace qcc {
 
 /// Imposes the following constraints:
-/// - The operation sits directly in a function (`func.func` or any other `FunctionOpInterface` operation) with a
-///   single block, and that function has no qubits among its arguments and results.
-///   TODO: needs generalization once qcf.if is added.
+/// - The operation sits directly in a qubit scope (see `QubitScope`) or in a function (`func.func` or any other
+///   `FunctionOpInterface` operation). Such a function has a single block and no qubits among its arguments and
+///   results.
 /// - Each scalar qubit result of the operation is used at most once.
 /// - Each qubit operand of the operation, scalar or vector, has no other use.
 llvm::LogicalResult verifyNoMultiUseQubits(mlir::Operation* op);
@@ -93,6 +93,21 @@ class NoMultiUseQubits // NOLINT(bugprone-crtp-constructor-accessibility)
     : public mlir::OpTrait::TraitBase<ConcreteType, NoMultiUseQubits> {
 public:
   static llvm::LogicalResult verifyTrait(mlir::Operation* op) { return verifyNoMultiUseQubits(op); }
+};
+
+/// Imposes the following constraints on the regions of a qubit scope:
+/// - No operation in them, at any depth, uses a qubit (scalar or vector) from outside the scope. Qubits enter only as
+///   arguments of the entry blocks, the *bindings*.
+/// - Each scalar qubit binding is used at most once.
+/// The `SingleBlock` trait, verified first, ensures that each region has at most one block.
+llvm::LogicalResult verifyQubitScope(mlir::Operation* op);
+
+/// Corresponds to `Qcc_QubitScopeImpl` in tablegen.
+template <typename ConcreteType>
+class QubitScope // NOLINT(bugprone-crtp-constructor-accessibility)
+    : public mlir::OpTrait::TraitBase<ConcreteType, QubitScope> {
+public:
+  static llvm::LogicalResult verifyTrait(mlir::Operation* op) { return verifyQubitScope(op); }
 };
 
 } // namespace qcc
