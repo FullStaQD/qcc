@@ -43,8 +43,6 @@ def QCF_IfOp : QCF_Op<"if", [
         The `else` region may be omitted if it would only yield the bound qubits unchanged. This requires that there
         are no classical results.
 
-        The memory effects of the op are those of its regions.
-
         Example:
         ```mlir
         %a_out, %b_out, %m = qcf.if %bit (%a = %a_in, %b = %b_in) -> (!qcc.qubit, !qcc.qubit, i1) {
@@ -58,18 +56,27 @@ def QCF_IfOp : QCF_Op<"if", [
         ```
     }];
 
-  // The bound qubits lead, as the `QubitLaneOpInterface` requires. The syntax puts the condition first.
   let arguments = (ins Variadic<Qcc_QubitOrQubitVector>:$qubits_in,
                        I1:$condition);
   let results = (outs Variadic<AnyType>:$results);
   let regions = (region SizedRegion<1>:$thenRegion,
                         MaxSizedRegion<1>:$elseRegion);
 
+  // The default builders take the qubit result types apart from the bound qubits.
+  let skipDefaultBuilders = 1;
   let builders = [
     // The results are the bound qubits, then `classicalTypes`. A region requested by `addThenBlock` or
-    // `addElseBlock` gets its block with one argument per bound qubit, but no terminator.
+    // `addElseBlock` gets its block with one argument per bound qubit, but no terminator. A region not requested
+    // stays empty, e.g. to move an existing region in.
     OpBuilder<(ins "::mlir::Value":$condition, "::mlir::ValueRange":$qubitsIn,
-                   "::mlir::TypeRange":$classicalTypes, "bool":$addThenBlock, "bool":$addElseBlock)>
+                   "::mlir::TypeRange":$classicalTypes, "bool":$addThenBlock, "bool":$addElseBlock)>,
+    // Builds the bodies with `thenBuilder` and `elseBuilder`: each gets the bindings and creates the `qcf.yield`. The
+    // classical results take their types from the yield of the then region, as for `scf.if`. Without `elseBuilder`,
+    // the else region is omitted, which requires that there are no classical results.
+    OpBuilder<(ins "::mlir::Value":$condition, "::mlir::ValueRange":$qubitsIn,
+                   "::llvm::function_ref<void(::mlir::OpBuilder&, ::mlir::Location, ::mlir::ValueRange)>":$thenBuilder,
+                   CArg<"::llvm::function_ref<void(::mlir::OpBuilder&, ::mlir::Location, ::mlir::ValueRange)>",
+                        "nullptr">:$elseBuilder)>
   ];
 
   let extraClassDeclaration = [{

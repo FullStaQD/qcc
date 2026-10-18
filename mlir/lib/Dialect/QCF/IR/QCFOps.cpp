@@ -26,6 +26,7 @@
 #include "mlir/Support/LLVM.h"
 
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/SMLoc.h"
 
@@ -44,6 +45,8 @@ using namespace qcc::qcf;
 
 void IfOp::build(OpBuilder& builder, OperationState& state, Value condition, ValueRange qubitsIn,
                  TypeRange classicalTypes, bool addThenBlock, bool addElseBlock) {
+  assert((!addElseBlock || addThenBlock) && "must not create an else block without a then block");
+  assert(llvm::none_of(classicalTypes, qcc::isQubitOrQubitVector) && "qubits leave only through the bindings");
   state.addOperands(qubitsIn);
   state.addOperands(condition);
   state.addTypes(qubitsIn.getTypes());
@@ -59,6 +62,30 @@ void IfOp::build(OpBuilder& builder, OperationState& state, Value condition, Val
   if (addElseBlock) {
     builder.createBlock(elseRegion, elseRegion->end(), qubitsIn.getTypes(), locs);
   }
+}
+
+void IfOp::build(OpBuilder& builder, OperationState& state, Value condition, ValueRange qubitsIn,
+                 function_ref<void(OpBuilder&, Location, ValueRange)> thenBuilder,
+                 function_ref<void(OpBuilder&, Location, ValueRange)> elseBuilder) {
+  assert(thenBuilder && "the then region is required");
+  build(builder, state, condition, qubitsIn, /*classicalTypes=*/{}, /*addThenBlock=*/true,
+        /*addElseBlock=*/static_cast<bool>(elseBuilder));
+
+  const OpBuilder::InsertionGuard guard(builder);
+  Block* thenBlock = &state.regions[0]->front();
+  builder.setInsertionPointToStart(thenBlock);
+  thenBuilder(builder, state.location, thenBlock->getArguments());
+  if (elseBuilder) {
+    Block* elseBlock = &state.regions[1]->front();
+    builder.setInsertionPointToStart(elseBlock);
+    elseBuilder(builder, state.location, elseBlock->getArguments());
+  }
+
+  auto thenYield = cast<YieldOp>(thenBlock->getTerminator());
+  const TypeRange classicalTypes = thenYield.getResults().drop_front(qubitsIn.size()).getTypes();
+  assert((elseBuilder || classicalTypes.empty()) &&
+         "an omitted else region requires that there are no classical results");
+  state.addTypes(classicalTypes);
 }
 
 /// Parses `%cond [(%a = %a_in, ...)] [-> <result types>] <region> [else <region>] [attr-dict]`. The leading result

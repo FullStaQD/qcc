@@ -27,8 +27,10 @@ def QCF_Dialect : Dialect {
         Example:
         ```mlir
         %q0, %q1 = qcc.static [0, 1] : !qcc.qubit
+
         %h = qcirc.single h %q0 : !qcc.qubit
         %m0, %bit = qcirc.measure z %h : !qcc.qubit -> i1
+
         // Flips %q1 if %q0 was measured as |1⟩.
         %q1_out = qcf.if %bit (%q = %q1) -> !qcc.qubit {
           %x = qcirc.single x %q : !qcc.qubit
@@ -40,7 +42,6 @@ def QCF_Dialect : Dialect {
     let name = "qcf";
     let cppNamespace = "::qcc::qcf";
 
-    // `!qcc.qubit` appears in our operations' assembly.
     let dependentDialects = ["::qcc::QccDialect"];
 }
 

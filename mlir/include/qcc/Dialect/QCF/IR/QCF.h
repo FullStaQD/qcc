@@ -11,11 +11,13 @@
 
 #include "qcc/Dialect/Qcc/IR/Qcc.h" // IWYU pragma: keep
 
-#include "mlir/Bytecode/BytecodeOpInterface.h"     // IWYU pragma: keep
 #include "mlir/IR/Builders.h"                      // IWYU pragma: keep
 #include "mlir/IR/Dialect.h"                       // IWYU pragma: keep
+#include "mlir/IR/OpImplementation.h"              // IWYU pragma: keep
 #include "mlir/Interfaces/ControlFlowInterfaces.h" // IWYU pragma: keep
 #include "mlir/Interfaces/SideEffectInterfaces.h"  // IWYU pragma: keep
+
+#include "llvm/ADT/STLFunctionalExtras.h" // IWYU pragma: keep
 
 //===----------------------------------------------------------------------===//
 // QCF Dialect
