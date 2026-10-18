@@ -3,7 +3,7 @@
 func.func @types_per_binding(%cond: i1) {
   %q0, %q1 = qcc.static [0, 1] : !qcc.qubit
   // One type per qubit, unlike in `qcirc`.
-  // expected-error @+1 {{expected a result type for each binding, got 1 result type(s) for 2 binding(s)}}
+  // expected-error @+1 {{expected 2 qubit result type(s), one per binding, but got only 1 result type(s)}}
   %r0, %r1 = qcf.if %cond (%a = %q0, %b = %q1) -> !qcc.qubit {
     qcf.yield %a, %b : !qcc.qubit, !qcc.qubit
   }
@@ -14,7 +14,7 @@ func.func @types_per_binding(%cond: i1) {
 
 func.func @qubit_without_binding(%cond: i1) {
   %q = qcc.static [0] : !qcc.qubit
-  // expected-error @+1 {{result #1 is a qubit without a binding: qubits leave only through the bindings}}
+  // expected-error @+1 {{result #1 is a qubit without a binding}}
   %r0, %r1 = qcf.if %cond (%a = %q) -> (!qcc.qubit, !qcc.qubit) {
     qcf.yield %a : !qcc.qubit
   }
@@ -27,7 +27,7 @@ func.func @else_names(%cond: i1) {
   %q0, %q1 = qcc.static [0, 1] : !qcc.qubit
   %r0, %r1 = qcf.if %cond (%a = %q0, %b = %q1) -> (!qcc.qubit, !qcc.qubit) {
     qcf.yield %a, %b : !qcc.qubit, !qcc.qubit
-  // expected-error @+1 {{expected 2 argument name(s) after 'else', one per binding, got 1}}
+  // expected-error @+1 {{expected 2 argument name(s), one per binding, got 1}}
   } else (%a) {
     qcf.yield %a, %a : !qcc.qubit, !qcc.qubit
   }

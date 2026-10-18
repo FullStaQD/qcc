@@ -78,12 +78,8 @@ def QCF_IfOp : QCF_Op<"if", [
     ::mlir::ResultRange getClassicalResults() { return getResults().drop_front(getQubitsIn().size()); }
 
     ::mlir::Block* getThenBlock() { return &getThenRegion().front(); }
-    YieldOp getThenYield();
-
     /// Returns null if the else region is omitted.
     ::mlir::Block* getElseBlock() { return getElseRegion().empty() ? nullptr : &getElseRegion().front(); }
-    /// Requires an else block.
-    YieldOp getElseYield();
   }];
 
   let hasCustomAssemblyFormat = 1;

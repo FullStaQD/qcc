@@ -29,10 +29,8 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h" // IWYU pragma: keep
 #include "llvm/ADT/SmallVectorExtras.h"
-#include "llvm/Support/SMLoc.h" // IWYU pragma: keep
 
 #include <cassert>
-#include <tuple> // IWYU pragma: keep
 
 using namespace mlir;
 using namespace qcc::qcf;
@@ -55,99 +53,76 @@ void IfOp::build(OpBuilder& builder, OperationState& state, Value condition, Val
 
   const SmallVector<Location> locs = llvm::map_to_vector(qubitsIn, [](Value qubit) { return qubit.getLoc(); });
   const OpBuilder::InsertionGuard guard(builder);
-  Region* thenRegion = state.addRegion();
-  if (addThenBlock) {
-    builder.createBlock(thenRegion, thenRegion->end(), qubitsIn.getTypes(), locs);
-  }
-  Region* elseRegion = state.addRegion();
-  if (addElseBlock) {
-    builder.createBlock(elseRegion, elseRegion->end(), qubitsIn.getTypes(), locs);
+  for (const bool addBlock : {addThenBlock, addElseBlock}) {
+    Region* region = state.addRegion();
+    if (addBlock) {
+      builder.createBlock(region, region->end(), qubitsIn.getTypes(), locs);
+    }
   }
 }
 
 /// Parses `%cond [(%a = %a_in, ...)] [-> <result types>] <region> [else [(%b, ...)] <region>] [attr-dict]`. The
-/// leading result types, one per binding, also type the bound qubits. With bindings, the else region names its own
-/// arguments, one per binding.
+/// leading result types, one per binding, type the bound qubits and the arguments of both regions.
 ParseResult IfOp::parse(OpAsmParser& parser, OperationState& result) {
   OpAsmParser::UnresolvedOperand condition;
   if (parser.parseOperand(condition)) {
     return failure();
   }
-
   SmallVector<OpAsmParser::Argument> bindings;
   SmallVector<OpAsmParser::UnresolvedOperand> qubitsIn;
   const OptionalParseResult hasBindings = parser.parseOptionalAssignmentList(bindings, qubitsIn);
-  if (hasBindings.has_value() && failed(*hasBindings)) {
+  if ((hasBindings.has_value() && failed(*hasBindings)) || parser.parseOptionalArrowTypeList(result.types)) {
     return failure();
   }
-
-  const SMLoc typesLoc = parser.getCurrentLocation();
-  SmallVector<Type> resultTypes;
-  if (parser.parseOptionalArrowTypeList(resultTypes)) {
-    return failure();
+  if (result.types.size() < qubitsIn.size()) {
+    return parser.emitError(parser.getCurrentLocation())
+           << "expected " << qubitsIn.size() << " qubit result type(s), one per binding, but got only "
+           << result.types.size() << " result type(s)";
   }
-  if (resultTypes.size() < bindings.size()) {
-    return parser.emitError(typesLoc) << "expected a result type for each binding, got " << resultTypes.size()
-                                      << " result type(s) for " << bindings.size() << " binding(s)";
+  const auto* unbound = llvm::find_if(ArrayRef(result.types).drop_front(qubitsIn.size()), qcc::isQubitOrQubitVector);
+  if (unbound != result.types.end()) {
+    return parser.emitError(parser.getCurrentLocation())
+           << "result #" << (unbound - result.types.begin()) << " is a qubit without a binding";
   }
-  const ArrayRef<Type> types = resultTypes;
-  const ArrayRef<Type> qubitTypes = types.take_front(bindings.size());
-  const auto* unbound = llvm::find_if(types.drop_front(bindings.size()), qcc::isQubitOrQubitVector);
-  if (unbound != types.end()) {
-    return parser.emitError(typesLoc) << "result #" << (unbound - types.begin())
-                                      << " is a qubit without a binding: qubits leave only through the bindings";
-  }
-
+  const ArrayRef<Type> qubitTypes = ArrayRef(result.types).take_front(qubitsIn.size());
   if (parser.resolveOperands(qubitsIn, qubitTypes, parser.getNameLoc(), result.operands) ||
       parser.resolveOperand(condition, parser.getBuilder().getI1Type(), result.operands)) {
     return failure();
   }
 
-  // The then region takes the bindings as its arguments.
-  for (auto [binding, type] : llvm::zip_equal(bindings, qubitTypes)) {
-    binding.type = type;
-  }
+  auto parseRegion = [&](Region& region, SmallVectorImpl<OpAsmParser::Argument>& arguments) -> ParseResult {
+    if (arguments.size() != qubitTypes.size()) {
+      return parser.emitError(parser.getCurrentLocation())
+             << "expected " << qubitTypes.size() << " argument name(s), one per binding, got " << arguments.size();
+    }
+    for (auto [argument, type] : llvm::zip_equal(arguments, qubitTypes)) {
+      argument.type = type;
+    }
+    return parser.parseRegion(region, arguments);
+  };
   Region* thenRegion = result.addRegion();
   Region* elseRegion = result.addRegion();
-  if (parser.parseRegion(*thenRegion, bindings)) {
+  if (parseRegion(*thenRegion, bindings)) {
     return failure();
   }
-  if (succeeded(parser.parseOptionalKeyword("else"))) {
-    // The else region takes the arguments named after `else`, typed like the bindings.
-    SmallVector<OpAsmParser::Argument> elseArguments;
-    if (!bindings.empty()) {
-      const SMLoc namesLoc = parser.getCurrentLocation();
-      if (parser.parseArgumentList(elseArguments, OpAsmParser::Delimiter::Paren)) {
-        return failure();
-      }
-      if (elseArguments.size() != bindings.size()) {
-        return parser.emitError(namesLoc)
-               << "expected " << bindings.size() << " argument name(s) after 'else', one per binding, got "
-               << elseArguments.size();
-      }
-      for (auto [argument, type] : llvm::zip_equal(elseArguments, qubitTypes)) {
-        argument.type = type;
-      }
-    }
-    if (parser.parseRegion(*elseRegion, elseArguments)) {
-      return failure();
-    }
-  }
-
-  if (parser.parseOptionalAttrDict(result.attributes)) {
+  // The else region names its own arguments.
+  SmallVector<OpAsmParser::Argument> elseArguments;
+  if (succeeded(parser.parseOptionalKeyword("else")) &&
+      ((!qubitsIn.empty() && parser.parseArgumentList(elseArguments, OpAsmParser::Delimiter::Paren)) ||
+       parseRegion(*elseRegion, elseArguments))) {
     return failure();
   }
-  result.addTypes(resultTypes);
-  return success();
+  return parser.parseOptionalAttrDict(result.attributes);
 }
 
 void IfOp::print(OpAsmPrinter& printer) {
   printer << " " << getCondition();
   if (!getQubitsIn().empty()) {
-    // The binding list names the arguments of the then region.
     printer << " (";
-    llvm::interleaveComma(llvm::zip(getThenRegion().getArguments(), getQubitsIn()), printer,
-                          [&](auto binding) { printer << std::get<0>(binding) << " = " << std::get<1>(binding); });
+    llvm::interleaveComma(llvm::zip(getThenRegion().getArguments(), getQubitsIn()), printer, [&](auto binding) {
+      auto [argument, qubit] = binding;
+      printer << argument << " = " << qubit;
+    });
     printer << ")";
   }
   printer.printOptionalArrowTypeList(getResultTypes());
@@ -156,20 +131,11 @@ void IfOp::print(OpAsmPrinter& printer) {
   if (!getElseRegion().empty()) {
     printer << " else ";
     if (!getQubitsIn().empty()) {
-      printer << "(";
-      printer.printOperands(getElseRegion().getArguments());
-      printer << ") ";
+      printer << "(" << getElseRegion().getArguments() << ") ";
     }
     printer.printRegion(getElseRegion(), /*printEntryBlockArgs=*/false);
   }
   printer.printOptionalAttrDict((*this)->getAttrs());
-}
-
-YieldOp IfOp::getThenYield() { return cast<YieldOp>(getThenBlock()->getTerminator()); }
-
-YieldOp IfOp::getElseYield() {
-  assert(getElseBlock() != nullptr && "the else region is omitted");
-  return cast<YieldOp>(getElseBlock()->getTerminator());
 }
 
 void IfOp::getSuccessorRegions(RegionBranchPoint point, SmallVectorImpl<RegionSuccessor>& regions) {
@@ -178,13 +144,9 @@ void IfOp::getSuccessorRegions(RegionBranchPoint point, SmallVectorImpl<RegionSu
     regions.emplace_back(getOperation());
     return;
   }
-  regions.emplace_back(&getThenRegion());
   // An omitted else region passes the bound qubits straight on to the results.
-  if (getElseRegion().empty()) {
-    regions.emplace_back(getOperation());
-  } else {
-    regions.emplace_back(&getElseRegion());
-  }
+  regions.emplace_back(&getThenRegion());
+  regions.push_back(getElseRegion().empty() ? RegionSuccessor(getOperation()) : RegionSuccessor(&getElseRegion()));
 }
 
 OperandRange IfOp::getEntrySuccessorOperands(RegionSuccessor /*successor*/) {
