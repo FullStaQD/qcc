@@ -5,6 +5,7 @@
 func.func @if_else() -> i1 {
   %a_in, %b_in, %c = qcc.static [0, 1, 2] : !qcc.qubit
   %c1, %bit = qcirc.measure z %c : !qcc.qubit -> i1
+
   %a_out, %b_out, %m = qcf.if %bit (%a = %a_in, %b = %b_in) : !qcc.qubit, !qcc.qubit => i1 {
     %a1, %b1 = qcirc.pair cx %a, %b : !qcc.qubit
     %b2, %m1 = qcirc.measure z %b1 : !qcc.qubit -> i1
@@ -13,6 +14,7 @@ func.func @if_else() -> i1 {
     %false = arith.constant false
     qcf.yield %a, %b, %false : !qcc.qubit, !qcc.qubit, i1
   }
+
   return %m : i1
 }
 // CHECK-LABEL: func.func @if_else
@@ -97,7 +99,7 @@ func.func @classical_capture(%cond: i1, %theta: f64) -> (i1, f64) {
 func.func @lanes_through_swap(%cond: i1) {
   %q0, %q1 = qcc.static [0, 1] : !qcc.qubit
   %r0, %r1 = qcf.if %cond (%a = %q0, %b = %q1) : !qcc.qubit, !qcc.qubit {
-    %b1, %a1 = qcirc.pair swap %b, %a : !qcc.qubit
+    %a1, %b1 = qcirc.pair swap %a, %b : !qcc.qubit
     qcf.yield %a1, %b1 : !qcc.qubit, !qcc.qubit
   }
   return
@@ -106,13 +108,18 @@ func.func @lanes_through_swap(%cond: i1) {
 // CHECK-SAME:  (%[[COND:.*]]: i1)
 // CHECK:         %[[Q:.*]]:2 = qcc.static [0, 1] : !qcc.qubit
 // CHECK-NEXT:    %{{.*}}:2 = qcf.if %[[COND]] (%[[A:.*]] = %[[Q]]#0, %[[B:.*]] = %[[Q]]#1) : !qcc.qubit, !qcc.qubit {
-// CHECK-NEXT:      %[[B1:.*]], %[[A1:.*]] = qcirc.pair swap %[[B]], %[[A]] : !qcc.qubit
+// CHECK-NEXT:      %[[A1:.*]], %[[B1:.*]] = qcirc.pair swap %[[A]], %[[B]] : !qcc.qubit
 // CHECK-NEXT:      qcf.yield %[[A1]], %[[B1]] : !qcc.qubit, !qcc.qubit
 // CHECK-NEXT:    }
 // CHECK-NEXT:    return
 
 // A vector binding may be taken apart. The check of the yield walks back from a yielded qubit along its lane and
 // stops silently at an op that is not a lane op, here `vector.from_elements`.
+//
+// TODO: VERIFICATION GAP. The position rule holds per element, but nothing checks the elements of a vector binding.
+// Yielding `vector.from_elements %h, %e0` (elements swapped), or trading an element for the scalar binding `%s`,
+// passes the verifier, yet is invalid IR. Closing the gap needs an element-wise analysis. It is not yet decided if or
+// how we are actually going to close the gap.
 func.func @vector_bindings(%cond: i1) {
   %q0, %q1, %q2 = qcc.static [0, 1, 2] : !qcc.qubit
   %v = vector.from_elements %q0, %q1 : vector<2x!qcc.qubit>
