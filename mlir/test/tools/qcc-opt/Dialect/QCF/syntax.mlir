@@ -1,7 +1,7 @@
 // RUN: qcc-opt %s | FileCheck %s
 // RUN: qcc-opt %s --mlir-print-op-generic | qcc-opt | FileCheck %s
 
-// The else region has the same arguments as the then region, printed once in the binding list.
+// The else region has the same arguments as the then region but can name them differently.
 func.func @if_else() -> i1 {
   %a_in, %b_in, %c = qcc.static [0, 1, 2] : !qcc.qubit
   %c1, %bit = qcirc.measure z %c : !qcc.qubit -> i1
@@ -10,9 +10,9 @@ func.func @if_else() -> i1 {
     %a1, %b1 = qcirc.pair cx %a, %b : !qcc.qubit
     %b2, %m1 = qcirc.measure z %b1 : !qcc.qubit -> i1
     qcf.yield %a1, %b2, %m1 : !qcc.qubit, !qcc.qubit, i1
-  } else {
+  } else (%x, %y) {
     %false = arith.constant false
-    qcf.yield %a, %b, %false : !qcc.qubit, !qcc.qubit, i1
+    qcf.yield %x, %y, %false : !qcc.qubit, !qcc.qubit, i1
   }
 
   return %m : i1
@@ -24,9 +24,9 @@ func.func @if_else() -> i1 {
 // CHECK-NEXT:      %[[A1:.*]], %[[B1:.*]] = qcirc.pair cx %[[A]], %[[B]] : !qcc.qubit
 // CHECK-NEXT:      %[[B2:.*]], %[[M1:.*]] = qcirc.measure z %[[B1]] : !qcc.qubit -> i1
 // CHECK-NEXT:      qcf.yield %[[A1]], %[[B2]], %[[M1]] : !qcc.qubit, !qcc.qubit, i1
-// CHECK-NEXT:    } else {
+// CHECK-NEXT:    } else (%[[X:.*]], %[[Y:.*]]) {
 // CHECK-NEXT:      %[[FALSE:.*]] = arith.constant false
-// CHECK-NEXT:      qcf.yield %[[A]], %[[B]], %[[FALSE]] : !qcc.qubit, !qcc.qubit, i1
+// CHECK-NEXT:      qcf.yield %[[X]], %[[Y]], %[[FALSE]] : !qcc.qubit, !qcc.qubit, i1
 // CHECK-NEXT:    }
 // CHECK-NEXT:    return %[[IF]]#2 : i1
 
@@ -79,7 +79,7 @@ func.func @classical_capture(%cond: i1, %theta: f64) -> (i1, f64) {
   %q_out, %flag, %angle = qcf.if %cond (%a = %q) -> (!qcc.qubit, i1, f64) {
     %rz = qcirc.single rz(%theta) %a : f64, !qcc.qubit
     qcf.yield %rz, %cond, %theta : !qcc.qubit, i1, f64
-  } else {
+  } else (%a) {
     qcf.yield %a, %cond, %theta : !qcc.qubit, i1, f64
   }
   return %flag, %angle : i1, f64
@@ -90,8 +90,8 @@ func.func @classical_capture(%cond: i1, %theta: f64) -> (i1, f64) {
 // CHECK-NEXT:    %[[IF:.*]]:3 = qcf.if %[[COND]] (%[[A:.*]] = %[[Q]]) -> (!qcc.qubit, i1, f64) {
 // CHECK-NEXT:      %[[RZ:.*]] = qcirc.single rz(%[[THETA]]) %[[A]] : f64, !qcc.qubit
 // CHECK-NEXT:      qcf.yield %[[RZ]], %[[COND]], %[[THETA]] : !qcc.qubit, i1, f64
-// CHECK-NEXT:    } else {
-// CHECK-NEXT:      qcf.yield %[[A]], %[[COND]], %[[THETA]] : !qcc.qubit, i1, f64
+// CHECK-NEXT:    } else (%[[A2:.*]]) {
+// CHECK-NEXT:      qcf.yield %[[A2]], %[[COND]], %[[THETA]] : !qcc.qubit, i1, f64
 // CHECK-NEXT:    }
 // CHECK-NEXT:    return %[[IF]]#1, %[[IF]]#2 : i1, f64
 
@@ -130,7 +130,7 @@ func.func @vector_bindings(%cond: i1) {
     %w = vector.from_elements %e0, %h : vector<2x!qcc.qubit>
     %s1 = qcirc.single x %s : !qcc.qubit
     qcf.yield %w, %s1 : vector<2x!qcc.qubit>, !qcc.qubit
-  } else {
+  } else (%vb, %s) {
     qcf.yield %vb, %s : vector<2x!qcc.qubit>, !qcc.qubit
   }
   return
@@ -146,8 +146,8 @@ func.func @vector_bindings(%cond: i1) {
 // CHECK-NEXT:      %[[W:.*]] = vector.from_elements %[[E0]], %[[H]] : vector<2x!qcc.qubit>
 // CHECK-NEXT:      %[[S1:.*]] = qcirc.single x %[[S]] : !qcc.qubit
 // CHECK-NEXT:      qcf.yield %[[W]], %[[S1]] : vector<2x!qcc.qubit>, !qcc.qubit
-// CHECK-NEXT:    } else {
-// CHECK-NEXT:      qcf.yield %[[VB]], %[[S]] : vector<2x!qcc.qubit>, !qcc.qubit
+// CHECK-NEXT:    } else (%[[VB2:.*]], %[[S2:.*]]) {
+// CHECK-NEXT:      qcf.yield %[[VB2]], %[[S2]] : vector<2x!qcc.qubit>, !qcc.qubit
 // CHECK-NEXT:    }
 // CHECK-NEXT:    return
 

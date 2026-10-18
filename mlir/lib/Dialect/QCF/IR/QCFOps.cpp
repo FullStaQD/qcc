@@ -65,8 +65,9 @@ void IfOp::build(OpBuilder& builder, OperationState& state, Value condition, Val
   }
 }
 
-/// Parses `%cond [(%a = %a_in, ...)] [-> <result types>] <region> [else <region>] [attr-dict]`. The leading result
-/// types, one per binding, also type the bound qubits.
+/// Parses `%cond [(%a = %a_in, ...)] [-> <result types>] <region> [else [(%b, ...)] <region>] [attr-dict]`. The
+/// leading result types, one per binding, also type the bound qubits. With bindings, the else region names its own
+/// arguments, one per binding.
 ParseResult IfOp::parse(OpAsmParser& parser, OperationState& result) {
   OpAsmParser::UnresolvedOperand condition;
   if (parser.parseOperand(condition)) {
@@ -102,7 +103,7 @@ ParseResult IfOp::parse(OpAsmParser& parser, OperationState& result) {
     return failure();
   }
 
-  // Both regions take the bindings as their arguments.
+  // The then region takes the bindings as its arguments.
   for (auto [binding, type] : llvm::zip_equal(bindings, qubitTypes)) {
     binding.type = type;
   }
@@ -111,8 +112,26 @@ ParseResult IfOp::parse(OpAsmParser& parser, OperationState& result) {
   if (parser.parseRegion(*thenRegion, bindings)) {
     return failure();
   }
-  if (succeeded(parser.parseOptionalKeyword("else")) && parser.parseRegion(*elseRegion, bindings)) {
-    return failure();
+  if (succeeded(parser.parseOptionalKeyword("else"))) {
+    // The else region takes the arguments named after `else`, typed like the bindings.
+    SmallVector<OpAsmParser::Argument> elseArguments;
+    if (!bindings.empty()) {
+      const SMLoc namesLoc = parser.getCurrentLocation();
+      if (parser.parseArgumentList(elseArguments, OpAsmParser::Delimiter::Paren)) {
+        return failure();
+      }
+      if (elseArguments.size() != bindings.size()) {
+        return parser.emitError(namesLoc)
+               << "expected " << bindings.size() << " argument name(s) after 'else', one per binding, got "
+               << elseArguments.size();
+      }
+      for (auto [argument, type] : llvm::zip_equal(elseArguments, qubitTypes)) {
+        argument.type = type;
+      }
+    }
+    if (parser.parseRegion(*elseRegion, elseArguments)) {
+      return failure();
+    }
   }
 
   if (parser.parseOptionalAttrDict(result.attributes)) {
@@ -125,9 +144,7 @@ ParseResult IfOp::parse(OpAsmParser& parser, OperationState& result) {
 void IfOp::print(OpAsmPrinter& printer) {
   printer << " " << getCondition();
   if (!getQubitsIn().empty()) {
-    // The binding list is printed once, with the names of the then region's arguments. Sibling regions number their
-    // values alike, so the arguments of the else region get the same names. Not so with `--mlir-print-unique-ssa-ids`:
-    // that output does not parse back (the generic form does).
+    // The binding list names the arguments of the then region.
     printer << " (";
     llvm::interleaveComma(llvm::zip(getThenRegion().getArguments(), getQubitsIn()), printer,
                           [&](auto binding) { printer << std::get<0>(binding) << " = " << std::get<1>(binding); });
@@ -138,6 +155,11 @@ void IfOp::print(OpAsmPrinter& printer) {
   printer.printRegion(getThenRegion(), /*printEntryBlockArgs=*/false);
   if (!getElseRegion().empty()) {
     printer << " else ";
+    if (!getQubitsIn().empty()) {
+      printer << "(";
+      printer.printOperands(getElseRegion().getArguments());
+      printer << ") ";
+    }
     printer.printRegion(getElseRegion(), /*printEntryBlockArgs=*/false);
   }
   printer.printOptionalAttrDict((*this)->getAttrs());

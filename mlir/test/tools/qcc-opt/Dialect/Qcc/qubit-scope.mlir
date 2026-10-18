@@ -91,7 +91,7 @@ func.func @binding_used_twice(%cond: i1) {
   // expected-error @+1 {{'qcf.if' op qubit binding #0 of region #1 has 2 uses, but qubit values are affine}}
   %r = qcf.if %cond (%a = %q) -> !qcc.qubit {
     qcf.yield %a : !qcc.qubit
-  } else {
+  } else (%a) {
     %h = qcirc.single h %a : !qcc.qubit
     %v = vector.from_elements %a : vector<1x!qcc.qubit>
     qcf.yield %h : !qcc.qubit

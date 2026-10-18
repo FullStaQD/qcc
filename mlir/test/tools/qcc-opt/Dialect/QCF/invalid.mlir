@@ -23,6 +23,19 @@ func.func @qubit_without_binding(%cond: i1) {
 
 // -----
 
+func.func @else_names(%cond: i1) {
+  %q0, %q1 = qcc.static [0, 1] : !qcc.qubit
+  %r0, %r1 = qcf.if %cond (%a = %q0, %b = %q1) -> (!qcc.qubit, !qcc.qubit) {
+    qcf.yield %a, %b : !qcc.qubit, !qcc.qubit
+  // expected-error @+1 {{expected 2 argument name(s) after 'else', one per binding, got 1}}
+  } else (%a) {
+    qcf.yield %a, %a : !qcc.qubit, !qcc.qubit
+  }
+  return
+}
+
+// -----
+
 func.func @classical_result_without_else(%cond: i1) {
   %q = qcc.static [0] : !qcc.qubit
   // expected-error @+1 {{'qcf.if' op must have an else region if it has classical results}}
@@ -95,7 +108,7 @@ func.func @yield_swapped_through_gates(%cond: i1) {
   // expected-error @+1 {{'qcf.if' op region #1 yields the qubit bound to argument #1 at position #0}}
   %r0, %r1 = qcf.if %cond (%a = %q0, %b = %q1) -> (!qcc.qubit, !qcc.qubit) {
     qcf.yield %a, %b : !qcc.qubit, !qcc.qubit
-  } else {
+  } else (%a, %b) {
     %b1, %a1 = qcirc.pair swap %b, %a : !qcc.qubit
     %b2, %m = qcirc.measure z %b1 : !qcc.qubit -> i1
     %b3 = qcirc.single h %b2 : !qcc.qubit

@@ -32,10 +32,11 @@ def QCF_IfOp : QCF_Op<"if", [
   let description = [{
         Runs the `then` region if `condition` is true, otherwise the `else` region.
 
-        The qubits the regions act on are bound in the binding list: `(%a = %a_in)` binds the qubit `%a_in` (or a
-        vector of qubits) to the argument `%a` of both regions. The regions must not capture qubits; classical values
-        may be captured. The qubit bound to argument `i` is yielded at position `i` by each region and leaves the op
-        as result `i`: in the example `%a_in`, `%a`, `%a1` and `%a_out` are the same qubit.
+        The qubits the regions act on are bound in the binding list: `(%a = %a_in)` binds the qubit `%a_in` (or a vector
+        of qubits) to the argument `%a` of the `then` region. The `else` region binds the qubits in the same order but
+        can choose different names. The regions must not capture qubits; classical values may be captured. The qubit
+        bound to argument `i` is yielded at position `i` by each region and leaves the op as result `i`: in the example
+        `%a_in`, `%a`, `%a1` and `%a_out` are the same qubit.
 
         Classical results follow the qubits, both in the results and in the yields, and they must not be qubits. The
         result types follow `->`, as for `scf.if`: the leading ones, one per binding, also type the bound qubits.
@@ -49,9 +50,9 @@ def QCF_IfOp : QCF_Op<"if", [
           %a1, %b1 = qcirc.pair cx %a, %b : !qcc.qubit
           %b2, %m1 = qcirc.measure z %b1 : !qcc.qubit -> i1
           qcf.yield %a1, %b2, %m1 : !qcc.qubit, !qcc.qubit, i1
-        } else {
+        } else (%x, %y) {
           %false = arith.constant false
-          qcf.yield %a, %b, %false : !qcc.qubit, !qcc.qubit, i1
+          qcf.yield %x, %y, %false : !qcc.qubit, !qcc.qubit, i1
         }
         ```
     }];
