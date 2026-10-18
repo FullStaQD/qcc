@@ -30,7 +30,7 @@ def QCF_Dialect : Dialect {
         %h = qcirc.single h %q0 : !qcc.qubit
         %m0, %bit = qcirc.measure z %h : !qcc.qubit -> i1
         // Flips %q1 if %q0 was measured as |1⟩.
-        %q1_out = qcf.if %bit (%q = %q1) : !qcc.qubit {
+        %q1_out = qcf.if %bit (%q = %q1) -> !qcc.qubit {
           %x = qcirc.single x %q : !qcc.qubit
           qcf.yield %x : !qcc.qubit
         }

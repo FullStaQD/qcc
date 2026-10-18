@@ -6,7 +6,7 @@ func.func @if_else() -> i1 {
   %a_in, %b_in, %c = qcc.static [0, 1, 2] : !qcc.qubit
   %c1, %bit = qcirc.measure z %c : !qcc.qubit -> i1
 
-  %a_out, %b_out, %m = qcf.if %bit (%a = %a_in, %b = %b_in) : !qcc.qubit, !qcc.qubit => i1 {
+  %a_out, %b_out, %m = qcf.if %bit (%a = %a_in, %b = %b_in) -> (!qcc.qubit, !qcc.qubit, i1) {
     %a1, %b1 = qcirc.pair cx %a, %b : !qcc.qubit
     %b2, %m1 = qcirc.measure z %b1 : !qcc.qubit -> i1
     qcf.yield %a1, %b2, %m1 : !qcc.qubit, !qcc.qubit, i1
@@ -20,7 +20,7 @@ func.func @if_else() -> i1 {
 // CHECK-LABEL: func.func @if_else
 // CHECK:         %[[Q:.*]]:3 = qcc.static [0, 1, 2] : !qcc.qubit
 // CHECK-NEXT:    %{{.*}}, %[[BIT:.*]] = qcirc.measure z %[[Q]]#2 : !qcc.qubit -> i1
-// CHECK-NEXT:    %[[IF:.*]]:3 = qcf.if %[[BIT]] (%[[A:.*]] = %[[Q]]#0, %[[B:.*]] = %[[Q]]#1) : !qcc.qubit, !qcc.qubit => i1 {
+// CHECK-NEXT:    %[[IF:.*]]:3 = qcf.if %[[BIT]] (%[[A:.*]] = %[[Q]]#0, %[[B:.*]] = %[[Q]]#1) -> (!qcc.qubit, !qcc.qubit, i1) {
 // CHECK-NEXT:      %[[A1:.*]], %[[B1:.*]] = qcirc.pair cx %[[A]], %[[B]] : !qcc.qubit
 // CHECK-NEXT:      %[[B2:.*]], %[[M1:.*]] = qcirc.measure z %[[B1]] : !qcc.qubit -> i1
 // CHECK-NEXT:      qcf.yield %[[A1]], %[[B2]], %[[M1]] : !qcc.qubit, !qcc.qubit, i1
@@ -33,7 +33,7 @@ func.func @if_else() -> i1 {
 // Without classical results the else region may be omitted: it would yield the bound qubits unchanged.
 func.func @if_without_else(%cond: i1) {
   %q = qcc.static [0] : !qcc.qubit
-  %q_out = qcf.if %cond (%a = %q) : !qcc.qubit {
+  %q_out = qcf.if %cond (%a = %q) -> !qcc.qubit {
     %x = qcirc.single x %a : !qcc.qubit
     qcf.yield %x : !qcc.qubit
   }
@@ -42,14 +42,14 @@ func.func @if_without_else(%cond: i1) {
 // CHECK-LABEL: func.func @if_without_else
 // CHECK-SAME:  (%[[COND:.*]]: i1)
 // CHECK:         %[[Q:.*]] = qcc.static [0] : !qcc.qubit
-// CHECK-NEXT:    %{{.*}} = qcf.if %[[COND]] (%[[A:.*]] = %[[Q]]) : !qcc.qubit {
+// CHECK-NEXT:    %{{.*}} = qcf.if %[[COND]] (%[[A:.*]] = %[[Q]]) -> !qcc.qubit {
 // CHECK-NEXT:      %[[X:.*]] = qcirc.single x %[[A]] : !qcc.qubit
 // CHECK-NEXT:      qcf.yield %[[X]] : !qcc.qubit
 // CHECK-NEXT:    }
 // CHECK-NEXT:    return
 
 func.func @without_bindings(%cond: i1, %value: i32) -> i32 {
-  %r = qcf.if %cond => i32 {
+  %r = qcf.if %cond -> i32 {
     qcf.yield %value : i32
   } else {
     %zero = arith.constant 0 : i32
@@ -62,7 +62,7 @@ func.func @without_bindings(%cond: i1, %value: i32) -> i32 {
 }
 // CHECK-LABEL: func.func @without_bindings
 // CHECK-SAME:  (%[[COND:.*]]: i1, %[[VALUE:.*]]: i32) -> i32
-// CHECK:         %[[IF:.*]] = qcf.if %[[COND]] => i32 {
+// CHECK:         %[[IF:.*]] = qcf.if %[[COND]] -> i32 {
 // CHECK-NEXT:      qcf.yield %[[VALUE]] : i32
 // CHECK-NEXT:    } else {
 // CHECK-NEXT:      %[[ZERO:.*]] = arith.constant 0 : i32
@@ -76,7 +76,7 @@ func.func @without_bindings(%cond: i1, %value: i32) -> i32 {
 // Classical values may be captured; several classical results follow the qubits.
 func.func @classical_capture(%cond: i1, %theta: f64) -> (i1, f64) {
   %q = qcc.static [0] : !qcc.qubit
-  %q_out, %flag, %angle = qcf.if %cond (%a = %q) : !qcc.qubit => i1, f64 {
+  %q_out, %flag, %angle = qcf.if %cond (%a = %q) -> (!qcc.qubit, i1, f64) {
     %rz = qcirc.single rz(%theta) %a : f64, !qcc.qubit
     qcf.yield %rz, %cond, %theta : !qcc.qubit, i1, f64
   } else {
@@ -87,7 +87,7 @@ func.func @classical_capture(%cond: i1, %theta: f64) -> (i1, f64) {
 // CHECK-LABEL: func.func @classical_capture
 // CHECK-SAME:  (%[[COND:.*]]: i1, %[[THETA:.*]]: f64) -> (i1, f64)
 // CHECK:         %[[Q:.*]] = qcc.static [0] : !qcc.qubit
-// CHECK-NEXT:    %[[IF:.*]]:3 = qcf.if %[[COND]] (%[[A:.*]] = %[[Q]]) : !qcc.qubit => i1, f64 {
+// CHECK-NEXT:    %[[IF:.*]]:3 = qcf.if %[[COND]] (%[[A:.*]] = %[[Q]]) -> (!qcc.qubit, i1, f64) {
 // CHECK-NEXT:      %[[RZ:.*]] = qcirc.single rz(%[[THETA]]) %[[A]] : f64, !qcc.qubit
 // CHECK-NEXT:      qcf.yield %[[RZ]], %[[COND]], %[[THETA]] : !qcc.qubit, i1, f64
 // CHECK-NEXT:    } else {
@@ -98,7 +98,7 @@ func.func @classical_capture(%cond: i1, %theta: f64) -> (i1, f64) {
 // A lane follows the qubit, not its state: after the swap `%a1` is still the qubit bound to `%a`.
 func.func @lanes_through_swap(%cond: i1) {
   %q0, %q1 = qcc.static [0, 1] : !qcc.qubit
-  %r0, %r1 = qcf.if %cond (%a = %q0, %b = %q1) : !qcc.qubit, !qcc.qubit {
+  %r0, %r1 = qcf.if %cond (%a = %q0, %b = %q1) -> (!qcc.qubit, !qcc.qubit) {
     %a1, %b1 = qcirc.pair swap %a, %b : !qcc.qubit
     qcf.yield %a1, %b1 : !qcc.qubit, !qcc.qubit
   }
@@ -107,7 +107,7 @@ func.func @lanes_through_swap(%cond: i1) {
 // CHECK-LABEL: func.func @lanes_through_swap
 // CHECK-SAME:  (%[[COND:.*]]: i1)
 // CHECK:         %[[Q:.*]]:2 = qcc.static [0, 1] : !qcc.qubit
-// CHECK-NEXT:    %{{.*}}:2 = qcf.if %[[COND]] (%[[A:.*]] = %[[Q]]#0, %[[B:.*]] = %[[Q]]#1) : !qcc.qubit, !qcc.qubit {
+// CHECK-NEXT:    %{{.*}}:2 = qcf.if %[[COND]] (%[[A:.*]] = %[[Q]]#0, %[[B:.*]] = %[[Q]]#1) -> (!qcc.qubit, !qcc.qubit) {
 // CHECK-NEXT:      %[[A1:.*]], %[[B1:.*]] = qcirc.pair swap %[[A]], %[[B]] : !qcc.qubit
 // CHECK-NEXT:      qcf.yield %[[A1]], %[[B1]] : !qcc.qubit, !qcc.qubit
 // CHECK-NEXT:    }
@@ -123,7 +123,7 @@ func.func @lanes_through_swap(%cond: i1) {
 func.func @vector_bindings(%cond: i1) {
   %q0, %q1, %q2 = qcc.static [0, 1, 2] : !qcc.qubit
   %v = vector.from_elements %q0, %q1 : vector<2x!qcc.qubit>
-  %v_out, %s_out = qcf.if %cond (%vb = %v, %s = %q2) : vector<2x!qcc.qubit>, !qcc.qubit {
+  %v_out, %s_out = qcf.if %cond (%vb = %v, %s = %q2) -> (vector<2x!qcc.qubit>, !qcc.qubit) {
     %e0 = vector.extract %vb[0] : !qcc.qubit from vector<2x!qcc.qubit>
     %e1 = vector.extract %vb[1] : !qcc.qubit from vector<2x!qcc.qubit>
     %h = qcirc.single h %e1 : !qcc.qubit
@@ -139,7 +139,7 @@ func.func @vector_bindings(%cond: i1) {
 // CHECK-SAME:  (%[[COND:.*]]: i1)
 // CHECK:         %[[Q:.*]]:3 = qcc.static [0, 1, 2] : !qcc.qubit
 // CHECK-NEXT:    %[[V:.*]] = vector.from_elements %[[Q]]#0, %[[Q]]#1 : vector<2x!qcc.qubit>
-// CHECK-NEXT:    %{{.*}}:2 = qcf.if %[[COND]] (%[[VB:.*]] = %[[V]], %[[S:.*]] = %[[Q]]#2) : vector<2x!qcc.qubit>, !qcc.qubit {
+// CHECK-NEXT:    %{{.*}}:2 = qcf.if %[[COND]] (%[[VB:.*]] = %[[V]], %[[S:.*]] = %[[Q]]#2) -> (vector<2x!qcc.qubit>, !qcc.qubit) {
 // CHECK-NEXT:      %[[E0:.*]] = vector.extract %[[VB]][0] : !qcc.qubit from vector<2x!qcc.qubit>
 // CHECK-NEXT:      %[[E1:.*]] = vector.extract %[[VB]][1] : !qcc.qubit from vector<2x!qcc.qubit>
 // CHECK-NEXT:      %[[H:.*]] = qcirc.single h %[[E1]] : !qcc.qubit
@@ -155,8 +155,8 @@ func.func @vector_bindings(%cond: i1) {
 // checked through it: `%a1` is the qubit bound to `%a`.
 func.func @nested(%c0: i1, %c1: i1) {
   %q0, %q1 = qcc.static [0, 1] : !qcc.qubit
-  %r0, %r1 = qcf.if %c0 (%a = %q0, %b = %q1) : !qcc.qubit, !qcc.qubit {
-    %b1, %a1 = qcf.if %c1 (%x = %b, %y = %a) : !qcc.qubit, !qcc.qubit {
+  %r0, %r1 = qcf.if %c0 (%a = %q0, %b = %q1) -> (!qcc.qubit, !qcc.qubit) {
+    %b1, %a1 = qcf.if %c1 (%x = %b, %y = %a) -> (!qcc.qubit, !qcc.qubit) {
       %x1, %y1 = qcirc.pair cz %x, %y : !qcc.qubit
       qcf.yield %x1, %y1 : !qcc.qubit, !qcc.qubit
     }
@@ -167,8 +167,8 @@ func.func @nested(%c0: i1, %c1: i1) {
 // CHECK-LABEL: func.func @nested
 // CHECK-SAME:  (%[[C0:.*]]: i1, %[[C1:.*]]: i1)
 // CHECK:         %[[Q:.*]]:2 = qcc.static [0, 1] : !qcc.qubit
-// CHECK-NEXT:    %{{.*}}:2 = qcf.if %[[C0]] (%[[A:.*]] = %[[Q]]#0, %[[B:.*]] = %[[Q]]#1) : !qcc.qubit, !qcc.qubit {
-// CHECK-NEXT:      %[[INNER:.*]]:2 = qcf.if %[[C1]] (%[[X:.*]] = %[[B]], %[[Y:.*]] = %[[A]]) : !qcc.qubit, !qcc.qubit {
+// CHECK-NEXT:    %{{.*}}:2 = qcf.if %[[C0]] (%[[A:.*]] = %[[Q]]#0, %[[B:.*]] = %[[Q]]#1) -> (!qcc.qubit, !qcc.qubit) {
+// CHECK-NEXT:      %[[INNER:.*]]:2 = qcf.if %[[C1]] (%[[X:.*]] = %[[B]], %[[Y:.*]] = %[[A]]) -> (!qcc.qubit, !qcc.qubit) {
 // CHECK-NEXT:        %[[X1:.*]], %[[Y1:.*]] = qcirc.pair cz %[[X]], %[[Y]] : !qcc.qubit
 // CHECK-NEXT:        qcf.yield %[[X1]], %[[Y1]] : !qcc.qubit, !qcc.qubit
 // CHECK-NEXT:      }

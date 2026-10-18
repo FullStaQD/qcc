@@ -61,7 +61,8 @@ void IfOp::build(OpBuilder& builder, OperationState& state, Value condition, Val
   }
 }
 
-/// Parses `%cond [(%a = %a_in, ...) : <qubit types>] [=> <classical types>] <region> [else <region>] [attr-dict]`.
+/// Parses `%cond [(%a = %a_in, ...)] [-> <result types>] <region> [else <region>] [attr-dict]`. The leading result
+/// types, one per binding, also type the bound qubits.
 ParseResult IfOp::parse(OpAsmParser& parser, OperationState& result) {
   OpAsmParser::UnresolvedOperand condition;
   if (parser.parseOperand(condition)) {
@@ -70,35 +71,26 @@ ParseResult IfOp::parse(OpAsmParser& parser, OperationState& result) {
 
   SmallVector<OpAsmParser::Argument> bindings;
   SmallVector<OpAsmParser::UnresolvedOperand> qubitsIn;
-  SmallVector<Type> qubitTypes;
   const OptionalParseResult hasBindings = parser.parseOptionalAssignmentList(bindings, qubitsIn);
-  if (hasBindings.has_value()) {
-    if (failed(*hasBindings) || parser.parseColon()) {
-      return failure();
-    }
-    const SMLoc typesLoc = parser.getCurrentLocation();
-    if (parser.parseTypeList(qubitTypes)) {
-      return failure();
-    }
-    if (qubitTypes.size() != bindings.size()) {
-      return parser.emitError(typesLoc) << "expected one type per binding, got " << qubitTypes.size() << " type(s) for "
-                                        << bindings.size() << " binding(s)";
-    }
+  if (hasBindings.has_value() && failed(*hasBindings)) {
+    return failure();
   }
 
-  // `=>` is not a token of its own.
-  SmallVector<Type> classicalTypes;
-  if (succeeded(parser.parseOptionalEqual())) {
-    if (parser.parseGreater()) {
-      return failure();
-    }
-    const SMLoc typesLoc = parser.getCurrentLocation();
-    if (parser.parseTypeList(classicalTypes)) {
-      return failure();
-    }
-    if (llvm::any_of(classicalTypes, qcc::isQubitOrQubitVector)) {
-      return parser.emitError(typesLoc) << "a classical result must not be a qubit: qubits leave through the bindings";
-    }
+  const SMLoc typesLoc = parser.getCurrentLocation();
+  SmallVector<Type> resultTypes;
+  if (parser.parseOptionalArrowTypeList(resultTypes)) {
+    return failure();
+  }
+  if (resultTypes.size() < bindings.size()) {
+    return parser.emitError(typesLoc) << "expected a result type for each binding, got " << resultTypes.size()
+                                      << " result type(s) for " << bindings.size() << " binding(s)";
+  }
+  const ArrayRef<Type> types = resultTypes;
+  const ArrayRef<Type> qubitTypes = types.take_front(bindings.size());
+  const auto* unbound = llvm::find_if(types.drop_front(bindings.size()), qcc::isQubitOrQubitVector);
+  if (unbound != types.end()) {
+    return parser.emitError(typesLoc) << "result #" << (unbound - types.begin())
+                                      << " is a qubit without a binding: qubits leave only through the bindings";
   }
 
   if (parser.resolveOperands(qubitsIn, qubitTypes, parser.getNameLoc(), result.operands) ||
@@ -122,8 +114,7 @@ ParseResult IfOp::parse(OpAsmParser& parser, OperationState& result) {
   if (parser.parseOptionalAttrDict(result.attributes)) {
     return failure();
   }
-  result.addTypes(qubitTypes);
-  result.addTypes(classicalTypes);
+  result.addTypes(resultTypes);
   return success();
 }
 
@@ -136,11 +127,9 @@ void IfOp::print(OpAsmPrinter& printer) {
     printer << " (";
     llvm::interleaveComma(llvm::zip(getThenRegion().getArguments(), getQubitsIn()), printer,
                           [&](auto binding) { printer << std::get<0>(binding) << " = " << std::get<1>(binding); });
-    printer << ") : " << getQubitsIn().getTypes();
+    printer << ")";
   }
-  if (!getClassicalResults().empty()) {
-    printer << " => " << getClassicalResults().getTypes();
-  }
+  printer.printOptionalArrowTypeList(getResultTypes());
   printer << " ";
   printer.printRegion(getThenRegion(), /*printEntryBlockArgs=*/false);
   if (!getElseRegion().empty()) {

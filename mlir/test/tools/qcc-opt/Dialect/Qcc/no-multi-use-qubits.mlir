@@ -22,7 +22,7 @@ func.func @valid_too() {
 func.func @valid_in_qubit_scope(%cond: i1) {
   %q0, %q1 = qcc.static [0, 1] : !qcc.qubit
   %v = vector.from_elements %q0, %q1 : vector<2x!qcc.qubit>
-  %v_out = qcf.if %cond (%a = %v) : vector<2x!qcc.qubit> {
+  %v_out = qcf.if %cond (%a = %v) -> vector<2x!qcc.qubit> {
     qcf.yield %a : vector<2x!qcc.qubit>
   }
   %e0 = vector.extract %v_out[0] : !qcc.qubit from vector<2x!qcc.qubit>
@@ -48,7 +48,7 @@ func.func @nested_region(%cond: i1) {
 func.func @nested_region_in_qubit_scope(%c0: i1, %c1: i1) {
   %q = qcc.static [0] : !qcc.qubit
   %v = vector.from_elements %q : vector<1x!qcc.qubit>
-  %r = qcf.if %c0 (%a = %v) : vector<1x!qcc.qubit> {
+  %r = qcf.if %c0 (%a = %v) -> vector<1x!qcc.qubit> {
     %e = vector.extract %a[0] : !qcc.qubit from vector<1x!qcc.qubit>
     scf.if %c1 {
       // expected-error @+1 {{'qcirc.single' op must be directly inside a function or a qubit scope}}
@@ -146,7 +146,7 @@ func.func @vector_operand_used_twice(%cond: i1) {
   %v = vector.from_elements %q0, %q1 : vector<2x!qcc.qubit>
   %e = vector.extract %v[0] : !qcc.qubit from vector<2x!qcc.qubit>
   // expected-error @+1 {{'qcf.if' op qubit operand #0 has 2 uses, but qubit values are affine}}
-  %r = qcf.if %cond (%a = %v) : vector<2x!qcc.qubit> {
+  %r = qcf.if %cond (%a = %v) -> vector<2x!qcc.qubit> {
     qcf.yield %a : vector<2x!qcc.qubit>
   }
   return
@@ -157,7 +157,7 @@ func.func @vector_operand_used_twice(%cond: i1) {
 func.func @if_result_used_twice(%cond: i1) {
   %q = qcc.static [0] : !qcc.qubit
   // expected-error @+1 {{'qcf.if' op qubit result #0 has 2 uses, but qubit values are affine}}
-  %r = qcf.if %cond (%a = %q) : !qcc.qubit {
+  %r = qcf.if %cond (%a = %q) -> !qcc.qubit {
     qcf.yield %a : !qcc.qubit
   }
   %h = qcirc.single h %r : !qcc.qubit
@@ -169,7 +169,7 @@ func.func @if_result_used_twice(%cond: i1) {
 
 func.func @yield_operand_used_twice(%cond: i1) {
   %q0, %q1 = qcc.static [0, 1] : !qcc.qubit
-  %r0, %r1 = qcf.if %cond (%a = %q0, %b = %q1) : !qcc.qubit, !qcc.qubit {
+  %r0, %r1 = qcf.if %cond (%a = %q0, %b = %q1) -> (!qcc.qubit, !qcc.qubit) {
     %v = vector.from_elements %a, %b : vector<2x!qcc.qubit>
     %e = vector.extract %v[0] : !qcc.qubit from vector<2x!qcc.qubit>
     // expected-error @+1 {{'qcf.yield' op qubit operand #0 has 2 uses, but qubit values are affine}}
