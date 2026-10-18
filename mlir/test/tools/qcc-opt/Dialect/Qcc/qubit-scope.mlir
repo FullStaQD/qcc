@@ -75,7 +75,11 @@ func.func @capture_of_outer_binding(%c0: i1, %c1: i1) {
       %e = vector.extract %a[0] : !qcc.qubit from vector<1x!qcc.qubit>
       qcf.yield
     }
-    qcf.yield %a : vector<1x!qcc.qubit>
+    // The capture is a use of `%a`, too. Yielding `%a` would be a second use, which the `qcf.yield` rejects: it
+    // consumes a vector as a whole. Taking `%a` apart may use it several times.
+    %e0 = vector.extract %a[0] : !qcc.qubit from vector<1x!qcc.qubit>
+    %w = vector.from_elements %e0 : vector<1x!qcc.qubit>
+    qcf.yield %w : vector<1x!qcc.qubit>
   }
   return
 }

@@ -140,7 +140,8 @@ def Qcc_QubitScopeImpl : NativeOpTrait<"QubitScope", [SingleBlock]> {
 }
 
 // An op whose regions may hold ops with `NoMultiUseQubits`. Qubits enter its regions only as arguments of their entry
-// blocks, the *bindings*, never by capture. Each region has at most one block.
-def Qcc_QubitScope : TraitList<[SingleBlock, Qcc_QubitScopeImpl]>;
+// blocks, the *bindings*, never by capture. Each region has at most one block. The op has `NoMultiUseQubits` itself:
+// the ops in its regions leave the checks of the enclosing function to it.
+def Qcc_QubitScope : TraitList<[SingleBlock, Qcc_QubitScopeImpl, Qcc_NoMultiUseQubits]>;
 
 #endif // INCLUDE_QCC_DIALECT_QCC_IR_QCCINTERFACES_TD_

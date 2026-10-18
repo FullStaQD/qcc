@@ -45,17 +45,16 @@ func.func @nested_region(%cond: i1) {
 
 // -----
 
-// Inside a qubit scope, but not directly: the parent of the gate is no qubit scope.
-func.func @nested_region_in_qubit_scope(%c0: i1, %c1: i1) {
-  %q = qcc.static [0] : !qcc.qubit
-  %v = vector.from_elements %q : vector<1x!qcc.qubit>
-  %r = qcf.if %c0 (%a = %v) -> vector<1x!qcc.qubit> {
-    %e = vector.extract %a[0] : !qcc.qubit from vector<1x!qcc.qubit>
+// Inside a qubit scope, but not directly: the parent of the inner `qcf.if` is no qubit scope.
+func.func @nested_region_in_qubit_scope(%c0: i1, %c1: i1, %c2: i1) {
+  qcf.if %c0 {
     scf.if %c1 {
-      // expected-error @+1 {{'qcirc.single' op must be directly inside a function or a qubit scope}}
-      %h = qcirc.single h %e : !qcc.qubit
+      // expected-error @+1 {{'qcf.if' op must be directly inside a function or a qubit scope}}
+      qcf.if %c2 {
+        qcf.yield
+      }
     }
-    qcf.yield %a : vector<1x!qcc.qubit>
+    qcf.yield
   }
   return
 }

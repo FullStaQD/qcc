@@ -27,8 +27,7 @@
 #include "mlir/Support/LLVM.h"
 
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/STLFunctionalExtras.h"
-#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/SmallVector.h" // IWYU pragma: keep
 #include "llvm/ADT/SmallVectorExtras.h"
 #include "llvm/Support/SMLoc.h" // IWYU pragma: keep
 
@@ -64,29 +63,6 @@ void IfOp::build(OpBuilder& builder, OperationState& state, Value condition, Val
   if (addElseBlock) {
     builder.createBlock(elseRegion, elseRegion->end(), qubitsIn.getTypes(), locs);
   }
-}
-
-void IfOp::build(OpBuilder& builder, OperationState& state, Value condition, ValueRange qubitsIn,
-                 IfBodyBuilderFn thenBuilder, IfBodyBuilderFn elseBuilder) {
-  assert(thenBuilder && "the then region is required");
-  build(builder, state, condition, qubitsIn, /*classicalTypes=*/{}, /*addThenBlock=*/true,
-        /*addElseBlock=*/static_cast<bool>(elseBuilder));
-
-  const OpBuilder::InsertionGuard guard(builder);
-  Block* thenBlock = &state.regions[0]->front();
-  builder.setInsertionPointToStart(thenBlock);
-  thenBuilder(builder, state.location, thenBlock->getArguments());
-  if (elseBuilder) {
-    Block* elseBlock = &state.regions[1]->front();
-    builder.setInsertionPointToStart(elseBlock);
-    elseBuilder(builder, state.location, elseBlock->getArguments());
-  }
-
-  auto thenYield = cast<YieldOp>(thenBlock->getTerminator());
-  const TypeRange classicalTypes = thenYield.getResults().drop_front(qubitsIn.size()).getTypes();
-  assert((elseBuilder || classicalTypes.empty()) &&
-         "an omitted else region requires that there are no classical results");
-  state.addTypes(classicalTypes);
 }
 
 /// Parses `%cond [(%a = %a_in, ...)] [-> <result types>] <region> [else <region>] [attr-dict]`. The leading result

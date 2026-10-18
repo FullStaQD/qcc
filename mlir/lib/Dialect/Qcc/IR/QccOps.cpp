@@ -109,7 +109,16 @@ LogicalResult qcc::detail::verifyQubitScope(Operation* op) {
     const WalkResult walk = region.walk<WalkOrder::PreOrder>([&](Operation* nested) {
       for (OpOperand& operand : nested->getOpOperands()) {
         Value value = operand.get();
-        if (isQubitOrQubitVector(value.getType()) && !op->isAncestor(value.getParentRegion()->getParentOp())) {
+        if (!isQubitOrQubitVector(value.getType())) {
+          continue;
+        }
+        Region* valueRegion = value.getParentRegion();
+        if (valueRegion == nullptr) {
+          nested->emitError("operation's operand is unlinked");
+          return WalkResult::interrupt();
+        }
+        Operation* valueParent = valueRegion->getParentOp();
+        if (valueParent == nullptr || !op->isAncestor(valueParent)) {
           InFlightDiagnostic diag = nested->emitOpError()
                                     << "illegal capture of qubit operand #" << operand.getOperandNumber();
           diag.attachNote(op->getLoc()) << "qubit scope here";

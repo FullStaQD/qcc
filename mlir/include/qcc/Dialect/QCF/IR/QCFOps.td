@@ -69,13 +69,7 @@ def QCF_IfOp : QCF_Op<"if", [
     // `addElseBlock` gets its block with one argument per bound qubit, but no terminator. A region not requested
     // stays empty, e.g. to move an existing region in.
     OpBuilder<(ins "::mlir::Value":$condition, "::mlir::ValueRange":$qubitsIn,
-                   "::mlir::TypeRange":$classicalTypes, "bool":$addThenBlock, "bool":$addElseBlock)>,
-    // Builds the bodies with `thenBuilder` and `elseBuilder`: each gets the bindings and creates the `qcf.yield`. The
-    // classical results take their types from the yield of the then region, as for `scf.if`. Without `elseBuilder`,
-    // the else region is omitted, which requires that there are no classical results.
-    OpBuilder<(ins "::mlir::Value":$condition, "::mlir::ValueRange":$qubitsIn,
-                   "::qcc::qcf::IfBodyBuilderFn":$thenBuilder,
-                   CArg<"::qcc::qcf::IfBodyBuilderFn", "nullptr">:$elseBuilder)>
+                   "::mlir::TypeRange":$classicalTypes, "bool":$addThenBlock, "bool":$addElseBlock)>
   ];
 
   let extraClassDeclaration = [{
