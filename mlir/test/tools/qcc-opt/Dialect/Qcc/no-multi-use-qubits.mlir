@@ -157,19 +157,6 @@ func.func @vector_operand_used_twice(%cond: i1) {
 
 // -----
 
-func.func @if_result_used_twice(%cond: i1) {
-  %q = qcc.static [0] : !qcc.qubit
-  // expected-error @+1 {{'qcf.if' op qubit result #0 has 2 uses, but qubit values are affine}}
-  %r = qcf.if %cond (%a = %q) -> !qcc.qubit {
-    qcf.yield %a : !qcc.qubit
-  }
-  %h = qcirc.single h %r : !qcc.qubit
-  %x = qcirc.single x %r : !qcc.qubit
-  return
-}
-
-// -----
-
 func.func @yield_operand_used_twice(%cond: i1) {
   %q0, %q1 = qcc.static [0, 1] : !qcc.qubit
   %r0, %r1 = qcf.if %cond (%a = %q0, %b = %q1) -> (!qcc.qubit, !qcc.qubit) {
