@@ -14,6 +14,7 @@
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/Location.h"
+#include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/OperationSupport.h"
@@ -28,10 +29,11 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/Support/SMLoc.h"
+#include "llvm/ADT/SmallVectorExtras.h"
+#include "llvm/Support/SMLoc.h" // IWYU pragma: keep
 
 #include <cassert>
-#include <tuple>
+#include <tuple> // IWYU pragma: keep
 
 using namespace mlir;
 using namespace qcc::qcf;
