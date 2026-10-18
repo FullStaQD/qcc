@@ -65,13 +65,13 @@ static void printStaticTypes(OpAsmPrinter& printer, Operation* op, TypeRange qub
 //===----------------------------------------------------------------------===//
 
 LogicalResult qcc::detail::verifyNoMultiUseQubits(Operation* op) {
-  // A qubit scope verifies its regions itself (see `verifyQubitScope`).
   Operation* parent = op->getParentOp();
   if (parent == nullptr || !parent->hasTrait<QubitScope>()) {
     auto function = dyn_cast_if_present<FunctionOpInterface>(parent);
     if (!function) {
       return op->emitOpError() << "must be directly inside a function or a qubit scope";
     }
+    // A qubit scope verifies its regions itself (see `verifyQubitScope`). Hence we only check functions here.
     if (!op->getParentRegion()->hasOneBlock()) {
       return op->emitOpError() << "must be in a single-block function";
     }
@@ -123,7 +123,7 @@ LogicalResult qcc::detail::verifyQubitScope(Operation* op) {
     }
   }
 
-  // Like a qubit result of an op (see `verifyNoMultiUseQubits`), a vector binding may be taken apart.
+  // Qubit bindings must be used at most once. We do not check vectors (more complex).
   for (Region& region : op->getRegions()) {
     for (BlockArgument binding : region.getArguments()) {
       if (isa<QubitType>(binding.getType()) && binding.hasNUsesOrMore(2)) {
