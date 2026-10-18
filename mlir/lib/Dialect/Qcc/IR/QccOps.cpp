@@ -110,9 +110,9 @@ LogicalResult qcc::verifyQubitScope(Operation* op) {
       for (OpOperand& operand : nested->getOpOperands()) {
         Value value = operand.get();
         if (isQubitOrQubitVector(value.getType()) && !op->isAncestor(value.getParentRegion()->getParentOp())) {
-          InFlightDiagnostic diag = op->emitOpError()
-                                    << "captures a qubit, but qubits enter a qubit scope only through its bindings";
-          diag.attachNote(nested->getLoc()) << "operand #" << operand.getOperandNumber() << " is from outside";
+          InFlightDiagnostic diag = nested->emitOpError()
+                                    << "illegal capture of qubit operand #" << operand.getOperandNumber();
+          diag.attachNote(op->getLoc()) << "qubit scope here";
           return WalkResult::interrupt();
         }
       }
