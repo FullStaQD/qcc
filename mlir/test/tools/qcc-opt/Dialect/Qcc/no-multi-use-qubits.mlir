@@ -18,16 +18,17 @@ func.func @valid_too() {
   return
 }
 
-// A qubit scope may hold the ops, and a vector result may be taken apart.
-func.func @valid_in_qubit_scope(%cond: i1) {
+// Unlike a qubit result, a vector result may be used several times: e.g. to take it apart.
+func.func @vector_result_taken_apart(%cond: i1) {
   %q0, %q1 = qcc.static [0, 1] : !qcc.qubit
   %v = vector.from_elements %q0, %q1 : vector<2x!qcc.qubit>
+  // We use qcf.if here because, at the time of writing this, it is the only op with the NoMultiUseQubits trait that
+  // produces vectors of qubits.
   %v_out = qcf.if %cond (%a = %v) -> vector<2x!qcc.qubit> {
     qcf.yield %a : vector<2x!qcc.qubit>
   }
   %e0 = vector.extract %v_out[0] : !qcc.qubit from vector<2x!qcc.qubit>
   %e1 = vector.extract %v_out[1] : !qcc.qubit from vector<2x!qcc.qubit>
-  %h = qcirc.single h %e0 : !qcc.qubit
   return
 }
 
@@ -140,7 +141,8 @@ func.func @operand_used_twice() {
 
 // -----
 
-// A vector operand is consumed as a whole: no other use.
+// A vector operand is consumed as a whole: no other use. Here qubit 0 would be used twice: in the `qcf.if` and by the
+// gate after it.
 func.func @vector_operand_used_twice(%cond: i1) {
   %q0, %q1 = qcc.static [0, 1] : !qcc.qubit
   %v = vector.from_elements %q0, %q1 : vector<2x!qcc.qubit>
@@ -149,6 +151,7 @@ func.func @vector_operand_used_twice(%cond: i1) {
   %r = qcf.if %cond (%a = %v) -> vector<2x!qcc.qubit> {
     qcf.yield %a : vector<2x!qcc.qubit>
   }
+  %h = qcirc.single h %e : !qcc.qubit
   return
 }
 

@@ -83,8 +83,13 @@ namespace qcc {
 /// - The operation sits directly in a qubit scope (see `QubitScope`) or in a function (`func.func` or any other
 ///   `FunctionOpInterface` operation). Such a function has a single block and no qubits among its arguments and
 ///   results.
-/// - Each scalar qubit result of the operation is used at most once.
-/// - Each qubit operand of the operation, scalar or vector, has no other use.
+/// - Each scalar qubit result of the operation is used at most once. A vector result may be used several times, to
+///   take it apart (`vector.extract`).
+/// - Each qubit operand of the operation, scalar or vector, has no other use. A vector operand is consumed as a whole,
+///   and if it is forbidden to also extract elements from it.
+///
+/// The use counts approximate the affine discipline of `QubitType`, which applies to each qubit of a vector, but they
+/// do not track the elements of a vector: taking the same element out twice and consuming both goes unnoticed.
 llvm::LogicalResult verifyNoMultiUseQubits(mlir::Operation* op);
 
 /// Corresponds to `Qcc_NoMultiUseQubits` in tablegen.

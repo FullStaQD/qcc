@@ -29,6 +29,12 @@ def Qcc_QubitType : TypeDef<Qcc_Dialect, "Qubit", [VectorElementTypeInterface]> 
         The type is *affine*: each value may be consumed at most once on any execution path (no-cloning). A value that
         is never consumed is discarded, which traces the qubit out.
 
+        A vector of qubits, e.g. `vector<2x!qcc.qubit>`, holds its qubits, and the discipline applies to each of them.
+        Taking an element out (`vector.extract`) yields the qubit, not a copy, and an operation that takes the vector
+        as a whole consumes all of its qubits. So once a qubit has been consumed through an element, the vector must
+        not be consumed as a whole, and the same element must not be taken out and consumed twice. To act on some of
+        the qubits, take the vector apart and build a new one from the results (`vector.from_elements`).
+
         Example:
         ```mlir
         %q0, %q1 = qcc.static [0, 1] : !qcc.qubit
