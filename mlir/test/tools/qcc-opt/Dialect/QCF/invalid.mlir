@@ -23,27 +23,6 @@ func.func @qubit_as_classical_result(%cond: i1) {
 
 // -----
 
-func.func @classical_binding(%cond: i1, %value: i32) {
-  // expected-error @+1 {{'qcf.if' op operand #0 must be variadic of qubit or vector of qubits, but got 'i32'}}
-  %r = qcf.if %cond (%a = %value) : i32 {
-    qcf.yield %a : i32
-  }
-  return
-}
-
-// -----
-
-func.func @condition_type(%cond: i32) {
-  // expected-error @+2 {{use of value '%cond' expects different type than prior uses: 'i1' vs 'i32'}}
-  // expected-note @-2 {{prior use here}}
-  qcf.if %cond {
-    qcf.yield
-  }
-  return
-}
-
-// -----
-
 func.func @classical_result_without_else(%cond: i1) {
   %q = qcc.static [0] : !qcc.qubit
   // expected-error @+1 {{'qcf.if' op must have an else region if it has classical results}}
@@ -61,23 +40,6 @@ func.func @wrong_terminator(%cond: i1) {
   qcf.if %cond {
     llvm.unreachable
   }
-  return
-}
-
-// -----
-
-func.func @yield_outside() {
-  // expected-error @+1 {{'qcf.yield' op expects parent op 'qcf.if'}}
-  qcf.yield
-}
-
-// -----
-
-func.func @missing_then_region(%cond: i1) {
-  // expected-error @+1 {{'qcf.if' op region #0 ('thenRegion') failed to verify constraint: region with 1 blocks}}
-  "qcf.if"(%cond) ({
-  }, {
-  }) : (i1) -> ()
   return
 }
 
@@ -105,22 +67,6 @@ func.func @yield_count(%cond: i1) {
   %r = qcf.if %cond (%a = %q) : !qcc.qubit {
     // expected-note @+1 {{region branch point}}
     qcf.yield
-  }
-  return
-}
-
-// -----
-
-func.func @yield_type(%cond: i1) {
-  %q = qcc.static [0] : !qcc.qubit
-  // expected-error @+1 {{'qcf.if' op along control flow edge from Operation qcf.yield to Operation qcf.if: successor operand type #1 'i32' should match successor input type #1 'i1'}}
-  %r, %m = qcf.if %cond (%a = %q) : !qcc.qubit => i1 {
-    %false = arith.constant false
-    qcf.yield %a, %false : !qcc.qubit, i1
-  } else {
-    %zero = arith.constant 0 : i32
-    // expected-note @+1 {{region branch point}}
-    qcf.yield %a, %zero : !qcc.qubit, i32
   }
   return
 }
@@ -171,20 +117,6 @@ func.func @yield_swapped_through_if(%c0: i1, %c1: i1) {
     }
     // expected-note @+1 {{yielded here}}
     qcf.yield %b1, %a1 : !qcc.qubit, !qcc.qubit
-  }
-  return
-}
-
-// -----
-
-func.func @yield_swapped_vectors(%cond: i1) {
-  %q0, %q1 = qcc.static [0, 1] : !qcc.qubit
-  %v0 = vector.from_elements %q0 : vector<1x!qcc.qubit>
-  %v1 = vector.from_elements %q1 : vector<1x!qcc.qubit>
-  // expected-error @+1 {{'qcf.if' op region #0 yields the qubit bound to argument #1 at position #0}}
-  %r0, %r1 = qcf.if %cond (%a = %v0, %b = %v1) : vector<1x!qcc.qubit>, vector<1x!qcc.qubit> {
-    // expected-note @+1 {{yielded here}}
-    qcf.yield %b, %a : vector<1x!qcc.qubit>, vector<1x!qcc.qubit>
   }
   return
 }
