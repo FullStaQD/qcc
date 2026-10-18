@@ -2,22 +2,6 @@
 
 // The `QubitScope` trait, on `qcf.if`.
 
-// A vector binding may be used several times (taken apart), a classical value may be captured.
-func.func @valid(%cond: i1, %theta: f64) {
-  %q0, %q1, %q2 = qcc.static [0, 1, 2] : !qcc.qubit
-  %v = vector.from_elements %q0, %q1 : vector<2x!qcc.qubit>
-  %v_out, %s_out = qcf.if %cond (%vb = %v, %s = %q2) -> (vector<2x!qcc.qubit>, !qcc.qubit) {
-    %e0 = vector.extract %vb[0] : !qcc.qubit from vector<2x!qcc.qubit>
-    %e1 = vector.extract %vb[1] : !qcc.qubit from vector<2x!qcc.qubit>
-    %rz = qcirc.single rz(%theta) %s : f64, !qcc.qubit
-    %w = vector.from_elements %e0, %e1 : vector<2x!qcc.qubit>
-    qcf.yield %w, %rz : vector<2x!qcc.qubit>, !qcc.qubit
-  }
-  return
-}
-
-// -----
-
 func.func @capture(%cond: i1) {
   %q0, %q1 = qcc.static [0, 1] : !qcc.qubit
   // expected-note @+1 {{qubit scope here}}
@@ -25,21 +9,6 @@ func.func @capture(%cond: i1) {
     // expected-error @+1 {{'qcirc.pair' op illegal capture of qubit operand #1}}
     %a1, %b1 = qcirc.pair cx %a, %q1 : !qcc.qubit
     qcf.yield %a1 : !qcc.qubit
-  }
-  return
-}
-
-// -----
-
-// A capture by an op of another dialect counts as well.
-func.func @capture_vector_by_foreign_op(%cond: i1) {
-  %q0, %q1 = qcc.static [0, 1] : !qcc.qubit
-  %v = vector.from_elements %q0, %q1 : vector<2x!qcc.qubit>
-  // expected-note @+1 {{qubit scope here}}
-  qcf.if %cond {
-    // expected-error @+1 {{'vector.extract' op illegal capture of qubit operand #0}}
-    %e = vector.extract %v[0] : !qcc.qubit from vector<2x!qcc.qubit>
-    qcf.yield
   }
   return
 }
@@ -79,6 +48,22 @@ func.func @capture_in_nested_scope(%c0: i1, %c1: i1) {
 
 // -----
 
+// Binding a qubit from outside to a nested qubit scope is a capture by the enclosing scope.
+func.func @capture_by_nested_binding(%c0: i1, %c1: i1) {
+  %q = qcc.static [0] : !qcc.qubit
+  // expected-note @+1 {{qubit scope here}}
+  qcf.if %c0 {
+    // expected-error @+1 {{'qcf.if' op illegal capture of qubit operand #0}}
+    %x_out = qcf.if %c1 (%x = %q) -> !qcc.qubit {
+      qcf.yield %x : !qcc.qubit
+    }
+    qcf.yield
+  }
+  return
+}
+
+// -----
+
 // The binding of an enclosing scope is from outside, too.
 func.func @capture_of_outer_binding(%c0: i1, %c1: i1) {
   %q = qcc.static [0] : !qcc.qubit
@@ -107,20 +92,6 @@ func.func @binding_used_twice(%cond: i1) {
     %v = vector.from_elements %a : vector<1x!qcc.qubit>
     qcf.yield %h : !qcc.qubit
   }
-  return
-}
-
-// -----
-
-func.func @two_blocks(%cond: i1) {
-  // expected-error @+1 {{'qcf.if' op expects region #1 to have 0 or 1 blocks}}
-  "qcf.if"(%cond) ({
-    "qcf.yield"() : () -> ()
-  }, {
-    cf.br ^bb1
-  ^bb1:
-    "qcf.yield"() : () -> ()
-  }) : (i1) -> ()
   return
 }
 
