@@ -64,7 +64,7 @@ static void printStaticTypes(OpAsmPrinter& printer, Operation* op, TypeRange qub
 // Shared verification
 //===----------------------------------------------------------------------===//
 
-LogicalResult qcc::verifyNoMultiUseQubits(Operation* op) {
+LogicalResult qcc::detail::verifyNoMultiUseQubits(Operation* op) {
   // A qubit scope verifies its regions itself (see `verifyQubitScope`).
   Operation* parent = op->getParentOp();
   if (parent == nullptr || !parent->hasTrait<QubitScope>()) {
@@ -102,7 +102,7 @@ LogicalResult qcc::verifyNoMultiUseQubits(Operation* op) {
   return success();
 }
 
-LogicalResult qcc::verifyQubitScope(Operation* op) {
+LogicalResult qcc::detail::verifyQubitScope(Operation* op) {
   // No capture. A nested qubit scope verifies its own regions, which suffices: a qubit from outside of `op` is also
   // from outside of the nested scope.
   for (Region& region : op->getRegions()) {
