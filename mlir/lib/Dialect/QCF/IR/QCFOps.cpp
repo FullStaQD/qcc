@@ -65,8 +65,7 @@ void IfOp::build(OpBuilder& builder, OperationState& state, Value condition, Val
 }
 
 void IfOp::build(OpBuilder& builder, OperationState& state, Value condition, ValueRange qubitsIn,
-                 function_ref<void(OpBuilder&, Location, ValueRange)> thenBuilder,
-                 function_ref<void(OpBuilder&, Location, ValueRange)> elseBuilder) {
+                 IfBodyBuilderFn thenBuilder, IfBodyBuilderFn elseBuilder) {
   assert(thenBuilder && "the then region is required");
   build(builder, state, condition, qubitsIn, /*classicalTypes=*/{}, /*addThenBlock=*/true,
         /*addElseBlock=*/static_cast<bool>(elseBuilder));

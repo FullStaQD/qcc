@@ -74,9 +74,8 @@ def QCF_IfOp : QCF_Op<"if", [
     // classical results take their types from the yield of the then region, as for `scf.if`. Without `elseBuilder`,
     // the else region is omitted, which requires that there are no classical results.
     OpBuilder<(ins "::mlir::Value":$condition, "::mlir::ValueRange":$qubitsIn,
-                   "::llvm::function_ref<void(::mlir::OpBuilder&, ::mlir::Location, ::mlir::ValueRange)>":$thenBuilder,
-                   CArg<"::llvm::function_ref<void(::mlir::OpBuilder&, ::mlir::Location, ::mlir::ValueRange)>",
-                        "nullptr">:$elseBuilder)>
+                   "::qcc::qcf::IfBodyBuilderFn":$thenBuilder,
+                   CArg<"::qcc::qcf::IfBodyBuilderFn", "nullptr">:$elseBuilder)>
   ];
 
   let extraClassDeclaration = [{
