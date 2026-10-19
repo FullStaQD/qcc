@@ -23,6 +23,7 @@ target_link_libraries(
           QCCAuxDialect
           QCCMagicDialect
           QCCQccDialect
+          QCCQCircDialect
           QCCQVecDialect
           QCCPrelimHLEPDialect
           # Passes
@@ -39,6 +40,7 @@ target_link_libraries(
           QCCQVecTransforms
           QCCQccTransforms
           QCCQCOToQVec
+          QCCQVecToMagic
           QCCToHiSEPQ
           QCCToQIR
           QCCAuxOutputRecording

@@ -1,0 +1,10 @@
+// RUN: qcc --list-targets | FileCheck %s
+
+// CHECK: hisepq
+// CHECK-NEXT: -mcpu=generic - {{.*}} (-mattr=+zvl64b,+xqvel8b) (-mqcl=256) [default]
+// One line per feature, as `llc -mattr=help` prints them.
+// CHECK-NEXT: -mattr=+zvl64b - VLEN of at least 64 bits
+// CHECK-NEXT: -mattr=+zvl128b - VLEN of at least 128 bits
+// CHECK:      -mattr=+zvl65536b - VLEN of at least 65536 bits
+// CHECK-NEXT: -mattr=+xqvel8b - Qubit element length of at least 8 bits, aka QELEN
+// CHECK-NEXT: -mattr=+xqvel16b - Qubit element length of at least 16 bits, aka QELEN

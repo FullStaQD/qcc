@@ -1,16 +1,20 @@
-// RUN: qcc-opt %s -convert-qvec-to-hisepq-intrinsics=min-vlen=64 --split-input-file --verify-diagnostics
+// RUN: qcc-opt %s -convert-qvec-to-hisepq-intrinsics="min-vlen=64 num-qubit-control-lines=128" --split-input-file \
+// RUN:   --verify-diagnostics
 
 // Validate pass options.
 // RUN: echo 'module {}' | not qcc-opt -convert-qvec-to-hisepq-intrinsics=min-vlen=100 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=CHECK-BAD-VLEN
 // RUN: echo 'module {}' | not qcc-opt -convert-qvec-to-hisepq-intrinsics=min-vlen=32 2>&1 \
 // RUN:   | FileCheck %s --check-prefix=CHECK-SMALL-VLEN
-// RUN: echo 'module {}' | not qcc-opt -convert-qvec-to-hisepq-intrinsics=qubit-element-width=32 2>&1 \
-// RUN:   | FileCheck %s --check-prefix=CHECK-QEW
+// RUN: echo 'module {}' | not qcc-opt -convert-qvec-to-hisepq-intrinsics=num-qubit-control-lines=65537 2>&1 \
+// RUN:   | FileCheck %s --check-prefix=CHECK-CONTROL-LINES
+// RUN: echo 'module {}' | not qcc-opt -convert-qvec-to-hisepq-intrinsics=num-qubit-control-lines=0 2>&1 \
+// RUN:   | FileCheck %s --check-prefix=CHECK-NO-CONTROL-LINES
 
 // CHECK-BAD-VLEN:   'min-vlen' expects a power of two of at least 64, got 100
 // CHECK-SMALL-VLEN: 'min-vlen' expects a power of two of at least 64, got 32
-// CHECK-QEW:    'qubit-element-width' expects 8 or 16, got 32
+// CHECK-CONTROL-LINES: 'num-qubit-control-lines' expects 1 to 65536, got 65537
+// CHECK-NO-CONTROL-LINES: 'num-qubit-control-lines' expects 1 to 65536, got 0
 
 func.func @unsupported_single_gate() {
   %q0 = qco.static 0 : !qco.qubit
@@ -69,12 +73,11 @@ func.func @qubit_vector_is_not_static(%q: !qco.qubit) {
 
 // -----
 
-// Qubit indices travel as i8, so each one has to fit in one.
 
 func.func @qubit_index_out_of_range() {
-  %q0 = qco.static 256 : !qco.qubit
+  %q0 = qco.static 128 : !qco.qubit
   %qs = vector.from_elements %q0 : vector<1x!qco.qubit>
-  // expected-error @+1 {{'qvec.single' op qubit index 256 does not fit in i8}}
+  // expected-error @+1 {{'qvec.single' op qubit index 128 exceeds the maximum of 127 for 128 qubit control lines}}
   %h = qvec.single h %qs : vector<1x!qco.qubit>
   func.return
 }

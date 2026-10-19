@@ -1,0 +1,13 @@
+add_mlir_dialect_library(
+  QCCQCircDialect
+  QCircDialect.cpp
+  DEPENDS
+  QCCQCircDialectIncGen
+  QCCQCircAttrsIncGen
+  QCCQCircOpsIncGen
+  LINK_LIBS
+  PRIVATE
+  MLIRIR
+  MLIRSupport
+  MLIRSideEffectInterfaces
+  QCCQccDialect)

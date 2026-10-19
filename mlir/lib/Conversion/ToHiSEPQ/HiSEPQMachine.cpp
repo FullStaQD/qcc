@@ -12,6 +12,7 @@
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/MLIRContext.h"
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/MathExtras.h"
 
 #include <cassert>
@@ -22,20 +23,32 @@ using namespace mlir;
 
 namespace qcc::hisepq {
 
-HiSEPQMachine::HiSEPQMachine(unsigned minVLen, unsigned qubitElementWidth)
-    : minVLen(minVLen), qubitElementWidth(qubitElementWidth) {
+HiSEPQMachine::HiSEPQMachine(unsigned minVLen, unsigned numQubitControlLines)
+    : minVLen(minVLen), qubitElementWidth(qubitElementWidthFor(numQubitControlLines)),
+      numQubitControlLines(numQubitControlLines) {
   assert(isSupportedMinVLen(minVLen) && "min VLEN has to be validated by the caller");
-  assert(isSupportedQubitElementWidth(qubitElementWidth) && "QEW has to be validated by the caller");
 }
 
 bool HiSEPQMachine::isSupportedMinVLen(unsigned minVLen) {
   return minVLen >= rvvBitsPerBlock && llvm::isPowerOf2_32(minVLen);
 }
 
-bool HiSEPQMachine::isSupportedQubitElementWidth(unsigned qubitElementWidth) {
-  // 8 and 16 are the only safe values for our currently hardcoded set of LMUL values; `knownMinElementsFor` asserts
-  // on anything wider.
-  return qubitElementWidth == 8 || qubitElementWidth == 16;
+bool HiSEPQMachine::isSupportedNumQubitControlLines(unsigned numQubitControlLines) {
+  return numQubitControlLines >= 1 && numQubitControlLines <= maxNumQubitControlLines();
+}
+
+unsigned HiSEPQMachine::maxNumQubitControlLines() {
+  return maxNumQubitControlLinesFor(supportedQubitElementWidths.back());
+}
+
+unsigned HiSEPQMachine::maxNumQubitControlLinesFor(unsigned qubitElementWidth) { return 1U << qubitElementWidth; }
+
+unsigned HiSEPQMachine::qubitElementWidthFor(unsigned numQubitControlLines) {
+  assert(isSupportedNumQubitControlLines(numQubitControlLines) &&
+         "qubit control line count has to be validated by the caller");
+  return *llvm::find_if(supportedQubitElementWidths, [&](unsigned qubitElementWidth) {
+    return numQubitControlLines <= maxNumQubitControlLinesFor(qubitElementWidth);
+  });
 }
 
 unsigned HiSEPQMachine::knownMinElementsFor(unsigned lmul8) const {
@@ -47,8 +60,6 @@ unsigned HiSEPQMachine::knownMinElementsFor(unsigned lmul8) const {
 }
 
 unsigned HiSEPQMachine::maxQubits() const { return vscale() * knownMinElementsFor(supportedLMul8.back()); }
-
-uint64_t HiSEPQMachine::maxQubitIndex() const { return (uint64_t{1} << qubitElementWidth) - 1; }
 
 std::optional<VectorType> HiSEPQMachine::qubitVectorType(MLIRContext* ctx, unsigned numQubits) const {
   for (unsigned lmul8 : supportedLMul8) {

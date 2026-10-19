@@ -9,8 +9,10 @@
 
 #include "qcc/Conversion/AffineRaise/AffineRaise.h"
 #include "qcc/Conversion/Aux_/AuxOutputRecording.h"
+#include "qcc/Conversion/Aux_/AuxUnpackRecordInt.h"
 #include "qcc/Conversion/JaspToQC/JaspToQC.h"
 #include "qcc/Conversion/QCOToQVec/QCOToQVec.h"
+#include "qcc/Conversion/QVecToMagic/QVecToMagic.h"
 #include "qcc/Conversion/ToHiSEPQ/ToHiSEPQ.h"
 #include "qcc/Conversion/ToQIR/ToQIR.h"
 #include "qcc/Dialect/Aux_/IR/Aux_.h"
@@ -18,6 +20,7 @@
 #include "qcc/Dialect/Magic/IR/Magic.h"
 #include "qcc/Dialect/Magic/Transforms/Passes.h"
 #include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEP.h"
+#include "qcc/Dialect/QCirc/IR/QCirc.h"
 #include "qcc/Dialect/QVec/IR/QVec.h"
 #include "qcc/Dialect/QVec/Transforms/Passes.h"
 #include "qcc/Dialect/Qcc/IR/Qcc.h"
@@ -84,6 +87,7 @@ int main(int argc, char** argv) {
     qcc::aux::AuxDialect,
     qcc::magic::MagicDialect,
     qcc::QccDialect,
+    qcc::qcirc::QCircDialect,
     qcc::qvec::QVecDialect,
     qcc::prelimhlep::PrelimHLEPDialect
       // clang-format on
@@ -115,19 +119,21 @@ int main(int argc, char** argv) {
   qcc::registerPrepToQIR();
   qcc::registerFinalizeToQIR();
   qcc::registerAuxOutputRecording();
+  qcc::registerAuxUnpackRecordInt();
   qcc::registerJaspCheckStaticQubitAllocation();
   qcc::registerConvertMemrefToStaticQubits();
   mlir::registerConvertFuncToLLVMPass();
   qcc::registerConvertQIRToHiSEPQIntrinsics();
   qcc::registerEmitHiSEPQStart();
   qcc::registerConvertQCOToQVec();
+  qcc::registerConvertQVecToMagic();
   qcc::registerConvertQVecToHiSEPQIntrinsics();
   qcc::registerQVecMerge();
   qcc::registerQVecToRZZ();
   qcc::registerQVecToUZXZ();
   qcc::registerQVecFuseZXZ();
   qcc::registerQVecLayer();
-  qcc::magic::registerMagicVerify();
+  qcc::magic::registerMagicPasses();
   qcc::registerQccAttachDevice();
   mlir::registerQCToQCO();
 

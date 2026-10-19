@@ -19,8 +19,8 @@ include "mlir/IR/EnumAttr.td"
 // TODO: The gate set enums are fixed for now. In the future we might want to make the gate set configurable: It could
 // be queried via QDMI.
 
-class QVec_GateCase<string sym, int val, string str, int arity> : I32EnumCase<sym, val, str> {
-  int numParams = arity;
+class QVec_GateCase<string sym, int val, string str, int numParamsVal> : I32EnumCase<sym, val, str> {
+  int numParams = numParamsVal;
 }
 
 def QVec_SingleGateKind : I32Enum<"SingleGateKind", "single-qubit gate kind", [

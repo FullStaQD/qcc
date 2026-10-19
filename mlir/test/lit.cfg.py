@@ -33,14 +33,21 @@ llvm_config.use_default_substitutions()
 # `Inputs` directories hold files that tests read (e.g. device files), not tests.
 config.excludes = ["Inputs"]
 
+# `Unit` is the nested suite of the gtest unit tests. Its site config only
+# exists when qcc was configured with QCC_INCLUDE_UNITTESTS.
+if not config.include_unittests:
+    config.excludes.append("Unit")
+
 # Gate HiSEP-Q target tests: only available when qcc was built with the HiSEP-Q
 # target (QCC_ENABLE_HISEPQ). Tests opt in via `REQUIRES: hisepq` (or exclude
 # with `UNSUPPORTED: hisepq`).
 if config.enable_hisepq:
     config.available_features.add("hisepq")
 
-# test_exec_root: The root path where tests should be run.
-config.test_exec_root = Path(config.project_binary_dir) / "test"
+# test_exec_root: The root path where tests should be run. It must be the
+# directory of the generated lit.site.cfg.py because lit looks up the site
+# configs of nested suites (`Unit`) relative to it.
+config.test_exec_root = Path(config.project_binary_dir) / "mlir" / "test"
 config.project_tools_dir = Path(config.project_binary_dir) / "bin"
 
 # Tweak the PATH to include the tools dir.
@@ -82,6 +89,10 @@ if config.enable_hisepq:
 # Tests opt in via `REQUIRES: lld`.
 if shutil.which("ld.lld", path=config.environment["PATH"]) is not None:
     config.available_features.add("lld")
+
+# `magic-runner` is a simulator for MAGIC programs.
+magic_runner = Path(config.project_source_dir) / "mlir" / "utils" / "magic-runner"
+config.substitutions.append((r"\bmagic-runner\b", f'"{sys.executable}" {magic_runner}'))
 
 # If `qir-runner` is not already available in the environment, fall back to
 # running it ephemerally via `uvx`.

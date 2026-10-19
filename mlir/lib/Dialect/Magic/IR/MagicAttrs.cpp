@@ -19,7 +19,7 @@
 #include "llvm/ADT/TypeSwitch.h" // IWYU pragma: keep
 
 #include <cstdint>
-#include <utility>
+#include <iterator>
 
 using namespace mlir;
 using namespace qcc::magic;
@@ -48,7 +48,7 @@ LogicalResult TrapAttr::verify(function_ref<InFlightDiagnostic()> emitError, int
   if (capacity < 1) {
     return emitError() << "capacity must be at least 1, got " << capacity;
   }
-  if (std::cmp_not_equal(couplings.size(), capacity)) {
+  if (std::ssize(couplings) != capacity) {
     return emitError() << "expected one coupling matrix per occupancy 1.." << capacity << ", got " << couplings.size();
   }
 
@@ -74,6 +74,9 @@ LogicalResult TrapAttr::verify(function_ref<InFlightDiagnostic()> emitError, int
         if (values[(i * numIons) + j] != values[(j * numIons) + i]) {
           return emitError() << "coupling matrix for " << numIons << " ions must be symmetric";
         }
+        if (values[(i * numIons) + j] <= 0.0) {
+          return emitError() << "coupling matrix for " << numIons << " ions must be positive off the diagonal";
+        }
       }
     }
   }
@@ -86,7 +89,7 @@ LogicalResult TrapAttr::verify(function_ref<InFlightDiagnostic()> emitError, int
 //===----------------------------------------------------------------------===//
 
 LogicalResult DeviceAttr::verify(function_ref<InFlightDiagnostic()> emitError, StringRef name, int64_t timeUnitNs,
-                                 ArrayRef<int64_t> initialOccupancies, ArrayRef<TrapAttr> traps) {
+                                 ArrayRef<TrapAttr> traps) {
   if (name.empty()) {
     return emitError() << "name must not be empty";
   }
@@ -96,19 +99,9 @@ LogicalResult DeviceAttr::verify(function_ref<InFlightDiagnostic()> emitError, S
   if (traps.empty()) {
     return emitError() << "expected at least one trap";
   }
-  if (initialOccupancies.size() != traps.size()) {
-    return emitError() << "expected one initial occupancy per trap, got " << initialOccupancies.size()
-                       << " occupancies for " << traps.size() << " traps";
-  }
-
-  for (auto [trap, occupancy] : llvm::enumerate(initialOccupancies)) {
-    if (!traps[trap]) {
+  for (auto [trap, attr] : llvm::enumerate(traps)) {
+    if (!attr) {
       return emitError() << "trap " << trap << " is missing";
-    }
-    const int64_t capacity = traps[trap].getCapacity();
-    if (occupancy < 0 || occupancy > capacity) {
-      return emitError() << "initial occupancy of trap " << trap << " must be in 0.." << capacity << ", got "
-                         << occupancy;
     }
   }
 

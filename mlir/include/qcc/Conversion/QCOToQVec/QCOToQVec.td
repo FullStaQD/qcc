@@ -39,6 +39,7 @@ def ConvertQCOToQVec : Pass<"convert-qco-to-qvec", "mlir::ModuleOp"> {
 
   let dependentDialects = [
     "mlir::qco::QCODialect",
+    "mlir::scf::SCFDialect",
     "mlir::vector::VectorDialect",
     "qcc::qvec::QVecDialect"
   ];

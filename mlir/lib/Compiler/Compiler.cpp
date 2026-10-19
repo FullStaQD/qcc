@@ -11,6 +11,9 @@
 
 #include "qcc/Conversion/AffineRaise/AffineRaise.h"
 #include "qcc/Conversion/JaspToQC/JaspToQC.h"
+#include "qcc/Dialect/Qcc/Transforms/Passes.h"
+#include "qcc/QuantumDevice/QuantumDeviceRegistry.h"
+#include "qcc/Target/TargetRegistry.h"
 
 #include "mlir/Conversion/AffineToStandard/AffineToStandard.h"
 #include "mlir/Dialect/Affine/Transforms/Passes.h"
@@ -21,6 +24,7 @@
 #include "mlir/Pass/PassRegistry.h"
 #include "mlir/Transforms/Passes.h"
 
+#include <llvm/ADT/StringRef.h>
 #include <llvm/Support/ErrorHandling.h>
 
 /// Lower Qrisp to QC, QCO and standard MLIR dialects.
@@ -28,9 +32,17 @@ static void addLoweringQrisp(mlir::PassManager& pm);
 
 namespace qcc {
 
-void buildPipeline(mlir::PassManager& pm, const Target* target, const TargetOptions& targetOptions) {
+mlir::LogicalResult buildPipeline(mlir::PassManager& pm, const Target* target, llvm::ArrayRef<FeatureFlag> features,
+                                  unsigned numQubitControlLines, const QuantumDeviceKind* quantumDevice,
+                                  llvm::StringRef deviceDescription) {
+  if (!deviceDescription.empty()) {
+    QccAttachDeviceOptions attachOptions;
+    attachOptions.file = deviceDescription.str();
+    pm.addPass(qcc::createQccAttachDevice(attachOptions));
+  }
   addLoweringQrisp(pm);
-  target->addLoweringPasses(pm, targetOptions);
+  quantumDevice->addLoweringPasses(pm);
+  return target->addLoweringPasses(pm, features, numQubitControlLines);
 }
 
 } // namespace qcc
@@ -59,9 +71,6 @@ static void addLoweringQrisp(mlir::PassManager& pm) {
   bufferizeOptions.allowReturnAllocsFromLoops = true;
   bufferizeOptions.bufferizeFunctionBoundaries = true;
   pm.addPass(mlir::bufferization::createOneShotBufferizePass(bufferizeOptions));
-
-  // To facilitate data flow analysis, memory allocation is "hoisted out of loops" whenever possible.
-  pm.addNestedPass<mlir::func::FuncOp>(mlir::bufferization::createBufferLoopHoistingPass());
 
   // Leftover `linalg` operations are converted to `affine` loops.
   pm.addNestedPass<mlir::func::FuncOp>(mlir::createConvertLinalgToAffineLoopsPass());

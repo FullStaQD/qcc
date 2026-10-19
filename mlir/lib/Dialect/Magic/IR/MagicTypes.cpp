@@ -116,10 +116,10 @@ SmallVector<int64_t> IonChainType::getIons() const {
   return llvm::map_to_vector(getSlots(), [](const IonSlot& slot) { return slot.ion; });
 }
 
-unsigned IonChainType::getPosition(int64_t ion) const {
+int64_t IonChainType::getPosition(int64_t ion) const {
   const auto* it = llvm::find_if(getSlots(), [ion](const IonSlot& slot) { return slot.ion == ion; });
   assert(it != getSlots().end() && "ion is not in the chain");
-  return static_cast<unsigned>(it - getSlots().begin());
+  return it - getSlots().begin();
 }
 
 bool IonChainType::isActive(int64_t ion) const { return getSlots()[getPosition(ion)].active; }
@@ -134,11 +134,11 @@ SmallVector<int64_t> IonChainType::getActiveIons() const {
   return ions;
 }
 
-SmallVector<unsigned> IonChainType::getActivePositions() const {
-  SmallVector<unsigned> positions;
-  for (auto [position, slot] : llvm::enumerate(getSlots())) {
-    if (slot.active) {
-      positions.push_back(static_cast<unsigned>(position));
+SmallVector<int64_t> IonChainType::getActivePositions() const {
+  SmallVector<int64_t> positions;
+  for (int64_t position = 0; position < getNumIons(); ++position) {
+    if (getSlots()[position].active) {
+      positions.push_back(position);
     }
   }
   return positions;

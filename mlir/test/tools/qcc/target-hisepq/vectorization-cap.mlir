@@ -1,4 +1,4 @@
-// RUN: qcc --target=hisepq --min-vlen=64 --qubit-element-width=16 --compile-to=mlir %s | FileCheck %s
+// RUN: qcc --target=hisepq -mattr=+zvl64b,+xqvel16b -mqcl=300 --compile-to=mlir %s | FileCheck %s
 
 
 func.func @main() attributes { qcc.entry_point } {

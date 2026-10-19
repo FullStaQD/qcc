@@ -91,7 +91,10 @@ def ConvertQVecToHiSEPQIntrinsics : Pass<"convert-qvec-to-hisepq-intrinsics", "m
       The machine is described by two pass options:
 
       - `min-vlen`, the guaranteed lower bound on VLEN, and
-      - `qubit-element-width`, or QEW, how many bits one qubit index occupies (used as SEW for qubit instructions).
+      - `num-qubit-control-lines`, how many qubit control lines the machine drives.
+
+      QEW, how many bits one qubit index occupies (used as SEW for qubit instructions), is the narrowest supported
+      width addressing every control line.
 
       Together they select the narrowest `N` that fits all qubits, or error if the vector register capacity is
       exceeded even at the highest LMUL.
@@ -101,8 +104,8 @@ def ConvertQVecToHiSEPQIntrinsics : Pass<"convert-qvec-to-hisepq-intrinsics", "m
         qubit indices are known at compile time.
         TODO: Lift this once the dialect grows dynamic qubits. Then the qubit vector becomes a runtime value and the
         constant folding here turns into a type conversion.
-      - Qubit indices are encoded in an unsigned `i{QEW}`, and there are no more qubits than LMUL 8 holds at the minimum
-        VLEN.
+      - Qubit indices are below `num-qubit-control-lines` and encoded in an unsigned `i{QEW}`, and there are no more
+        qubits than LMUL 8 holds at the minimum VLEN.
 
       Gates without an intrinsic are rejected (error).
 
@@ -116,8 +119,8 @@ def ConvertQVecToHiSEPQIntrinsics : Pass<"convert-qvec-to-hisepq-intrinsics", "m
   let options = [
     Option<"minVLen", "min-vlen", "unsigned", /*default=*/"64",
            "Guaranteed lower bound on VLEN in bits; a power of two, at least 64.">,
-    Option<"qubitElementWidth", "qubit-element-width", "unsigned", /*default=*/"8",
-           "Number of bits one qubit index occupies (QEW); either 8 or 16.">
+    Option<"numQubitControlLines", "num-qubit-control-lines", "unsigned", /*default=*/"8",
+           "Number of qubit control lines the machine drives; at most 65536.">
   ];
 
   let dependentDialects = [

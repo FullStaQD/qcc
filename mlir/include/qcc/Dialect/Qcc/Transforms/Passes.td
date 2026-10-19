@@ -22,8 +22,7 @@ def QccAttachDevice : Pass<"qcc-attach-device", "mlir::ModuleOp"> {
       ```mlir
       #trap = #magic.trap<capacity = 2, couplings = [dense<0.0> : tensor<1x1xf64>,
                                                      dense<[[0.0, 1.0], [1.0, 0.0]]> : tensor<2x2xf64>]>
-      module attributes {qcc.device = #magic.device<name = "two-trap", time_unit_ns = 1000,
-                                                    initial_occupancies = [2, 1], traps = [#trap, #trap]>} {}
+      module attributes {qcc.device = #magic.device<name = "two-trap", time_unit_ns = 1000, traps = [#trap, #trap]>} {}
       ```
 
       Fails if the file cannot be read, carries no `qcc.device` attribute, or if the module already has one.

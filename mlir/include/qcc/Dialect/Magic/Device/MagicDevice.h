@@ -24,14 +24,14 @@
 
 namespace qcc::magic {
 
-using TrapId = unsigned;
-using IonCount = unsigned;
+using TrapId = int64_t;
+using IonCount = int64_t;
 /// Integer multiples of the device's base time unit, the unit of `magic.delay`.
 using Ticks = int64_t;
 
 /// Coupling strengths of one chain of `n` ions: symmetric, zero diagonal, indexed by chain position (front = 0).
 ///
-/// Unit: rad/s (TODO: to be confirmed by eleQtron).
+/// Unit: rad/s, see `magic.delay` for how the coupling acts (TODO: both to be confirmed by eleQtron).
 class CouplingMatrix {
 public:
   CouplingMatrix() = default;
@@ -43,7 +43,7 @@ public:
   [[nodiscard]] IonCount size() const { return numIons; }
 
   /// The coupling between the ions at chain positions `i` and `j`.
-  [[nodiscard]] double operator()(unsigned i, unsigned j) const;
+  [[nodiscard]] double operator()(int64_t i, int64_t j) const;
 
   /// An `n x n` `f64` tensor.
   [[nodiscard]] mlir::DenseElementsAttr toAttr(mlir::MLIRContext& ctx) const;
@@ -61,12 +61,19 @@ private:
 /// TODO: construct from QDMI.
 class MagicDevice {
 public:
-  /// From the `#magic.device` attr. Cannot fail: the attribute verifier already enforces same-length arrays, occupancy
-  /// <= capacity, a positive time unit and a complete coupling table.
+  /// From the `#magic.device` attr. Cannot fail: the attribute verifier already enforces a positive time unit and a
+  /// complete coupling table.
   static MagicDevice fromAttr(DeviceAttr attr);
 
   /// Looks up `qcc.device` on the module and checks that it is a `#magic.device`.
   static mlir::FailureOr<MagicDevice> fromModule(mlir::ModuleOp module);
+
+  /// Like `fromModule`, for the module that encloses `op`.
+  static mlir::FailureOr<MagicDevice> fromParentModule(mlir::Operation* op);
+
+  /// Like `fromParentModule`, for a program `op` that already holds magic ops. Additionally checks that the program
+  /// fits the device: every chain belongs to one of its traps and holds at most as many ions as the trap's capacity.
+  static mlir::FailureOr<MagicDevice> fromParentModuleChecked(mlir::Operation* op);
 
   /// Parses a device file (see `qcc::parseDeviceFile`) that carries a `#magic.device`.
   static mlir::FailureOr<MagicDevice> fromFile(llvm::StringRef path, mlir::MLIRContext& ctx);
@@ -79,12 +86,8 @@ public:
   //===--------------------------------------------------------------------===//
 
   [[nodiscard]] llvm::StringRef name() const;
-  [[nodiscard]] unsigned numTraps() const;
+  [[nodiscard]] int64_t numTraps() const;
   [[nodiscard]] IonCount capacity(TrapId trap) const;
-  /// The number of ions loaded into `trap` at program start.
-  [[nodiscard]] IonCount initialOccupancy(TrapId trap) const;
-  /// The number of ions on the device, i.e. the sum of the initial occupancies.
-  [[nodiscard]] IonCount numIons() const;
 
   /// The base unit of `magic.delay` in nanoseconds.
   [[nodiscard]] int64_t timeUnitNs() const;
