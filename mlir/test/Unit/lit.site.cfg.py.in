@@ -1,0 +1,7 @@
+@LIT_SITE_CFG_IN_HEADER@
+
+config.llvm_build_mode = lit_config.substitute("@LLVM_BUILD_MODE@")
+config.project_binary_dir = "@PROJECT_BINARY_DIR@"
+
+# Let the main config do the real work.
+lit_config.load_config(config, "@PROJECT_SOURCE_DIR@/mlir/test/Unit/lit.cfg.py")

@@ -19,6 +19,16 @@ else()
   set(QCC_ENABLE_HISEPQ_PY False)
 endif()
 
+if(QCC_INCLUDE_UNITTESTS)
+  set(QCC_INCLUDE_UNITTESTS_PY True) # for lit config
+  configure_lit_site_cfg(
+    ${CMAKE_CURRENT_SOURCE_DIR}/Unit/lit.site.cfg.py.in ${CMAKE_CURRENT_BINARY_DIR}/Unit/lit.site.cfg.py MAIN_CONFIG
+    ${CMAKE_CURRENT_SOURCE_DIR}/Unit/lit.cfg.py)
+  list(APPEND MLIR_COMPILER_TEST_DEPENDS QCCUnitTests)
+else()
+  set(QCC_INCLUDE_UNITTESTS_PY False)
+endif()
+
 configure_lit_site_cfg(${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in ${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py
                        MAIN_CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/lit.cfg.py)
 

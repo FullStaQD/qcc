@@ -28,9 +28,29 @@ option(QCC_ENABLE_HISEPQ "Build the HiSEP-Q target" OFF)
 include(mlir/cmake/ExternalDependencies.cmake)
 include(mlir/cmake/SetupMLIR.cmake)
 
+# The unit tests use LLVM's gtest (`llvm_gtest`). LLVM build trees provide it, LLVM installs only if LLVM was configured
+# with LLVM_INSTALL_GTEST=ON.
+if(TARGET llvm_gtest)
+  set(QCC_INCLUDE_UNITTESTS_DEFAULT ON)
+else()
+  set(QCC_INCLUDE_UNITTESTS_DEFAULT OFF)
+endif()
+option(QCC_INCLUDE_UNITTESTS "Generate build targets for the unit tests (requires llvm_gtest)"
+       ${QCC_INCLUDE_UNITTESTS_DEFAULT})
+if(QCC_INCLUDE_UNITTESTS AND NOT TARGET llvm_gtest)
+  message(FATAL_ERROR "QCC_INCLUDE_UNITTESTS requires llvm_gtest, which this LLVM does not provide. "
+                      "Use an LLVM configured with -DLLVM_INSTALL_GTEST=ON or set -DQCC_INCLUDE_UNITTESTS=OFF.")
+elseif(NOT TARGET llvm_gtest)
+  message(WARNING "gtest not found, unittests will not be available")
+endif()
+
 add_subdirectory(mlir/include)
 add_subdirectory(mlir/lib)
 add_subdirectory(mlir/tools)
+
+if(QCC_INCLUDE_UNITTESTS)
+  add_subdirectory(mlir/unittests)
+endif()
 
 enable_testing()
 add_subdirectory(mlir/test)
