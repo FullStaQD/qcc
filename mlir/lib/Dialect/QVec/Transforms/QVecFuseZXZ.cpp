@@ -31,13 +31,12 @@
 #include <utility>
 
 using namespace mlir;
-using namespace qcc;
 using namespace qcc::qvec;
 
 /// The per-lane ZXZ angles of `op` if it is a `u_zxz` or `rz` with constant angles, nullopt otherwise.
-static std::optional<SmallVector<ZXZAngles>> getConstantZXZ(SingleOp op) {
+static std::optional<SmallVector<qcc::ZXZAngles>> getConstantZXZ(SingleOp op) {
   const auto width = static_cast<size_t>(op.getQubitsIn().getType().getNumElements());
-  SmallVector<ZXZAngles> lanes(width);
+  SmallVector<qcc::ZXZAngles> lanes(width);
 
   switch (op.getGateKind()) {
   case SingleGateKind::RZ: {
@@ -58,7 +57,7 @@ static std::optional<SmallVector<ZXZAngles>> getConstantZXZ(SingleOp op) {
       return std::nullopt;
     }
     for (size_t lane = 0; lane < width; ++lane) {
-      lanes[lane] = ZXZAngles{.z1 = (*z1)[lane], .x = (*x)[lane], .z2 = (*z2)[lane]};
+      lanes[lane] = qcc::ZXZAngles{.z1 = (*z1)[lane], .x = (*x)[lane], .z2 = (*z2)[lane]};
     }
     return lanes;
   }
@@ -78,8 +77,8 @@ struct FuseZXZ final : OpRewritePattern<SingleOp> {
     if (!first || !first.getQubitsOut().hasOneUse()) {
       return failure();
     }
-    std::optional<SmallVector<ZXZAngles>> firstLanes = getConstantZXZ(first);
-    std::optional<SmallVector<ZXZAngles>> secondLanes = getConstantZXZ(second);
+    std::optional<SmallVector<qcc::ZXZAngles>> firstLanes = getConstantZXZ(first);
+    std::optional<SmallVector<qcc::ZXZAngles>> secondLanes = getConstantZXZ(second);
     if (!firstLanes || !secondLanes) {
       return failure();
     }
@@ -89,7 +88,7 @@ struct FuseZXZ final : OpRewritePattern<SingleOp> {
     if (first.getGateKind() == SingleGateKind::RZ && second.getGateKind() == SingleGateKind::RZ) {
       SmallVector<double> theta(width);
       for (size_t lane = 0; lane < width; ++lane) {
-        theta[lane] = normalizeAngle((*firstLanes)[lane].z1 + (*secondLanes)[lane].z1);
+        theta[lane] = qcc::normalizeAngle((*firstLanes)[lane].z1 + (*secondLanes)[lane].z1);
       }
       rewriter.replaceOpWithNewOp<SingleOp>(second, SingleGateKind::RZ, first.getQubitsIn(),
                                             ValueRange{buildAngleVector(rewriter, loc, theta)});
@@ -101,7 +100,7 @@ struct FuseZXZ final : OpRewritePattern<SingleOp> {
       SmallVector<double> x(width);
       SmallVector<double> z2(width);
       for (size_t lane = 0; lane < width; ++lane) {
-        const ZXZAngles fused = fuseZXZ((*firstLanes)[lane], (*secondLanes)[lane]);
+        const qcc::ZXZAngles fused = qcc::fuseZXZ((*firstLanes)[lane], (*secondLanes)[lane]);
         z1[lane] = fused.z1;
         x[lane] = fused.x;
         z2[lane] = fused.z2;

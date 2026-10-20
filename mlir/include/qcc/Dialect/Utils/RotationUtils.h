@@ -44,7 +44,7 @@ private:
   std::array<Complex, 4> elements;
 };
 
-/// Wraps `angle` into (-pi, pi].
+/// Wraps `angle` into (-pi, pi]. Shifting by 2 pi only changes the global phase of a rotation.
 double normalizeAngle(double angle);
 
 /// Rz(theta).

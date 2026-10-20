@@ -50,7 +50,6 @@
 #include <utility>
 
 using namespace mlir;
-using namespace qcc;
 using namespace qcc::qvec;
 
 //===----------------------------------------------------------------------===//
@@ -73,7 +72,7 @@ struct Gate {
 
   Kind kind;
   SmallVector<Qubit> qubits;
-  ZXZAngles zxz;
+  qcc::ZXZAngles zxz;
   double angle = 0.0;
   SmallVector<double> matrix;
   Operation* op = nullptr;
@@ -94,7 +93,7 @@ struct Layer {
   /// kind determines which of the two maps `sq` vs `zz` is non-empty (the other one must be empty).
   Kind kind;
   /// `SQ`: the rotation each qubit receives. Ordered so that the emitted lanes are ordered by qubit.
-  std::map<Qubit, ZXZAngles> sq;
+  std::map<Qubit, qcc::ZXZAngles> sq;
   /// `ZZ`: the angle of each coupled pair `(i, j)` with `i < j`.
   std::map<std::pair<Qubit, Qubit>, double> zz;
 };
@@ -165,15 +164,15 @@ static Schedule layerGates(ArrayRef<Gate> gates) {
 
     case Gate::Kind::ZXZ: {
       const Qubit qubit = gate.qubits.front();
-      ZXZAngles zxz = gate.zxz;
+      qcc::ZXZAngles zxz = gate.zxz;
       if (std::optional<double> angle = takePending(qubit)) {
-        zxz = fuseZXZ(ZXZAngles{.z1 = *angle}, zxz);
+        zxz = qcc::fuseZXZ(qcc::ZXZAngles{.z1 = *angle}, zxz);
       }
 
       int64_t index = lastLayer(qubit);
       if (index >= 0 && isSQIndex(index)) {
-        ZXZAngles& existing = layers[static_cast<size_t>(index)].sq.at(qubit);
-        existing = fuseZXZ(existing, zxz);
+        qcc::ZXZAngles& existing = layers[static_cast<size_t>(index)].sq.at(qubit);
+        existing = qcc::fuseZXZ(existing, zxz);
       } else {
         index += 1;
         layerAt(index).sq.emplace(qubit, zxz);
@@ -235,8 +234,8 @@ static Schedule layerGates(ArrayRef<Gate> gates) {
       schedule.residualRZ[qubit] = angle;
       continue;
     }
-    ZXZAngles& existing = layers[static_cast<size_t>(it->second)].sq.at(qubit);
-    existing = fuseZXZ(existing, ZXZAngles{.z1 = angle});
+    qcc::ZXZAngles& existing = layers[static_cast<size_t>(it->second)].sq.at(qubit);
+    existing = qcc::fuseZXZ(existing, qcc::ZXZAngles{.z1 = angle});
   }
 
   return schedule;
@@ -323,7 +322,7 @@ static LogicalResult collectGates(QubitLaneOpInterface op, SmallVectorImpl<Gate>
             gates.push_back(Gate{
                 .kind = Gate::Kind::ZXZ,
                 .qubits = {qubit},
-                .zxz = ZXZAngles{.z1 = a, .x = b, .z2 = c},
+                .zxz = qcc::ZXZAngles{.z1 = a, .x = b, .z2 = c},
                 .op = singleOp,
             });
           }
@@ -519,7 +518,7 @@ public:
     SmallVector<double> theta;
     for (const auto& [qubit, angle] : residual) {
       qubits.push_back(qubit);
-      theta.push_back(normalizeAngle(angle));
+      theta.push_back(qcc::normalizeAngle(angle));
     }
     Value qs = gather(qubits);
     auto op = SingleOp::create(builder, loc, SingleGateKind::RZ, qs, ValueRange{buildAngleVector(builder, loc, theta)});
