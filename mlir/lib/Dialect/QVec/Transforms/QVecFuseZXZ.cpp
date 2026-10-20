@@ -10,7 +10,7 @@
 #include "qcc/Dialect/QVec/IR/QVec.h"
 #include "qcc/Dialect/QVec/Transforms/Angles.h"
 #include "qcc/Dialect/QVec/Transforms/Passes.h" // IWYU pragma: keep
-#include "qcc/Dialect/QVec/Transforms/ZXZ.h"
+#include "qcc/Dialect/Utils/RotationUtils.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h" // IWYU pragma: keep
 #include "mlir/IR/Builders.h"
@@ -31,6 +31,7 @@
 #include <utility>
 
 using namespace mlir;
+using namespace qcc;
 using namespace qcc::qvec;
 
 /// The per-lane ZXZ angles of `op` if it is a `u_zxz` or `rz` with constant angles, nullopt otherwise.

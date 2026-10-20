@@ -16,7 +16,7 @@
 #include "qcc/Dialect/QVec/IR/QVec.h"
 #include "qcc/Dialect/QVec/Transforms/Angles.h"
 #include "qcc/Dialect/QVec/Transforms/Passes.h" // IWYU pragma: keep
-#include "qcc/Dialect/QVec/Transforms/ZXZ.h"
+#include "qcc/Dialect/Utils/RotationUtils.h"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/QCO/IR/QCOOps.h"
@@ -50,6 +50,7 @@
 #include <utility>
 
 using namespace mlir;
+using namespace qcc;
 using namespace qcc::qvec;
 
 //===----------------------------------------------------------------------===//

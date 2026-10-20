@@ -133,11 +133,11 @@ Besides the lit tests in `mlir/test/` there are a few [GoogleTest](https://googl
 ```shell
 # Run only the unit tests, or the ones of one binary:
 lit build/dev/mlir/test/Unit -v
-lit build/dev/mlir/test/ -v --filter "QCCQVecTests"
+lit build/dev/mlir/test/ -v --filter "QCCDialectUtilsTests"
 
 # Run a test binary directly, e.g. to select single tests:
 cmake --build build/dev --target QCCUnitTests
-build/dev/mlir/unittests/Dialect/QVec/QCCQVecTests --gtest_filter="ZXZTest.*"
+build/dev/mlir/unittests/Dialect/Utils/QCCDialectUtilsTests --gtest_filter="RotationUtilsTest.*"
 ```
 
 The unit tests need LLVM's gtest library (`llvm_gtest`).

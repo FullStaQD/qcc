@@ -13,7 +13,7 @@
 #include <cassert>
 #include <complex>
 
-namespace qcc::qvec {
+namespace qcc {
 
 //===----------------------------------------------------------------------===//
 // Single-qubit rotations in ZXZ form
@@ -68,4 +68,4 @@ ZXZAngles decomposeZXZ(const Matrix2x2& unitary);
 /// The ZXZ angles of the gate that applies `first` and then `second`.
 ZXZAngles fuseZXZ(const ZXZAngles& first, const ZXZAngles& second);
 
-} // namespace qcc::qvec
+} // namespace qcc
