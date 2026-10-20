@@ -44,7 +44,8 @@ private:
   std::array<Complex, 4> elements;
 };
 
-/// Wraps `angle` into (-pi, pi]. Shifting by 2 pi only changes the global phase of a rotation.
+/// Wraps `angle` into (-pi, pi]. Note Rz(theta + 2 pi) = -Rz(theta) (likewise Rx), so this flips the global phase,
+/// which becomes observable once the rotation is controlled.
 double normalizeAngle(double angle);
 
 /// Rz(theta).
