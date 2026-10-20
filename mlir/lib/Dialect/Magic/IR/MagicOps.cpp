@@ -8,6 +8,7 @@
 // ===----------------------------------------------------------------------===//
 
 #include "qcc/Dialect/Magic/IR/Magic.h"
+#include "qcc/Dialect/Utils/RotationUtils.h"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/BuiltinAttributes.h"
@@ -30,11 +31,9 @@
 
 #include <algorithm>
 #include <cassert>
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
-#include <numbers>
 
 using namespace mlir;
 using namespace qcc::magic;
@@ -251,12 +250,6 @@ LogicalResult SymZXZOp::verify() {
   const size_t numIons = getIons().size();
   return success(succeeded(verifyOneAnglePerIon(*this, "z", getZ(), numIons)) &&
                  succeeded(verifyOneAnglePerIon(*this, "x", getX(), numIons)));
-}
-
-/// Wraps `angle` into (-pi, pi]. Shifting by 2 pi only changes the global phase of a rotation.
-static double normalizeAngle(double angle) {
-  const double wrapped = std::remainder(angle, 2.0 * std::numbers::pi);
-  return wrapped <= -std::numbers::pi ? wrapped + (2.0 * std::numbers::pi) : wrapped;
 }
 
 LogicalResult RZOp::canonicalize(RZOp op, PatternRewriter& rewriter) {

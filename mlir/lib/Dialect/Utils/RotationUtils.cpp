@@ -7,15 +7,15 @@
 //
 // ===----------------------------------------------------------------------===//
 
-#include "qcc/Dialect/QVec/Transforms/ZXZ.h"
+#include "qcc/Dialect/Utils/RotationUtils.h"
 
 #include <cmath>
 #include <complex>
 #include <numbers>
 
-using namespace qcc::qvec;
+using namespace qcc;
 
-double qcc::qvec::normalizeAngle(double angle) {
+double qcc::normalizeAngle(double angle) {
   constexpr double twoPi = 2.0 * std::numbers::pi;
   double wrapped = std::remainder(angle, twoPi); // in [-pi, pi]
   if (wrapped <= -std::numbers::pi) {
@@ -24,14 +24,14 @@ double qcc::qvec::normalizeAngle(double angle) {
   return wrapped + 0.0; // turns -0.0 into 0.0
 }
 
-Matrix2x2 qcc::qvec::rzMatrix(double theta) {
+Matrix2x2 qcc::rzMatrix(double theta) {
   return {
       std::polar(1.0, -theta / 2), Complex{0.0}, //
       Complex{0.0}, std::polar(1.0, theta / 2)   //
   };
 }
 
-Matrix2x2 qcc::qvec::rxMatrix(double theta) {
+Matrix2x2 qcc::rxMatrix(double theta) {
   const Complex diag{std::cos(theta / 2), 0.0};
   const Complex offDiag{0.0, -std::sin(theta / 2)};
   return {
@@ -40,7 +40,7 @@ Matrix2x2 qcc::qvec::rxMatrix(double theta) {
   };
 }
 
-Matrix2x2 qcc::qvec::operator*(const Matrix2x2& lhs, const Matrix2x2& rhs) {
+Matrix2x2 qcc::operator*(const Matrix2x2& lhs, const Matrix2x2& rhs) {
   return {
       (lhs(0, 0) * rhs(0, 0)) + (lhs(0, 1) * rhs(1, 0)), //
       (lhs(0, 0) * rhs(0, 1)) + (lhs(0, 1) * rhs(1, 1)), //
@@ -49,11 +49,11 @@ Matrix2x2 qcc::qvec::operator*(const Matrix2x2& lhs, const Matrix2x2& rhs) {
   };
 }
 
-Matrix2x2 qcc::qvec::zxzMatrix(const ZXZAngles& angles) {
+Matrix2x2 qcc::zxzMatrix(const ZXZAngles& angles) {
   return rzMatrix(angles.z2) * rxMatrix(angles.x) * rzMatrix(angles.z1);
 }
 
-ZXZAngles qcc::qvec::decomposeZXZ(const Matrix2x2& unitary) {
+ZXZAngles qcc::decomposeZXZ(const Matrix2x2& unitary) {
   // Bring the matrix into SU(2): det(U / sqrt(det U)) = 1. Then U = [[a, b], [-conj(b), conj(a)]] with
   //   a = cos(x/2) e^{-i(z1+z2)/2}   and   b = -i sin(x/2) e^{i(z1-z2)/2}
   // for the ZXZ product, which pins down the angles from the magnitudes and arguments of a and b. The sign ambiguity
@@ -82,6 +82,6 @@ ZXZAngles qcc::qvec::decomposeZXZ(const Matrix2x2& unitary) {
   return angles;
 }
 
-ZXZAngles qcc::qvec::fuseZXZ(const ZXZAngles& first, const ZXZAngles& second) {
+ZXZAngles qcc::fuseZXZ(const ZXZAngles& first, const ZXZAngles& second) {
   return decomposeZXZ(zxzMatrix(second) * zxzMatrix(first));
 }

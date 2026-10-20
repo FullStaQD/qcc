@@ -1,0 +1,2 @@
+add_qcc_unittest(QCCDialectUtilsTests RotationUtilsTest.cpp)
+target_link_libraries(QCCDialectUtilsTests PRIVATE QCCDialectUtils)
