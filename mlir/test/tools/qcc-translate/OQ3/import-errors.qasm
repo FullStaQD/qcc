@@ -181,7 +181,6 @@ qubit[-1] q;
 OPENQASM 3.1;
 
 // expected-error @below {{division by zero in a constant expression}}
-// expected-error @below {{a size must be a constant expression}}
 qubit[1 / 0] q;
 
 // -----
@@ -377,6 +376,25 @@ include "stdgates.inc";
 qubit q;
 // expected-error @below {{built-in functions are not supported yet}}
 rx(sin(1)) q;
+
+// -----
+
+OPENQASM 3.1;
+
+include "stdgates.inc";
+qubit q;
+// 3.0 and 3.1 list a built-in function `pow`, which 3.2 drops.
+// expected-error @below {{built-in functions are not supported yet}}
+rx(pow(2, 2)) q;
+
+// -----
+
+OPENQASM 3.0;
+
+include "stdgates.inc";
+qubit q;
+// expected-error @below {{built-in functions are not supported yet}}
+rx(pow(2, 2)) q;
 
 // -----
 

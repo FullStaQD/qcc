@@ -103,10 +103,10 @@ static std::optional<MathConstantKind> lookupMathConstant(StringRef name) {
       .Default(std::nullopt);
 }
 
-/// Whether `name` is one of the spec's built-in functions.
+/// Whether `name` is one of the spec's built-in functions, other than `pow`, which is lexed as a keyword.
 static bool isBuiltinFunction(StringRef name) {
   return llvm::is_contained({"arccos", "arcsin", "arctan", "ceiling", "cos", "exp", "floor", "log", "mod", "popcount",
-                             "pow", "rotl", "rotr", "sin", "sqrt", "tan", "real", "imag", "sizeof"},
+                             "rotl", "rotr", "sin", "sqrt", "tan", "real", "imag", "sizeof"},
                             name);
 }
 
@@ -254,6 +254,7 @@ private:
 
   /// Parses a designator `[size]` and returns its value and the evaluated size.
   FailureOr<std::pair<Value, int64_t>> parseDesignator();
+  FailureOr<std::pair<Value, Type>> parseOptionalDesignator(Type scalar, function_ref<Type(int64_t)> makeSized);
 
   FailureOr<Expr> parseGateOperand();
   FailureOr<SmallVector<Expr>> parseGateOperandList();
@@ -275,6 +276,8 @@ private:
   FileState file;
   /// Whether the version line has been seen in the main file.
   bool seenVersion = false;
+  /// The minor version of the program, which selects the rules where versions differ.
+  unsigned minorVersion = defaultMinorVersion;
 
   /// The names in scope. A program has a single scope so far.
   llvm::StringMap<Binding> scope;
@@ -379,6 +382,7 @@ LogicalResult Importer::parseVersion() {
 
   module->setAttr(OQ3Dialect::VersionAttrHelper::getNameStr(), VersionAttr::get(context, major, minor));
   seenVersion = true;
+  minorVersion = minor;
   return success();
 }
 
@@ -655,9 +659,16 @@ FailureOr<std::pair<Value, int64_t>> Importer::parseDesignator() {
   if (!isa<UnsizedIntType>(size->getType())) {
     return emitError(size->loc) << "a size must be an integer, got '" << describeType(size->getType()) << "'";
   }
-  const FailureOr<int64_t> value =
-      evaluateConstantInt(size->value, [&](Operation* op) { return mlir::emitError(op->getLoc()); });
+  // The evaluator explains most failures itself, so the generic error is only for the others.
+  bool reported = false;
+  const FailureOr<int64_t> value = evaluateConstantInt(size->value, [&](Operation* op) {
+    reported = true;
+    return mlir::emitError(op->getLoc());
+  });
   if (failed(value)) {
+    if (reported) {
+      return failure();
+    }
     return emitError(size->loc, "a size must be a constant expression");
   }
   if (*value < 0) {
@@ -666,19 +677,29 @@ FailureOr<std::pair<Value, int64_t>> Importer::parseDesignator() {
   return std::pair{size->value, *value};
 }
 
+/// Parses the optional `[size]` of a declaration. Returns the size expression, if any, and the declared type: `scalar`
+/// without a size, `makeSized(size)` with one.
+FailureOr<std::pair<Value, Type>> Importer::parseOptionalDesignator(Type scalar,
+                                                                    function_ref<Type(int64_t)> makeSized) {
+  if (!token().is(TokenKind::LBracket)) {
+    return std::pair{Value(), scalar};
+  }
+  FailureOr<std::pair<Value, int64_t>> size = parseDesignator();
+  if (failed(size)) {
+    return failure();
+  }
+  return std::pair{size->first, makeSized(size->second)};
+}
+
 FailureOr<Operation*> Importer::parseQubitDeclaration() {
   const SMLoc loc = token().getLoc();
   consume();
-  Value designator;
-  Type type = QubitRefType::get(context);
-  if (token().is(TokenKind::LBracket)) {
-    FailureOr<std::pair<Value, int64_t>> size = parseDesignator();
-    if (failed(size)) {
-      return failure();
-    }
-    designator = size->first;
-    type = QRegType::get(context, size->second);
+  FailureOr<std::pair<Value, Type>> sized =
+      parseOptionalDesignator(QubitRefType::get(context), [&](int64_t size) { return QRegType::get(context, size); });
+  if (failed(sized)) {
+    return failure();
   }
+  auto [designator, type] = *sized;
   FailureOr<std::pair<StringRef, SMLoc>> name = expectIdentifier("the name of the qubit");
   if (failed(name) || failed(checkDeclarable(name->first, name->second)) ||
       failed(expect(TokenKind::Semicolon, "';'"))) {
@@ -696,16 +717,12 @@ FailureOr<Operation*> Importer::parseQregDeclaration() {
   if (failed(name) || failed(checkDeclarable(name->first, name->second))) {
     return failure();
   }
-  Value designator;
-  Type type = QubitRefType::get(context);
-  if (token().is(TokenKind::LBracket)) {
-    FailureOr<std::pair<Value, int64_t>> size = parseDesignator();
-    if (failed(size)) {
-      return failure();
-    }
-    designator = size->first;
-    type = QRegType::get(context, size->second);
+  FailureOr<std::pair<Value, Type>> sized =
+      parseOptionalDesignator(QubitRefType::get(context), [&](int64_t size) { return QRegType::get(context, size); });
+  if (failed(sized)) {
+    return failure();
   }
+  auto [designator, type] = *sized;
   if (failed(expect(TokenKind::Semicolon, "';'"))) {
     return failure();
   }
@@ -719,16 +736,12 @@ FailureOr<Operation*> Importer::parseQregDeclaration() {
 FailureOr<Operation*> Importer::parseBitDeclaration() {
   const SMLoc loc = token().getLoc();
   consume();
-  Value designator;
-  Type type = BitType::get(context);
-  if (token().is(TokenKind::LBracket)) {
-    FailureOr<std::pair<Value, int64_t>> size = parseDesignator();
-    if (failed(size)) {
-      return failure();
-    }
-    designator = size->first;
-    type = BitsType::get(context, size->second);
+  FailureOr<std::pair<Value, Type>> sized =
+      parseOptionalDesignator(BitType::get(context), [&](int64_t size) { return BitsType::get(context, size); });
+  if (failed(sized)) {
+    return failure();
   }
+  auto [designator, type] = *sized;
   FailureOr<std::pair<StringRef, SMLoc>> name = expectIdentifier("the name of the variable");
   if (failed(name) || failed(checkDeclarable(name->first, name->second))) {
     return failure();
@@ -761,16 +774,12 @@ FailureOr<Operation*> Importer::parseCregDeclaration() {
   if (failed(name) || failed(checkDeclarable(name->first, name->second))) {
     return failure();
   }
-  Value designator;
-  Type type = BitType::get(context);
-  if (token().is(TokenKind::LBracket)) {
-    FailureOr<std::pair<Value, int64_t>> size = parseDesignator();
-    if (failed(size)) {
-      return failure();
-    }
-    designator = size->first;
-    type = BitsType::get(context, size->second);
+  FailureOr<std::pair<Value, Type>> sized =
+      parseOptionalDesignator(BitType::get(context), [&](int64_t size) { return BitsType::get(context, size); });
+  if (failed(sized)) {
+    return failure();
   }
+  auto [designator, type] = *sized;
   if (failed(expect(TokenKind::Semicolon, "';'"))) {
     return failure();
   }
@@ -1110,6 +1119,13 @@ FailureOr<Expr> Importer::parsePrimary() {
   }
   case TokenKind::Identifier:
     return parseIdentifierExpression();
+  case TokenKind::KwPow:
+    // 3.0 and 3.1 list a built-in function `pow`, which the reference grammar cannot parse. 3.2 drops it in favor of
+    // `**`, so from then on `pow` is only the gate modifier.
+    if (minorVersion < devMinorVersion) {
+      return emitUnsupported(loc, "built-in functions");
+    }
+    return emitError(loc, "'pow' is a gate modifier, not a function; use the '**' operator");
   case TokenKind::KwTrue:
   case TokenKind::KwFalse:
     return emitUnsupported(loc, "boolean literals");

@@ -1,6 +1,6 @@
 // RUN: qcc-opt %s --split-input-file | FileCheck %s
 // RUN: qcc-opt %s --split-input-file --mlir-print-op-generic | qcc-opt --split-input-file | FileCheck %s
-// RUN: qcc-opt %s --split-input-file --canonicalize | FileCheck %s --check-prefix=CANON
+// RUN: qcc-opt %s --split-input-file --canonicalize | FileCheck %s --check-prefix=CHECK-CANON
 
 // CHECK-LABEL: module attributes {oq3.version = #oq3.version<3, 1>}
 module attributes {oq3.version = #oq3.version<3, 1>} {
@@ -85,18 +85,18 @@ module attributes {oq3.version = #oq3.version<3, 1>} {
 }
 
 // Statements survive, and so do the expressions they use. Unused expressions may go.
-// CANON-LABEL: module attributes {oq3.version = #oq3.version<3, 1>}
-// CANON:       oq3.pragma
-// CANON-NEXT:  oq3.include "stdgates.inc"
-// CANON-NEXT:  oq3.include "other.inc"
-// CANON-NEXT:  oq3.qubit_decl "o"
-// CANON:       oq3.qubit_decl "q"
-// CANON:       oq3.qubit_decl "r"
-// CANON:       oq3.declare "c"
-// CANON:       oq3.declare "d"
-// CANON-NOT:   oq3.binary div
-// CANON:       oq3.gate_call @rx
-// CANON:       oq3.barrier [%{{.*}} : !qcc.qubit_ref]
+// CHECK-CANON-LABEL: module attributes {oq3.version = #oq3.version<3, 1>}
+// CHECK-CANON:       oq3.pragma
+// CHECK-CANON-NEXT:  oq3.include "stdgates.inc"
+// CHECK-CANON-NEXT:  oq3.include "other.inc"
+// CHECK-CANON-NEXT:  oq3.qubit_decl "o"
+// CHECK-CANON:       oq3.qubit_decl "q"
+// CHECK-CANON:       oq3.qubit_decl "r"
+// CHECK-CANON:       oq3.declare "c"
+// CHECK-CANON:       oq3.declare "d"
+// CHECK-CANON-NOT:   oq3.binary div
+// CHECK-CANON:       oq3.gate_call @rx
+// CHECK-CANON:       oq3.barrier [%{{.*}} : !qcc.qubit_ref]
 
 // -----
 

@@ -381,8 +381,7 @@ Attribute IntLiteralAttr::parse(AsmParser& parser, Type type) {
     parser.emitError(loc) << "expected the type of the integer literal, as in '#oq3.int<1> : !oq3.int'";
     return {};
   }
-  const unsigned width = std::max(1U, value.getActiveBits());
-  return getChecked([&] { return parser.emitError(loc); }, parser.getContext(), value.zextOrTrunc(width), type);
+  return getChecked([&] { return parser.emitError(loc); }, value, type);
 }
 
 void IntLiteralAttr::print(AsmPrinter& printer) const {

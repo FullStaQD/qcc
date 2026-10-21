@@ -23,6 +23,7 @@
 #include "mlir/Tools/mlir-translate/Translation.h"
 
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
@@ -64,6 +65,13 @@ private:
   FailureOr<Printed> printExpr(Value value);
   FailureOr<std::string> printList(ValueRange values);
   FailureOr<std::string> printDesignator(Value designator, int64_t size);
+  FailureOr<std::string> printMeasure(MeasureOp measure);
+  LogicalResult consume(Operation* op);
+
+  /// The measurements and loads that the next statement must print. OpenQASM has no temporaries, so a measurement or
+  /// load is printed where it is used, which only preserves its meaning if it is used once and nothing that has an
+  /// effect comes between it and its use.
+  llvm::SetVector<Operation*> pending;
 
   // NOLINTNEXTLINE(cppcoreguidelines-avoid-const-or-ref-data-members): non-owning, outlived by the stream.
   llvm::raw_ostream& os;
@@ -83,6 +91,11 @@ static bool isStatement(Operation* op) {
 static bool isExpression(Operation* op) {
   return isa<ConstantOp, MathConstantOp, UnaryOp, BinaryOp, CastOp, RefLoadOp, SubrefOp, QubitIndexOp, PhysicalQubitOp,
              MeasureOp>(op);
+}
+
+/// Fails because the measurement or load `op` is not used exactly once, by the next statement.
+static LogicalResult emitMisplaced(Operation* op) {
+  return op->emitOpError() << "must be used exactly once, by the next statement, to be exported to OpenQASM";
 }
 
 /// Prints `path` in quotes. A path can contain one kind of quote, so the other one delimits it.
@@ -152,13 +165,38 @@ LogicalResult Exporter::run(Operation* op) {
       if (failed(printStatement(&statement))) {
         return failure();
       }
+      if (!pending.empty()) {
+        return emitMisplaced(pending.front());
+      }
       continue;
     }
     if (!isExpression(&statement)) {
       return statement.emitOpError() << "cannot be exported to OpenQASM";
     }
+    if (isa<MeasureOp, RefLoadOp>(statement) && !statement.use_empty()) {
+      pending.insert(&statement);
+    }
+  }
+  if (!pending.empty()) {
+    return emitMisplaced(pending.front());
   }
   return success();
+}
+
+/// Marks the pending measurement or load `op` as printed, or fails if it is not pending.
+LogicalResult Exporter::consume(Operation* op) {
+  if (!pending.remove(op)) {
+    return emitMisplaced(op);
+  }
+  return success();
+}
+
+FailureOr<std::string> Exporter::printMeasure(MeasureOp measure) {
+  FailureOr<Printed> qubits = printExpr(measure.getQubits());
+  if (failed(qubits)) {
+    return failure();
+  }
+  return "measure " + qubits->text;
 }
 
 LogicalResult Exporter::printStatement(Operation* op) {
@@ -287,11 +325,11 @@ FailureOr<std::string> Exporter::printStatementBody(Operation* op) {
         return target->text + " = " + value->text + ";";
       })
       .Case([&](MeasureOp measure) -> FailureOr<std::string> {
-        FailureOr<Printed> printed = printExpr(measure.getResult());
+        FailureOr<std::string> printed = printMeasure(measure);
         if (failed(printed)) {
           return failure();
         }
-        return printed->text + ";";
+        return *printed + ";";
       })
       .Default([](Operation* other) -> FailureOr<std::string> {
         return other->emitOpError() << "cannot be exported to OpenQASM";
@@ -362,7 +400,12 @@ FailureOr<Printed> Exporter::printExpr(Value value) {
         }
         return atom(*type + "(" + input->text + ")");
       })
-      .Case([&](RefLoadOp load) { return printExpr(load.getRef()); })
+      .Case([&](RefLoadOp load) -> FailureOr<Printed> {
+        if (failed(consume(load))) {
+          return failure();
+        }
+        return printExpr(load.getRef());
+      })
       .Case([&](SubrefOp subref) -> FailureOr<Printed> {
         FailureOr<Printed> ref = printExpr(subref.getRef());
         FailureOr<Printed> index = printExpr(subref.getIndex());
@@ -383,11 +426,14 @@ FailureOr<Printed> Exporter::printExpr(Value value) {
       .Case([&](QubitDeclOp decl) { return atom(decl.getName().str()); })
       .Case([&](DeclareOp decl) { return atom(decl.getName().str()); })
       .Case([&](MeasureOp measure) -> FailureOr<Printed> {
-        FailureOr<Printed> qubits = printExpr(measure.getQubits());
-        if (failed(qubits)) {
+        if (failed(consume(measure))) {
           return failure();
         }
-        return atom("measure " + qubits->text);
+        FailureOr<std::string> text = printMeasure(measure);
+        if (failed(text)) {
+          return failure();
+        }
+        return atom(*text);
       })
       .Default([](Operation* other) -> FailureOr<Printed> {
         return other->emitOpError() << "cannot be exported to OpenQASM";
