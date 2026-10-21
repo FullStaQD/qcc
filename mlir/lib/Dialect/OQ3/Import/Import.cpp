@@ -247,6 +247,9 @@ private:
   //===--------------------------------------------------------------------===//
 
   LogicalResult includeStandardGates(StringRef path, SMLoc loc);
+  /// Searches the include file `path` in the directory of the including file, then in the include directories. Returns
+  /// the file and the path it was found at, or null if there is none.
+  std::pair<std::unique_ptr<llvm::MemoryBuffer>, std::string> findIncludeFile(StringRef path);
   LogicalResult includeFile(StringRef path, SMLoc loc);
 
   //===--------------------------------------------------------------------===//
@@ -626,14 +629,17 @@ LogicalResult Importer::includeStandardGates(StringRef path, SMLoc loc) {
       return diag;
     }
   }
-  // Reading stdgates.inc is not supported yet, so the built-in signature table is used.
+  // A `stdgates.inc` that is not found is described by the built-in signature table.
+  if (findIncludeFile(path).first != nullptr) {
+    // TODO: Read the file like any other include once gate definitions are supported. Until then, the built-in
+    // signature table describes it as well.
+  }
   IncludeOp::create(builder, getLoc(loc), path, nextIncludeId++, /*content_hash=*/nullptr);
   standardGatesIncludeLoc = getLoc(loc);
   return success();
 }
 
-LogicalResult Importer::includeFile(StringRef path, SMLoc loc) {
-  // Search the directory of the including file, then the include directories.
+std::pair<std::unique_ptr<llvm::MemoryBuffer>, std::string> Importer::findIncludeFile(StringRef path) {
   SmallVector<std::string> candidates;
   if (llvm::sys::path::is_absolute(path)) {
     candidates.emplace_back(path);
@@ -649,17 +655,17 @@ LogicalResult Importer::includeFile(StringRef path, SMLoc loc) {
     }
   }
 
-  std::unique_ptr<llvm::MemoryBuffer> buffer;
-  std::string foundPath;
   for (const std::string& candidate : candidates) {
     llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> result = llvm::MemoryBuffer::getFile(candidate);
     if (result) {
-      buffer = std::move(*result);
-      foundPath = candidate;
-      break;
+      return {std::move(*result), candidate};
     }
   }
+  return {nullptr, ""};
+}
 
+LogicalResult Importer::includeFile(StringRef path, SMLoc loc) {
+  auto [buffer, foundPath] = findIncludeFile(path);
   if (!buffer) {
     return emitError(loc) << "cannot find the include file '" << path << "'";
   }
