@@ -12,9 +12,6 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
-#include "llvm/Support/raw_ostream.h"
-
-#include <algorithm>
 #include <array>
 #include <cmath>
 #include <complex>
@@ -28,62 +25,25 @@ constexpr double pi = std::numbers::pi;
 /// The absolute tolerance of the numerical checks.
 constexpr double tolerance = 1e-12;
 
-namespace qcc {
-/// Prints `matrix` as `[[m00, m01], [m10, m11]]` with elements `(re, im)`. Used by gtest in failure messages.
-static llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const Matrix2x2& matrix) {
-  const auto print = [&](unsigned row, unsigned col) -> llvm::raw_ostream& {
-    return os << "(" << matrix(row, col).real() << ", " << matrix(row, col).imag() << ")";
-  };
-  os << "[[";
-  print(0, 0) << ", ";
-  print(0, 1) << "], [";
-  print(1, 0) << ", ";
-  print(1, 1) << "]]";
-  return os;
-}
-} // namespace qcc
-
-/// e^{i phi} * `matrix`.
-static Matrix2x2 withGlobalPhase(double phi, const Matrix2x2& matrix) {
-  const Complex phase = std::polar(1.0, phi);
-  return {
-      phase * matrix(0, 0), phase * matrix(0, 1), //
-      phase * matrix(1, 0), phase * matrix(1, 1)  //
-  };
-}
-
-/// The largest elementwise |lhs - phase * rhs|.
-static double maxDeviation(const Matrix2x2& lhs, const Matrix2x2& rhs, Complex phase = 1.0) {
-  double deviation = 0.0;
-  for (unsigned row = 0; row < 2; ++row) {
-    for (unsigned col = 0; col < 2; ++col) {
-      deviation = std::max(deviation, std::abs(lhs(row, col) - (phase * rhs(row, col))));
-    }
-  }
-  return deviation;
-}
+/// An arbitrary global phase.
+static const Complex globalPhase = std::polar(1.0, 0.7);
 
 /// The global phase that brings `rhs` closest to `lhs` in the Frobenius norm.
 static Complex bestGlobalPhase(const Matrix2x2& lhs, const Matrix2x2& rhs) {
-  Complex overlap = 0.0;
-  for (unsigned row = 0; row < 2; ++row) {
-    for (unsigned col = 0; col < 2; ++col) {
-      overlap += std::conj(rhs(row, col)) * lhs(row, col);
-    }
-  }
+  const Complex overlap = (rhs.adjoint() * lhs).trace();
   return overlap / std::abs(overlap);
 }
 
 /// Matches a matrix that is elementwise within `maxError` of `expected`.
 MATCHER_P2(MatrixNear, expected, maxError, "") {
-  const double deviation = maxDeviation(arg, expected);
+  const double deviation = (arg - expected).infinityNorm();
   *result_listener << "max deviation " << deviation;
   return deviation <= maxError;
 }
 
 /// Like `MatrixNear`, but up to a global phase.
 MATCHER_P2(MatrixNearUpToGlobalPhase, expected, maxError, "") {
-  const double deviation = maxDeviation(arg, expected, bestGlobalPhase(arg, expected));
+  const double deviation = (arg - (bestGlobalPhase(arg, expected) * expected)).infinityNorm();
   *result_listener << "max deviation " << deviation << " after aligning the global phase";
   return deviation <= maxError;
 }
@@ -108,11 +68,32 @@ TEST(RotationUtilsTest, NormalizeAngle) {
   }
 }
 
+TEST(RotationUtilsTest, MatrixOperations) {
+  // Unlike for the other matrix operations, the tests below would not notice errors in these.
+  const Matrix2x2 matrix{
+      Complex{1, 2}, Complex{3, 4}, //
+      Complex{5, 6}, Complex{7, 8}  //
+  };
+
+  // `+` has no other user.
+  const Matrix2x2 sum{
+      2.0, Complex{8, -2}, //
+      Complex{8, 2}, 14.0  //
+  };
+  EXPECT_THAT(matrix + matrix.adjoint(), MatrixNear(sum, tolerance));
+
+  // For unitaries every diagonal element of V^dagger U carries the global phase.
+  EXPECT_EQ(matrix.trace(), Complex(8, 10));
+
+  // The tolerance checks work with any norm.
+  EXPECT_DOUBLE_EQ(matrix.infinityNorm(), std::sqrt(113.0)); // |7 + 8i|
+}
+
 TEST(RotationUtilsTest, Matchers) {
   // The other tests rely on the matchers, so make sure they can fail.
   const Matrix2x2 matrix = rxMatrix(0.5);
-  EXPECT_THAT(withGlobalPhase(0.7, matrix), MatrixNearUpToGlobalPhase(matrix, tolerance));
-  EXPECT_THAT(withGlobalPhase(0.7, matrix), testing::Not(MatrixNear(matrix, tolerance)));
+  EXPECT_THAT(globalPhase * matrix, MatrixNearUpToGlobalPhase(matrix, tolerance));
+  EXPECT_THAT(globalPhase * matrix, testing::Not(MatrixNear(matrix, tolerance)));
 
   // A relative phase is not a global phase.
   EXPECT_THAT(rzMatrix(0.5), testing::Not(MatrixNearUpToGlobalPhase(rzMatrix(-0.5), tolerance)));
@@ -148,19 +129,19 @@ TEST(RotationUtilsTest, DecomposeZXZRoundTrip) {
   for (const auto& [name, unitary] : cases) {
     SCOPED_TRACE(name);
     // The global phase makes det != 1.
-    const Matrix2x2 input = withGlobalPhase(0.7, unitary);
+    const Matrix2x2 input = globalPhase * unitary;
     EXPECT_THAT(zxzMatrix(decomposeZXZ(input)), MatrixNearUpToGlobalPhase(input, tolerance));
   }
 }
 
 TEST(RotationUtilsTest, DecomposeZXZDegenerate) {
   // x = 0 only defines z1 + z2, and x = pi only z1 - z2. Both are resolved by z2 = 0.
-  const ZXZAngles diagonal = decomposeZXZ(withGlobalPhase(0.7, zxzMatrix({.z1 = 0.5, .x = 0.0, .z2 = 0.3})));
+  const ZXZAngles diagonal = decomposeZXZ(globalPhase * zxzMatrix({.z1 = 0.5, .x = 0.0, .z2 = 0.3}));
   EXPECT_NEAR(diagonal.z1, 0.8, tolerance);
   EXPECT_NEAR(diagonal.x, 0.0, tolerance);
   EXPECT_NEAR(diagonal.z2, 0.0, tolerance);
 
-  const ZXZAngles antiDiagonal = decomposeZXZ(withGlobalPhase(0.7, zxzMatrix({.z1 = 0.5, .x = pi, .z2 = 0.3})));
+  const ZXZAngles antiDiagonal = decomposeZXZ(globalPhase * zxzMatrix({.z1 = 0.5, .x = pi, .z2 = 0.3}));
   EXPECT_NEAR(antiDiagonal.z1, 0.2, tolerance);
   EXPECT_NEAR(antiDiagonal.x, pi, tolerance);
   EXPECT_NEAR(antiDiagonal.z2, 0.0, tolerance);
