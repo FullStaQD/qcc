@@ -335,6 +335,9 @@ LogicalResult Importer::parseFile(bool isMainFile) {
     }
   } else if (token().is(TokenKind::KwOpenQASM)) {
     return emitError(token().getLoc(), "an included file cannot have a version line");
+  } else if (isMainFile) {
+    mlir::emitWarning(getLoc(token().getLoc())) << "the program has no version line; assuming 'OPENQASM "
+                                                << defaultMajorVersion << "." << defaultMinorVersion << ";'";
   }
 
   while (!token().is(TokenKind::Eof)) {

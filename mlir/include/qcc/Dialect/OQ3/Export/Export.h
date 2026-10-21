@@ -16,11 +16,8 @@
 
 namespace qcc::oq3 {
 
-/// Writes `op`, an `oq3` module like the importer builds it, to `os` as OpenQASM source.
-///
-/// The output is canonical rather than a copy of the original source: an included file appears only as its `include`
-/// line, implicit casts are left out, and expressions get only the parentheses they need. Fails with a diagnostic on
-/// IR that has no OpenQASM form.
+/// Exports the module `op` to an OpenQASM 3.0 program and writes it to `os`.
+/// `op` must be a valid OpenQASM 3.0 module operation. `oq3.version` attribute and legal according to the OQ3 dialect.
 llvm::LogicalResult exportOpenQASM(mlir::Operation* op, llvm::raw_ostream& os);
 
 /// Registers the translation `--export-openqasm`.
