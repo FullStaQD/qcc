@@ -43,7 +43,7 @@ def OQ3_QRegType : OQ3_SizedType<"QReg", "qreg"> {
 
         Example:
         ```mlir
-        %q = oq3.qubit_decl "q" [%c2 : !oq3.int] : !oq3.qreg<2>
+        !oq3.qreg<2>
         ```
     }];
 }

@@ -36,7 +36,7 @@ struct ImportOptions {
 mlir::OwningOpRef<mlir::ModuleOp> importOpenQASM(llvm::SourceMgr& sourceMgr, mlir::MLIRContext* context,
                                                  const ImportOptions& options = {});
 
-/// Registers the translation `--import-openqasm` and its options (`-I`, `--oq3-allow-unresolved-includes`).
+/// Registers the translation `--import-openqasm` and its options.
 void registerImportOpenQASMTranslation();
 
 } // namespace qcc::oq3

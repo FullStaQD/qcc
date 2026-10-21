@@ -42,8 +42,7 @@ def Qcc_QubitRefType : TypeDef<Qcc_Dialect, "QubitRef"> {
   let summary = "reference to a qubit";
   let description = [{
         A value of type `!qcc.qubit_ref` names a qubit in a reference-semantics context, the way a pointer names an
-        object: an operation that acts on the qubit takes the reference and leaves it valid. Unlike `!qcc.qubit`, the
-        type is not affine, so a reference may be used any number of times.
+        object.
 
         Example:
         ```mlir
@@ -61,7 +60,7 @@ def Qcc_AngleType : TypeDef<Qcc_Dialect, "Angle"> {
 
         Example:
         ```mlir
-        %theta = oq3.cast %f implicit : !oq3.float -> !qcc.angle
+        !qcc.angle
         ```
     }];
 }

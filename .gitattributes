@@ -1,3 +1,3 @@
-# Round-trip tests diff exporter output (LF) byte-for-byte against checked-in files. (Needed For Windows CI.)
+# On Windows, git checks out .qasm files with CRLF by default (core.autocrlf=true), which would break our round-trip tests (the exporter always emits LF).
 *.qasm text eol=lf
 *.inc text eol=lf
