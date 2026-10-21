@@ -79,13 +79,22 @@ public:
   explicit ProgramVerifier(ModuleOp module) : module(module) {}
 
   LogicalResult verify() {
-    // TODO: Currently each verification has one or more walks of the entire module.
-    // We may want to restructure into fewer or a single walk.
-    return failure(failed(verifyEntryFunction()) || failed(verifyIncludes()) || failed(verifyMarkers()) ||
-                   failed(verifyDefineBeforeUse()));
+    if (failed(verifyEntryFunction())) {
+      return failure();
+    }
+    collect();
+    return failure(failed(verifyIncludes()) || failed(verifyMarkers()) || failed(verifyDefineBeforeUse()));
   }
 
 private:
+  /// A use of the global definition `name` by `user`. The use is ordered by `anchor`: the statement of the entry body
+  /// or the global definition that contains `user`.
+  struct GlobalUse {
+    StringRef name;
+    Operation* user;
+    Operation* anchor;
+  };
+
   LogicalResult verifyEntryFunction() {
     SmallVector<FunctionOpInterface> entryPoints = getEntryPoints(module);
     if (entryPoints.empty()) {
@@ -114,34 +123,8 @@ private:
     return success();
   }
 
-  LogicalResult verifyIncludes() {
-    WalkResult result = module.walk([&](IncludeOp include) {
-      auto [it, inserted] = includes.try_emplace(include.getIdAttr().getInt(), include);
-      if (!inserted) {
-        InFlightDiagnostic diag = include.emitOpError() << "has the id " << include.getId() << " of another include";
-        diag.attachNote(it->second.getLoc()) << "the other include is here";
-        return WalkResult::interrupt();
-      }
-      return WalkResult::advance();
-    });
-    if (result.wasInterrupted()) {
-      return failure();
-    }
-
-    // Every tag names an include.
-    const StringRef tagName = OQ3Dialect::FromIncludeAttrHelper::getNameStr();
-    result = module.walk([&](Operation* op) {
-      auto tag = op->getAttrOfType<IntegerAttr>(tagName);
-      if (tag && !includes.contains(tag.getInt())) {
-        op->emitOpError() << "is tagged '" << tagName << " = " << tag.getInt() << "', but no include has that id";
-        return WalkResult::interrupt();
-      }
-      return WalkResult::advance();
-    });
-    return failure(result.wasInterrupted());
-  }
-
-  LogicalResult verifyMarkers() {
+  /// Collects what the checks need in a single walk of the module.
+  void collect() {
     for (Operation& op : *module.getBody()) {
       if (&op == entry.getOperation()) {
         continue;
@@ -151,7 +134,65 @@ private:
       }
     }
 
-    for (auto marker : entry.getBody().getOps<DefinedOp>()) {
+    Block* entryBlock = &entry.getBody().front();
+    const StringRef tagName = OQ3Dialect::FromIncludeAttrHelper::getNameStr();
+    // The walk is pre-order, so the anchor is set before the ops it contains are visited.
+    Operation* anchor = nullptr;
+    module.walk<WalkOrder::PreOrder>([&](Operation* op) {
+      if (op->getBlock() == entryBlock) {
+        anchor = op;
+      } else if (op->getParentOp() == module.getOperation()) {
+        auto symbol = dyn_cast<SymbolOpInterface>(op);
+        anchor = symbol && globals.lookup(symbol.getName()) == op ? op : nullptr;
+      }
+
+      if (auto include = dyn_cast<IncludeOp>(op)) {
+        includeOps.push_back(include);
+      }
+      if (op->getAttrOfType<IntegerAttr>(tagName) != nullptr) {
+        taggedOps.push_back(op);
+      }
+      if (auto marker = dyn_cast<DefinedOp>(op)) {
+        if (op->getBlock() == entryBlock) {
+          markerOps.push_back(marker);
+        }
+        return;
+      }
+      if (anchor == nullptr) {
+        return;
+      }
+      op->getAttrDictionary().walk([&](SymbolRefAttr ref) {
+        auto it = globals.find(ref.getRootReference().getValue());
+        if (it != globals.end()) {
+          uses.push_back({.name = it->first(), .user = op, .anchor = anchor});
+        }
+      });
+    });
+  }
+
+  LogicalResult verifyIncludes() {
+    for (IncludeOp include : includeOps) {
+      auto [it, inserted] = includes.try_emplace(include.getIdAttr().getInt(), include);
+      if (!inserted) {
+        InFlightDiagnostic diag = include.emitOpError() << "has the id " << include.getId() << " of another include";
+        diag.attachNote(it->second.getLoc()) << "the other include is here";
+        return diag;
+      }
+    }
+
+    // Every tag names an include.
+    const StringRef tagName = OQ3Dialect::FromIncludeAttrHelper::getNameStr();
+    for (Operation* op : taggedOps) {
+      const int64_t id = op->getAttrOfType<IntegerAttr>(tagName).getInt();
+      if (!includes.contains(id)) {
+        return op->emitOpError() << "is tagged '" << tagName << " = " << id << "', but no include has that id";
+      }
+    }
+    return success();
+  }
+
+  LogicalResult verifyMarkers() {
+    for (DefinedOp marker : markerOps) {
       const StringRef name = marker.getSymbol();
       if (!globals.contains(name)) {
         return marker.emitOpError() << "marks '@" << name << "', which is no global definition of the module";
@@ -173,64 +214,36 @@ private:
     return success();
   }
 
-  /// Calls `callback` for every global symbol that an attribute of `op` refers to.
-  /// Used for verifying that a symbol is defined before it is used.
-  void forEachGlobalUse(Operation* op, llvm::function_ref<void(StringRef, Operation*)> callback) {
-    if (isa<DefinedOp>(op)) {
-      return;
-    }
-    op->getAttrDictionary().walk([&](SymbolRefAttr ref) {
-      auto it = globals.find(ref.getRootReference().getValue());
-      if (it != globals.end()) {
-        callback(it->first(), it->second);
-      }
-    });
-  }
-
+  /// A statement may use what is defined before it. A definition may use what is defined before it, and itself.
+  /// Only the position of the statement or definition that contains the use matters.
   LogicalResult verifyDefineBeforeUse() {
-    LogicalResult result = success();
-    // A statement may use what is defined before it.
-    for (Operation& statement : entry.getBody().front()) {
-      // We need to walk the statement, because it may contain nested operations that use globals.
-      // Still, only the order of statement against the order of the definition matters.
-      // Commonly the walk will only visit `user = statement`.
-      statement.walk([&](Operation* user) {
-        forEachGlobalUse(user, [&](StringRef name, Operation*) {
-          DefinedOp marker = markers.lookup(name);
-          if (succeeded(result) && !marker->isBeforeInBlock(&statement)) {
-            InFlightDiagnostic diag = user->emitOpError() << "uses '@" << name << "' before its definition";
-            diag.attachNote(marker.getLoc()) << "it is defined here";
-            result = failure();
-          }
-        });
-      });
+    for (const GlobalUse& use : uses) {
+      Operation* position = use.anchor;
+      if (auto symbol = dyn_cast<SymbolOpInterface>(use.anchor)) {
+        if (symbol.getName() == use.name) {
+          continue;
+        }
+        position = markers.lookup(symbol.getName());
+      }
+      DefinedOp marker = markers.lookup(use.name);
+      if (!marker->isBeforeInBlock(position)) {
+        InFlightDiagnostic diag = use.user->emitOpError() << "uses '@" << use.name << "' before its definition";
+        diag.attachNote(marker.getLoc()) << "it is defined here";
+        return diag;
+      }
     }
-
-    // A definition may use what is defined before it, and itself.
-    for (auto& [definitionName, definition] : globals) {
-      DefinedOp definitionMarker = markers.lookup(definitionName);
-      // Here `definition` is usually a `func.func` or `oq3.gate` (TODO) at global scope.
-      // If a symbol appears in **the function body**, then the definition markers must
-      // be appropriately ordered in the main function.
-      definition->walk([&](Operation* user) {
-        forEachGlobalUse(user, [&](StringRef name, Operation*) {
-          DefinedOp marker = markers.lookup(name);
-          if (succeeded(result) && name != definitionName && !marker->isBeforeInBlock(definitionMarker)) {
-            InFlightDiagnostic diag = user->emitOpError() << "uses '@" << name << "' before its definition";
-            diag.attachNote(marker.getLoc()) << "it is defined here";
-            result = failure();
-          }
-        });
-      });
-    }
-    return result;
+    return success();
   }
 
   ModuleOp module;
   func::FuncOp entry;
-  llvm::DenseMap<int64_t, IncludeOp> includes;
   /// The global definitions of the program: all symbols of the module but the entry function.
   llvm::StringMap<Operation*> globals;
+  SmallVector<IncludeOp> includeOps;
+  SmallVector<Operation*> taggedOps;
+  SmallVector<DefinedOp> markerOps;
+  SmallVector<GlobalUse> uses;
+  llvm::DenseMap<int64_t, IncludeOp> includes;
   llvm::StringMap<DefinedOp> markers;
 };
 
