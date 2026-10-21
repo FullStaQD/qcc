@@ -18,7 +18,7 @@ include "mlir/IR/AttrTypeBase.td"
 //===----------------------------------------------------------------------===//
 
 def OQ3_Dialect : Dialect {
-    let summary = "Faithful representation of OpenQASM 3 programs.";
+    let summary = "Representation of OpenQASM 3 programs.";
     let description = [{
         The `oq3` dialect represents an OpenQASM 3.x program, so that it can be imported, verified, and exported back
         to an equivalent program. Beyond the semantics, the IR keeps some of the program's structure on a best-effort
@@ -32,8 +32,9 @@ def OQ3_Dialect : Dialect {
 
         Classical variables are storage of type `!qcc.ref<T>`, read with `qcc.ref.load` and written with
         `qcc.ref.store`. Qubits are references of type `!qcc.qubit_ref`, registers of type `!oq3.qreg<n>`.
-        Expressions are pure SSA values and use `oq3` operations only. None of them folds, since folding would replace
-        the source text.
+        Expressions are pure SSA values, so generic simplifications such as CSE may merge or reorder them. They use
+        `oq3` operations rather than `arith` or `math`, since their operands have OpenQASM types whose width or
+        precision the target defines (`!oq3.int`, `!oq3.float`, `!qcc.angle`), which the builtin types cannot express.
 
         Example:
         ```mlir
