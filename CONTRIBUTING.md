@@ -83,6 +83,11 @@ Use them only for functionality that should be tested but that lit tests cannot 
 e.g. numerical helpers in plain C++ whose results are hard to check through printed IR.
 See the [README](README.md#testing) for how to run them.
 
+Test as little as possible to reach the needed confidence; there is no need to test every function on its own.
+Following Kent Beck (_Test-Driven Development: By Example_), a test earns its place through confidence or communication:
+it catches bugs no other test would catch, or it documents behavior a reader would otherwise miss.
+Before adding a test, ask: if this code were broken, would an existing test fail?
+
 ### Pull Request Workflow
 
 - Create PRs early.
