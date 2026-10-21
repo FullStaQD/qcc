@@ -22,9 +22,7 @@ def OQ3_Dialect : Dialect {
     let description = [{
         The `oq3` dialect represents an OpenQASM 3.x program, so that it can be imported, verified, and exported back
         to an equivalent program. Beyond the semantics, the IR keeps some of the program's structure on a best-effort
-        basis: include lines, the positions of global definitions, pragmas, and annotations. Comments, whitespace, and
-        alternative spellings (`π`, `0x1F`, `qreg`, `measure q -> c`) are not kept, and the export prints one
-        canonical form.
+        basis: include lines, the positions of global definitions, pragmas, and annotations.
 
         The module is the program and carries the language version (`oq3.version`). All statements of the program form
         the body of the entry function (`qcc.entry_point`). Global definitions are symbols in the module, and markers

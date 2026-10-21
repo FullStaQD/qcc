@@ -35,8 +35,7 @@ class OQ3_SizedType<string name, string typeMnemonic, list<Trait> traits = []>
 def OQ3_QRegType : OQ3_SizedType<"QReg", "qreg"> {
   let summary = "reference to a qubit register";
   let description = [{
-        A reference to `size` qubits, from `qubit[n]` or `qreg q[n]`. Operations that act on qubits broadcast over a
-        register. The size may be zero.
+        A reference to `size` qubits, from `qubit[n]` or `qreg q[n]`. The size may be zero.
 
         Example:
         ```mlir

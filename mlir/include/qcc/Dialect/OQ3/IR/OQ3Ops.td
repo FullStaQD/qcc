@@ -44,9 +44,8 @@ def OQ3_QubitOrRegister : AnyTypeOf<[Qcc_QubitRefType, OQ3_QRegType],
 def OQ3_DefinedOp : OQ3_Op<"defined", [OQ3_WritesProgramStructure]> {
   let summary = "source position of a global definition";
   let description = [{
-        Global definitions (gates, subroutines, `const`s) are symbols of the module, so their position in the program
-        is recorded by this marker in the entry body. The exporter prints each definition at its marker, and the
-        verifier checks define-before-use against the order of the markers.
+        Global definitions (gates, subroutines, `const`s) are symbols of the module. Their position in the program
+        is recorded by this marker in the entry body.
 
         Example:
         ```mlir
@@ -70,11 +69,9 @@ def OQ3_IncludeOp : OQ3_Op<"include", [OQ3_WritesProgramStructure]> {
   let summary = "include statement";
   let description = [{
         `include "path";` at its position in the entry body. The `id` is unique within the module, and every
-        statement the included file produced carries it as `oq3.from_include`, so that the export prints the include
-        instead of them.
+        statement inlined from the included file references it via `oq3.from_include`.
 
-        `stdgates.inc` is not read. Including it makes the standard gates available, which are checked against a
-        built-in signature table.
+        `stdgates.inc` is not read. Including it makes the known standard gates available.
 
         Example:
         ```mlir
@@ -90,8 +87,7 @@ def OQ3_IncludeOp : OQ3_Op<"include", [OQ3_WritesProgramStructure]> {
 def OQ3_PragmaOp : OQ3_Op<"pragma", [OQ3_WritesProgramStructure]> {
   let summary = "pragma directive";
   let description = [{
-        A `pragma` line. `text` is the rest of the line after the keyword, verbatim. The importer also reads the older
-        spelling `#pragma`, and the export prints `pragma`.
+        A `pragma` line. `text` is the rest of the line after the keyword, verbatim.
 
         Example:
         ```mlir
@@ -112,8 +108,6 @@ def OQ3_QubitDeclOp : OQ3_Op<"qubit_decl", [OQ3_WritesProgramStructure]> {
   let summary = "qubit or qubit register declaration";
   let description = [{
         Declares the qubit `qubit q;` or the register `qubit[n] q;` (or `qreg q[n];`) and returns a reference to it.
-        The designator is the source expression of the size, which the result type
-        holds evaluated. Allowed in the entry body only.
 
         Example:
         ```mlir
@@ -134,7 +128,7 @@ def OQ3_QubitDeclOp : OQ3_Op<"qubit_decl", [OQ3_WritesProgramStructure]> {
 def OQ3_PhysicalQubitOp : OQ3_Op<"physical_qubit", [Pure]> {
   let summary = "physical qubit";
   let description = [{
-        A reference to the physical qubit `$index`. Physical qubits are not declared and are visible everywhere.
+        A reference to the physical qubit `$index`.
 
         Example:
         ```mlir
@@ -150,9 +144,7 @@ def OQ3_PhysicalQubitOp : OQ3_Op<"physical_qubit", [Pure]> {
 def OQ3_DeclareOp : OQ3_Op<"declare", [OQ3_WritesProgramStructure, AttrSizedOperandSegments]> {
   let summary = "classical variable declaration";
   let description = [{
-        Declares the classical variable `name` with an optional initial value and returns its storage. `creg c[n];` is
-        the same as `bit[n] c;`. The designator is the source expression of the size, which the type
-        holds evaluated.
+        Declares the classical variable `name` with an optional initial value and returns its storage.
 
         TODO: For now only `bit` and `bit[n]` variables can be declared.
 
@@ -244,7 +236,7 @@ def OQ3_ConstantOp : OQ3_Op<"constant", [Pure, AllTypesMatch<["value", "result"]
 def OQ3_MathConstantOp : OQ3_Op<"math_constant", [Pure]> {
   let summary = "built-in math constant";
   let description = [{
-        One of the constants π, τ, and ℯ, spelled `pi`, `tau`, and `euler` on export.
+        One of the constants `pi`, `tau`, and `euler`.
 
         Example:
         ```mlir
@@ -279,7 +271,7 @@ def OQ3_BinaryOp : OQ3_Op<"binary", [Pure]> {
   let description = [{
         `+ - * /` on integers, floating-point numbers, and angles. Both operands have the result type, except for
         scaling an angle by an integer (`angle * int`, `int * angle`, `angle / int`). Division of integers is integer
-        division. The type is printed once if all three agree.
+        division.
 
         Example:
         ```mlir
@@ -299,8 +291,7 @@ def OQ3_BinaryOp : OQ3_Op<"binary", [Pure]> {
 def OQ3_CastOp : OQ3_Op<"cast", [Pure]> {
   let summary = "type conversion";
   let description = [{
-        Converts `input` to the result type. The importer inserts `implicit` casts to make operand types match, and
-        the exporter does not print them. Supported for now: `!oq3.int` to `!oq3.float` and to `!oq3.bit`, and
+        Converts `input` to the result type.  Supported for now: `!oq3.int` to `!oq3.float` and to `!oq3.bit`, and
         `!oq3.float` to `!qcc.angle`.
 
         Example:

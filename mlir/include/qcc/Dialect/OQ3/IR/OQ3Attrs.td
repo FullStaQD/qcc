@@ -25,14 +25,7 @@ def OQ3_VersionAttr : AttrDef<OQ3_Dialect, "Version"> {
   let mnemonic = "version";
   let summary = "OpenQASM language version of a program";
   let description = [{
-        The language version that the program's `OPENQASM` line selects: `#oq3.version<3, 1>` for `OPENQASM 3.1;`, and
-        `#oq3.version<3, 0>` for `OPENQASM 3;`. A program without that line gets qcc's default version. The export
-        always prints the version line.
-
-        A current development version is implemented and accepted only with `--oq3-allow-dev-version`.
-
-        As the module attribute `oq3.version`, it marks the module as an OpenQASM program. Its verifier checks the
-        program as a whole: the entry function, the `oq3.defined` markers, and the include tags.
+        The language version that the program's `OPENQASM` line selects: `#oq3.version<3, x>` for `OPENQASM 3.x;`.
     }];
 
   let parameters = (ins "unsigned":$major, "unsigned":$minor);
@@ -44,8 +37,7 @@ def OQ3_AnnotationAttr : AttrDef<OQ3_Dialect, "Annotation"> {
   let mnemonic = "annotation";
   let summary = "annotation of a statement";
   let description = [{
-        An annotation line `@ns.name rest of line` before a statement. The annotations of a statement are the array
-        attribute `oq3.annotations` on the operation the statement is printed from, in source order.
+        One or more annotation lines `@ns.name rest of line` before a statement, in source order.
 
         Example:
         ```mlir
@@ -110,8 +102,7 @@ def OQ3_BitstringAttr : AttrDef<OQ3_Dialect, "Bitstring", [TypedAttrInterface]> 
         A bitstring literal such as `"0101"` (without digit separators). A bitstring of `n` bits has type
         `!oq3.bits<n>`, and its value is an `n`-bit integer.
 
-        The string is written most significant bit first, so its last character is bit 0. Bit `i` of the value is the
-        register bit `[i]`: after `bit[4] b = "0001";`, `b[0]` is 1 and `b[3]` is 0.
+        For `bit[4] b = "0001";`, `b[0]` is 1 and `b[3]` is 0.
 
         Example: `#oq3.bitstring<"0101"> : !oq3.bits<4>`
     }];
