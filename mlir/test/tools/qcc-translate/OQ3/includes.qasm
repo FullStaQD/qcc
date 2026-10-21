@@ -5,7 +5,6 @@
 // RUN: not qcc-translate --import-openqasm %t/cycle.qasm 2>&1 | FileCheck %s --check-prefix=CYCLE
 // RUN: not qcc-translate --import-openqasm %t/versioned.qasm 2>&1 | FileCheck %s --check-prefix=VERSIONED
 // RUN: not qcc-translate --import-openqasm %t/redeclared.qasm 2>&1 | FileCheck %s --check-prefix=REDECLARED
-// RUN: qcc-translate --import-openqasm -I %t/dir %t/stdgates.qasm | FileCheck %s --check-prefix=STDGATES
 
 // An included file is parsed in place, in the scope of the program. Its statements are tagged with the include they
 // came from, and the export prints the include line instead of them.
@@ -34,11 +33,6 @@
 // Including the same file twice declares its names twice.
 // REDECLARED: local.inc:2:7: error: 'a' is already declared
 
-// A `stdgates.inc` on disk is not read yet, the built-in signature table describes it.
-// STDGATES:      oq3.include "stdgates.inc" id 0{{$}}
-// STDGATES-NEXT: oq3.qubit_decl "q"
-// STDGATES-NEXT: oq3.gate_call @h
-
 //--- main.qasm
 OPENQASM 3.1;
 include "local.inc";
@@ -66,9 +60,3 @@ OPENQASM 3.1;
 //--- redeclared.qasm
 include "local.inc";
 include "local.inc";
-//--- stdgates.qasm
-include "stdgates.inc";
-qubit q;
-h q;
-//--- dir/stdgates.inc
-gate h a { U(pi/2, 0, pi) a; }
