@@ -83,7 +83,8 @@ public:
       return failure();
     }
     collect();
-    return failure(failed(verifyIncludes()) || failed(verifyMarkers()) || failed(verifyDefineBeforeUse()));
+    return failure(failed(verifyIncludes()) || failed(verifyMarkers()) || failed(verifyDefineBeforeUse()) ||
+                   failed(verifyStandardGateCalls()));
   }
 
 private:
@@ -138,6 +139,7 @@ private:
     const StringRef tagName = OQ3Dialect::FromIncludeAttrHelper::getNameStr();
     // The walk is pre-order, so the anchor is set before the ops it contains are visited.
     Operation* anchor = nullptr;
+    bool standardGatesIncluded = false;
     module.walk<WalkOrder::PreOrder>([&](Operation* op) {
       if (op->getBlock() == entryBlock) {
         anchor = op;
@@ -148,6 +150,18 @@ private:
 
       if (auto include = dyn_cast<IncludeOp>(op)) {
         includeOps.push_back(include);
+        if (op->getBlock() == entryBlock && include.getPath() == standardGatesInclude) {
+          standardGatesIncluded = true;
+        }
+      }
+      // Only statements of the entry body after the include see the standard gates.
+      if (auto call = dyn_cast<GateCallOp>(op)) {
+        const bool seesStandardGates = standardGatesIncluded && anchor != nullptr && anchor->getBlock() == entryBlock;
+        const StringRef callee = call.getCallee();
+        if (!seesStandardGates && !globals.contains(callee) && !lookupBuiltinGate(callee) &&
+            lookupStandardGate(callee)) {
+          standardGateCallsBeforeInclude.push_back(call);
+        }
       }
       if (op->getAttrOfType<IntegerAttr>(tagName) != nullptr) {
         taggedOps.push_back(op);
@@ -235,6 +249,17 @@ private:
     return success();
   }
 
+  LogicalResult verifyStandardGateCalls() {
+    if (standardGateCallsBeforeInclude.empty()) {
+      return success();
+    }
+    GateCallOp call = standardGateCallsBeforeInclude.front();
+    InFlightDiagnostic diag = call.emitOpError() << "calls the unknown gate '" << call.getCallee() << "'";
+    diag.attachNote() << "'" << call.getCallee() << "' is a standard gate; it needs an earlier 'include \""
+                      << standardGatesInclude << "\";'";
+    return diag;
+  }
+
   ModuleOp module;
   func::FuncOp entry;
   /// The global definitions of the program: all symbols of the module but the entry function.
@@ -243,6 +268,7 @@ private:
   SmallVector<Operation*> taggedOps;
   SmallVector<DefinedOp> markerOps;
   SmallVector<GlobalUse> uses;
+  SmallVector<GateCallOp> standardGateCallsBeforeInclude;
   llvm::DenseMap<int64_t, IncludeOp> includes;
   llvm::StringMap<DefinedOp> markers;
 };

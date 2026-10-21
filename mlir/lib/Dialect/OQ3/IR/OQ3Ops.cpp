@@ -292,14 +292,6 @@ std::optional<GateSignature> qcc::oq3::lookupStandardGate(StringRef name) {
       .Default(std::nullopt);
 }
 
-/// Returns the statement of the entry body that contains `op`, or null if there is none.
-static Operation* getEntryStatement(Operation* op) {
-  while ((op != nullptr) && !isEntryPoint(op->getParentOp())) {
-    op = op->getParentOp();
-  }
-  return op;
-}
-
 LogicalResult GateCallOp::verify() {
   // Registers broadcast, so they must agree in size.
   std::optional<int64_t> broadcastSize;
@@ -318,8 +310,10 @@ LogicalResult GateCallOp::verify() {
 }
 
 /// Checks:
-/// - The gate is known (builtin, standard, or from an include).
+/// - The gate is known (builtin or standard).
 /// - The gate's signature matches its definition.
+/// That a standard gate is only called after `include "stdgates.inc";` is checked by the program verifier, which sees
+/// all statements in one walk.
 LogicalResult GateCallOp::verifySymbolUses(SymbolTableCollection& symbolTable) {
   const StringRef name = getCallee();
   auto checkSignature = [&](GateSignature signature) -> LogicalResult {
@@ -341,22 +335,8 @@ LogicalResult GateCallOp::verifySymbolUses(SymbolTableCollection& symbolTable) {
     return checkSignature(*signature);
   }
 
-  // A standard gate is only known after the include of `stdgates.inc`.
-  Operation* statement = getEntryStatement(*this);
-  auto entry = (statement != nullptr) ? dyn_cast<func::FuncOp>(statement->getParentOp()) : nullptr;
-  const std::optional<GateSignature> standardSignature = lookupStandardGate(name);
-  const bool standardGatesIncluded =
-      entry && llvm::any_of(entry.getBody().getOps<IncludeOp>(), [&](IncludeOp include) {
-        return include.getPath() == standardGatesInclude && include->isBeforeInBlock(statement);
-      });
-  if (standardSignature && standardGatesIncluded) {
-    return checkSignature(*standardSignature);
+  if (const std::optional<GateSignature> signature = lookupStandardGate(name)) {
+    return checkSignature(*signature);
   }
-
-  InFlightDiagnostic diag = emitOpError() << "calls the unknown gate '" << name << "'";
-  if (standardSignature) {
-    diag.attachNote() << "'" << name << "' is a standard gate; it needs an earlier 'include \"" << standardGatesInclude
-                      << "\";'";
-  }
-  return diag;
+  return emitOpError() << "calls the unknown gate '" << name << "'";
 }
