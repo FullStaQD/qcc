@@ -125,24 +125,6 @@ LogicalResult IncludeOp::verify() {
   return success();
 }
 
-LogicalResult CommentOp::verify() {
-  if (!isValidCommentText(getText())) {
-    return emitOpError() << "text must be one complete comment ('// ...' or '/* ... */'), got '" << getText() << "'";
-  }
-  if (getHeader()) {
-    if (failed(verifyInEntryBody(*this))) {
-      return failure();
-    }
-    for (Operation* previous = (*this)->getPrevNode(); previous != nullptr; previous = previous->getPrevNode()) {
-      auto comment = dyn_cast<CommentOp>(previous);
-      if (!comment || !comment.getHeader()) {
-        return emitOpError() << "is a header comment, so it must precede all other statements";
-      }
-    }
-  }
-  return success();
-}
-
 LogicalResult PragmaOp::verify() {
   const StringRef text = getText();
   if (text.empty() || text.find_first_of("\r\n") != StringRef::npos || text.front() == ' ' || text.front() == '\t') {
@@ -213,9 +195,6 @@ LogicalResult QubitIndexOp::verify() { return verifyIndex(*this, getIndex(), get
 LogicalResult ConstantOp::verify() {
   if (!isa<IntLiteralAttr, FloatLiteralAttr, BitstringAttr>(getValue())) {
     return emitOpError() << "unsupported literal " << getValue();
-  }
-  if (getRadix() && !isa<IntLiteralAttr>(getValue())) {
-    return emitOpError() << "only integer literals have a radix";
   }
   return success();
 }

@@ -30,11 +30,9 @@ std::optional<Token> Lexer::skipWhitespaceAndComments() {
       continue;
     }
     if (c == '/' && peek(1) == '/') {
-      const char* start = current;
       while (!atEnd() && peek() != '\n' && peek() != '\r') {
         ++current;
       }
-      comments.emplace_back(start, current - start);
       continue;
     }
     if (c == '/' && peek(1) == '*') {
@@ -45,7 +43,6 @@ std::optional<Token> Lexer::skipWhitespaceAndComments() {
         return makeError(start, "unterminated block comment");
       }
       current += 2 + end + 2;
-      comments.emplace_back(start, current - start);
       continue;
     }
     break;

@@ -20,9 +20,11 @@ include "mlir/IR/AttrTypeBase.td"
 def OQ3_Dialect : Dialect {
     let summary = "Faithful representation of OpenQASM 3 programs.";
     let description = [{
-        The `oq3` dialect represents an OpenQASM 3.x program as closely to its source text as possible, so that a
-        program can be imported, verified, and exported back to the same text up to formatting. Comments, pragmas,
-        annotations, include lines, and the spelling of literals are part of the IR.
+        The `oq3` dialect represents an OpenQASM 3.x program, so that it can be imported, verified, and exported back
+        to an equivalent program. Beyond the semantics, the IR keeps some of the program's structure on a best-effort
+        basis: include lines, the positions of global definitions, pragmas, and annotations. Comments, whitespace, and
+        alternative spellings (`π`, `0x1F`, `qreg`, `measure q -> c`) are not kept, and the export prints one
+        canonical form.
 
         The module is the program and carries the language version (`oq3.version`). All statements of the program form
         the body of the entry function (`qcc.entry_point`). Global definitions are symbols in the module, and markers
@@ -57,9 +59,7 @@ def OQ3_Dialect : Dialect {
 
     let discardableAttrs = (ins "::mlir::Attribute":$version,
                                 "::mlir::IntegerAttr":$from_include,
-                                "::mlir::StringAttr":$trailing_comment,
-                                "::mlir::ArrayAttr":$annotations,
-                                "::mlir::UnitAttr":$arrow);
+                                "::mlir::ArrayAttr":$annotations);
     let hasOperationAttrVerify = 1;
 
     let extraClassDeclaration = [{

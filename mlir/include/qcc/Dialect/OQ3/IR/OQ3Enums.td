@@ -38,15 +38,4 @@ def OQ3_MathConstantKind : I32Enum<"MathConstantKind", "built-in math constant",
   let cppNamespace = "::qcc::oq3";
 }
 
-// The base an integer literal is written in. The value is the base.
-def OQ3_IntegerRadix : I32Enum<"IntegerRadix", "base of an integer literal", [
-    // C++ name, id, IR name
-    I32EnumCase<"Bin", 2, "bin">,  // 0b101
-    I32EnumCase<"Oct", 8, "oct">,  // 0o17
-    I32EnumCase<"Dec", 10, "dec">, // 15
-    I32EnumCase<"Hex", 16, "hex">, // 0x1F
-]> {
-  let cppNamespace = "::qcc::oq3";
-}
-
 #endif // INCLUDE_QCC_DIALECT_OQ3_IR_OQ3ENUMS_TD_

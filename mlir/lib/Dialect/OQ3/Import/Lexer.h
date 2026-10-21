@@ -139,8 +139,7 @@ struct Token {
   [[nodiscard]] llvm::SMLoc getEndLoc() const { return llvm::SMLoc::getFromPointer(spelling.end()); }
 };
 
-/// Splits OpenQASM 3 source text into tokens. Comments are no tokens; the lexer collects them instead, so that the
-/// parser can turn them into IR.
+/// Splits OpenQASM 3 source text into tokens. Whitespace and comments are skipped.
 class Lexer {
 public:
   explicit Lexer(llvm::StringRef buffer) : buffer(buffer), current(buffer.begin()) {}
@@ -150,9 +149,6 @@ public:
   /// Returns the rest of the current line, without leading whitespace and without the line break, and continues
   /// after it. Used for pragmas and annotations, which extend to the end of the line.
   llvm::StringRef lexRestOfLine();
-
-  /// The comments lexed since the last call, in source order.
-  std::vector<llvm::StringRef> takeComments() { return std::move(comments); }
 
   /// The text of the whole buffer.
   [[nodiscard]] llvm::StringRef getBuffer() const { return buffer; }
@@ -178,7 +174,6 @@ private:
 
   llvm::StringRef buffer;
   const char* current;
-  std::vector<llvm::StringRef> comments;
 };
 
 /// Whether `c` may start an identifier. All non-ASCII bytes are accepted, which covers Unicode letters like `π`.

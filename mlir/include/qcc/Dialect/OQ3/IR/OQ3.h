@@ -34,10 +34,10 @@
 
 namespace qcc::oq3 {
 
-/// The resource that operations write which carry source text without effect on the program (comments, pragmas,
-/// declarations, ...): it keeps them alive, but aliases with nothing else.
-struct SourceTextResource : public mlir::SideEffects::Resource::Base<SourceTextResource> {
-  llvm::StringRef getName() const override { return "oq3.source_text"; }
+/// The resource that statements write which shape the program without having uses (definition markers, includes,
+/// pragmas, qubit declarations): it keeps them alive, but aliases with nothing else.
+struct ProgramStructureResource : public mlir::SideEffects::Resource::Base<ProgramStructureResource> {
+  [[nodiscard]] llvm::StringRef getName() const override { return "oq3.program_structure"; }
 };
 
 } // namespace qcc::oq3
@@ -77,13 +77,6 @@ inline constexpr llvm::StringLiteral standardGatesInclude = "stdgates.inc";
 /// The version a program without an `OPENQASM` line gets.
 inline constexpr unsigned defaultMajorVersion = 3;
 inline constexpr unsigned defaultMinorVersion = 1;
-
-/// Whether `text` is one complete comment, markers included: a line comment `// ...` or a block comment `/* ... */`.
-bool isValidCommentText(llvm::StringRef text);
-
-/// Whether `text` is one or more comments that follow each other on one line, separated by spaces, as in
-/// `/* a */ // b`. This is the text of `oq3.trailing_comment`.
-bool isValidTrailingCommentText(llvm::StringRef text);
 
 /// The number and kinds of arguments a gate takes.
 struct GateSignature {

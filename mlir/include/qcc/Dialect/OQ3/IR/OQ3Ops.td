@@ -28,10 +28,11 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 
 class OQ3_Op<string mnemonic, list<Trait> traits = []> : Op<OQ3_Dialect, mnemonic, traits>;
 
-// Source text that has no effect on the program, such as a comment, still has to survive `canonicalize` and DCE. The
-// operations that carry it write this resource, which aliases with nothing else.
-def OQ3_SourceTextResource : Resource<"::qcc::oq3::SourceTextResource">;
-def OQ3_WritesSourceText : MemoryEffects<[MemWrite<OQ3_SourceTextResource>]>;
+// Statements without uses that still have to survive `canonicalize` and DCE, because they shape the program: the
+// position markers of global definitions, includes, pragmas, and qubit declarations. They write this resource, which
+// aliases with nothing else, so that they do not block analyses of other memory.
+def OQ3_ProgramStructureResource : Resource<"::qcc::oq3::ProgramStructureResource">;
+def OQ3_WritesProgramStructure : MemoryEffects<[MemWrite<OQ3_ProgramStructureResource>]>;
 
 def OQ3_QubitOrRegister : AnyTypeOf<[Qcc_QubitRefType, OQ3_QRegType],
                                     "qubit reference or register">;
@@ -40,7 +41,7 @@ def OQ3_QubitOrRegister : AnyTypeOf<[Qcc_QubitRefType, OQ3_QRegType],
 // Program structure and directives
 //===----------------------------------------------------------------------===//
 
-def OQ3_DefinedOp : OQ3_Op<"defined", [OQ3_WritesSourceText]> {
+def OQ3_DefinedOp : OQ3_Op<"defined", [OQ3_WritesProgramStructure]> {
   let summary = "source position of a global definition";
   let description = [{
         Global definitions (gates, subroutines, `const`s) are symbols of the module, so their position in the program
@@ -58,12 +59,12 @@ def OQ3_DefinedOp : OQ3_Op<"defined", [OQ3_WritesSourceText]> {
   let hasVerifier = 1;
 }
 
-def OQ3_IncludeOp : OQ3_Op<"include", [OQ3_WritesSourceText]> {
+def OQ3_IncludeOp : OQ3_Op<"include", [OQ3_WritesProgramStructure]> {
   let summary = "include statement";
   let description = [{
         `include "path";` at its position in the entry body. The `id` is unique within the module, and every
-        statement the included file produced carries it as `oq3.from_include`. The content hash identifies the file
-        that was read.
+        statement the included file produced carries it as `oq3.from_include`, so that the export prints the include
+        instead of them.
 
         `stdgates.inc` is not read. Including it makes the standard gates available, which are checked against a
         built-in signature table.
@@ -74,39 +75,15 @@ def OQ3_IncludeOp : OQ3_Op<"include", [OQ3_WritesSourceText]> {
         ```
     }];
 
-  let arguments = (ins StrAttr:$path,
-                       I64Attr:$id,
-                       OptionalAttr<StrAttr>:$content_hash);
-  let assemblyFormat = [{
-        $path `id` $id (`hash` $content_hash^)? attr-dict
-    }];
+  let arguments = (ins StrAttr:$path, I64Attr:$id);
+  let assemblyFormat = "$path `id` $id attr-dict";
   let hasVerifier = 1;
 }
 
-def OQ3_CommentOp : OQ3_Op<"comment", [OQ3_WritesSourceText]> {
-  let summary = "standalone comment";
-  let description = [{
-        A comment on its own line(s), at its position among the statements. The text includes the comment markers, so
-        that line and block comments are printed as written. Comments before the `OPENQASM` line have the `header`
-        flag. A comment that follows a statement on the same line is the attribute `oq3.trailing_comment` of that
-        statement instead.
-
-        Example:
-        ```mlir
-        oq3.comment "// Prepare a Bell pair"
-        ```
-    }];
-
-  let arguments = (ins StrAttr:$text, UnitAttr:$header);
-  let assemblyFormat = "$text (`header` $header^)? attr-dict";
-  let hasVerifier = 1;
-}
-
-def OQ3_PragmaOp : OQ3_Op<"pragma", [OQ3_WritesSourceText]> {
+def OQ3_PragmaOp : OQ3_Op<"pragma", [OQ3_WritesProgramStructure]> {
   let summary = "pragma directive";
   let description = [{
-        `pragma text`: the rest of the line after `pragma`, verbatim. `hash_prefix` marks the older spelling
-        `#pragma`.
+        `pragma text` or `#pragma text`: the rest of the line after `pragma`, verbatim.
 
         Example:
         ```mlir
@@ -114,8 +91,8 @@ def OQ3_PragmaOp : OQ3_Op<"pragma", [OQ3_WritesSourceText]> {
         ```
     }];
 
-  let arguments = (ins StrAttr:$text, UnitAttr:$hash_prefix);
-  let assemblyFormat = "$text (`hash_prefix` $hash_prefix^)? attr-dict";
+  let arguments = (ins StrAttr:$text);
+  let assemblyFormat = "$text attr-dict";
   let hasVerifier = 1;
 }
 
@@ -123,25 +100,25 @@ def OQ3_PragmaOp : OQ3_Op<"pragma", [OQ3_WritesSourceText]> {
 // Declarations and storage
 //===----------------------------------------------------------------------===//
 
-def OQ3_QubitDeclOp : OQ3_Op<"qubit_decl", [OQ3_WritesSourceText]> {
+def OQ3_QubitDeclOp : OQ3_Op<"qubit_decl", [OQ3_WritesProgramStructure]> {
   let summary = "qubit or qubit register declaration";
   let description = [{
-        Declares the qubit `qubit q;` or the register `qubit[n] q;` and returns a reference to it. The `legacy` flag
-        marks the old syntax `qreg q[n];`. The designator is the source expression of the size, which the result type
+        Declares the qubit `qubit q;` or the register `qubit[n] q;` (or `qreg q[n];`) and returns a reference to it.
+        The designator is the source expression of the size, which the result type
         holds evaluated. Allowed in the entry body only.
 
         Example:
         ```mlir
         %q = oq3.qubit_decl "q" : !qcc.qubit_ref
         %c2 = oq3.constant #oq3.int<2> : !oq3.int
-        %r = oq3.qubit_decl "r" [%c2 : !oq3.int] legacy : !oq3.qreg<2>
+        %r = oq3.qubit_decl "r" [%c2 : !oq3.int] : !oq3.qreg<2>
         ```
     }];
 
-  let arguments = (ins StrAttr:$name, Optional<AnyType>:$designator, UnitAttr:$legacy);
+  let arguments = (ins StrAttr:$name, Optional<AnyType>:$designator);
   let results = (outs AnyTypeOf<[Qcc_QubitRefType, OQ3_QRegType]>:$result);
   let assemblyFormat = [{
-        $name (` ` `[` $designator^ `:` type($designator) `]`)? (`legacy` $legacy^)? attr-dict `:` qualified(type($result))
+        $name (` ` `[` $designator^ `:` type($designator) `]`)? attr-dict `:` qualified(type($result))
     }];
   let hasVerifier = 1;
 }
@@ -162,11 +139,11 @@ def OQ3_PhysicalQubitOp : OQ3_Op<"physical_qubit", [Pure]> {
   let assemblyFormat = "$index attr-dict `:` qualified(type($result))";
 }
 
-def OQ3_DeclareOp : OQ3_Op<"declare", [OQ3_WritesSourceText, AttrSizedOperandSegments]> {
+def OQ3_DeclareOp : OQ3_Op<"declare", [OQ3_WritesProgramStructure, AttrSizedOperandSegments]> {
   let summary = "classical variable declaration";
   let description = [{
-        Declares the classical variable `name` with an optional initial value and returns its storage. The `legacy`
-        flag marks the old syntax `creg c[n];`. The designator is the source expression of the size, which the type
+        Declares the classical variable `name` with an optional initial value and returns its storage. `creg c[n];` is
+        the same as `bit[n] c;`. The designator is the source expression of the size, which the type
         holds evaluated.
 
         TODO: For now only `bit` and `bit[n]` variables can be declared.
@@ -181,12 +158,11 @@ def OQ3_DeclareOp : OQ3_Op<"declare", [OQ3_WritesSourceText, AttrSizedOperandSeg
 
   let arguments = (ins StrAttr:$name,
                        Optional<AnyType>:$designator,
-                       Optional<AnyType>:$init,
-                       UnitAttr:$legacy);
+                       Optional<AnyType>:$init);
   let results = (outs Res<Qcc_RefType, "the variable's storage", [MemAlloc]>:$result);
   let assemblyFormat = [{
-        $name (` ` `[` $designator^ `:` type($designator) `]`)? (`=` $init^ `:` type($init))? (`legacy` $legacy^)?
-        attr-dict `:` qualified(type($result))
+        $name (` ` `[` $designator^ `:` type($designator) `]`)? (`=` $init^ `:` type($init))? attr-dict `:`
+        qualified(type($result))
     }];
   let hasVerifier = 1;
 }
@@ -241,40 +217,36 @@ def OQ3_ConstantOp : OQ3_Op<"constant", [Pure, AllTypesMatch<["value", "result"]
   let description = [{
         An integer (`#oq3.int`), floating-point (`#oq3.float`), or bitstring (`#oq3.bitstring`) literal. Integer and
         floating-point literals have the unsized types `!oq3.int` and `!oq3.float`, a bitstring of `n` bits has type
-        `!oq3.bits<n>`. An integer literal remembers the base it was written in (decimal if absent).
-
-        The op deliberately is not `ConstantLike`: nothing folds at the `oq3` level.
+        `!oq3.bits<n>`.
 
         Example:
         ```mlir
-        %c = oq3.constant #oq3.int<31> : !oq3.int radix hex
+        %c = oq3.constant #oq3.int<31> : !oq3.int
         %f = oq3.constant #oq3.float<"1.5e3"> : !oq3.float
         %b = oq3.constant #oq3.bitstring<"0101"> : !oq3.bits<4>
         ```
     }];
 
-  let arguments = (ins TypedAttrInterface:$value,
-                       OptionalAttr<OQ3_IntegerRadixAttr>:$radix);
+  let arguments = (ins TypedAttrInterface:$value);
   let results = (outs AnyType:$result);
-  let assemblyFormat = "$value (`radix` $radix^)? attr-dict";
+  let assemblyFormat = "$value attr-dict";
   let hasVerifier = 1;
 }
 
 def OQ3_MathConstantOp : OQ3_Op<"math_constant", [Pure]> {
   let summary = "built-in math constant";
   let description = [{
-        One of the constants π, τ, and ℯ. The `unicode` flag records the spelling `π` instead of `pi` (and so on), so
-        that the export prints it as written.
+        One of the constants π, τ, and ℯ, spelled `pi`, `tau`, and `euler` on export.
 
         Example:
         ```mlir
-        %pi = oq3.math_constant pi unicode : !oq3.float
+        %pi = oq3.math_constant pi : !oq3.float
         ```
     }];
 
-  let arguments = (ins OQ3_MathConstantKindAttr:$kind, UnitAttr:$unicode);
+  let arguments = (ins OQ3_MathConstantKindAttr:$kind);
   let results = (outs OQ3_UnsizedFloatType:$result);
-  let assemblyFormat = "$kind (`unicode` $unicode^)? attr-dict `:` qualified(type($result))";
+  let assemblyFormat = "$kind attr-dict `:` qualified(type($result))";
 }
 
 def OQ3_UnaryOp : OQ3_Op<"unary", [Pure, SameOperandsAndResultType]> {
@@ -338,14 +310,13 @@ def OQ3_CastOp : OQ3_Op<"cast", [Pure]> {
 def OQ3_MeasureOp : OQ3_Op<"measure"> {
   let summary = "measurement";
   let description = [{
-        `measure q`: measures a qubit into a bit, or a register of `n` qubits into `n` bits. `c = measure q;` stores
-        the result, `measure q -> c;` stores it with the `oq3.arrow` flag on the store, and `measure q;` leaves it
-        unused.
+        `measure q`: measures a qubit into a bit, or a register of `n` qubits into `n` bits. `c = measure q;` (or
+        `measure q -> c;`) stores the result, and `measure q;` leaves it unused.
 
         Example:
         ```mlir
         %m = oq3.measure %q : !oq3.qreg<2> -> !oq3.bits<2>
-        qcc.ref.store %m, %c {oq3.arrow} : !qcc.ref<!oq3.bits<2>>
+        qcc.ref.store %m, %c : !qcc.ref<!oq3.bits<2>>
         ```
     }];
 

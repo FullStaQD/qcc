@@ -1,14 +1,10 @@
 // RUN: qcc-translate --import-openqasm --split-input-file --verify-diagnostics %s
 
-// Errors of the OpenQASM importer: invalid programs, and valid ones that use constructs not supported yet.
+// Errors and warnings of the OpenQASM importer: invalid programs, deprecated syntax, and valid programs that use
+// constructs not supported yet.
 
-// expected-error @below {{OpenQASM 2.0 is not supported; supported versions are 3.0, 3.1, and 3.2}}
+// expected-error-re @below {{OpenQASM 2.0 is not supported; supported versions are {{.*}}}}
 OPENQASM 2.0;
-
-// -----
-
-// expected-error @below {{OpenQASM 3.3 is not supported; supported versions are 3.0, 3.1, and 3.2}}
-OPENQASM 3.3;
 
 // -----
 
@@ -87,8 +83,17 @@ include "stdgates.inc";
 
 // -----
 
+// Under `--split-input-file`, the name of a chunk is not that of a real file, so an include is only found through
+// `-I`.
 // expected-error @below {{cannot find the include file 'missing.inc'}}
 include "missing.inc";
+
+// -----
+
+// expected-warning @below {{'qreg' is deprecated; declare 'q' with 'qubit[n] q;' instead}}
+qreg q[2];
+// expected-warning @below {{'creg' is deprecated; declare 'c' with 'bit c;' instead}}
+creg c;
 
 // -----
 

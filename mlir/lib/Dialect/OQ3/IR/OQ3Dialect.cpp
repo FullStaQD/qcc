@@ -72,34 +72,6 @@ void OQ3Dialect::registerAttributes() {
 // Program structure
 //===----------------------------------------------------------------------===//
 
-bool qcc::oq3::isValidCommentText(StringRef text) {
-  if (text.starts_with("//")) {
-    return !text.contains('\n') && !text.contains('\r');
-  }
-  // A block comment ends at its first `*/`.
-  return text.size() >= 4 && text.starts_with("/*") && text.find("*/", 2) == text.size() - 2;
-}
-
-bool qcc::oq3::isValidTrailingCommentText(StringRef text) {
-  if (text.empty()) {
-    return false;
-  }
-  while (!text.empty()) {
-    // Loop is needed to support silly things like `/* A */ /* B */   // C`.
-    if (text.starts_with("//")) {
-      return isValidCommentText(text);
-    }
-    const size_t end = text.find("*/", 2);
-    if (!text.starts_with("/*") || end == StringRef::npos) {
-      return false;
-    }
-    text = text.drop_front(end + 2);
-    const StringRef separator = text.take_while([](char c) { return c == ' ' || c == '\t'; });
-    text = text.drop_front(separator.size());
-  }
-  return true;
-}
-
 namespace {
 
 class ProgramVerifier {
@@ -291,19 +263,6 @@ LogicalResult OQ3Dialect::verifyOperationAttribute(Operation* op, NamedAttribute
     return success();
   }
 
-  // Trailing comment
-  if (name == TrailingCommentAttrHelper::getNameStr()) {
-    auto text = dyn_cast<StringAttr>(attr.getValue());
-    if (!text || !isValidTrailingCommentText(text.getValue())) {
-      return op->emitOpError() << "attribute '" << name << "' must be the text of comments on one line, got "
-                               << attr.getValue();
-    }
-    if (!isStatement(op)) {
-      return op->emitOpError() << "attribute '" << name << "' is only valid on a statement";
-    }
-    return success();
-  }
-
   // Annotations
   if (name == AnnotationsAttrHelper::getNameStr()) {
     auto annotations = dyn_cast<ArrayAttr>(attr.getValue());
@@ -313,18 +272,6 @@ LogicalResult OQ3Dialect::verifyOperationAttribute(Operation* op, NamedAttribute
     }
     if (!isStatement(op)) {
       return op->emitOpError() << "attribute '" << name << "' is only valid on a statement";
-    }
-    return success();
-  }
-
-  // Arrow (for legacy measurement syntax)
-  if (name == ArrowAttrHelper::getNameStr()) {
-    if (!isa<UnitAttr>(attr.getValue())) {
-      return op->emitOpError() << "attribute '" << name << "' must be a unit attribute, got " << attr.getValue();
-    }
-    auto store = dyn_cast<RefStoreOp>(op);
-    if (!store || !store.getValue().getDefiningOp<MeasureOp>()) {
-      return op->emitOpError() << "attribute '" << name << "' is only valid on a 'qcc.ref.store' of a measurement";
     }
     return success();
   }
@@ -355,49 +302,9 @@ LogicalResult BitsType::verify(function_ref<InFlightDiagnostic()> emitError, int
 // Attributes
 //===----------------------------------------------------------------------===//
 
-Attribute VersionAttr::parse(AsmParser& parser, Type /*type*/) {
-  unsigned major = 0;
-  std::optional<unsigned> minor;
-  bool implicit = false;
-  if (parser.parseLess() || parser.parseInteger(major)) {
-    return {};
-  }
-  while (succeeded(parser.parseOptionalComma())) {
-    if (succeeded(parser.parseOptionalKeyword("implicit"))) {
-      implicit = true;
-      break;
-    }
-    if (minor) {
-      parser.emitError(parser.getCurrentLocation()) << "expected 'implicit'";
-      return {};
-    }
-    unsigned value = 0;
-    if (parser.parseInteger(value)) {
-      return {};
-    }
-    minor = value;
-  }
-  if (parser.parseGreater()) {
-    return {};
-  }
-  return getChecked([&] { return parser.emitError(parser.getNameLoc()); }, parser.getContext(), major, minor, implicit);
-}
-
-void VersionAttr::print(AsmPrinter& printer) const {
-  printer << "<" << getMajor();
-  if (getMinor()) {
-    printer << ", " << *getMinor();
-  }
-  if (getImplicit()) {
-    printer << ", implicit";
-  }
-  printer << ">";
-}
-
-LogicalResult VersionAttr::verify(function_ref<InFlightDiagnostic()> emitError, unsigned major,
-                                  std::optional<unsigned> minor, bool /*implicit*/) {
-  if (major != 3 || minor.value_or(0) > 2) {
-    return emitError() << "unsupported OpenQASM version " << major << "." << minor.value_or(0)
+LogicalResult VersionAttr::verify(function_ref<InFlightDiagnostic()> emitError, unsigned major, unsigned minor) {
+  if (major != 3 || minor > 2) {
+    return emitError() << "unsupported OpenQASM version " << major << "." << minor
                        << ", supported are 3.0, 3.1, and 3.2";
     // TODO: By 3.2, we mean the current live version, which has improvements over 3.1.
     // Hopefully there will be a release soon so that we can eliminate the inaccuracy.

@@ -25,9 +25,8 @@ def OQ3_VersionAttr : AttrDef<OQ3_Dialect, "Version"> {
   let mnemonic = "version";
   let summary = "OpenQASM language version of a program";
   let description = [{
-        The language version that the program's `OPENQASM` line selects, as written: `#oq3.version<3>` for
-        `OPENQASM 3;` and `#oq3.version<3, 1>` for `OPENQASM 3.1;`. A program without that line gets qcc's default
-        version and the `implicit` flag, so that exporting it adds no version line: `#oq3.version<3, 1, implicit>`.
+        The language version that the program's `OPENQASM` line selects: `#oq3.version<3, 1>` for `OPENQASM 3.1;`, and
+        `#oq3.version<3, 0>` for `OPENQASM 3;`. A program without that line gets qcc's default version.
 
         TEMPORARY: `OPENQASM 3.2;` selects the current live specification, which has no release number yet.
 
@@ -35,16 +34,9 @@ def OQ3_VersionAttr : AttrDef<OQ3_Dialect, "Version"> {
         program as a whole: the entry function, the `oq3.defined` markers, and the include tags.
     }];
 
-  let parameters = (ins "unsigned":$major,
-                        "std::optional<unsigned>":$minor,
-                        "bool":$implicit);
-  let hasCustomAssemblyFormat = 1;
+  let parameters = (ins "unsigned":$major, "unsigned":$minor);
+  let assemblyFormat = "`<` $major `,` $minor `>`";
   let genVerifyDecl = 1;
-
-  let extraClassDeclaration = [{
-    /// The minor version, where `OPENQASM 3;` means 3.0.
-    unsigned getMinorOrZero() const { return getMinor().value_or(0); }
-  }];
 }
 
 def OQ3_AnnotationAttr : AttrDef<OQ3_Dialect, "Annotation"> {
@@ -74,8 +66,7 @@ def OQ3_IntLiteralAttr : AttrDef<OQ3_Dialect, "IntLiteral", [TypedAttrInterface]
   let mnemonic = "int";
   let summary = "integer literal of arbitrary precision";
   let description = [{
-        The non-negative value of an integer literal, of type `!oq3.int`. The `oq3.constant` that holds it keeps the
-        base it was written in.
+        The non-negative value of an integer literal, of type `!oq3.int`.
 
         Example: `#oq3.int<31> : !oq3.int`
     }];
@@ -140,10 +131,6 @@ def OQ3_UnaryKindAttr : EnumAttr<OQ3_Dialect, OQ3_UnaryKind, "unary_kind"> {
 }
 
 def OQ3_MathConstantKindAttr : EnumAttr<OQ3_Dialect, OQ3_MathConstantKind, "math_constant_kind"> {
-  let assemblyFormat = "$value";
-}
-
-def OQ3_IntegerRadixAttr : EnumAttr<OQ3_Dialect, OQ3_IntegerRadix, "radix"> {
   let assemblyFormat = "$value";
 }
 

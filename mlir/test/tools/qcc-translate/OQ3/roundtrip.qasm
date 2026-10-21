@@ -1,27 +1,52 @@
-// RUN: split-file %s %t
-// RUN: qcc-translate --import-openqasm %t/bell.qasm | qcc-translate --export-openqasm | diff %t/bell.qasm -
-// RUN: qcc-translate --import-openqasm %t/quantum.qasm | qcc-translate --export-openqasm | diff %t/quantum.qasm -
-// RUN: qcc-translate --import-openqasm %t/expressions.qasm | qcc-translate --export-openqasm \
-// RUN:   | diff %t/expressions.qasm -
-// RUN: qcc-translate --import-openqasm %t/directives.qasm | qcc-translate --export-openqasm \
-// RUN:   | diff %t/directives.qasm -
-// RUN: qcc-translate --import-openqasm %t/legacy.qasm 2>/dev/null | qcc-translate --export-openqasm \
-// RUN:   | diff %t/legacy.qasm -
-// RUN: qcc-translate --import-openqasm %t/no-version.qasm | qcc-translate --export-openqasm \
-// RUN:   | diff %t/no-version.qasm -
+// RUN: qcc-translate --split-input-file --output-split-marker="// =====" --import-openqasm %s \
+// RUN:   | qcc-translate --split-input-file="// =====" --export-openqasm \
+// RUN:   | FileCheck %s --strict-whitespace
 
-// OpenQASM programs in the exporter's format survive an import and export unchanged.
+// Programs in the canonical form of the export survive an import and export unchanged. The CHECK lines repeat each
+// program; being comments, they are not part of it.
 
-//--- bell.qasm
-// Prepare a Bell pair
+// CHECK:      OPENQASM 3.1;
+// CHECK-NEXT: include "stdgates.inc";
+// CHECK-NEXT: qubit[2] q;
+// CHECK-NEXT: bit[2] c;
+// CHECK-NEXT: h q[0];
+// CHECK-NEXT: cx q[0], q[1];
+// CHECK-NEXT: c = measure q;
+
 OPENQASM 3.1;
 include "stdgates.inc";
-qubit[2] q;  // data qubits
+qubit[2] q;
 bit[2] c;
 h q[0];
 cx q[0], q[1];
 c = measure q;
-//--- quantum.qasm
+
+// -----
+
+// CHECK:      OPENQASM 3.0;
+// CHECK-NEXT: include "stdgates.inc";
+// CHECK-NEXT: qubit a;
+// CHECK-NEXT: qubit[3] r;
+// CHECK-NEXT: qubit[0] empty;
+// CHECK-NEXT: bit b;
+// CHECK-NEXT: bit[3] m;
+// CHECK-NEXT: x a;
+// CHECK-NEXT: h r;
+// CHECK-NEXT: cx a, r[1];
+// CHECK-NEXT: ccx r[0], r[-1], a;
+// CHECK-NEXT: U(0, 0, pi) $2;
+// CHECK-NEXT: gphase(pi / 4);
+// CHECK-NEXT: reset r[0];
+// CHECK-NEXT: reset r;
+// CHECK-NEXT: barrier;
+// CHECK-NEXT: barrier a, r, $0;
+// CHECK-NEXT: b = measure a;
+// CHECK-NEXT: m[2] = measure r[0];
+// CHECK-NEXT: m = measure r;
+// CHECK-NEXT: measure $1;
+// CHECK-NEXT: bit c = measure $0;
+// CHECK-NEXT: bit[3] d = measure r;
+
 OPENQASM 3.0;
 include "stdgates.inc";
 qubit a;
@@ -41,19 +66,41 @@ barrier;
 barrier a, r, $0;
 b = measure a;
 m[2] = measure r[0];
-measure r -> m;
-measure r[1] -> m[0];
+m = measure r;
 measure $1;
 bit c = measure $0;
 bit[3] d = measure r;
-//--- expressions.qasm
+
+// -----
+
+// CHECK:      OPENQASM 3.2;
+// CHECK-NEXT: include "stdgates.inc";
+// CHECK-NEXT: qubit q;
+// CHECK-NEXT: rx(pi) q;
+// CHECK-NEXT: rx(-pi) q;
+// CHECK-NEXT: rx(tau / 2 - euler) q;
+// CHECK-NEXT: rx(1 + 2 * 3) q;
+// CHECK-NEXT: rx((1 + 2) * 3) q;
+// CHECK-NEXT: rx(1 - (2 - 3)) q;
+// CHECK-NEXT: rx(1 - 2 - 3) q;
+// CHECK-NEXT: rx(8 / (4 / 2)) q;
+// CHECK-NEXT: rx(-(1 + 2)) q;
+// CHECK-NEXT: rx(--1) q;
+// CHECK-NEXT: rx(1.5 + .5 + 2. + 1e3 + 2.5e-3) q;
+// CHECK-NEXT: cu(1, 2, 3, 4) q, $0;
+// CHECK-NEXT: bit b = 1;
+// CHECK-NEXT: bit[4] bits = "0101";
+// CHECK-NEXT: b = 0;
+// CHECK-NEXT: bits = "1111";
+// CHECK-NEXT: bits[0] = 1;
+// CHECK-NEXT: bit copy = b;
+
 OPENQASM 3.2;
 include "stdgates.inc";
 qubit q;
 rx(pi) q;
-rx(-π) q;
+rx(-pi) q;
 rx(tau / 2 - euler) q;
-rx(τ + ℯ) q;
 rx(1 + 2 * 3) q;
 rx((1 + 2) * 3) q;
 rx(1 - (2 - 3)) q;
@@ -61,7 +108,6 @@ rx(1 - 2 - 3) q;
 rx(8 / (4 / 2)) q;
 rx(-(1 + 2)) q;
 rx(--1) q;
-rx(0x1f + 0b101 + 0o17 + 42) q;
 rx(1.5 + .5 + 2. + 1e3 + 2.5e-3) q;
 cu(1, 2, 3, 4) q, $0;
 bit b = 1;
@@ -70,32 +116,22 @@ b = 0;
 bits = "1111";
 bits[0] = 1;
 bit copy = b;
-//--- directives.qasm
-/* A header
-   block comment */
-// and a line comment
+
+// -----
+
+// Pragmas and annotations are kept.
+// CHECK:      OPENQASM 3.1;
+// CHECK-NEXT: pragma qcc.simulator noise model "qpu1.noise"
+// CHECK-NEXT: include "stdgates.inc";
+// CHECK-NEXT: @ns.name
+// CHECK-NEXT: @ns.with.args some text
+// CHECK-NEXT: qubit q;
+// CHECK-NEXT: h q;
+
 OPENQASM 3.1;
 pragma qcc.simulator noise model "qpu1.noise"
-#pragma legacy.spelling
 include "stdgates.inc";
-// A standalone comment
-/* and a block comment */
 @ns.name
 @ns.with.args some text
-qubit q;  // trailing
-h q;  /* trailing block */
-x q;  /* two */ // trailing comments
-// The end.
-//--- legacy.qasm
-OPENQASM 3;
-include "stdgates.inc";
-qreg q[2];
-qreg single;
-creg c[2];
-creg flag;
-h q;
-c = measure q;
-flag = measure single;
-//--- no-version.qasm
 qubit q;
-U(1, 2, 3) q;
+h q;

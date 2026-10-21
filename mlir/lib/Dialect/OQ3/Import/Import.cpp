@@ -38,7 +38,6 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
-#include "llvm/Support/SHA256.h"
 #include "llvm/Support/SourceMgr.h"
 
 #include <cstdint>
@@ -95,15 +94,12 @@ static std::string describeType(Type type) {
       });
 }
 
-/// Returns the math constant that `name` spells, and whether it is the Unicode spelling.
-static std::optional<std::pair<MathConstantKind, bool>> lookupMathConstant(StringRef name) {
-  return llvm::StringSwitch<std::optional<std::pair<MathConstantKind, bool>>>(name)
-      .Case("pi", std::pair{MathConstantKind::Pi, false})
-      .Case("π", std::pair{MathConstantKind::Pi, true})
-      .Case("tau", std::pair{MathConstantKind::Tau, false})
-      .Case("τ", std::pair{MathConstantKind::Tau, true})
-      .Case("euler", std::pair{MathConstantKind::Euler, false})
-      .Case("ℯ", std::pair{MathConstantKind::Euler, true})
+/// Returns the math constant that `name` spells.
+static std::optional<MathConstantKind> lookupMathConstant(StringRef name) {
+  return llvm::StringSwitch<std::optional<MathConstantKind>>(name)
+      .Cases({"pi", "π"}, MathConstantKind::Pi)
+      .Cases({"tau", "τ"}, MathConstantKind::Tau)
+      .Cases({"euler", "ℯ"}, MathConstantKind::Euler)
       .Default(std::nullopt);
 }
 
@@ -146,11 +142,6 @@ private:
     /// The include whose file this is, if any.
     std::optional<int64_t> includeId;
     std::optional<Location> includeLoc;
-    /// Comments that were lexed but not turned into IR yet.
-    std::vector<StringRef> pendingComments;
-    /// The operation of the last statement and where that statement ended, for trailing comments.
-    Operation* lastStatement = nullptr;
-    SMLoc lastStatementEnd;
   };
 
   Location getLoc(SMLoc loc) {
@@ -183,8 +174,6 @@ private:
   void consume() {
     file.previousEnd = file.token.getEndLoc();
     file.token = file.lexer->lex();
-    std::vector<StringRef> comments = file.lexer->takeComments();
-    llvm::append_range(file.pendingComments, comments);
   }
 
   bool consumeIf(TokenKind kind) {
@@ -217,7 +206,6 @@ private:
 
   LogicalResult parseFile(bool isMainFile);
   LogicalResult parseVersion();
-  LogicalResult parseStatementAndComments();
   FailureOr<Operation*> parseStatement();
   FailureOr<Operation*> parsePragma();
   FailureOr<Operation*> parseInclude();
@@ -231,12 +219,6 @@ private:
   FailureOr<Operation*> parseIdentifierStatement();
   FailureOr<Operation*> parseAssignment();
   FailureOr<Operation*> parseGateCall(StringRef name, SMLoc nameLoc);
-
-  /// Turns the pending comments into IR: trailing comments of the last statement, and standalone comments before the
-  /// next. Comments before `insideBefore` are inside the statement that ended there, and go before its operations
-  /// (after `before`).
-  void flushComments(bool header = false);
-  void insertCommentsInside(Operation* before, SMLoc statementEnd);
 
   /// Checks that `name` can be declared now.
   LogicalResult checkDeclarable(StringRef name, SMLoc loc);
@@ -336,7 +318,7 @@ OwningOpRef<ModuleOp> Importer::run() {
   func::ReturnOp::create(builder, getLoc(token().getLoc()));
   if (!seenVersion) {
     module->setAttr(OQ3Dialect::VersionAttrHelper::getNameStr(),
-                    VersionAttr::get(context, defaultMajorVersion, defaultMinorVersion, /*implicit=*/true));
+                    VersionAttr::get(context, defaultMajorVersion, defaultMinorVersion));
   }
 
   if (failed(verify(module))) {
@@ -356,17 +338,14 @@ LogicalResult Importer::parseFile(bool isMainFile) {
   }
 
   while (!token().is(TokenKind::Eof)) {
-    if (failed(parseStatementAndComments())) {
+    if (failed(parseStatement())) {
       return failure();
     }
   }
-  flushComments();
   return success();
 }
 
 LogicalResult Importer::parseVersion() {
-  // Comments before the version line belong to the header.
-  flushComments(/*header=*/true);
   consume();
 
   const StringRef text = token().spelling;
@@ -388,77 +367,14 @@ LogicalResult Importer::parseVersion() {
     return failure();
   }
 
-  const std::optional<unsigned> minorVersion = text.contains('.') ? std::optional(minor) : std::nullopt;
-  module->setAttr(OQ3Dialect::VersionAttrHelper::getNameStr(),
-                  VersionAttr::get(context, major, minorVersion, /*implicit=*/false));
+  module->setAttr(OQ3Dialect::VersionAttrHelper::getNameStr(), VersionAttr::get(context, major, minor));
   seenVersion = true;
   return success();
 }
 
 //===----------------------------------------------------------------------===//
-// Comments
-//===----------------------------------------------------------------------===//
-
-/// Whether there is a line break in `[from, to)`.
-static bool hasLineBreakBetween(SMLoc from, SMLoc to) {
-  const char* begin = from.getPointer();
-  const char* end = to.getPointer();
-  return begin > end || std::any_of(begin, end, [](char c) { return c == '\n' || c == '\r'; });
-}
-
-void Importer::flushComments(bool header) {
-  const StringRef trailingName = OQ3Dialect::TrailingCommentAttrHelper::getNameStr();
-  for (const StringRef comment : file.pendingComments) {
-    const SMLoc loc = SMLoc::getFromPointer(comment.begin());
-    Operation* last = file.lastStatement;
-    if (last != nullptr && !hasLineBreakBetween(file.lastStatementEnd, loc)) {
-      auto existing = last->getAttrOfType<StringAttr>(trailingName);
-      const std::string text = existing ? (existing.getValue() + " " + comment).str() : comment.str();
-      last->setAttr(trailingName, builder.getStringAttr(text));
-      continue;
-    }
-    CommentOp::create(builder, getLoc(loc), comment, header);
-  }
-  file.pendingComments.clear();
-}
-
-void Importer::insertCommentsInside(Operation* before, SMLoc statementEnd) {
-  auto inside = llvm::partition(file.pendingComments,
-                                [&](StringRef comment) { return comment.data() < statementEnd.getPointer(); });
-  if (inside == file.pendingComments.begin()) {
-    return;
-  }
-  OpBuilder::InsertionGuard guard(builder);
-  if (before != nullptr) {
-    builder.setInsertionPointAfter(before);
-  } else {
-    builder.setInsertionPointToStart(body);
-  }
-  for (auto it = file.pendingComments.begin(); it != inside; ++it) {
-    CommentOp::create(builder, getLoc(SMLoc::getFromPointer(it->begin())), *it, /*header=*/false);
-  }
-  file.pendingComments.erase(file.pendingComments.begin(), inside);
-}
-
-//===----------------------------------------------------------------------===//
 // Statements
 //===----------------------------------------------------------------------===//
-
-LogicalResult Importer::parseStatementAndComments() {
-  flushComments();
-  Operation* before = body->empty() ? nullptr : &body->back();
-
-  FailureOr<Operation*> statement = parseStatement();
-  if (failed(statement)) {
-    return failure();
-  }
-
-  // Comments inside the statement have no place in it, so they go before it. `partition` keeps the order.
-  insertCommentsInside(before, file.previousEnd);
-  file.lastStatement = *statement;
-  file.lastStatementEnd = file.previousEnd;
-  return success();
-}
 
 FailureOr<Operation*> Importer::parseStatement() {
   SmallVector<Attribute> annotations;
@@ -571,14 +487,13 @@ FailureOr<Operation*> Importer::parseStatement() {
 
 FailureOr<Operation*> Importer::parsePragma() {
   const SMLoc loc = token().getLoc();
-  const bool hashPrefix = token().spelling.starts_with("#");
   const StringRef text = file.lexer->lexRestOfLine();
   if (text.empty()) {
     return emitError(loc, "expected the content of the pragma on the same line");
   }
   consume();
   file.previousEnd = SMLoc::getFromPointer(text.end());
-  return PragmaOp::create(builder, getLoc(loc), text, hashPrefix).getOperation();
+  return PragmaOp::create(builder, getLoc(loc), text).getOperation();
 }
 
 FailureOr<Operation*> Importer::parseInclude() {
@@ -634,7 +549,7 @@ LogicalResult Importer::includeStandardGates(StringRef path, SMLoc loc) {
     // TODO: Read the file like any other include once gate definitions are supported. Until then, the built-in
     // signature table describes it as well.
   }
-  IncludeOp::create(builder, getLoc(loc), path, nextIncludeId++, /*content_hash=*/nullptr);
+  IncludeOp::create(builder, getLoc(loc), path, nextIncludeId++);
   standardGatesIncludeLoc = getLoc(loc);
   return success();
 }
@@ -676,8 +591,7 @@ LogicalResult Importer::includeFile(StringRef path, SMLoc loc) {
   }
 
   const int64_t id = nextIncludeId++;
-  const std::array<uint8_t, 32> hash = llvm::SHA256::hash(llvm::arrayRefFromStringRef(buffer->getBuffer()));
-  auto include = IncludeOp::create(builder, getLoc(loc), path, id, builder.getStringAttr(llvm::toHex(hash, true)));
+  auto include = IncludeOp::create(builder, getLoc(loc), path, id);
 
   // Parse the included file in place, in the same scope.
   FileState outer = std::move(file);
@@ -760,7 +674,7 @@ FailureOr<Operation*> Importer::parseQubitDeclaration() {
       failed(expect(TokenKind::Semicolon, "';'"))) {
     return failure();
   }
-  auto decl = QubitDeclOp::create(builder, getLoc(loc), type, name->first, designator, /*legacy=*/false);
+  auto decl = QubitDeclOp::create(builder, getLoc(loc), type, name->first, designator);
   declare(name->first, {.kind = Binding::Kind::Qubit, .value = decl.getResult(), .loc = getLoc(name->second)});
   return decl.getOperation();
 }
@@ -787,7 +701,7 @@ FailureOr<Operation*> Importer::parseQregDeclaration() {
   }
   mlir::emitWarning(getLoc(loc)) << "'qreg' is deprecated; declare '" << name->first << "' with 'qubit"
                                  << (designator ? "[n]" : "") << " " << name->first << ";' instead";
-  auto decl = QubitDeclOp::create(builder, getLoc(loc), type, name->first, designator, /*legacy=*/true);
+  auto decl = QubitDeclOp::create(builder, getLoc(loc), type, name->first, designator);
   declare(name->first, {.kind = Binding::Kind::Qubit, .value = decl.getResult(), .loc = getLoc(name->second)});
   return decl.getOperation();
 }
@@ -825,8 +739,7 @@ FailureOr<Operation*> Importer::parseBitDeclaration() {
   if (failed(expect(TokenKind::Semicolon, "';'"))) {
     return failure();
   }
-  auto decl = DeclareOp::create(builder, getLoc(loc), RefType::get(type), name->first, designator, init,
-                                /*legacy=*/false);
+  auto decl = DeclareOp::create(builder, getLoc(loc), RefType::get(type), name->first, designator, init);
   declare(name->first, {.kind = Binding::Kind::Variable, .value = decl.getResult(), .loc = getLoc(name->second)});
   return decl.getOperation();
 }
@@ -853,8 +766,7 @@ FailureOr<Operation*> Importer::parseCregDeclaration() {
   }
   mlir::emitWarning(getLoc(loc)) << "'creg' is deprecated; declare '" << name->first << "' with 'bit"
                                  << (designator ? "[n]" : "") << " " << name->first << ";' instead";
-  auto decl = DeclareOp::create(builder, getLoc(loc), RefType::get(type), name->first, designator, Value(),
-                                /*legacy=*/true);
+  auto decl = DeclareOp::create(builder, getLoc(loc), RefType::get(type), name->first, designator, Value());
   declare(name->first, {.kind = Binding::Kind::Variable, .value = decl.getResult(), .loc = getLoc(name->second)});
   return decl.getOperation();
 }
@@ -877,7 +789,6 @@ FailureOr<Operation*> Importer::parseMeasureStatement() {
       return failure();
     }
     statement = RefStoreOp::create(builder, getLoc(loc), *value, target->value);
-    statement->setAttr(OQ3Dialect::ArrowAttrHelper::getNameStr(), builder.getUnitAttr());
   }
   if (failed(expect(TokenKind::Semicolon, "';'"))) {
     return failure();
@@ -1166,8 +1077,7 @@ FailureOr<Expr> Importer::parsePrimary() {
     const std::string text = withoutSeparators(token().spelling);
     consume();
     auto constant =
-        ConstantOp::create(builder, getLoc(loc), FloatLiteralAttr::get(context, text, UnsizedFloatType::get(context)),
-                           /*radix=*/nullptr);
+        ConstantOp::create(builder, getLoc(loc), FloatLiteralAttr::get(context, text, UnsizedFloatType::get(context)));
     return Expr{.value = constant, .loc = loc};
   }
   case TokenKind::StringLiteral: {
@@ -1183,8 +1093,7 @@ FailureOr<Expr> Importer::parsePrimary() {
     const std::string text = withoutSeparators(bits);
     consume();
     const Type type = BitsType::get(context, static_cast<int64_t>(text.size()));
-    auto constant = ConstantOp::create(builder, getLoc(loc), BitstringAttr::get(context, text, type),
-                                       /*radix=*/nullptr);
+    auto constant = ConstantOp::create(builder, getLoc(loc), BitstringAttr::get(context, text, type));
     return Expr{.value = constant, .loc = loc};
   }
   case TokenKind::Identifier:
@@ -1222,29 +1131,28 @@ FailureOr<Expr> Importer::parsePrimary() {
 FailureOr<Expr> Importer::parseIntegerLiteral() {
   const SMLoc loc = token().getLoc();
   StringRef digits = token().spelling;
-  IntegerRadix radix = IntegerRadix::Dec;
+  unsigned radix = 10;
   if (digits.size() > 2 && digits[0] == '0' && llvm::isAlpha(digits[1])) {
     switch (digits[1]) {
     case 'b':
     case 'B':
-      radix = IntegerRadix::Bin;
+      radix = 2;
       break;
     case 'o':
-      radix = IntegerRadix::Oct;
+      radix = 8;
       break;
     default:
-      radix = IntegerRadix::Hex;
+      radix = 16;
       break;
     }
     digits = digits.drop_front(2);
   }
   APInt value;
-  if (StringRef(withoutSeparators(digits)).getAsInteger(static_cast<unsigned>(radix), value)) {
+  if (StringRef(withoutSeparators(digits)).getAsInteger(radix, value)) {
     return emitError(loc, "invalid integer literal");
   }
   consume();
-  auto constant = ConstantOp::create(builder, getLoc(loc), IntLiteralAttr::get(value, UnsizedIntType::get(context)),
-                                     radix == IntegerRadix::Dec ? nullptr : IntegerRadixAttr::get(context, radix));
+  auto constant = ConstantOp::create(builder, getLoc(loc), IntLiteralAttr::get(value, UnsizedIntType::get(context)));
   return Expr{.value = constant, .loc = loc};
 }
 
@@ -1264,8 +1172,7 @@ FailureOr<Expr> Importer::parseIdentifierExpression() {
   }
 
   if (const auto constant = lookupMathConstant(name)) {
-    auto op =
-        MathConstantOp::create(builder, getLoc(loc), UnsizedFloatType::get(context), constant->first, constant->second);
+    auto op = MathConstantOp::create(builder, getLoc(loc), UnsizedFloatType::get(context), *constant);
     return Expr{.value = op, .loc = loc};
   }
   if (auto it = scope.find(name); it != scope.end()) {

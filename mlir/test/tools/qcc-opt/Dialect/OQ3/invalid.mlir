@@ -16,8 +16,8 @@ func.func @f() attributes {oq3.version = #oq3.version<3, 1>} {
 
 // -----
 
-// expected-error @below {{unsupported OpenQASM version 3.5, supported are 3.0, 3.1, and 3.2}}
-module attributes {oq3.version = #oq3.version<3, 5>} {}
+// expected-error-re @below {{unsupported OpenQASM version 1.9, supported are {{.*}}}}
+module attributes {oq3.version = #oq3.version<1, 9>} {}
 
 // -----
 
@@ -143,8 +143,8 @@ module attributes {oq3.version = #oq3.version<3, 1>} {
 
 module attributes {oq3.version = #oq3.version<3, 1>} {
   func.func @main() attributes {qcc.entry_point} {
-    // expected-error @below {{'oq3.comment' op is tagged 'oq3.from_include = 3', but no include has that id}}
-    oq3.comment "// from nowhere" {oq3.from_include = 3}
+    // expected-error @below {{'oq3.qubit_decl' op is tagged 'oq3.from_include = 3', but no include has that id}}
+    %q = oq3.qubit_decl "q" {oq3.from_include = 3} : !qcc.qubit_ref
     return
   }
 }
@@ -152,44 +152,13 @@ module attributes {oq3.version = #oq3.version<3, 1>} {
 // -----
 
 //===----------------------------------------------------------------------===//
-// Directives and comments
+// Directives
 //===----------------------------------------------------------------------===//
-
-module attributes {oq3.version = #oq3.version<3, 1>} {
-  func.func @main() attributes {qcc.entry_point} {
-    // expected-error @below {{'oq3.comment' op text must be one complete comment ('// ...' or '/* ... */'), got '/* open'}}
-    oq3.comment "/* open"
-    return
-  }
-}
-
-// -----
-
-module attributes {oq3.version = #oq3.version<3, 1>} {
-  func.func @main() attributes {qcc.entry_point} {
-    oq3.comment "// first"
-    // expected-error @below {{'oq3.comment' op is a header comment, so it must precede all other statements}}
-    oq3.comment "// header" header
-    return
-  }
-}
-
-// -----
 
 module attributes {oq3.version = #oq3.version<3, 1>} {
   func.func @main() attributes {qcc.entry_point} {
     // expected-error @below {{'oq3.pragma' op text must be a non-empty single line without leading whitespace}}
     oq3.pragma " x"
-    return
-  }
-}
-
-// -----
-
-module attributes {oq3.version = #oq3.version<3, 1>} {
-  func.func @main() attributes {qcc.entry_point} {
-    // expected-error @below {{'oq3.qubit_decl' op attribute 'oq3.trailing_comment' must be the text of comments on one line, got "not a comment"}}
-    %q = oq3.qubit_decl "q" {oq3.trailing_comment = "not a comment"} : !qcc.qubit_ref
     return
   }
 }
@@ -208,20 +177,6 @@ module attributes {oq3.version = #oq3.version<3, 1>} {
 
 // expected-error @below {{annotation keyword must be a dotted identifier without '@', got '@ns'}}
 func.func private @f() attributes {a = #oq3.annotation<"@ns", "">}
-
-// -----
-
-module attributes {oq3.version = #oq3.version<3, 1>} {
-  func.func @main() attributes {qcc.entry_point} {
-    %q = oq3.qubit_decl "q" : !qcc.qubit_ref
-    %m = oq3.measure %q : !qcc.qubit_ref -> !oq3.bit
-    %c = oq3.declare "c" : !qcc.ref<!oq3.bit>
-    %d = qcc.ref.load %c : !qcc.ref<!oq3.bit>
-    // expected-error @below {{'qcc.ref.store' op attribute 'oq3.arrow' is only valid on a 'qcc.ref.store' of a measurement}}
-    qcc.ref.store %d, %c {oq3.arrow} : !qcc.ref<!oq3.bit>
-    return
-  }
-}
 
 // -----
 
@@ -337,11 +292,6 @@ module attributes {oq3.version = #oq3.version<3, 1>} {
 
 // expected-error @below {{an integer literal is non-negative}}
 %x = oq3.constant #oq3.int<-1> : !oq3.int
-
-// -----
-
-// expected-error @below {{'oq3.constant' op only integer literals have a radix}}
-%x = oq3.constant #oq3.float<"1.0"> : !oq3.float radix hex
 
 // -----
 

@@ -76,8 +76,7 @@ static bool isStatement(Operation* op) {
   if (isa<MeasureOp>(op)) {
     return op->use_empty();
   }
-  return isa<CommentOp, PragmaOp, IncludeOp, DefinedOp, QubitDeclOp, DeclareOp, GateCallOp, ResetOp, BarrierOp,
-             RefStoreOp>(op);
+  return isa<PragmaOp, IncludeOp, DefinedOp, QubitDeclOp, DeclareOp, GateCallOp, ResetOp, BarrierOp, RefStoreOp>(op);
 }
 
 /// Whether `op` computes a value that its users print.
@@ -93,39 +92,20 @@ static std::string quotePath(StringRef path) {
 }
 
 static std::string printMathConstant(MathConstantOp constant) {
-  const bool unicode = constant.getUnicode();
   switch (constant.getKind()) {
   case MathConstantKind::Pi:
-    return unicode ? "π" : "pi";
+    return "pi";
   case MathConstantKind::Tau:
-    return unicode ? "τ" : "tau";
+    return "tau";
   case MathConstantKind::Euler:
-    return unicode ? "ℯ" : "euler";
+    return "euler";
   }
   llvm_unreachable("unknown math constant");
 }
 
 static FailureOr<std::string> printLiteral(ConstantOp constant) {
   if (auto literal = dyn_cast<IntLiteralAttr>(constant.getValue())) {
-    const IntegerRadix radix = constant.getRadix().value_or(IntegerRadix::Dec);
-    StringRef prefix;
-    switch (radix) {
-    case IntegerRadix::Bin:
-      prefix = "0b";
-      break;
-    case IntegerRadix::Oct:
-      prefix = "0o";
-      break;
-    case IntegerRadix::Dec:
-      break;
-    case IntegerRadix::Hex:
-      prefix = "0x";
-      break;
-    }
-    // Digits print in lower case, as the prefix does.
-    return (prefix +
-            StringRef(llvm::toString(literal.getValue(), static_cast<unsigned>(radix), /*Signed=*/false)).lower())
-        .str();
+    return llvm::toString(literal.getValue(), 10, /*Signed=*/false);
   }
   if (auto literal = dyn_cast<FloatLiteralAttr>(constant.getValue())) {
     return literal.getText().str();
@@ -161,24 +141,11 @@ LogicalResult Exporter::run(Operation* op) {
   }
   Block& body = entry.getBody().front();
 
-  // Header comments precede the version line.
-  for (auto comment : body.getOps<CommentOp>()) {
-    if (comment.getHeader()) {
-      os << comment.getText() << "\n";
-    }
-  }
-  if (!version.getImplicit()) {
-    os << "OPENQASM " << version.getMajor();
-    if (version.getMinor()) {
-      os << "." << *version.getMinor();
-    }
-    os << ";\n";
-  }
+  os << "OPENQASM " << version.getMajor() << "." << version.getMinor() << ";\n";
 
   const StringRef tagName = OQ3Dialect::FromIncludeAttrHelper::getNameStr();
   for (Operation& statement : body) {
-    auto comment = dyn_cast<CommentOp>(statement);
-    if ((comment && comment.getHeader()) || statement.hasAttr(tagName) || &statement == body.getTerminator()) {
+    if (statement.hasAttr(tagName) || &statement == body.getTerminator()) {
       continue;
     }
     if (isStatement(&statement)) {
@@ -208,11 +175,7 @@ LogicalResult Exporter::printStatement(Operation* op) {
       os << "\n";
     }
   }
-  os << *text;
-  if (auto comment = op->getAttrOfType<StringAttr>(OQ3Dialect::TrailingCommentAttrHelper::getNameStr())) {
-    os << "  " << comment.getValue();
-  }
-  os << "\n";
+  os << *text << "\n";
   return success();
 }
 
@@ -241,9 +204,7 @@ FailureOr<std::string> Exporter::printList(ValueRange values) {
 
 FailureOr<std::string> Exporter::printStatementBody(Operation* op) {
   return TypeSwitch<Operation*, FailureOr<std::string>>(op)
-      .Case([](CommentOp comment) { return comment.getText().str(); })
-      .Case(
-          [](PragmaOp pragma) { return ((pragma.getHashPrefix() ? "#pragma " : "pragma ") + pragma.getText()).str(); })
+      .Case([](PragmaOp pragma) { return ("pragma " + pragma.getText()).str(); })
       .Case([](IncludeOp include) { return "include " + quotePath(include.getPath()) + ";"; })
       .Case([](DefinedOp marker) -> FailureOr<std::string> {
         return marker.emitOpError() << "marks a global definition, whose export is not supported yet";
@@ -259,9 +220,6 @@ FailureOr<std::string> Exporter::printStatementBody(Operation* op) {
           }
           designator = *printed;
         }
-        if (decl.getLegacy()) {
-          return ("qreg " + name + designator + ";").str();
-        }
         return ("qubit" + designator + " " + name + ";").str();
       })
       .Case([&](DeclareOp decl) -> FailureOr<std::string> {
@@ -274,12 +232,6 @@ FailureOr<std::string> Exporter::printStatementBody(Operation* op) {
             return failure();
           }
           designator = *printed;
-        }
-        if (decl.getLegacy()) {
-          if (decl.getInit()) {
-            return decl.emitOpError() << "is a 'creg' declaration, which has no initial value";
-          }
-          return ("creg " + name + designator + ";").str();
         }
         std::string text = ("bit" + designator + " " + name).str();
         if (decl.getInit()) {
@@ -331,9 +283,6 @@ FailureOr<std::string> Exporter::printStatementBody(Operation* op) {
         FailureOr<Printed> value = printExpr(store.getValue());
         if (failed(target) || failed(value)) {
           return failure();
-        }
-        if (store->hasAttr(OQ3Dialect::ArrowAttrHelper::getNameStr())) {
-          return value->text + " -> " + target->text + ";";
         }
         return target->text + " = " + value->text + ";";
       })
