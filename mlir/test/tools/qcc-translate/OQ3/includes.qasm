@@ -5,10 +5,6 @@
 // RUN: not qcc-translate --import-openqasm %t/cycle.qasm 2>&1 | FileCheck %s --check-prefix=CYCLE
 // RUN: not qcc-translate --import-openqasm %t/versioned.qasm 2>&1 | FileCheck %s --check-prefix=VERSIONED
 // RUN: not qcc-translate --import-openqasm %t/redeclared.qasm 2>&1 | FileCheck %s --check-prefix=REDECLARED
-// RUN: qcc-translate --import-openqasm --oq3-allow-unresolved-includes %t/unresolved.qasm \
-// RUN:   | FileCheck %s --check-prefix=UNRESOLVED
-// RUN: qcc-translate --import-openqasm --oq3-allow-unresolved-includes %t/unresolved.qasm \
-// RUN:   | qcc-translate --export-openqasm | diff %t/unresolved.qasm -
 
 // An included file is parsed in place, in the scope of the program. Its statements are tagged with the include they
 // came from, and the export prints the include line instead of them.
@@ -37,15 +33,6 @@
 // Including the same file twice declares its names twice.
 // REDECLARED: local.inc:2:7: error: 'a' is already declared
 
-// UNRESOLVED:      oq3.include "vendor.inc" id 0 unresolved
-// UNRESOLVED-NEXT: %[[N:.*]] = oq3.unresolved "n" : !oq3.unknown
-// UNRESOLVED-NEXT: %[[Q:.*]] = oq3.qubit_decl "q" [%[[N]] : !oq3.unknown] : !oq3.qreg<?>
-// UNRESOLVED-NEXT: %[[THETA:.*]] = oq3.unresolved "theta" : !oq3.unknown
-// UNRESOLVED-NEXT: oq3.gate_call @vendor_gate(%[[THETA]] : !oq3.unknown) [%[[Q]] : !oq3.qreg<?>]
-// UNRESOLVED-NEXT: %[[ONE:.*]] = oq3.constant #oq3.int<1> : !oq3.int
-// UNRESOLVED-NEXT: oq3.unresolved_call "vendor_setup"(%[[ONE]]) : (!oq3.int) -> !oq3.unknown
-// UNRESOLVED-NEXT: oq3.gate_call @vendor_marker{{$}}
-
 //--- main.qasm
 OPENQASM 3.1;
 include "local.inc";
@@ -73,9 +60,3 @@ OPENQASM 3.1;
 //--- redeclared.qasm
 include "local.inc";
 include "local.inc";
-//--- unresolved.qasm
-include "vendor.inc";
-qubit[n] q;
-vendor_gate(theta) q;
-vendor_setup(1);
-vendor_marker;

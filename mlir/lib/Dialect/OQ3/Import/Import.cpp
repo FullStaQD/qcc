@@ -78,9 +78,7 @@ struct Expr {
 
 /// Returns the OpenQASM spelling of `type`, for diagnostics.
 static std::string describeType(Type type) {
-  auto withSize = [](StringRef base, int64_t size) {
-    return (base + "[" + (ShapedType::isDynamic(size) ? std::string("?") : std::to_string(size)) + "]").str();
-  };
+  auto withSize = [](StringRef base, int64_t size) { return (base + "[" + std::to_string(size) + "]").str(); };
   return TypeSwitch<Type, std::string>(type)
       .Case([](QubitRefType) { return "qubit"; })
       .Case([&](QRegType reg) { return withSize("qubit", reg.getSize()); })
@@ -89,7 +87,6 @@ static std::string describeType(Type type) {
       .Case([](UnsizedIntType) { return "int"; })
       .Case([](UnsizedFloatType) { return "float"; })
       .Case([](AngleType) { return "angle"; })
-      .Case([](UnknownType) { return "unknown type"; })
       .Default([](Type other) {
         std::string result;
         llvm::raw_string_ostream os(result);
@@ -234,7 +231,6 @@ private:
   FailureOr<Operation*> parseIdentifierStatement();
   FailureOr<Operation*> parseAssignment();
   FailureOr<Operation*> parseGateCall(StringRef name, SMLoc nameLoc);
-  FailureOr<Operation*> parseUnresolvedStatement();
 
   /// Turns the pending comments into IR: trailing comments of the last statement, and standalone comments before the
   /// next. Comments before `insideBefore` are inside the statement that ended there, and go before its operations
@@ -271,7 +267,7 @@ private:
   /// Parses `[index]` after a register or variable named `name` of `size` elements, and checks a constant index.
   FailureOr<Expr> parseIndex(StringRef name, int64_t size);
 
-  /// Parses a designator `[size]` and returns its value and the evaluated size (`?` if unknown).
+  /// Parses a designator `[size]` and returns its value and the evaluated size.
   FailureOr<std::pair<Value, int64_t>> parseDesignator();
 
   FailureOr<Expr> parseGateOperand();
@@ -282,10 +278,6 @@ private:
 
   /// Converts `expr` implicitly to `type`, for the use described by `context`.
   FailureOr<Value> coerce(Expr expr, Type type, StringRef context);
-
-  Value createUnresolved(StringRef name, SMLoc loc) {
-    return UnresolvedOp::create(builder, getLoc(loc), UnknownType::get(context), name);
-  }
 
   // The importer is a short-lived helper that its caller outlives, so it refers to the caller's state.
   llvm::SourceMgr& sourceMgr; // NOLINT(cppcoreguidelines-avoid-const-or-ref-data-members)
@@ -303,8 +295,6 @@ private:
   llvm::StringMap<Binding> scope;
   /// Where `stdgates.inc` was included, if it was.
   std::optional<Location> standardGatesIncludeLoc;
-  /// Whether an unresolved include has been seen, so that unknown names may come from it.
-  bool seenUnresolvedInclude = false;
   int64_t nextIncludeId = 0;
   /// The real paths of the files being parsed, outermost first.
   SmallVector<std::string> fileStack;
@@ -636,8 +626,8 @@ LogicalResult Importer::includeStandardGates(StringRef path, SMLoc loc) {
       return diag;
     }
   }
-  // Reading stdgates.inc is not supported yet, so it is always unresolved and the built-in signature table is used.
-  IncludeOp::create(builder, getLoc(loc), path, nextIncludeId++, /*content_hash=*/nullptr, /*unresolved=*/true);
+  // Reading stdgates.inc is not supported yet, so the built-in signature table is used.
+  IncludeOp::create(builder, getLoc(loc), path, nextIncludeId++, /*content_hash=*/nullptr);
   standardGatesIncludeLoc = getLoc(loc);
   return success();
 }
@@ -670,15 +660,8 @@ LogicalResult Importer::includeFile(StringRef path, SMLoc loc) {
     }
   }
 
-  const int64_t id = nextIncludeId++;
   if (!buffer) {
-    if (!options.allowUnresolvedIncludes) {
-      return emitError(loc) << "cannot find the include file '" << path
-                            << "' (use --oq3-allow-unresolved-includes to import the program without it)";
-    }
-    IncludeOp::create(builder, getLoc(loc), path, id, /*content_hash=*/nullptr, /*unresolved=*/true);
-    seenUnresolvedInclude = true;
-    return success();
+    return emitError(loc) << "cannot find the include file '" << path << "'";
   }
 
   SmallString<256> realPath;
@@ -686,9 +669,9 @@ LogicalResult Importer::includeFile(StringRef path, SMLoc loc) {
     return emitError(loc) << "including '" << path << "' here forms an include cycle";
   }
 
+  const int64_t id = nextIncludeId++;
   const std::array<uint8_t, 32> hash = llvm::SHA256::hash(llvm::arrayRefFromStringRef(buffer->getBuffer()));
-  auto include = IncludeOp::create(builder, getLoc(loc), path, id, builder.getStringAttr(llvm::toHex(hash, true)),
-                                   /*unresolved=*/false);
+  auto include = IncludeOp::create(builder, getLoc(loc), path, id, builder.getStringAttr(llvm::toHex(hash, true)));
 
   // Parse the included file in place, in the same scope.
   FileState outer = std::move(file);
@@ -738,9 +721,6 @@ FailureOr<std::pair<Value, int64_t>> Importer::parseDesignator() {
   FailureOr<Expr> size = parseExpression();
   if (failed(size) || failed(expect(TokenKind::RBracket, "']'"))) {
     return failure();
-  }
-  if (isa<UnknownType>(size->getType())) {
-    return std::pair{size->value, ShapedType::kDynamic};
   }
   if (!isa<UnsizedIntType>(size->getType())) {
     return emitError(size->loc) << "a size must be an integer, got '" << describeType(size->getType()) << "'";
@@ -943,10 +923,6 @@ FailureOr<Operation*> Importer::parseIdentifierStatement() {
     consume();
     return parseGateCall(name, loc);
   }
-  if (seenUnresolvedInclude) {
-    return parseUnresolvedStatement();
-  }
-
   InFlightDiagnostic diag = emitError(loc) << "unknown name '" << name << "'";
   if (lookupStandardGate(name)) {
     diag.attachNote() << "'" << name << "' is a standard gate; it needs an earlier 'include \"" << standardGatesInclude
@@ -1021,7 +997,7 @@ FailureOr<Operation*> Importer::parseGateCall(StringRef name, SMLoc nameLoc) {
   std::optional<Expr> firstRegister;
   for (const Expr& operand : qubits) {
     auto reg = dyn_cast<QRegType>(operand.getType());
-    if (!reg || reg.hasUnknownSize()) {
+    if (!reg) {
       continue;
     }
     if (firstRegister && cast<QRegType>(firstRegister->getType()).getSize() != reg.getSize()) {
@@ -1045,46 +1021,6 @@ FailureOr<Operation*> Importer::parseGateCall(StringRef name, SMLoc nameLoc) {
   const SmallVector<Value> qubitValues = llvm::map_to_vector(qubits, [](const Expr& qubit) { return qubit.value; });
   return GateCallOp::create(builder, getLoc(nameLoc), FlatSymbolRefAttr::get(context, name), paramValues, qubitValues)
       .getOperation();
-}
-
-FailureOr<Operation*> Importer::parseUnresolvedStatement() {
-  const StringRef name = token().spelling;
-  const SMLoc loc = token().getLoc();
-  consume();
-
-  // `foo(...);` is a subroutine call, everything with qubits a gate call.
-  if (token().is(TokenKind::LParen)) {
-    consume();
-    FailureOr<SmallVector<Expr>> args = parseExpressionList(TokenKind::RParen);
-    if (failed(args)) {
-      return failure();
-    }
-    if (consumeIf(TokenKind::Semicolon)) {
-      const SmallVector<Value> values = llvm::map_to_vector(*args, [](const Expr& arg) { return arg.value; });
-      return UnresolvedCallOp::create(builder, getLoc(loc), UnknownType::get(context), name, values).getOperation();
-    }
-    // A gate call after all, so the arguments are its parameters.
-    SmallVector<Value> params;
-    for (const Expr& arg : *args) {
-      FailureOr<Value> angle = coerce(arg, AngleType::get(context), "pass as a gate parameter");
-      if (failed(angle)) {
-        return failure();
-      }
-      params.push_back(*angle);
-    }
-    FailureOr<SmallVector<Expr>> qubits = parseGateOperandList();
-    if (failed(qubits) || failed(expect(TokenKind::Semicolon, "';'"))) {
-      return failure();
-    }
-    const SmallVector<Value> qubitValues = llvm::map_to_vector(*qubits, [](const Expr& qubit) { return qubit.value; });
-    return GateCallOp::create(builder, getLoc(loc), FlatSymbolRefAttr::get(context, name), params, qubitValues)
-        .getOperation();
-  }
-  if (token().is(TokenKind::Identifier) || token().is(TokenKind::HardwareQubit) || token().is(TokenKind::Semicolon)) {
-    return parseGateCall(name, loc);
-  }
-  return emitError(loc) << "'" << name << "' is unknown, so it may come from an unresolved include, but only calls "
-                        << "of gates and subroutines from there are supported as statements";
 }
 
 //===----------------------------------------------------------------------===//
@@ -1165,11 +1101,8 @@ FailureOr<Expr> Importer::buildBinary(BinaryKind kind, Expr lhs, Expr rhs, SMLoc
   Type rhsType = rhs.getType();
   Type resultType;
 
-  if (isa<UnknownType>(lhsType) || isa<UnknownType>(rhsType)) {
-    resultType = UnknownType::get(context);
-  } else if (lhsType == rhsType &&
-             (isa<UnsizedIntType, UnsizedFloatType>(lhsType) ||
-              (isa<AngleType>(lhsType) && (kind == BinaryKind::Add || kind == BinaryKind::Sub)))) {
+  if (lhsType == rhsType && (isa<UnsizedIntType, UnsizedFloatType>(lhsType) ||
+                             (isa<AngleType>(lhsType) && (kind == BinaryKind::Add || kind == BinaryKind::Sub)))) {
     // Angles only add to and subtract from angles.
     resultType = lhsType;
   } else if (isa<UnsizedIntType>(lhsType) && isa<UnsizedFloatType>(rhsType)) {
@@ -1203,7 +1136,7 @@ FailureOr<Expr> Importer::parseUnary() {
   if (failed(operand)) {
     return failure();
   }
-  if (!isa<UnsizedIntType, UnsizedFloatType, AngleType, UnknownType>(operand->getType())) {
+  if (!isa<UnsizedIntType, UnsizedFloatType, AngleType>(operand->getType())) {
     return emitError(loc) << "the operator '-' cannot be applied to '" << describeType(operand->getType()) << "'";
   }
   auto negation = UnaryOp::create(builder, getLoc(loc), UnaryKind::Neg, operand->value);
@@ -1318,17 +1251,7 @@ FailureOr<Expr> Importer::parseIdentifierExpression() {
     if (isBuiltinFunction(name)) {
       return emitUnsupported(loc, "built-in functions");
     }
-    if (scope.contains(name) || !seenUnresolvedInclude) {
-      return emitError(loc) << "'" << name << "' is not a subroutine";
-    }
-    consume();
-    FailureOr<SmallVector<Expr>> args = parseExpressionList(TokenKind::RParen);
-    if (failed(args)) {
-      return failure();
-    }
-    const SmallVector<Value> values = llvm::map_to_vector(*args, [](const Expr& arg) { return arg.value; });
-    auto call = UnresolvedCallOp::create(builder, getLoc(loc), UnknownType::get(context), name, values);
-    return Expr{.value = call, .loc = loc};
+    return emitError(loc) << "'" << name << "' is not a subroutine";
   }
   if (token().is(TokenKind::LBracket)) {
     return emitUnsupported(token().getLoc(), "indexing of classical values");
@@ -1345,9 +1268,6 @@ FailureOr<Expr> Importer::parseIdentifierExpression() {
     }
     auto load = RefLoadOp::create(builder, getLoc(loc), it->second.value);
     return Expr{.value = load, .loc = loc};
-  }
-  if (seenUnresolvedInclude) {
-    return Expr{.value = createUnresolved(name, loc), .loc = loc};
   }
   return emitError(loc) << "unknown name '" << name << "'";
 }
@@ -1377,10 +1297,10 @@ FailureOr<Expr> Importer::parseMeasureExpression() {
   if (failed(qubits)) {
     return failure();
   }
-  const Type resultType = TypeSwitch<Type, Type>(qubits->getType())
-                              .Case([&](QubitRefType) { return BitType::get(context); })
-                              .Case([&](QRegType reg) { return BitsType::get(context, reg.getSize()); })
-                              .Default([&](Type) { return UnknownType::get(context); });
+  Type resultType = BitType::get(context);
+  if (auto reg = dyn_cast<QRegType>(qubits->getType())) {
+    resultType = BitsType::get(context, reg.getSize());
+  }
   auto measure = MeasureOp::create(builder, getLoc(loc), resultType, qubits->value);
   return Expr{.value = measure, .loc = loc};
 }
@@ -1390,14 +1310,6 @@ FailureOr<Value> Importer::coerce(Expr expr, Type type, StringRef context) {
   const Location loc = getLoc(expr.loc);
   if (from == type) {
     return expr.value;
-  }
-  if (isa<UnknownType>(from)) {
-    // Gate parameters take values of any type, everything else needs a known type.
-    if (isa<AngleType>(type)) {
-      return expr.value;
-    }
-    return emitError(expr.loc) << "cannot " << context << " a value of unknown type (it depends on an unresolved "
-                               << "include) a '" << describeType(type) << "'";
   }
   if (isa<UnsizedIntType>(from) && isa<UnsizedFloatType>(type)) {
     return CastOp::create(builder, loc, type, expr.value, /*implicit=*/true).getResult();
@@ -1440,14 +1352,12 @@ FailureOr<Expr> Importer::parseIndex(StringRef name, int64_t size) {
   if (failed(expect(TokenKind::RBracket, "']'"))) {
     return failure();
   }
-  if (!isa<UnsizedIntType, UnknownType>(index->getType())) {
+  if (!isa<UnsizedIntType>(index->getType())) {
     return emitError(index->loc) << "an index must be an integer, got '" << describeType(index->getType()) << "'";
   }
-  if (!ShapedType::isDynamic(size)) {
-    const FailureOr<int64_t> value = evaluateConstantInt(index->value);
-    if (succeeded(value) && (*value < -size || *value >= size)) {
-      return emitError(index->loc) << "index " << *value << " is out of range for '" << name << "' of size " << size;
-    }
+  const FailureOr<int64_t> value = evaluateConstantInt(index->value);
+  if (succeeded(value) && (*value < -size || *value >= size)) {
+    return emitError(index->loc) << "index " << *value << " is out of range for '" << name << "' of size " << size;
   }
   return index;
 }
@@ -1474,8 +1384,6 @@ FailureOr<Expr> Importer::parseGateOperand() {
       return emitError(loc) << "'" << name->first << "' is not a qubit";
     }
     qubits = it->second.value;
-  } else if (seenUnresolvedInclude && !lookupMathConstant(name->first)) {
-    qubits = createUnresolved(name->first, loc);
   } else {
     return emitError(loc) << "unknown qubit '" << name->first << "'";
   }
@@ -1486,11 +1394,7 @@ FailureOr<Expr> Importer::parseGateOperand() {
   if (isa<QubitRefType>(qubits.getType())) {
     return emitError(token().getLoc()) << "'" << name->first << "' is a single qubit and cannot be indexed";
   }
-  const int64_t size =
-      TypeSwitch<Type, int64_t>(qubits.getType()).Case([](QRegType reg) { return reg.getSize(); }).Default([](Type) {
-        return ShapedType::kDynamic;
-      });
-  FailureOr<Expr> index = parseIndex(name->first, size);
+  FailureOr<Expr> index = parseIndex(name->first, cast<QRegType>(qubits.getType()).getSize());
   if (failed(index)) {
     return failure();
   }
@@ -1551,18 +1455,12 @@ OwningOpRef<ModuleOp> qcc::oq3::importOpenQASM(llvm::SourceMgr& sourceMgr, MLIRC
 void qcc::oq3::registerImportOpenQASMTranslation() {
   static llvm::cl::list<std::string> includeDirs("I", llvm::cl::desc("Directory to search for OpenQASM include files"),
                                                  llvm::cl::value_desc("directory"), llvm::cl::Prefix);
-  static llvm::cl::opt<bool> allowUnresolvedIncludes(
-      "oq3-allow-unresolved-includes",
-      llvm::cl::desc("Import OpenQASM programs whose include files cannot be found; names they may define get an "
-                     "unknown type"),
-      llvm::cl::init(false));
 
   static const TranslateToMLIRRegistration registration(
       "import-openqasm", "Import OpenQASM 3 into the oq3 dialect",
       [](const std::shared_ptr<llvm::SourceMgr>& sourceMgr, MLIRContext* context) -> OwningOpRef<Operation*> {
         ImportOptions options;
         options.includeDirs.assign(includeDirs.begin(), includeDirs.end());
-        options.allowUnresolvedIncludes = allowUnresolvedIncludes;
         return importOpenQASM(*sourceMgr, context, options);
       },
       [](DialectRegistry& registry) { registry.insert<OQ3Dialect, QccDialect, func::FuncDialect>(); });

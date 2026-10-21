@@ -72,15 +72,6 @@ void OQ3Dialect::registerAttributes() {
 // Program structure
 //===----------------------------------------------------------------------===//
 
-bool qcc::oq3::isUnknownOrHasUnknownSize(Type type) {
-  return TypeSwitch<Type, bool>(type)
-      .Case([](UnknownType) { return true; })
-      .Case([](QRegType reg) { return reg.hasUnknownSize(); })
-      .Case([](BitsType bits) { return bits.hasUnknownSize(); })
-      .Case([](RefType ref) { return isUnknownOrHasUnknownSize(ref.getElementType()); })
-      .Default(false);
-}
-
 bool qcc::oq3::isValidCommentText(StringRef text) {
   if (text.starts_with("//")) {
     return !text.contains('\n') && !text.contains('\r');
@@ -118,11 +109,8 @@ public:
   LogicalResult verify() {
     // TODO: Currently each verification has one or more walks of the entire module.
     // We may want to restructure into fewer or a single walk.
-    if (failed(verifyEntryFunction()) || failed(verifyIncludes()) || failed(verifyMarkers()) ||
-        failed(verifyDefineBeforeUse())) {
-      return failure();
-    }
-    return hasUnresolved ? verifyUnresolvedConsistency() : verifyNothingUnresolved();
+    return failure(failed(verifyEntryFunction()) || failed(verifyIncludes()) || failed(verifyMarkers()) ||
+                   failed(verifyDefineBeforeUse()));
   }
 
 private:
@@ -162,7 +150,6 @@ private:
         diag.attachNote(it->second.getLoc()) << "the other include is here";
         return WalkResult::interrupt();
       }
-      hasUnresolved |= include.getUnresolved();
       return WalkResult::advance();
     });
     if (result.wasInterrupted()) {
@@ -267,73 +254,8 @@ private:
     return result;
   }
 
-  /// Without an unresolved include, nothing may depend on an unknown name.
-  LogicalResult verifyNothingUnresolved() {
-    WalkResult result = module.walk([&](Operation* op) {
-      if (isa<UnresolvedOp, UnresolvedCallOp>(op)) {
-        op->emitOpError() << "is only valid in a program with an unresolved include";
-        return WalkResult::interrupt();
-      }
-      for (Value result : op->getResults()) {
-        // Results are enough:
-        //  - Entry function has no arguments.
-        //  - A gate or subroutine with unknowns in signature is not allowed.
-        //  - Block arguments come from other typed values.
-        if (isUnknownOrHasUnknownSize(result.getType())) {
-          op->emitOpError() << "has a result of type " << result.getType()
-                            << ", which is only valid in a program with an unresolved include";
-          return WalkResult::interrupt();
-        }
-      }
-      return WalkResult::advance();
-    });
-    return failure(result.wasInterrupted());
-  }
-
-  /// All calls of the same unknown gate or subroutine agree on its signature.
-  LogicalResult verifyUnresolvedConsistency() {
-    const bool hasStandardGates = llvm::any_of(entry.getBody().getOps<IncludeOp>(), [](IncludeOp include) {
-      return include.getPath() == standardGatesInclude && include.getUnresolved();
-    });
-
-    llvm::StringMap<GateCallOp> gateCalls;
-    llvm::StringMap<UnresolvedCallOp> subroutineCalls;
-    WalkResult result = module.walk([&](Operation* op) {
-      if (auto call = dyn_cast<GateCallOp>(op)) {
-        const StringRef name = call.getCallee();
-        if (globals.contains(name) || lookupBuiltinGate(name) || (hasStandardGates && lookupStandardGate(name))) {
-          return WalkResult::advance();
-        }
-        auto [it, inserted] = gateCalls.try_emplace(name, call);
-        GateCallOp first = it->second;
-        if (!inserted && (first.getParams().size() != call.getParams().size() ||
-                          first.getQubits().size() != call.getQubits().size())) {
-          InFlightDiagnostic diag = call.emitOpError()
-                                    << "calls the unknown gate '@" << name << "' with " << call.getParams().size()
-                                    << " parameter(s) and " << call.getQubits().size() << " qubit(s), but another call "
-                                    << "uses " << first.getParams().size() << " and " << first.getQubits().size();
-          diag.attachNote(first.getLoc()) << "the other call is here";
-          return WalkResult::interrupt();
-        }
-      } else if (auto call = dyn_cast<UnresolvedCallOp>(op)) {
-        auto [it, inserted] = subroutineCalls.try_emplace(call.getCallee(), call);
-        UnresolvedCallOp first = it->second;
-        if (!inserted && first.getArgs().size() != call.getArgs().size()) {
-          InFlightDiagnostic diag = call.emitOpError()
-                                    << "calls '" << call.getCallee() << "' with " << call.getArgs().size()
-                                    << " argument(s), but another call uses " << first.getArgs().size();
-          diag.attachNote(first.getLoc()) << "the other call is here";
-          return WalkResult::interrupt();
-        }
-      }
-      return WalkResult::advance();
-    });
-    return failure(result.wasInterrupted());
-  }
-
   ModuleOp module;
   func::FuncOp entry;
-  bool hasUnresolved = false;
   llvm::DenseMap<int64_t, IncludeOp> includes;
   /// The global definitions of the program: all symbols of the module but the entry function.
   llvm::StringMap<Operation*> globals;
@@ -414,62 +336,16 @@ LogicalResult OQ3Dialect::verifyOperationAttribute(Operation* op, NamedAttribute
 // Types
 //===----------------------------------------------------------------------===//
 
-/// Parses `<n>` or `<?>`.
-static FailureOr<int64_t> parseSize(AsmParser& parser) {
-  int64_t size = ShapedType::kDynamic;
-  if (parser.parseLess()) {
-    return failure();
-  }
-  if (failed(parser.parseOptionalQuestion()) && parser.parseInteger(size)) {
-    return failure();
-  }
-  if (parser.parseGreater()) {
-    return failure();
-  }
-  return size;
-}
-
-/// Prints `<n>` or `<?>`.
-static void printSize(AsmPrinter& printer, int64_t size) {
-  printer << "<";
-  if (ShapedType::isDynamic(size)) {
-    printer << "?";
-  } else {
-    printer << size;
-  }
-  printer << ">";
-}
-
 static LogicalResult verifySize(function_ref<InFlightDiagnostic()> emitError, int64_t size) {
-  if (size < 0 && !ShapedType::isDynamic(size)) {
-    return emitError() << "size must be non-negative or '?', got " << size;
+  if (size < 0) {
+    return emitError() << "size must be non-negative, got " << size;
   }
   return success();
 }
 
-Type QRegType::parse(AsmParser& parser) {
-  FailureOr<int64_t> size = parseSize(parser);
-  if (failed(size)) {
-    return {};
-  }
-  return getChecked([&] { return parser.emitError(parser.getNameLoc()); }, parser.getContext(), *size);
-}
-
-void QRegType::print(AsmPrinter& printer) const { printSize(printer, getSize()); }
-
 LogicalResult QRegType::verify(function_ref<InFlightDiagnostic()> emitError, int64_t size) {
   return verifySize(emitError, size);
 }
-
-Type BitsType::parse(AsmParser& parser) {
-  FailureOr<int64_t> size = parseSize(parser);
-  if (failed(size)) {
-    return {};
-  }
-  return getChecked([&] { return parser.emitError(parser.getNameLoc()); }, parser.getContext(), *size);
-}
-
-void BitsType::print(AsmPrinter& printer) const { printSize(printer, getSize()); }
 
 LogicalResult BitsType::verify(function_ref<InFlightDiagnostic()> emitError, int64_t size) {
   return verifySize(emitError, size);

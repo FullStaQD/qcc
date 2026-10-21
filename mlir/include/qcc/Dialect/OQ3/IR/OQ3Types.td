@@ -23,16 +23,11 @@ class OQ3_Type<string name, string typeMnemonic, list<Trait> traits = []>
   let mnemonic = typeMnemonic;
 }
 
-// A type with a size that is printed as `<n>`, or `<?>` if it depends on a name from an unresolved include.
+// A type with a non-negative size, printed as `<n>`.
 class OQ3_SizedType<string name, string typeMnemonic> : OQ3_Type<name, typeMnemonic> {
   let parameters = (ins "int64_t":$size);
-  let hasCustomAssemblyFormat = 1;
+  let assemblyFormat = "`<` $size `>`";
   let genVerifyDecl = 1;
-
-  let extraClassDeclaration = [{
-    /// Whether the size is unknown (`?`).
-    bool hasUnknownSize() const { return ::mlir::ShapedType::isDynamic(getSize()); }
-  }];
 }
 
 def OQ3_QRegType : OQ3_SizedType<"QReg", "qreg"> {
@@ -74,17 +69,6 @@ def OQ3_UnsizedFloatType : OQ3_Type<"UnsizedFloat", "float"> {
   let description = [{
         OpenQASM's unsized `float`, whose precision the target defines. Floating-point literals and the math constants
         have this type.
-    }];
-}
-
-def OQ3_UnknownType : OQ3_Type<"Unknown", "unknown"> {
-  let summary = "type of a name from an unresolved include";
-  let description = [{
-        A name that is not defined anywhere may come from an include that could not be found (see the importer's
-        `--oq3-allow-unresolved-includes`). Its type is unknown, and so is the type of everything computed from it.
-        Expressions accept unknown operands, and no casts to or from this type exist.
-
-        Only valid in a module with an unresolved `oq3.include`.
     }];
 }
 

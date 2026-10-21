@@ -72,39 +72,26 @@ static LogicalResult verifyInEntryBody(Operation* op) {
   return success();
 }
 
-/// Whether `type` is the type of an integer index or size.
-static bool isUnsizedIntegerOrUnknown(Type type) { return isa<UnsizedIntType, UnknownType>(type); }
-
 /// Verifies the designator of a declaration against `size`, the size that the declared type holds.
 static LogicalResult verifyDesignator(Operation* op, Value designator, int64_t size) {
   const Type type = designator.getType();
-  if (!isUnsizedIntegerOrUnknown(type)) {
-    return op->emitOpError() << "designator must be an unsized integer or unknown type, got " << type;
-  }
-  if (isa<UnknownType>(type)) {
-    if (!ShapedType::isDynamic(size)) {
-      return op->emitOpError() << "designator depends on an unresolved name, so the size must be '?'";
-    }
-    return success();
+  if (!isa<UnsizedIntType>(type)) {
+    return op->emitOpError() << "designator must be an unsized integer, got " << type;
   }
   const FailureOr<int64_t> value = evaluateConstantInt(designator);
   if (failed(value)) {
     return op->emitOpError() << "designator must be a constant expression";
   }
-  if (ShapedType::isDynamic(size) || *value != size) {
-    return op->emitOpError() << "designator evaluates to " << *value << ", but the type has size "
-                             << (ShapedType::isDynamic(size) ? "?" : std::to_string(size));
+  if (*value != size) {
+    return op->emitOpError() << "designator evaluates to " << *value << ", but the type has size " << size;
   }
   return success();
 }
 
 /// Verifies a constant `index` into something of `size` elements: `-size <= index < size`.
 static LogicalResult verifyIndex(Operation* op, Value index, int64_t size) {
-  if (!isUnsizedIntegerOrUnknown(index.getType())) {
-    return op->emitOpError() << "index must be an unsized integer or unknown type, got " << index.getType();
-  }
-  if (ShapedType::isDynamic(size)) {
-    return success();
+  if (!isa<UnsizedIntType>(index.getType())) {
+    return op->emitOpError() << "index must be an unsized integer, got " << index.getType();
   }
   const FailureOr<int64_t> value = evaluateConstantInt(index);
   if (succeeded(value) && (*value < -size || *value >= size)) {
@@ -217,9 +204,7 @@ LogicalResult SubrefOp::verify() {
 // Qubit aliasing
 //===----------------------------------------------------------------------===//
 
-LogicalResult QubitIndexOp::verify() {
-  return verifyIndex(*this, getIndex(), getRegisterSize(getReg().getType()).value_or(ShapedType::kDynamic));
-}
+LogicalResult QubitIndexOp::verify() { return verifyIndex(*this, getIndex(), getReg().getType().getSize()); }
 
 //===----------------------------------------------------------------------===//
 // Expressions
@@ -239,7 +224,7 @@ LogicalResult ConstantOp::verify() {
 static bool isArithmetic(Type type) { return isa<UnsizedIntType, UnsizedFloatType, AngleType>(type); }
 
 LogicalResult UnaryOp::verify() {
-  if (!isArithmetic(getType()) && !isa<UnknownType>(getType())) {
+  if (!isArithmetic(getType())) {
     return emitOpError() << "unsupported operand type " << getType();
   }
   return success();
@@ -249,13 +234,6 @@ LogicalResult BinaryOp::verify() {
   const Type lhsType = getLhs().getType();
   const Type rhsType = getRhs().getType();
   const Type resultType = getType();
-
-  if (isa<UnknownType>(lhsType) || isa<UnknownType>(rhsType)) {
-    if (!isa<UnknownType>(resultType)) {
-      return emitOpError() << "has an operand of unknown type, so its result type must be '!oq3.unknown'";
-    }
-    return success();
-  }
 
   const BinaryKind kind = getKind();
   const bool isScaling = kind == BinaryKind::Mul || kind == BinaryKind::Div;
@@ -301,7 +279,6 @@ LogicalResult MeasureOp::verify() {
                              auto bits = dyn_cast<BitsType>(resultType);
                              return bits && bits.getSize() == reg.getSize();
                            })
-                           .Case([&](UnknownType) { return isa<UnknownType>(resultType); })
                            .Default(false);
   if (!matches) {
     return emitOpError() << "measuring " << qubitsType << " cannot yield " << resultType
@@ -349,7 +326,7 @@ LogicalResult GateCallOp::verify() {
   std::optional<int64_t> broadcastSize;
   for (Value qubits : getQubits()) {
     const std::optional<int64_t> size = getRegisterSize(qubits.getType());
-    if (!size || ShapedType::isDynamic(*size)) {
+    if (!size) {
       continue;
     }
     if (broadcastSize && *broadcastSize != *size) {
@@ -363,7 +340,7 @@ LogicalResult GateCallOp::verify() {
 
 /// Checks:
 /// - The gate is known (builtin, standard, or from an include).
-/// - The gate's signature is consistent with the definition of it, if any, else with the other calls.
+/// - The gate's signature matches its definition.
 LogicalResult GateCallOp::verifySymbolUses(SymbolTableCollection& symbolTable) {
   const StringRef name = getCallee();
   auto checkSignature = [&](GateSignature signature) -> LogicalResult {
@@ -385,29 +362,16 @@ LogicalResult GateCallOp::verifySymbolUses(SymbolTableCollection& symbolTable) {
     return checkSignature(*signature);
   }
 
-  // A standard gate or a gate from an unresolved include is only known after its include.
+  // A standard gate is only known after the include of `stdgates.inc`.
   Operation* statement = getEntryStatement(*this);
   auto entry = (statement != nullptr) ? dyn_cast<func::FuncOp>(statement->getParentOp()) : nullptr;
   const std::optional<GateSignature> standardSignature = lookupStandardGate(name);
-  bool standardGatesIncluded = false;
-  bool unresolvedIncluded = false;
-  if (entry) {
-    for (IncludeOp include : entry.getBody().getOps<IncludeOp>()) {
-      if (!include->isBeforeInBlock(statement)) {
-        break;
-      }
-      // TODO: An unresolved stdgates.inc also counts as an unresolved include here, so any unknown gate is accepted
-      // (with a consistent signature), not just the standard ones. Tighten once includes are actually read.
-      unresolvedIncluded |= include.getUnresolved();
-      standardGatesIncluded |= include.getUnresolved() && include.getPath() == standardGatesInclude;
-    }
-  }
+  const bool standardGatesIncluded =
+      entry && llvm::any_of(entry.getBody().getOps<IncludeOp>(), [&](IncludeOp include) {
+        return include.getPath() == standardGatesInclude && include->isBeforeInBlock(statement);
+      });
   if (standardSignature && standardGatesIncluded) {
     return checkSignature(*standardSignature);
-  }
-  if (unresolvedIncluded) {
-    // The unknown gate's signature is checked for consistency across all of its calls by the program verifier.
-    return success();
   }
 
   InFlightDiagnostic diag = emitOpError() << "calls the unknown gate '" << name << "'";

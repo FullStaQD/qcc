@@ -78,9 +78,6 @@ inline constexpr llvm::StringLiteral standardGatesInclude = "stdgates.inc";
 inline constexpr unsigned defaultMajorVersion = 3;
 inline constexpr unsigned defaultMinorVersion = 1;
 
-/// Whether `type` is `!oq3.unknown`, or a sized type whose size is unknown (also as the element of a `!qcc.ref`).
-bool isUnknownOrHasUnknownSize(mlir::Type type);
-
 /// Whether `text` is one complete comment, markers included: a line comment `// ...` or a block comment `/* ... */`.
 bool isValidCommentText(llvm::StringRef text);
 

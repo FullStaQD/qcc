@@ -151,54 +151,6 @@ module attributes {oq3.version = #oq3.version<3, 1>} {
 
 // -----
 
-module attributes {oq3.version = #oq3.version<3, 1>} {
-  func.func @main() attributes {qcc.entry_point} {
-    // expected-error @below {{'oq3.unresolved' op is only valid in a program with an unresolved include}}
-    %n = oq3.unresolved "n" : !oq3.unknown
-    // TODO: We may relax this. Custom gates may be used by name-convention for special purposes.
-    return
-  }
-}
-
-// -----
-
-module attributes {oq3.version = #oq3.version<3, 1>} {
-  func.func @main() attributes {qcc.entry_point} {
-    // expected-error @below {{'oq3.qubit_decl' op has a result of type '!oq3.qreg<?>', which is only valid in a program with an unresolved include}}
-    %q = oq3.qubit_decl "q" : !oq3.qreg<?>
-    return
-  }
-}
-
-// -----
-
-module attributes {oq3.version = #oq3.version<3, 1>} {
-  func.func @main() attributes {qcc.entry_point} {
-    oq3.include "vendor.inc" id 0 unresolved
-    %q = oq3.qubit_decl "q" : !qcc.qubit_ref
-    // expected-note @below {{the other call is here}}
-    oq3.gate_call @vendor [%q : !qcc.qubit_ref]
-    // expected-error @below {{'oq3.gate_call' op calls the unknown gate '@vendor' with 0 parameter(s) and 2 qubit(s), but another call uses 0 and 1}}
-    oq3.gate_call @vendor [%q, %q : !qcc.qubit_ref, !qcc.qubit_ref]
-    return
-  }
-}
-
-// -----
-
-module attributes {oq3.version = #oq3.version<3, 1>} {
-  func.func @main() attributes {qcc.entry_point} {
-    oq3.include "vendor.inc" id 0 unresolved
-    // expected-note @below {{the other call is here}}
-    %a = oq3.unresolved_call "f"() : () -> !oq3.unknown
-    // expected-error @below {{'oq3.unresolved_call' op calls 'f' with 1 argument(s), but another call uses 0}}
-    %b = oq3.unresolved_call "f"(%a) : (!oq3.unknown) -> !oq3.unknown
-    return
-  }
-}
-
-// -----
-
 //===----------------------------------------------------------------------===//
 // Directives and comments
 //===----------------------------------------------------------------------===//
@@ -316,7 +268,7 @@ module attributes {oq3.version = #oq3.version<3, 1>} {
   func.func @main() attributes {qcc.entry_point} {
     %c = oq3.declare "c" : !qcc.ref<!oq3.bit>
     %bit = qcc.ref.load %c : !qcc.ref<!oq3.bit>
-    // expected-error @below {{'oq3.qubit_decl' op designator must be an unsized integer or unknown type, got '!oq3.bit'}}
+    // expected-error @below {{'oq3.qubit_decl' op designator must be an unsized integer, got '!oq3.bit'}}
     %q = oq3.qubit_decl "q" [%bit : !oq3.bit] : !oq3.qreg<1>
     return
   }
@@ -442,7 +394,7 @@ module attributes {oq3.version = #oq3.version<3, 1>} {
     // expected-error @below {{'oq3.gate_call' op calls the unknown gate 'h'}}
     // expected-note @below {{'h' is a standard gate; it needs an earlier 'include "stdgates.inc";'}}
     oq3.gate_call @h [%q : !qcc.qubit_ref]
-    oq3.include "stdgates.inc" id 0 unresolved
+    oq3.include "stdgates.inc" id 0
     return
   }
 }
@@ -451,7 +403,7 @@ module attributes {oq3.version = #oq3.version<3, 1>} {
 
 module attributes {oq3.version = #oq3.version<3, 1>} {
   func.func @main() attributes {qcc.entry_point} {
-    oq3.include "stdgates.inc" id 0 unresolved
+    oq3.include "stdgates.inc" id 0
     %q = oq3.qubit_decl "q" : !qcc.qubit_ref
     // expected-error @below {{'oq3.gate_call' op gate 'cx' takes 0 parameter(s) and 2 qubit(s), got 0 and 1}}
     oq3.gate_call @cx [%q : !qcc.qubit_ref]
@@ -474,7 +426,7 @@ module attributes {oq3.version = #oq3.version<3, 1>} {
 
 module attributes {oq3.version = #oq3.version<3, 1>} {
   func.func @main() attributes {qcc.entry_point} {
-    oq3.include "stdgates.inc" id 0 unresolved
+    oq3.include "stdgates.inc" id 0
     %two = oq3.constant #oq3.int<2> : !oq3.int
     %three = oq3.constant #oq3.int<3> : !oq3.int
     %a = oq3.qubit_decl "a" [%two : !oq3.int] : !oq3.qreg<2>
@@ -497,3 +449,8 @@ module attributes {oq3.version = #oq3.version<3, 1>} {
     return
   }
 }
+
+// -----
+
+// expected-error @below {{size must be non-negative, got -1}}
+func.func private @f() -> !oq3.qreg<-1>

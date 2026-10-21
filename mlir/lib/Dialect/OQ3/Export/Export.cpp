@@ -73,7 +73,7 @@ private:
 
 /// Whether `op` is printed as a statement of its own, rather than as part of the statements that use its result.
 static bool isStatement(Operation* op) {
-  if (isa<MeasureOp, UnresolvedCallOp>(op)) {
+  if (isa<MeasureOp>(op)) {
     return op->use_empty();
   }
   return isa<CommentOp, PragmaOp, IncludeOp, DefinedOp, QubitDeclOp, DeclareOp, GateCallOp, ResetOp, BarrierOp,
@@ -83,7 +83,7 @@ static bool isStatement(Operation* op) {
 /// Whether `op` computes a value that its users print.
 static bool isExpression(Operation* op) {
   return isa<ConstantOp, MathConstantOp, UnaryOp, BinaryOp, CastOp, RefLoadOp, SubrefOp, QubitIndexOp, PhysicalQubitOp,
-             UnresolvedOp, MeasureOp, UnresolvedCallOp>(op);
+             MeasureOp>(op);
 }
 
 /// Prints `path` in quotes. A path can contain one kind of quote, so the other one delimits it.
@@ -218,9 +218,6 @@ LogicalResult Exporter::printStatement(Operation* op) {
 
 FailureOr<std::string> Exporter::printDesignator(Value designator, int64_t size) {
   if (!designator) {
-    if (ShapedType::isDynamic(size)) {
-      return failure();
-    }
     return "[" + std::to_string(size) + "]";
   }
   FailureOr<Printed> printed = printExpr(designator);
@@ -258,7 +255,7 @@ FailureOr<std::string> Exporter::printStatementBody(Operation* op) {
         if (reg) {
           FailureOr<std::string> printed = printDesignator(decl.getDesignator(), reg.getSize());
           if (failed(printed)) {
-            return decl.emitOpError() << "has an unknown size without a designator";
+            return failure();
           }
           designator = *printed;
         }
@@ -274,7 +271,7 @@ FailureOr<std::string> Exporter::printStatementBody(Operation* op) {
         if (bits) {
           FailureOr<std::string> printed = printDesignator(decl.getDesignator(), bits.getSize());
           if (failed(printed)) {
-            return decl.emitOpError() << "has an unknown size without a designator";
+            return failure();
           }
           designator = *printed;
         }
@@ -342,13 +339,6 @@ FailureOr<std::string> Exporter::printStatementBody(Operation* op) {
       })
       .Case([&](MeasureOp measure) -> FailureOr<std::string> {
         FailureOr<Printed> printed = printExpr(measure.getResult());
-        if (failed(printed)) {
-          return failure();
-        }
-        return printed->text + ";";
-      })
-      .Case([&](UnresolvedCallOp call) -> FailureOr<std::string> {
-        FailureOr<Printed> printed = printExpr(call.getResult());
         if (failed(printed)) {
           return failure();
         }
@@ -443,14 +433,6 @@ FailureOr<Printed> Exporter::printExpr(Value value) {
       .Case([&](PhysicalQubitOp qubit) { return atom("$" + std::to_string(qubit.getIndex())); })
       .Case([&](QubitDeclOp decl) { return atom(decl.getName().str()); })
       .Case([&](DeclareOp decl) { return atom(decl.getName().str()); })
-      .Case([&](UnresolvedOp unresolved) { return atom(unresolved.getName().str()); })
-      .Case([&](UnresolvedCallOp call) -> FailureOr<Printed> {
-        FailureOr<std::string> args = printList(call.getArgs());
-        if (failed(args)) {
-          return failure();
-        }
-        return atom(call.getCallee().str() + "(" + *args + ")");
-      })
       .Case([&](MeasureOp measure) -> FailureOr<Printed> {
         FailureOr<Printed> qubits = printExpr(measure.getQubits());
         if (failed(qubits)) {

@@ -32,8 +32,7 @@ def OQ3_VersionAttr : AttrDef<OQ3_Dialect, "Version"> {
         TEMPORARY: `OPENQASM 3.2;` selects the current live specification, which has no release number yet.
 
         As the module attribute `oq3.version`, it marks the module as an OpenQASM program. Its verifier checks the
-        program as a whole: the entry function, the `oq3.defined` markers, the include tags, and the restrictions of
-        unresolved names.
+        program as a whole: the entry function, the `oq3.defined` markers, and the include tags.
     }];
 
   let parameters = (ins "unsigned":$major,

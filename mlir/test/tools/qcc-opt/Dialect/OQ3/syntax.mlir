@@ -12,8 +12,8 @@ module attributes {oq3.version = #oq3.version<3, 1>} {
     oq3.comment "/* header */" header
     // CHECK: oq3.pragma "ns.name text" hash_prefix
     oq3.pragma "ns.name text" hash_prefix
-    // CHECK: oq3.include "stdgates.inc" id 0 unresolved {oq3.trailing_comment = "// gates"}
-    oq3.include "stdgates.inc" id 0 unresolved {oq3.trailing_comment = "// gates"}
+    // CHECK: oq3.include "stdgates.inc" id 0 {oq3.trailing_comment = "// gates"}
+    oq3.include "stdgates.inc" id 0 {oq3.trailing_comment = "// gates"}
     // CHECK: oq3.include "other.inc" id 1 hash "abc"
     oq3.include "other.inc" id 1 hash "abc"
     // CHECK: oq3.comment "// from other.inc" {oq3.from_include = 1 : i64}
@@ -114,30 +114,6 @@ module attributes {oq3.version = #oq3.version<3, implicit>} {
     // CHECK: oq3.defined @f
     oq3.defined @f
     func.call @f() : () -> ()
-    return
-  }
-}
-
-// -----
-
-// Names from an unresolved include.
-// CHECK-LABEL: module attributes {oq3.version = #oq3.version<3, 2>}
-module attributes {oq3.version = #oq3.version<3, 2>} {
-  func.func @main() attributes {qcc.entry_point} {
-    // CHECK: oq3.include "vendor.inc" id 0 unresolved
-    oq3.include "vendor.inc" id 0 unresolved
-    // CHECK: %[[N:.*]] = oq3.unresolved "n" : !oq3.unknown
-    %n = oq3.unresolved "n" : !oq3.unknown
-    // CHECK: %[[Q:.*]] = oq3.qubit_decl "q" [%[[N]] : !oq3.unknown] : !oq3.qreg<?>
-    %q = oq3.qubit_decl "q" [%n : !oq3.unknown] : !oq3.qreg<?>
-    // CHECK: %[[SUM:.*]] = oq3.binary add %[[N]], %[[N]] : !oq3.unknown
-    %sum = oq3.binary add %n, %n : !oq3.unknown
-    // CHECK: oq3.unresolved_call "setup"(%[[SUM]]) : (!oq3.unknown) -> !oq3.unknown
-    %r = oq3.unresolved_call "setup"(%sum) : (!oq3.unknown) -> !oq3.unknown
-    // CHECK: oq3.gate_call @vendor(%[[N]] : !oq3.unknown) [%[[Q]] : !oq3.qreg<?>]
-    oq3.gate_call @vendor(%n : !oq3.unknown) [%q : !oq3.qreg<?>]
-    // CHECK: oq3.measure %[[N]] : !oq3.unknown -> !oq3.unknown
-    %m = oq3.measure %n : !oq3.unknown -> !oq3.unknown
     return
   }
 }

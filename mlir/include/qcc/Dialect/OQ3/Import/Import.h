@@ -23,9 +23,6 @@ namespace qcc::oq3 {
 struct ImportOptions {
   /// Directories to search for include files, after the directory of the including file.
   std::vector<std::string> includeDirs;
-  /// Record an include file that cannot be found as an unresolved `oq3.include` instead of failing. Names that the
-  /// file may define then become values of unknown type.
-  bool allowUnresolvedIncludes = false;
 };
 
 /// Imports the OpenQASM 3 program in the main buffer of `sourceMgr` into a module of the `oq3` dialect. Included

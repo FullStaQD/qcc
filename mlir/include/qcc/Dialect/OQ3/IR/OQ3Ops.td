@@ -33,7 +33,7 @@ class OQ3_Op<string mnemonic, list<Trait> traits = []> : Op<OQ3_Dialect, mnemoni
 def OQ3_SourceTextResource : Resource<"::qcc::oq3::SourceTextResource">;
 def OQ3_WritesSourceText : MemoryEffects<[MemWrite<OQ3_SourceTextResource>]>;
 
-def OQ3_QubitOrRegister : AnyTypeOf<[Qcc_QubitRefType, OQ3_QRegType, OQ3_UnknownType],
+def OQ3_QubitOrRegister : AnyTypeOf<[Qcc_QubitRefType, OQ3_QRegType],
                                     "qubit reference or register">;
 
 //===----------------------------------------------------------------------===//
@@ -63,23 +63,22 @@ def OQ3_IncludeOp : OQ3_Op<"include", [OQ3_WritesSourceText]> {
   let description = [{
         `include "path";` at its position in the entry body. The `id` is unique within the module, and every
         statement the included file produced carries it as `oq3.from_include`. The content hash identifies the file
-        that was read. An include that could not be found has the `unresolved` flag and produced nothing.
+        that was read.
 
-        `stdgates.inc` provides the standard gates, which are checked against a built-in signature table if the file remains unresolved.
+        `stdgates.inc` is not read. Including it makes the standard gates available, which are checked against a
+        built-in signature table.
 
         Example:
         ```mlir
         oq3.include "stdgates.inc" id 0
-        oq3.include "vendor.inc" id 1 unresolved
         ```
     }];
 
   let arguments = (ins StrAttr:$path,
                        I64Attr:$id,
-                       OptionalAttr<StrAttr>:$content_hash,
-                       UnitAttr:$unresolved);
+                       OptionalAttr<StrAttr>:$content_hash);
   let assemblyFormat = [{
-        $path `id` $id (`hash` $content_hash^)? (`unresolved` $unresolved^)? attr-dict
+        $path `id` $id (`hash` $content_hash^)? attr-dict
     }];
   let hasVerifier = 1;
 }
@@ -118,41 +117,6 @@ def OQ3_PragmaOp : OQ3_Op<"pragma", [OQ3_WritesSourceText]> {
   let arguments = (ins StrAttr:$text, UnitAttr:$hash_prefix);
   let assemblyFormat = "$text (`hash_prefix` $hash_prefix^)? attr-dict";
   let hasVerifier = 1;
-}
-
-def OQ3_UnresolvedOp : OQ3_Op<"unresolved", [Pure]> {
-  let summary = "use of a name from an unresolved include";
-  let description = [{
-        A name that resolves to nothing, in a program with an unresolved include that may define it. Its type is
-        unknown. Only valid in a module with an unresolved `oq3.include`.
-
-        Example:
-        ```mlir
-        %foo = oq3.unresolved "foo" : !oq3.unknown
-        ```
-    }];
-
-  let arguments = (ins StrAttr:$name);
-  let results = (outs OQ3_UnknownType:$result);
-  let assemblyFormat = "$name attr-dict `:` qualified(type($result))";
-}
-
-def OQ3_UnresolvedCallOp : OQ3_Op<"unresolved_call"> {
-  let summary = "call of a subroutine from an unresolved include";
-  let description = [{
-        `foo(args)` where `foo` resolves to nothing, in a program with an unresolved include that may define it.
-        Without qubit arguments, the call must be a subroutine call. Only valid in a module with an unresolved
-        `oq3.include`. All calls of the same name take the same number of arguments.
-
-        Example:
-        ```mlir
-        %r = oq3.unresolved_call "foo"(%x) : (!oq3.int) -> !oq3.unknown
-        ```
-    }];
-
-  let arguments = (ins StrAttr:$callee, Variadic<AnyType>:$args);
-  let results = (outs OQ3_UnknownType:$result);
-  let assemblyFormat = "$callee `(` $args `)` attr-dict `:` functional-type($args, $result)";
 }
 
 //===----------------------------------------------------------------------===//
@@ -262,7 +226,7 @@ def OQ3_QubitIndexOp : OQ3_Op<"qubit_index", [Pure]> {
         ```
     }];
 
-  let arguments = (ins AnyTypeOf<[OQ3_QRegType, OQ3_UnknownType]>:$reg, AnyType:$index);
+  let arguments = (ins OQ3_QRegType:$reg, AnyType:$index);
   let results = (outs Qcc_QubitRefType:$result);
   let assemblyFormat = "$reg `[` $index `]` attr-dict `:` qualified(type($reg)) `,` type($index)";
   let hasVerifier = 1;
@@ -386,7 +350,7 @@ def OQ3_MeasureOp : OQ3_Op<"measure"> {
     }];
 
   let arguments = (ins OQ3_QubitOrRegister:$qubits);
-  let results = (outs AnyTypeOf<[OQ3_BitType, OQ3_BitsType, OQ3_UnknownType]>:$result);
+  let results = (outs AnyTypeOf<[OQ3_BitType, OQ3_BitsType]>:$result);
   let assemblyFormat = "$qubits attr-dict `:` qualified(type($qubits)) `->` qualified(type($result))";
   let hasVerifier = 1;
 }
@@ -400,8 +364,7 @@ def OQ3_GateCallOp : OQ3_Op<"gate_call", [AttrSizedOperandSegments,
   let summary = "gate application";
   let description = [{
         Applies the gate `callee` with the angle parameters `params` to `qubits`. The callee is a standard gate of
-        `stdgates.inc` (if included), one of the built-in gates `U` and `gphase`, or, in a module with an unresolved
-        include, a gate it may define. Register operands broadcast: all of them have the same size, and the gate is
+        `stdgates.inc` (if included) or one of the built-in gates `U` and `gphase`. Register operands broadcast: all of them have the same size, and the gate is
         applied once per index.
 
         Example:
@@ -413,7 +376,7 @@ def OQ3_GateCallOp : OQ3_Op<"gate_call", [AttrSizedOperandSegments,
     }];
 
   let arguments = (ins FlatSymbolRefAttr:$callee,
-                       Variadic<AnyTypeOf<[Qcc_AngleType, OQ3_UnknownType]>>:$params,
+                       Variadic<Qcc_AngleType>:$params,
                        Variadic<OQ3_QubitOrRegister>:$qubits);
   let assemblyFormat = [{
         $callee (`(` $params^ `:` type($params) `)`)? (`[` $qubits^ `:` type($qubits) `]`)? attr-dict

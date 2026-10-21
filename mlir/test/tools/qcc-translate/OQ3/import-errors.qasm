@@ -87,7 +87,7 @@ include "stdgates.inc";
 
 // -----
 
-// expected-error @below {{cannot find the include file 'missing.inc' (use --oq3-allow-unresolved-includes to import the program without it)}}
+// expected-error @below {{cannot find the include file 'missing.inc'}}
 include "missing.inc";
 
 // -----
