@@ -310,8 +310,7 @@ def OQ3_CastOp : OQ3_Op<"cast", [Pure]> {
 def OQ3_MeasureOp : OQ3_Op<"measure"> {
   let summary = "measurement";
   let description = [{
-        `measure q`: measures a qubit into a bit, or a register of `n` qubits into `n` bits. `c = measure q;` (or
-        `measure q -> c;`) stores the result, and `measure q;` leaves it unused.
+        `c = measure q`: measures a qubit into a bit, or a register of `n` qubits into `n` bits.
 
         Example:
         ```mlir
