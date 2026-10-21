@@ -78,7 +78,7 @@ LogicalResult QccDialect::verifyOperationAttribute(Operation* op, NamedAttribute
   return success();
 }
 
-// TODO: Use `isEntryPoint` / `getEntryPoints` where the code still checks `entryPointAttrName` by hand:
+// TODO(#189): Use `isEntryPoint` / `getEntryPoints` where the code still checks `entryPointAttrName` by hand:
 // `AuxOutputRecording`, `ConvertQCToQIR`, `FinalizeToQIR`, `EmitHiSEPQStart`, and the Magic exporter.
 bool qcc::isEntryPoint(Operation* op) {
   return isa_and_present<FunctionOpInterface>(op) && op->hasAttr(QccDialect::EntryPointAttrHelper::getNameStr());
