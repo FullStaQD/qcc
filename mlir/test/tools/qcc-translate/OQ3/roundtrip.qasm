@@ -1,4 +1,4 @@
-// RUN: qcc-translate --split-input-file --output-split-marker="// =====" --import-openqasm %s \
+// RUN: qcc-translate --split-input-file --output-split-marker="// =====" --import-openqasm --oq3-allow-dev-version %s \
 // RUN:   | qcc-translate --split-input-file="// =====" --export-openqasm \
 // RUN:   | FileCheck %s --strict-whitespace
 

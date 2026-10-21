@@ -11,6 +11,7 @@
 #define INCLUDE_QCC_DIALECT_OQ3_IR_OQ3TYPES_TD_
 
 include "qcc/Dialect/OQ3/IR/OQ3Dialect.td"
+include "qcc/Dialect/Qcc/IR/QccInterfaces.td"
 
 include "mlir/IR/AttrTypeBase.td"
 
@@ -24,7 +25,8 @@ class OQ3_Type<string name, string typeMnemonic, list<Trait> traits = []>
 }
 
 // A type with a non-negative size, printed as `<n>`.
-class OQ3_SizedType<string name, string typeMnemonic> : OQ3_Type<name, typeMnemonic> {
+class OQ3_SizedType<string name, string typeMnemonic, list<Trait> traits = []>
+    : OQ3_Type<name, typeMnemonic, traits> {
   let parameters = (ins "int64_t":$size);
   let assemblyFormat = "`<` $size `>`";
   let genVerifyDecl = 1;
@@ -43,32 +45,52 @@ def OQ3_QRegType : OQ3_SizedType<"QReg", "qreg"> {
     }];
 }
 
-def OQ3_BitType : OQ3_Type<"Bit", "bit"> {
+def OQ3_BitType : OQ3_Type<"Bit", "bit", [Qcc_ClassicalTypeInterface]> {
   let summary = "single bit";
   let description = [{
         A single classical bit, OpenQASM's `bit`. It is distinct from `!oq3.bits<1>`.
+
+        Example:
+        ```mlir
+        !oq3.bit
+        ```
     }];
 }
 
-def OQ3_BitsType : OQ3_SizedType<"Bits", "bits"> {
+def OQ3_BitsType : OQ3_SizedType<"Bits", "bits", [Qcc_ClassicalTypeInterface]> {
   let summary = "bit register";
   let description = [{
         A register of `size` bits, OpenQASM's `bit[n]` and `creg c[n]`.
+
+        Example:
+        ```mlir
+        !oq3.bits<3>
+        ```
     }];
 }
 
-def OQ3_UnsizedIntType : OQ3_Type<"UnsizedInt", "int"> {
+def OQ3_UnsizedIntType : OQ3_Type<"UnsizedInt", "int", [Qcc_ClassicalTypeInterface]> {
   let summary = "integer of unspecified width";
   let description = [{
         OpenQASM's unsized `int`, whose width the target defines. Integer literals have this type.
+
+        Example:
+        ```mlir
+        !oq3.int
+        ```
     }];
 }
 
-def OQ3_UnsizedFloatType : OQ3_Type<"UnsizedFloat", "float"> {
+def OQ3_UnsizedFloatType : OQ3_Type<"UnsizedFloat", "float", [Qcc_ClassicalTypeInterface]> {
   let summary = "floating-point number of unspecified width";
   let description = [{
         OpenQASM's unsized `float`, whose precision the target defines. Floating-point literals and the math constants
         have this type.
+
+        Example:
+        ```mlir
+        !oq3.float
+        ```
     }];
 }
 

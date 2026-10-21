@@ -50,7 +50,14 @@ def OQ3_DefinedOp : OQ3_Op<"defined", [OQ3_WritesProgramStructure]> {
 
         Example:
         ```mlir
-        oq3.defined @m
+        module attributes {oq3.version = #oq3.version<3, 1>} {
+          func.func private @f()                 // MLIR definition of the function.
+          func.func @main() attributes {qcc.entry_point} {
+            %q = oq3.qubit_decl "q" : !qcc.qubit_ref
+            oq3.defined @f                       // location of the definition in the OpenQASM program
+            return
+          }
+        }
         ```
     }];
 
@@ -83,7 +90,8 @@ def OQ3_IncludeOp : OQ3_Op<"include", [OQ3_WritesProgramStructure]> {
 def OQ3_PragmaOp : OQ3_Op<"pragma", [OQ3_WritesProgramStructure]> {
   let summary = "pragma directive";
   let description = [{
-        `pragma text` or `#pragma text`: the rest of the line after `pragma`, verbatim.
+        A `pragma` line. `text` is the rest of the line after the keyword, verbatim. The importer also reads the older
+        spelling `#pragma`, and the export prints `pragma`.
 
         Example:
         ```mlir

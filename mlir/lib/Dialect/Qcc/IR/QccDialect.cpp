@@ -31,6 +31,7 @@ using namespace qcc;
 
 #include "qcc/Dialect/Qcc/IR/QccAttrInterfaces.cpp.inc"
 #include "qcc/Dialect/Qcc/IR/QccDialect.cpp.inc"
+#include "qcc/Dialect/Qcc/IR/QccTypeInterfaces.cpp.inc"
 
 #define GET_TYPEDEF_CLASSES
 #include "qcc/Dialect/Qcc/IR/QccTypes.cpp.inc"
@@ -102,9 +103,15 @@ bool qcc::isQubitOrQubitVector(Type type) {
   return isa<QubitType>(vectorType ? vectorType.getElementType() : type);
 }
 
+bool qcc::isClassicalType(Type type) {
+  if (isa<TensorType, VectorType>(type)) {
+    return isClassicalType(cast<ShapedType>(type).getElementType());
+  }
+  return isa<ClassicalTypeInterface, IntegerType, FloatType, IndexType, ComplexType>(type);
+}
+
 LogicalResult RefType::verify(function_ref<InFlightDiagnostic()> emitError, Type elementType) {
-  // Qubits are no classical data, and a reference to a reference has no use (yet).
-  if (isQubitOrQubitVector(elementType) || isa<QubitRefType, RefType>(elementType)) {
+  if (!isClassicalType(elementType)) {
     return emitError() << "'!qcc.ref' holds classical values only, got " << elementType;
   }
   return success();

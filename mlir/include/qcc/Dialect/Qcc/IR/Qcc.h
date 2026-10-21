@@ -47,6 +47,8 @@
 // Qcc Types
 //===----------------------------------------------------------------------===//
 
+#include "qcc/Dialect/Qcc/IR/QccTypeInterfaces.h.inc"
+
 #define GET_TYPEDEF_CLASSES
 #include "qcc/Dialect/Qcc/IR/QccTypes.h.inc"
 
@@ -54,6 +56,10 @@ namespace qcc {
 
 /// Whether `type` is `!qcc.qubit` or a vector of them.
 bool isQubitOrQubitVector(mlir::Type type);
+
+/// Whether `type` is the type of classical values: a type with the `ClassicalTypeInterface`, a builtin integer,
+/// floating-point, `index`, or `complex` type, or a tensor or vector of classical elements.
+bool isClassicalType(mlir::Type type);
 
 } // namespace qcc
 

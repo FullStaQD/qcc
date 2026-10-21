@@ -2,8 +2,6 @@
 // RUN: qcc-opt %s --split-input-file --mlir-print-op-generic | qcc-opt --split-input-file | FileCheck %s
 // RUN: qcc-opt %s --split-input-file --canonicalize | FileCheck %s --check-prefix=CANON
 
-// Round trip of the oq3 dialect. Statements survive canonicalization, so nothing that the export prints is lost.
-
 // CHECK-LABEL: module attributes {oq3.version = #oq3.version<3, 1>}
 module attributes {oq3.version = #oq3.version<3, 1>} {
   func.func @main() attributes {qcc.entry_point} {

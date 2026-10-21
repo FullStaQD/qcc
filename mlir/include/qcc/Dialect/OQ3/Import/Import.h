@@ -23,6 +23,8 @@ namespace qcc::oq3 {
 struct ImportOptions {
   /// Directories to search for include files, after the directory of the including file.
   std::vector<std::string> includeDirs;
+  /// Whether to accept the current development version.
+  bool allowDevVersion = false;
 };
 
 /// Imports the OpenQASM 3 program in the main buffer of `sourceMgr` into a module of the `oq3` dialect. Included

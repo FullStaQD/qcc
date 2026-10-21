@@ -56,6 +56,24 @@ static void printStaticTypes(OpAsmPrinter& printer, Operation* op, TypeRange qub
   printer << (qubitTypes.empty() ? Type(QubitType::get(op->getContext())) : qubitTypes.front());
 }
 
+static ParseResult parseRefType(OpAsmParser& parser, Type& refType, Type& valueType) {
+  const SMLoc loc = parser.getCurrentLocation();
+  if (parser.parseType(refType)) {
+    return failure();
+  }
+  auto ref = dyn_cast<RefType>(refType);
+  if (ref == nullptr) {
+    return parser.emitError(loc) << "expected a '!qcc.ref' type, got " << refType;
+  }
+  valueType = ref.getElementType();
+  return success();
+}
+
+/// Prints the type of a `qcc.ref.load` or `qcc.ref.store`: the reference type only.
+static void printRefType(OpAsmPrinter& printer, Operation* /*op*/, Type refType, Type /*valueType*/) {
+  printer << refType;
+}
+
 #define GET_OP_CLASSES
 #include "qcc/Dialect/Qcc/IR/QccOps.cpp.inc"
 
@@ -179,6 +197,24 @@ LogicalResult StaticOp::verify() {
       diag.attachNote(previous->getLoc()) << "the earlier 'qcc.static' is here";
       return diag;
     }
+  }
+  return success();
+}
+
+LogicalResult RefLoadOp::verify() {
+  Type elementType = getRef().getType().getElementType();
+  if (getResult().getType() != elementType) {
+    return emitOpError() << "cannot load a value of type " << getResult().getType() << " from a reference to "
+                         << elementType;
+  }
+  return success();
+}
+
+LogicalResult RefStoreOp::verify() {
+  Type elementType = getRef().getType().getElementType();
+  if (getValue().getType() != elementType) {
+    return emitOpError() << "cannot store a value of type " << getValue().getType() << " in a reference to "
+                         << elementType;
   }
   return success();
 }

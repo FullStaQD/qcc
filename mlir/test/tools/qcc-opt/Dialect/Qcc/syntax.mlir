@@ -40,3 +40,11 @@ func.func @references(%r: !qcc.ref<i1>, %q: !qcc.qubit_ref, %a: !qcc.angle, %ra:
   qcc.ref.store %v, %r : !qcc.ref<i1>
   return
 }
+
+// A reference holds any classical type, also builtin ones and tensors of them.
+// CHECK-LABEL: func.func @classical_references
+// CHECK-SAME:    !qcc.ref<index>, %{{.*}}: !qcc.ref<complex<f32>>, %{{.*}}: !qcc.ref<tensor<2xsi8>>, %{{.*}}: !qcc.ref<vector<2xf64>>)
+func.func @classical_references(%i: !qcc.ref<index>, %c: !qcc.ref<complex<f32>>, %t: !qcc.ref<tensor<2xsi8>>,
+                                %v: !qcc.ref<vector<2xf64>>) {
+  return
+}

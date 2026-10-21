@@ -358,9 +358,16 @@ LogicalResult Importer::parseVersion() {
   if (majorText.getAsInteger(10, major) || (text.contains('.') && minorText.getAsInteger(10, minor))) {
     return emitError(token().getLoc()) << "invalid version number '" << text << "'";
   }
-  if (major != 3 || minor > 2) {
+  if (major != 3 || minor > devMinorVersion) {
     return emitError(token().getLoc()) << "OpenQASM " << text
                                        << " is not supported; supported versions are 3.0, 3.1, and 3.2";
+  }
+  if (minor == devMinorVersion && !options.allowDevVersion) {
+    InFlightDiagnostic diag = emitError(token().getLoc()) << "OpenQASM " << text << " is not released yet";
+    diag.attachNote() << "qcc implements the development specification as of " << devSpecDate << " (" << devSpecCommit
+                      << "), which may still change; use --oq3-allow-dev-version to import the "
+                      << "program anyway";
+    return diag;
   }
   consume();
   if (failed(expect(TokenKind::Semicolon, "';' after the version"))) {
@@ -1093,7 +1100,9 @@ FailureOr<Expr> Importer::parsePrimary() {
     const std::string text = withoutSeparators(bits);
     consume();
     const Type type = BitsType::get(context, static_cast<int64_t>(text.size()));
-    auto constant = ConstantOp::create(builder, getLoc(loc), BitstringAttr::get(context, text, type));
+    auto constant = ConstantOp::create(
+        builder, getLoc(loc),
+        BitstringAttr::get(context, APInt(static_cast<unsigned>(text.size()), text, /*radix=*/2), type));
     return Expr{.value = constant, .loc = loc};
   }
   case TokenKind::Identifier:
@@ -1368,12 +1377,17 @@ OwningOpRef<ModuleOp> qcc::oq3::importOpenQASM(llvm::SourceMgr& sourceMgr, MLIRC
 void qcc::oq3::registerImportOpenQASMTranslation() {
   static llvm::cl::list<std::string> includeDirs("I", llvm::cl::desc("Directory to search for OpenQASM include files"),
                                                  llvm::cl::value_desc("directory"), llvm::cl::Prefix);
+  static llvm::cl::opt<bool> allowDevVersion(
+      "oq3-allow-dev-version",
+      llvm::cl::desc("Import programs of the unreleased OpenQASM version 3.2, the development specification"),
+      llvm::cl::init(false));
 
   static const TranslateToMLIRRegistration registration(
       "import-openqasm", "Import OpenQASM 3 into the oq3 dialect",
       [](const std::shared_ptr<llvm::SourceMgr>& sourceMgr, MLIRContext* context) -> OwningOpRef<Operation*> {
         ImportOptions options;
         options.includeDirs.assign(includeDirs.begin(), includeDirs.end());
+        options.allowDevVersion = allowDevVersion;
         return importOpenQASM(*sourceMgr, context, options);
       },
       [](DialectRegistry& registry) { registry.insert<OQ3Dialect, QccDialect, func::FuncDialect>(); });

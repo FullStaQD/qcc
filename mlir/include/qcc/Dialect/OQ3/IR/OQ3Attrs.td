@@ -26,9 +26,10 @@ def OQ3_VersionAttr : AttrDef<OQ3_Dialect, "Version"> {
   let summary = "OpenQASM language version of a program";
   let description = [{
         The language version that the program's `OPENQASM` line selects: `#oq3.version<3, 1>` for `OPENQASM 3.1;`, and
-        `#oq3.version<3, 0>` for `OPENQASM 3;`. A program without that line gets qcc's default version.
+        `#oq3.version<3, 0>` for `OPENQASM 3;`. A program without that line gets qcc's default version. The export
+        always prints the version line.
 
-        TEMPORARY: `OPENQASM 3.2;` selects the current live specification, which has no release number yet.
+        A current development version is implemented and accepted only with `--oq3-allow-dev-version`.
 
         As the module attribute `oq3.version`, it marks the module as an OpenQASM program. Its verifier checks the
         program as a whole: the entry function, the `oq3.defined` markers, and the include tags.
@@ -66,7 +67,7 @@ def OQ3_IntLiteralAttr : AttrDef<OQ3_Dialect, "IntLiteral", [TypedAttrInterface]
   let mnemonic = "int";
   let summary = "integer literal of arbitrary precision";
   let description = [{
-        The non-negative value of an integer literal, of type `!oq3.int`.
+        The value of an integer literal, of type `!oq3.int`. A literal has no sign.
 
         Example: `#oq3.int<31> : !oq3.int`
     }];
@@ -106,16 +107,24 @@ def OQ3_BitstringAttr : AttrDef<OQ3_Dialect, "Bitstring", [TypedAttrInterface]> 
   let mnemonic = "bitstring";
   let summary = "bitstring literal";
   let description = [{
-        A bitstring literal such as `"0101"` (without digit separators). Its first character is the most significant
-        bit. A bitstring of `n` bits has type `!oq3.bits<n>`.
+        A bitstring literal such as `"0101"` (without digit separators). A bitstring of `n` bits has type
+        `!oq3.bits<n>`, and its value is an `n`-bit integer.
+
+        The string is written most significant bit first, so its last character is bit 0. Bit `i` of the value is the
+        register bit `[i]`: after `bit[4] b = "0001";`, `b[0]` is 1 and `b[3]` is 0.
 
         Example: `#oq3.bitstring<"0101"> : !oq3.bits<4>`
     }];
 
-  let parameters = (ins StringRefParameter<"the bits, a non-empty string of `0` and `1`">:$bits,
+  let parameters = (ins APIntParameter<"the bits, as many as the type has">:$value,
                         AttributeSelfTypeParameter<"">:$type);
-  let assemblyFormat = "`<` $bits `>`";
+  let hasCustomAssemblyFormat = 1;
   let genVerifyDecl = 1;
+
+  let extraClassDeclaration = [{
+    /// Returns the bits as a string of `0` and `1`, most significant bit first, as OpenQASM writes them.
+    [[nodiscard]] std::string getText() const;
+  }];
 }
 
 //===----------------------------------------------------------------------===//

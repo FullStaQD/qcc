@@ -8,6 +8,13 @@ OPENQASM 2.0;
 
 // -----
 
+// The development version needs `--oq3-allow-dev-version`.
+// expected-error @below {{OpenQASM 3.2 is not released yet}}
+// expected-note-re @below {{qcc implements the development specification as of {{.*}}; use --oq3-allow-dev-version to import the program anyway}}
+OPENQASM 3.2;
+
+// -----
+
 qubit q;
 // expected-error @below {{the version line must be the first statement of the program}}
 OPENQASM 3.1;

@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <numbers>
 #include <optional>
+#include <variant>
 
 using namespace mlir;
 using namespace qcc;
@@ -59,14 +60,14 @@ private:
       if (value.getActiveBits() > 63) {
         return fail(constant, "integer literal is too large for a constant expression");
       }
-      return ConstantValue::getInt(static_cast<int64_t>(value.getZExtValue()));
+      return ConstantValue(static_cast<int64_t>(value.getZExtValue()));
     }
     if (auto literal = dyn_cast<FloatLiteralAttr>(constant.getValue())) {
       double value = 0.0;
       if (literal.getText().getAsDouble(value, /*AllowInexact=*/true)) {
         return fail(constant, "invalid floating-point literal");
       }
-      return ConstantValue::getFloat(value);
+      return ConstantValue(value);
     }
     return fail(constant, "not a numeric constant");
   }
@@ -74,13 +75,17 @@ private:
   static FailureOr<ConstantValue> evaluateMathConstant(MathConstantOp constant) {
     switch (constant.getKind()) {
     case MathConstantKind::Pi:
-      return ConstantValue::getFloat(std::numbers::pi);
+      return ConstantValue(std::numbers::pi);
     case MathConstantKind::Tau:
-      return ConstantValue::getFloat(2 * std::numbers::pi);
+      return ConstantValue(2 * std::numbers::pi);
     case MathConstantKind::Euler:
-      return ConstantValue::getFloat(std::numbers::e);
+      return ConstantValue(std::numbers::e);
     }
     llvm_unreachable("unknown math constant");
+  }
+
+  static double toDouble(const ConstantValue& value) {
+    return std::visit([](auto number) { return static_cast<double>(number); }, value);
   }
 
   FailureOr<ConstantValue> evaluateUnary(UnaryOp unary) {
@@ -88,14 +93,14 @@ private:
     if (failed(operand)) {
       return failure();
     }
-    if (!operand->isInt()) {
-      return ConstantValue::getFloat(-operand->floatValue);
+    if (!std::holds_alternative<int64_t>(*operand)) {
+      return ConstantValue(-std::get<double>(*operand));
     }
-    const std::optional<int64_t> negated = llvm::checkedSub(int64_t{0}, operand->intValue);
+    const std::optional<int64_t> negated = llvm::checkedSub(int64_t{0}, std::get<int64_t>(*operand));
     if (!negated) {
       return fail(unary, "overflow in a constant expression");
     }
-    return ConstantValue::getInt(*negated);
+    return ConstantValue(*negated);
   }
 
   FailureOr<ConstantValue> evaluateBinary(BinaryOp binary) {
@@ -108,9 +113,9 @@ private:
       return failure();
     }
 
-    if (lhs->isInt() && rhs->isInt()) {
-      const int64_t a = lhs->intValue;
-      const int64_t b = rhs->intValue;
+    if (std::holds_alternative<int64_t>(*lhs) && std::holds_alternative<int64_t>(*rhs)) {
+      const int64_t a = std::get<int64_t>(*lhs);
+      const int64_t b = std::get<int64_t>(*rhs);
       std::optional<int64_t> result;
       switch (binary.getKind()) {
       case BinaryKind::Add:
@@ -135,21 +140,21 @@ private:
       if (!result) {
         return fail(binary, "overflow in a constant expression");
       }
-      return ConstantValue::getInt(*result);
+      return ConstantValue(*result);
     }
 
     // Operands of a float operation are floats (the importer casts them).
-    const double a = lhs->isInt() ? static_cast<double>(lhs->intValue) : lhs->floatValue;
-    const double b = rhs->isInt() ? static_cast<double>(rhs->intValue) : rhs->floatValue;
+    const double a = toDouble(*lhs);
+    const double b = toDouble(*rhs);
     switch (binary.getKind()) {
     case BinaryKind::Add:
-      return ConstantValue::getFloat(a + b);
+      return ConstantValue(a + b);
     case BinaryKind::Sub:
-      return ConstantValue::getFloat(a - b);
+      return ConstantValue(a - b);
     case BinaryKind::Mul:
-      return ConstantValue::getFloat(a * b);
+      return ConstantValue(a * b);
     case BinaryKind::Div:
-      return ConstantValue::getFloat(a / b);
+      return ConstantValue(a / b);
     }
     llvm_unreachable("unknown binary operator");
   }
@@ -159,8 +164,8 @@ private:
     if (failed(input)) {
       return failure();
     }
-    if (isa<UnsizedFloatType>(cast.getType()) && input->isInt()) {
-      return ConstantValue::getFloat(static_cast<double>(input->intValue));
+    if (isa<UnsizedFloatType>(cast.getType()) && std::holds_alternative<int64_t>(*input)) {
+      return ConstantValue(static_cast<double>(std::get<int64_t>(*input)));
     }
     return fail(cast, "not a numeric constant expression");
   }
@@ -180,11 +185,11 @@ FailureOr<int64_t> qcc::oq3::evaluateConstantInt(Value value, function_ref<InFli
   if (failed(result)) {
     return failure();
   }
-  if (!result->isInt()) {
+  if (!std::holds_alternative<int64_t>(*result)) {
     if (emitError && (value.getDefiningOp() != nullptr)) {
       emitError(value.getDefiningOp()) << "not an integer constant expression";
     }
     return failure();
   }
-  return result->intValue;
+  return std::get<int64_t>(*result);
 }

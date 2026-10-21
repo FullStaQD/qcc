@@ -35,7 +35,7 @@ module attributes {oq3.version = #oq3.version<3, 1>} {
 // -----
 
 module attributes {oq3.version = #oq3.version<3, 1>} {
-  // expected-error @below {{'llvm.func' op is the entry function of an OpenQASM program, so it must be a 'func.func'}}
+  // expected-error @below {{'llvm.func' op cannot be an entry point: oq3 allows only 'func.func' entry points}}
   llvm.func @main() attributes {qcc.entry_point} {
     llvm.return
   }
@@ -125,6 +125,18 @@ func.func @not_entry() {
 
 // -----
 
+// expected-error @below {{'builtin.module' op attribute 'oq3.version' must be an '#oq3.version', got "3.1"}}
+module attributes {oq3.version = "3.1"} {}
+
+// -----
+
+module attributes {oq3.version = #oq3.version<3, 1>} {
+  // expected-error @below {{'func.func' op is the entry function of an OpenQASM program, so it needs a body of one block}}
+  func.func private @main() attributes {qcc.entry_point}
+}
+
+// -----
+
 //===----------------------------------------------------------------------===//
 // Includes
 //===----------------------------------------------------------------------===//
@@ -145,6 +157,26 @@ module attributes {oq3.version = #oq3.version<3, 1>} {
   func.func @main() attributes {qcc.entry_point} {
     // expected-error @below {{'oq3.qubit_decl' op is tagged 'oq3.from_include = 3', but no include has that id}}
     %q = oq3.qubit_decl "q" {oq3.from_include = 3} : !qcc.qubit_ref
+    return
+  }
+}
+
+// -----
+
+module attributes {oq3.version = #oq3.version<3, 1>} {
+  func.func @main() attributes {qcc.entry_point} {
+    // expected-error @below {{'oq3.include' op path must be non-empty, a single line, and not contain both kinds of quotes}}
+    oq3.include "" id 0
+    return
+  }
+}
+
+// -----
+
+module attributes {oq3.version = #oq3.version<3, 1>} {
+  func.func @main() attributes {qcc.entry_point} {
+    // expected-error @below {{'oq3.qubit_decl' op attribute 'oq3.from_include' must be an include id, got "a.inc"}}
+    %q = oq3.qubit_decl "q" {oq3.from_include = "a.inc"} : !qcc.qubit_ref
     return
   }
 }
@@ -182,6 +214,16 @@ func.func private @f() attributes {a = #oq3.annotation<"@ns", "">}
 
 // expected-error @below {{'func.func' op has the unknown attribute 'oq3.unknown_attribute'}}
 func.func private @f() attributes {oq3.unknown_attribute}
+
+// -----
+
+// expected-error @below {{'func.func' op attribute 'oq3.annotations' is only valid on a statement}}
+func.func private @f() attributes {oq3.annotations = [#oq3.annotation<"ns.name", "">]}
+
+// -----
+
+// expected-error @below {{annotation content must be a single line}}
+func.func private @f() attributes {a = #oq3.annotation<"ns.name", "a\nb">}
 
 // -----
 
@@ -276,6 +318,43 @@ module attributes {oq3.version = #oq3.version<3, 1>} {
 
 // -----
 
+module attributes {oq3.version = #oq3.version<3, 1>} {
+  func.func @main() attributes {qcc.entry_point} {
+    %one = oq3.constant #oq3.int<1> : !oq3.int
+    %zero = oq3.constant #oq3.int<0> : !oq3.int
+    %size = oq3.binary div %one, %zero : !oq3.int
+    // expected-error @below {{'oq3.qubit_decl' op designator must be a constant expression}}
+    %q = oq3.qubit_decl "q" [%size : !oq3.int] : !oq3.qreg<1>
+    return
+  }
+}
+
+// -----
+
+module attributes {oq3.version = #oq3.version<3, 1>} {
+  func.func @main() attributes {qcc.entry_point} {
+    %one = oq3.constant #oq3.int<1> : !oq3.int
+    // expected-error @below {{'oq3.declare' op declares a single bit, so it takes no designator}}
+    %c = oq3.declare "c" [%one : !oq3.int] : !qcc.ref<!oq3.bit>
+    return
+  }
+}
+
+// -----
+
+module attributes {oq3.version = #oq3.version<3, 1>} {
+  func.func @main() attributes {qcc.entry_point} {
+    %two = oq3.constant #oq3.int<2> : !oq3.int
+    %c = oq3.declare "c" [%two : !oq3.int] : !qcc.ref<!oq3.bits<2>>
+    %zero = oq3.constant #oq3.int<0> : !oq3.int
+    // expected-error @below {{'oq3.subref' op a bit of a bit register has type '!qcc.ref<!oq3.bit>', got '!qcc.ref<!oq3.bits<1>>'}}
+    %c0 = oq3.subref %c[%zero] : !qcc.ref<!oq3.bits<2>>, !oq3.int -> !qcc.ref<!oq3.bits<1>>
+    return
+  }
+}
+
+// -----
+
 //===----------------------------------------------------------------------===//
 // Expressions
 //===----------------------------------------------------------------------===//
@@ -328,6 +407,39 @@ module attributes {oq3.version = #oq3.version<3, 1>} {
     %q = oq3.qubit_decl "q" [%two : !oq3.int] : !oq3.qreg<2>
     // expected-error @below {{'oq3.measure' op measuring '!oq3.qreg<2>' cannot yield '!oq3.bits<3>' (a qubit yields a bit, n qubits yield n bits)}}
     %m = oq3.measure %q : !oq3.qreg<2> -> !oq3.bits<3>
+    return
+  }
+}
+
+// -----
+
+// expected-error @below {{expected the text of a floating-point literal, got 'one'}}
+%x = oq3.constant #oq3.float<"one"> : !oq3.float
+
+// -----
+
+// expected-error @below {{a floating-point literal has type '!oq3.float', got '!oq3.int'}}
+%x = oq3.constant #oq3.float<"1.0"> : !oq3.int
+
+// -----
+
+// expected-error @below {{a bitstring is a non-empty string of '0' and '1', got '012'}}
+%x = oq3.constant #oq3.bitstring<"012"> : !oq3.bits<3>
+
+// -----
+
+// expected-error @below {{'oq3.constant' op unsupported literal 1 : i64}}
+%x = "oq3.constant"() {value = 1 : i64} : () -> i64
+
+// -----
+
+module attributes {oq3.version = #oq3.version<3, 1>} {
+  func.func @main() attributes {qcc.entry_point} {
+    %two = oq3.constant #oq3.int<2> : !oq3.int
+    %q = oq3.qubit_decl "q" [%two : !oq3.int] : !oq3.qreg<2>
+    %zero = oq3.constant #oq3.float<"0.0"> : !oq3.float
+    // expected-error @below {{'oq3.qubit_index' op index must be an unsized integer, got '!oq3.float'}}
+    %q0 = oq3.qubit_index %q[%zero] : !oq3.qreg<2>, !oq3.float
     return
   }
 }

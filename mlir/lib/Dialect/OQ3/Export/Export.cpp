@@ -111,7 +111,7 @@ static FailureOr<std::string> printLiteral(ConstantOp constant) {
     return literal.getText().str();
   }
   if (auto literal = dyn_cast<BitstringAttr>(constant.getValue())) {
-    return ("\"" + literal.getBits() + "\"").str();
+    return "\"" + literal.getText() + "\"";
   }
   return constant.emitOpError() << "cannot be exported to OpenQASM";
 }

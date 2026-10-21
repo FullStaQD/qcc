@@ -27,6 +27,7 @@
 #include "llvm/ADT/TypeSwitch.h" // IWYU pragma: keep
 
 #include <optional>
+#include <string>
 
 using namespace mlir;
 using namespace qcc;
@@ -111,8 +112,7 @@ private:
     }
     entry = dyn_cast<func::FuncOp>(entryPoints[0].getOperation());
     if (!entry) {
-      return entryPoints[0].emitOpError()
-             << "is the entry function of an OpenQASM program, so it must be a 'func.func'";
+      return entryPoints[0].emitOpError() << "cannot be an entry point: oq3 allows only 'func.func' entry points";
     }
     if (entry.isExternal() || !entry.getBody().hasOneBlock()) {
       return entry.emitOpError() << "is the entry function of an OpenQASM program, so it needs a body of one block";
@@ -342,11 +342,9 @@ LogicalResult BitsType::verify(function_ref<InFlightDiagnostic()> emitError, int
 //===----------------------------------------------------------------------===//
 
 LogicalResult VersionAttr::verify(function_ref<InFlightDiagnostic()> emitError, unsigned major, unsigned minor) {
-  if (major != 3 || minor > 2) {
+  if (major != 3 || minor > devMinorVersion) {
     return emitError() << "unsupported OpenQASM version " << major << "." << minor
                        << ", supported are 3.0, 3.1, and 3.2";
-    // TODO: By 3.2, we mean the current live version, which has improvements over 3.1.
-    // Hopefully there will be a release soon so that we can eliminate the inaccuracy.
   }
   return success();
 }
@@ -413,14 +411,49 @@ LogicalResult FloatLiteralAttr::verify(function_ref<InFlightDiagnostic()> emitEr
   return success();
 }
 
-LogicalResult BitstringAttr::verify(function_ref<InFlightDiagnostic()> emitError, StringRef bits, Type type) {
-  if (bits.empty() || !llvm::all_of(bits, [](char c) { return c == '0' || c == '1'; })) {
-    return emitError() << "a bitstring is a non-empty string of '0' and '1', got '" << bits << "'";
+Attribute BitstringAttr::parse(AsmParser& parser, Type type) {
+  std::string text;
+  if (parser.parseLess()) {
+    return {};
+  }
+  const SMLoc loc = parser.getCurrentLocation();
+  if (parser.parseString(&text) || parser.parseGreater()) {
+    return {};
+  }
+  if (text.empty() || !llvm::all_of(text, [](char c) { return c == '0' || c == '1'; })) {
+    parser.emitError(loc) << "a bitstring is a non-empty string of '0' and '1', got '" << text << "'";
+    return {};
+  }
+  if (!type) {
+    parser.emitError(loc) << "expected the type of the bitstring, as in '#oq3.bitstring<\"01\"> : !oq3.bits<2>'";
+    return {};
+  }
+  return getChecked([&] { return parser.emitError(loc); }, parser.getContext(),
+                    APInt(static_cast<unsigned>(text.size()), text, /*radix=*/2), type);
+}
+
+void BitstringAttr::print(AsmPrinter& printer) const { printer << "<\"" << getText() << "\">"; }
+
+std::string BitstringAttr::getText() const {
+  const APInt& value = getValue();
+  std::string text;
+  text.reserve(value.getBitWidth());
+  for (unsigned i = value.getBitWidth(); i > 0; --i) {
+    text.push_back(value[i - 1] ? '1' : '0');
+  }
+  return text;
+}
+
+// The signature is generated, so the parameter cannot be taken by reference.
+// NOLINTNEXTLINE(performance-unnecessary-value-param)
+LogicalResult BitstringAttr::verify(function_ref<InFlightDiagnostic()> emitError, APInt value, Type type) {
+  const unsigned width = value.getBitWidth();
+  if (width == 0) {
+    return emitError() << "a bitstring has at least one bit";
   }
   auto bitsType = dyn_cast<BitsType>(type);
-  if (!bitsType || bitsType.getSize() != static_cast<int64_t>(bits.size())) {
-    return emitError() << "a bitstring of " << bits.size() << " bit(s) has type '!oq3.bits<" << bits.size()
-                       << ">', got " << type;
+  if (!bitsType || bitsType.getSize() != static_cast<int64_t>(width)) {
+    return emitError() << "a bitstring of " << width << " bit(s) has type '!oq3.bits<" << width << ">', got " << type;
   }
   return success();
 }

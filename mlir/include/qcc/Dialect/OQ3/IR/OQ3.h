@@ -12,19 +12,23 @@
 #include "qcc/Dialect/Qcc/IR/Qcc.h" // IWYU pragma: keep
 
 #include "mlir/Bytecode/BytecodeOpInterface.h" // IWYU pragma: keep
-#include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/IR/Builders.h"     // IWYU pragma: keep
-#include "mlir/IR/BuiltinOps.h"   // IWYU pragma: keep
-#include "mlir/IR/BuiltinTypes.h" // IWYU pragma: keep
-#include "mlir/IR/Dialect.h"      // IWYU pragma: keep
-#include "mlir/IR/SymbolTable.h"  // IWYU pragma: keep
+#include "mlir/IR/Builders.h"                  // IWYU pragma: keep
+#include "mlir/IR/BuiltinTypes.h"              // IWYU pragma: keep
+#include "mlir/IR/Diagnostics.h"
+#include "mlir/IR/Dialect.h"     // IWYU pragma: keep
+#include "mlir/IR/SymbolTable.h" // IWYU pragma: keep
+#include "mlir/IR/Value.h"
+#include "mlir/Interfaces/InferTypeOpInterface.h" // IWYU pragma: keep
 #include "mlir/Interfaces/SideEffectInterfaces.h"
+#include "mlir/Support/LLVM.h"
 
 #include "llvm/ADT/APInt.h" // IWYU pragma: keep
+#include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/ADT/StringRef.h"
 
-#include <cstdint>  // IWYU pragma: keep
-#include <optional> // IWYU pragma: keep
+#include <cstdint>
+#include <optional>
+#include <variant>
 
 //===----------------------------------------------------------------------===//
 // OQ3 Dialect
@@ -78,6 +82,10 @@ inline constexpr llvm::StringLiteral standardGatesInclude = "stdgates.inc";
 inline constexpr unsigned defaultMajorVersion = 3;
 inline constexpr unsigned defaultMinorVersion = 1;
 
+inline constexpr unsigned devMinorVersion = 2;
+inline constexpr llvm::StringLiteral devSpecDate = "2026-07-27";
+inline constexpr llvm::StringLiteral devSpecCommit = "openqasm/openqasm@7fbf9e9";
+
 /// The number and kinds of arguments a gate takes.
 struct GateSignature {
   unsigned numParams;
@@ -94,17 +102,8 @@ std::optional<GateSignature> lookupStandardGate(llvm::StringRef name);
 // Constant evaluation
 //===----------------------------------------------------------------------===//
 
-/// The value of a const expression.
-struct ConstantValue {
-  enum class Kind : uint8_t { Int, Float };
-  Kind kind;
-  int64_t intValue = 0;
-  double floatValue = 0.0;
-
-  static ConstantValue getInt(int64_t value) { return {.kind = Kind::Int, .intValue = value}; }
-  static ConstantValue getFloat(double value) { return {.kind = Kind::Float, .floatValue = value}; }
-  [[nodiscard]] bool isInt() const { return kind == Kind::Int; }
-};
+/// The value of a const expression: an `int` or a `float`.
+using ConstantValue = std::variant<int64_t, double>;
 
 /// Evaluates the const expression `value` without changing the IR.
 ///
