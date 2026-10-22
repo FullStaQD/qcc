@@ -8,6 +8,8 @@ mlir_tablegen(QccAttrInterfaces.h.inc -gen-attr-interface-decls)
 mlir_tablegen(QccAttrInterfaces.cpp.inc -gen-attr-interface-defs)
 mlir_tablegen(QccOpInterfaces.h.inc -gen-op-interface-decls)
 mlir_tablegen(QccOpInterfaces.cpp.inc -gen-op-interface-defs)
+mlir_tablegen(QccTypeInterfaces.h.inc -gen-type-interface-decls)
+mlir_tablegen(QccTypeInterfaces.cpp.inc -gen-type-interface-defs)
 add_public_tablegen_target(QCCQccInterfacesIncGen)
 
 set(LLVM_TARGET_DEFINITIONS QccTypes.td)

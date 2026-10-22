@@ -31,6 +31,7 @@ using namespace qcc;
 
 #include "qcc/Dialect/Qcc/IR/QccAttrInterfaces.cpp.inc"
 #include "qcc/Dialect/Qcc/IR/QccDialect.cpp.inc"
+#include "qcc/Dialect/Qcc/IR/QccTypeInterfaces.cpp.inc"
 
 #define GET_TYPEDEF_CLASSES
 #include "qcc/Dialect/Qcc/IR/QccTypes.cpp.inc"
@@ -77,6 +78,22 @@ LogicalResult QccDialect::verifyOperationAttribute(Operation* op, NamedAttribute
   return success();
 }
 
+// TODO(#189): Use `isEntryPoint` / `getEntryPoints` where the code still checks `entryPointAttrName` by hand:
+// `AuxOutputRecording`, `ConvertQCToQIR`, `FinalizeToQIR`, `EmitHiSEPQStart`, and the Magic exporter.
+bool qcc::isEntryPoint(Operation* op) {
+  return isa_and_present<FunctionOpInterface>(op) && op->hasAttr(QccDialect::EntryPointAttrHelper::getNameStr());
+}
+
+SmallVector<FunctionOpInterface> qcc::getEntryPoints(ModuleOp module) {
+  SmallVector<FunctionOpInterface> entryPoints;
+  for (Operation& op : *module.getBody()) {
+    if (isEntryPoint(&op)) {
+      entryPoints.push_back(cast<FunctionOpInterface>(op));
+    }
+  }
+  return entryPoints;
+}
+
 //===----------------------------------------------------------------------===//
 // Types
 //===----------------------------------------------------------------------===//
@@ -84,6 +101,20 @@ LogicalResult QccDialect::verifyOperationAttribute(Operation* op, NamedAttribute
 bool qcc::isQubitOrQubitVector(Type type) {
   auto vectorType = dyn_cast<VectorType>(type);
   return isa<QubitType>(vectorType ? vectorType.getElementType() : type);
+}
+
+bool qcc::isClassicalType(Type type) {
+  if (isa<TensorType, VectorType>(type)) {
+    return isClassicalType(cast<ShapedType>(type).getElementType());
+  }
+  return isa<ClassicalTypeInterface, IntegerType, FloatType, IndexType, ComplexType>(type);
+}
+
+LogicalResult RefType::verify(function_ref<InFlightDiagnostic()> emitError, Type elementType) {
+  if (!isClassicalType(elementType)) {
+    return emitError() << "'!qcc.ref' holds classical values only, got " << elementType;
+  }
+  return success();
 }
 
 //===----------------------------------------------------------------------===//
