@@ -81,7 +81,25 @@ private:
       return moduleOp->emitError("did not find any entry point");
     }
 
+    if (entryPoint.getNumArguments() != 0) {
+      return entryPoint.emitOpError("expected the entry point to take no arguments, as nothing provides them");
+    }
+
     return entryPoint;
+  }
+
+  /// Emits `__qcc_call_entry_point`, which calls `entryPoint` as an ordinary call and discards its results.
+  static LLVM::LLVMFuncOp emitCallEntryPointFunc(OpBuilder& builder, LLVM::LLVMFuncOp entryPoint) {
+    Location loc = entryPoint.getLoc();
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(builder.getContext()), {});
+    auto func = LLVM::LLVMFuncOp::create(builder, loc, "__qcc_call_entry_point", funcType, LLVM::Linkage::Internal);
+    func.setNoInlineAttr(builder.getUnitAttr());
+
+    OpBuilder::InsertionGuard guard(builder);
+    builder.setInsertionPointToStart(func.addEntryBlock(builder));
+    LLVM::CallOp::create(builder, loc, entryPoint, ValueRange{});
+    LLVM::ReturnOp::create(builder, loc, ValueRange{});
+    return func;
   }
 
   /// Emits `_start`, which supersedes `entryPoint` as the entry point of the hardware.
@@ -94,12 +112,14 @@ private:
     auto stackTop = LLVM::GlobalOp::create(builder, loc, stackTopType, /*isConstant=*/true, LLVM::Linkage::External,
                                            "__stack_top", /*value=*/Attribute());
 
+    LLVM::LLVMFuncOp callEntryPoint = emitCallEntryPointFunc(builder, entryPoint);
+
     auto startFuncType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(builder.getContext()), {});
     auto startFunc = LLVM::LLVMFuncOp::create(builder, loc, "_start", startFuncType);
     builder.setInsertionPointToStart(startFunc.addEntryBlock(builder));
 
     Value stackTopAddr = LLVM::AddressOfOp::create(builder, loc, stackTop);
-    Value entryAddr = LLVM::AddressOfOp::create(builder, loc, entryPoint);
+    Value entryAddr = LLVM::AddressOfOp::create(builder, loc, callEntryPoint);
 
     auto asmDialect = LLVM::AsmDialectAttr::get(builder.getContext(), LLVM::AsmDialect::AD_ATT);
     LLVM::InlineAsmOp::create(builder, loc, /*resultTypes=*/TypeRange(),
