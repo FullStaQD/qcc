@@ -9,11 +9,48 @@
 
 #include "qcc/Dialect/Utils/RotationUtils.h"
 
+#include "llvm/Support/Format.h"
+#include "llvm/Support/raw_ostream.h"
+
+#include <algorithm>
 #include <cmath>
 #include <complex>
+#include <cstddef>
 #include <numbers>
 
 using namespace qcc;
+
+Matrix2x2& Matrix2x2::operator+=(const Matrix2x2& rhs) {
+  for (std::size_t i = 0; i < elements.size(); ++i) {
+    elements[i] += rhs.elements[i];
+  }
+  return *this;
+}
+
+Matrix2x2& Matrix2x2::operator-=(const Matrix2x2& rhs) {
+  for (std::size_t i = 0; i < elements.size(); ++i) {
+    elements[i] -= rhs.elements[i];
+  }
+  return *this;
+}
+
+Matrix2x2 Matrix2x2::adjoint() const {
+  const Matrix2x2& m = *this;
+  return {
+      std::conj(m(0, 0)), std::conj(m(1, 0)), //
+      std::conj(m(0, 1)), std::conj(m(1, 1))  //
+  };
+}
+
+Complex Matrix2x2::trace() const { return (*this)(0, 0) + (*this)(1, 1); }
+
+double Matrix2x2::infinityNorm() const {
+  double norm = 0.0;
+  for (const Complex& element : elements) {
+    norm = std::max(norm, std::abs(element));
+  }
+  return norm;
+}
 
 double qcc::normalizeAngle(double angle) {
   constexpr double twoPi = 2.0 * std::numbers::pi;
@@ -47,6 +84,31 @@ Matrix2x2 qcc::operator*(const Matrix2x2& lhs, const Matrix2x2& rhs) {
       (lhs(1, 0) * rhs(0, 0)) + (lhs(1, 1) * rhs(1, 0)), //
       (lhs(1, 0) * rhs(0, 1)) + (lhs(1, 1) * rhs(1, 1))  //
   };
+}
+
+Matrix2x2 qcc::operator*(Complex scalar, const Matrix2x2& matrix) {
+  return {
+      scalar * matrix(0, 0), scalar * matrix(0, 1), //
+      scalar * matrix(1, 0), scalar * matrix(1, 1)  //
+  };
+}
+
+Matrix2x2 qcc::operator+(Matrix2x2 lhs, const Matrix2x2& rhs) {
+  lhs += rhs;
+  return lhs;
+}
+
+Matrix2x2 qcc::operator-(Matrix2x2 lhs, const Matrix2x2& rhs) {
+  lhs -= rhs;
+  return lhs;
+}
+
+llvm::raw_ostream& qcc::operator<<(llvm::raw_ostream& os, const Matrix2x2& matrix) {
+  const auto element = [&](unsigned row, unsigned col) {
+    return llvm::format("(%g, %g)", matrix(row, col).real(), matrix(row, col).imag());
+  };
+  return os << "[[" << element(0, 0) << ", " << element(0, 1) << "], [" << element(1, 0) << ", " << element(1, 1)
+            << "]]";
 }
 
 Matrix2x2 qcc::zxzMatrix(const ZXZAngles& angles) {
