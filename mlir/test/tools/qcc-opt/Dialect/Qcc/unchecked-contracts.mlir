@@ -26,3 +26,12 @@ func.func @insert_elsewhere() {
   %w = vector.insert %h, %v[1] : !qcc.qubit into vector<2x!qcc.qubit>
   return
 }
+
+// -----
+
+// The vector holds qubit 0 twice. The qubits of a vector must be distinct.
+func.func @duplicate_qubits() {
+  %q = qcc.static [0] : !qcc.qubit
+  %w = vector.broadcast %q : !qcc.qubit to vector<2x!qcc.qubit>
+  return
+}

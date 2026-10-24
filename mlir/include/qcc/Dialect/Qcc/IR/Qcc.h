@@ -112,11 +112,13 @@ llvm::LogicalResult verifyQubitScope(mlir::Operation* op);
 ///   results.
 /// - Each scalar qubit result of the operation is used at most once. A vector result may be used several times, to
 ///   take it apart (`vector.extract`).
-/// - Each qubit operand of the operation, scalar or vector, has no other use. A vector operand is consumed as a whole,
-///   and it is forbidden to also extract elements from it.
+/// - Each qubit operand of the operation, scalar or vector, has no other use. For a vector operand, this also rejects
+///   taking elements out of it (`vector.extract`): stricter than `QubitType` if the taken-out qubit is never consumed.
 ///
-/// The use counts approximate the affine discipline of `QubitType`, which applies to each qubit of a vector, but they
-/// do not track the elements of a vector: taking the same element out twice and consuming both goes unnoticed.
+/// TODO: Counting uses fits the affine discipline of `QubitType` only where every use consumes, as for scalar qubits.
+/// `vector.extract` uses a vector without consuming it, so violations inside a vector, e.g. taking the same element out
+/// twice and consuming both, go unnoticed. Undecided how to close the gap; probably a check pass, with only the
+/// simplest violations caught here.
 template <typename ConcreteType>
 class NoMultiUseQubits // NOLINT(bugprone-crtp-constructor-accessibility)
     : public mlir::OpTrait::TraitBase<ConcreteType, NoMultiUseQubits> {
