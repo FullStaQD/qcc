@@ -46,7 +46,7 @@ def QCF_IfOp : QCF_Op<"if", [
 
         Example:
         ```mlir
-        // `%a_in`, `%a`, `%a1`, `%x` and `%a_out` are the same qubit.
+        // `%a_in`, `%a`, `%a1`, and `%a_out` are the same qubit.
         %a_out, %b_out, %m = qcf.if %bit (%a = %a_in, %b = %b_in) -> (!qcc.qubit, !qcc.qubit, i1) {
           %a1, %b1 = qcirc.pair cx %a, %b : !qcc.qubit
           %b2, %m1 = qcirc.measure z %b1 : !qcc.qubit -> i1
