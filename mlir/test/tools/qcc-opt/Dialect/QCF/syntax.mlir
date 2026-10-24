@@ -113,13 +113,7 @@ func.func @lanes_through_swap(%cond: i1) {
 // CHECK-NEXT:    }
 // CHECK-NEXT:    return
 
-// A vector binding may be taken apart. The check of the yield walks back from a yielded qubit along its lane and
-// stops silently at an op that is not a lane op, here `vector.from_elements`.
-//
-// TODO: VERIFICATION GAP. The position rule holds per element, but nothing checks the elements of a vector binding.
-// Yielding `vector.from_elements %h, %e0` (elements swapped), or trading an element for the scalar binding `%s`,
-// passes the verifier, yet is invalid IR. Closing the gap needs an element-wise analysis. It is not yet decided if or
-// how we are actually going to close the gap.
+// A vector binding may be taken apart. Invalid variants that the verifier accepts are in unchecked-contracts.mlir.
 func.func @vector_bindings(%cond: i1) {
   %q0, %q1, %q2 = qcc.static [0, 1, 2] : !qcc.qubit
   %v = vector.from_elements %q0, %q1 : vector<2x!qcc.qubit>
