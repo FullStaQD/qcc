@@ -163,7 +163,7 @@ ValueRange IfOp::getSuccessorInputs(RegionSuccessor successor) {
 
 LogicalResult IfOp::verify() {
   for (Region& region : getOperation()->getRegions()) {
-    // `SingleBlock` already ensured that a block is not empty.
+    // `SingleBlock` already ensured that a non-empty region has a non-empty block.
     if (!region.empty() && !isa<YieldOp>(region.front().back())) {
       return emitOpError() << "expects region #" << region.getRegionNumber() << " to end with 'qcf.yield'";
     }
@@ -174,8 +174,8 @@ LogicalResult IfOp::verify() {
   return success();
 }
 
-/// Walks back from `qubit`, an operand of `user`, along its lane through the lane ops of the block of `user`. Returns
-/// the value where the walk stops: a block argument, or a result of an op that is not a lane op.
+/// Walks back from `qubit`, an operand of `user`, along lanes. Returns the value where the walk stops: a block
+/// argument, or a result of an op that is not a lane op.
 static Value walkBackAlongLane(Value qubit, Operation* user) {
   Block* block = user->getBlock();
   while (auto result = dyn_cast<OpResult>(qubit)) {
