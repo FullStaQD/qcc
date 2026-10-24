@@ -174,23 +174,6 @@ LogicalResult IfOp::verify() {
   return success();
 }
 
-/// Walks back from `qubit`, an operand of `user`, along lanes. Returns the value where the walk stops: a block
-/// argument, or a result of an op that is not a lane op.
-static Value walkBackAlongLane(Value qubit, Operation* user) {
-  Block* block = user->getBlock();
-  while (auto result = dyn_cast<OpResult>(qubit)) {
-    Operation* owner = result.getOwner();
-    auto laneOp = dyn_cast<qcc::QubitLaneOpInterface>(owner);
-    // Dominance is verified only after all ops, so here a lane may still run in a circle.
-    if (!laneOp || owner->getBlock() != block || !owner->isBeforeInBlock(user)) {
-      break;
-    }
-    qubit = laneOp.getTiedQubitOperand(result);
-    user = owner;
-  }
-  return qubit;
-}
-
 LogicalResult IfOp::verifyRegions() {
   // The qubit yielded at position `i` must be the one bound to argument `i`. Only a proven mismatch fails: a walk that
   // stops at an op that is not a lane op proves nothing. The region branch interface, verified before, has already
@@ -200,8 +183,9 @@ LogicalResult IfOp::verifyRegions() {
       continue;
     }
     auto yield = cast<YieldOp>(region.front().getTerminator());
-    for (auto [position, qubit] : llvm::enumerate(yield.getResults().take_front(getQubitsIn().size()))) {
-      auto binding = dyn_cast<BlockArgument>(walkBackAlongLane(qubit, yield));
+    for (OpOperand& yielded : yield->getOpOperands().take_front(getQubitsIn().size())) {
+      const unsigned position = yielded.getOperandNumber();
+      auto binding = dyn_cast<BlockArgument>(qcc::walkBackAlongLane(yielded));
       if (binding && binding.getOwner() == &region.front() && binding.getArgNumber() != position) {
         InFlightDiagnostic diag = emitOpError()
                                   << "region #" << region.getRegionNumber() << " yields the qubit bound to argument #"

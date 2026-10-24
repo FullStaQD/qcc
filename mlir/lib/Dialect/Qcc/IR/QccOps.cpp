@@ -10,6 +10,7 @@
 #include "qcc/Dialect/Qcc/IR/Qcc.h"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/IR/Block.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/Diagnostics.h"
@@ -20,7 +21,6 @@
 #include "mlir/IR/TypeRange.h"
 #include "mlir/IR/Types.h"
 #include "mlir/IR/Value.h"
-#include "mlir/IR/ValueRange.h"
 #include "mlir/IR/Visitors.h"
 #include "mlir/Interfaces/FunctionInterfaces.h"
 
@@ -188,6 +188,25 @@ LogicalResult qcc::detail::verifyQubitLaneOpInterface(Operation* op) {
     }
   }
   return success();
+}
+
+Value qcc::walkBackAlongLane(OpOperand& qubitUse) {
+  Value qubit = qubitUse.get();
+  Operation* user = qubitUse.getOwner();
+  Block* block = user->getBlock();
+
+  while (auto result = dyn_cast<OpResult>(qubit)) {
+    Operation* owner = result.getOwner();
+    auto laneOp = dyn_cast<QubitLaneOpInterface>(owner);
+    // Dominance may not be verified yet, so a lane may still run in a circle.
+    if (!laneOp || owner->getBlock() != block || !owner->isBeforeInBlock(user)) {
+      break;
+    }
+    qubit = laneOp.getTiedQubitOperand(result);
+    user = owner;
+  }
+
+  return qubit;
 }
 
 //===----------------------------------------------------------------------===//

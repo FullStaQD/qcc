@@ -73,6 +73,18 @@ llvm::LogicalResult verifyQubitLaneOpInterface(mlir::Operation* op);
 #include "qcc/Dialect/Qcc/IR/QccAttrInterfaces.h.inc"
 #include "qcc/Dialect/Qcc/IR/QccOpInterfaces.h.inc"
 
+namespace qcc {
+
+/// Walks back from the qubit operand `qubitUse` along its lane, through `QubitLaneOpInterface` ops. Returns the value
+/// where the walk stops: a block argument, or a result of an op that is not a lane op.
+///
+/// This holds when `qubitUse` sits directly in a verified function or qubit scope, where a lane never leaves its block.
+/// On other IR, the walk also stops at a lane op in another block or after the op it feeds, instead of asserting: a
+/// verifier may call it before dominance is verified.
+mlir::Value walkBackAlongLane(mlir::OpOperand& qubitUse);
+
+} // namespace qcc
+
 //===----------------------------------------------------------------------===//
 // Qcc Traits
 //===----------------------------------------------------------------------===//
