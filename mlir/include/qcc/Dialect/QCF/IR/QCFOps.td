@@ -34,12 +34,11 @@ def QCF_IfOp : QCF_Op<"if", [
 
         The qubits the regions act on are bound in the binding list: `(%a = %a_in)` binds the qubit `%a_in` (or a vector
         of qubits) to the argument `%a` of the `then` region. The `else` region binds the qubits in the same order but
-        can choose different names. 
-        
-        `qcf.if` adheres to the `QubitLaneOpInterface`: The regions must not capture qubits; classical values may be captured. The qubit
-        bound to argument `i` is yielded at position `i` by each region and leaves the op as result `i`: in the example
-        `%a_in`, `%a`, `%a1` and `%a_out` are the same qubit. Classical results follow the qubits, both in the results and in the yields, and they must not be qubits. The
-        result types follow `->`, as for `scf.if`: the leading ones, one per binding, also type the bound qubits.
+        can choose different names.
+
+        `qcf.if` adheres to the `QubitLaneOpInterface`: The regions must not capture qubits; classical values may be
+        captured. The qubit bound to argument `i` is yielded at position `i` by each region and leaves the op as result
+        `i`. Classical results follow the qubits, both in the results and in the yields.
 
         The `else` region may be omitted if it would only yield the bound qubits unchanged. This requires that there
         are no classical results.
@@ -48,6 +47,7 @@ def QCF_IfOp : QCF_Op<"if", [
 
         Example:
         ```mlir
+        // `%a_in`, `%a`, `%a1`, `%x` and `%a_out` are the same qubit.
         %a_out, %b_out, %m = qcf.if %bit (%a = %a_in, %b = %b_in) -> (!qcc.qubit, !qcc.qubit, i1) {
           %a1, %b1 = qcirc.pair cx %a, %b : !qcc.qubit
           %b2, %m1 = qcirc.measure z %b1 : !qcc.qubit -> i1
