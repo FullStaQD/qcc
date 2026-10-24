@@ -86,6 +86,8 @@ def QCF_IfOp : QCF_Op<"if", [
   let hasCustomAssemblyFormat = 1;
   let hasVerifier = 1;
   let hasRegionVerifier = 1;
+  let hasFolder = 1;
+  let hasCanonicalizer = 1;
 }
 
 // No memory effects, but deliberately not `Pure`: qubit values must never be duplicated.

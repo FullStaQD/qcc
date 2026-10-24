@@ -12,12 +12,16 @@
 
 #include "mlir/IR/Block.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/Location.h"
+#include "mlir/IR/MLIRContext.h"
+#include "mlir/IR/Matchers.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/OperationSupport.h"
+#include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Region.h"
 #include "mlir/IR/TypeRange.h"
 #include "mlir/IR/Types.h"
@@ -197,4 +201,67 @@ LogicalResult IfOp::verifyRegions() {
     }
   }
   return success();
+}
+
+/// Whether `region` only yields its arguments, in order, doing nothing else.
+static bool onlyYieldsItsArguments(Region& region) {
+  if (!region.hasOneBlock() || !llvm::hasSingleElement(region.front())) {
+    return false;
+  }
+  auto yield = dyn_cast<YieldOp>(region.front().front());
+  return yield && llvm::equal(yield.getResults(), region.getArguments());
+}
+
+LogicalResult IfOp::fold(FoldAdaptor /*adaptor*/, SmallVectorImpl<OpFoldResult>& results) {
+  if (getNumResults() == 0 || !onlyYieldsItsArguments(getThenRegion()) ||
+      (!getElseRegion().empty() && !onlyYieldsItsArguments(getElseRegion()))) {
+    return failure();
+  }
+  // Both regions pass the bound qubits on unchanged (an omitted else does too): the op is the identity on them.
+  llvm::append_range(results, getQubitsIn());
+  return success();
+}
+
+namespace {
+
+/// Removes an else region that only yields its arguments.
+struct RemoveTrivialElse : OpRewritePattern<IfOp> {
+  using OpRewritePattern::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(IfOp op, PatternRewriter& rewriter) const override {
+    if (!onlyYieldsItsArguments(op.getElseRegion())) {
+      return failure();
+    }
+    rewriter.modifyOpInPlace(op, [&] { rewriter.eraseBlock(op.getElseBlock()); });
+    return success();
+  }
+};
+
+/// Replaces an op with a constant condition by the branch the condition selects.
+struct InlineConstantCondition : OpRewritePattern<IfOp> {
+  using OpRewritePattern::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(IfOp op, PatternRewriter& rewriter) const override {
+    BoolAttr condition;
+    if (!matchPattern(op.getCondition(), m_Constant(&condition))) {
+      return failure();
+    }
+    Region& region = condition.getValue() ? op.getThenRegion() : op.getElseRegion();
+    // An omitted else region passes the bound qubits on.
+    if (region.empty()) {
+      rewriter.replaceOp(op, op.getQubitsIn());
+      return success();
+    }
+    Operation* yield = region.front().getTerminator();
+    rewriter.inlineBlockBefore(&region.front(), op, op.getQubitsIn());
+    rewriter.replaceOp(op, yield->getOperands());
+    rewriter.eraseOp(yield);
+    return success();
+  }
+};
+
+} // namespace
+
+void IfOp::getCanonicalizationPatterns(RewritePatternSet& results, MLIRContext* context) {
+  results.add<RemoveTrivialElse, InlineConstantCondition>(context);
 }
