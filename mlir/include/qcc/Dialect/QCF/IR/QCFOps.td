@@ -33,8 +33,7 @@ def QCF_IfOp : QCF_Op<"if", [
         Runs the `then` region if `condition` is true, otherwise the `else` region.
 
         The qubits the regions act on are bound in the binding list: `(%a = %a_in)` binds the qubit `%a_in` (or a vector
-        of qubits) to the argument `%a` of the `then` region. The `else` region binds the qubits in the same order but
-        can choose different names.
+        of qubits) to the argument `%a` of the `then` region. The `else` region binds the qubits in the same order.
 
         `qcf.if` adheres to the `QubitLaneOpInterface`: The regions must not capture qubits; classical values may be
         captured. The qubit bound to argument `i` is yielded at position `i` by each region and leaves the op as result
@@ -52,9 +51,9 @@ def QCF_IfOp : QCF_Op<"if", [
           %a1, %b1 = qcirc.pair cx %a, %b : !qcc.qubit
           %b2, %m1 = qcirc.measure z %b1 : !qcc.qubit -> i1
           qcf.yield %a1, %b2, %m1 : !qcc.qubit, !qcc.qubit, i1
-        } else (%x, %y) {
+        } else (%a, %b) {
           %false = arith.constant false
-          qcf.yield %x, %y, %false : !qcc.qubit, !qcc.qubit, i1
+          qcf.yield %a, %b, %false : !qcc.qubit, !qcc.qubit, i1
         }
         ```
     }];
