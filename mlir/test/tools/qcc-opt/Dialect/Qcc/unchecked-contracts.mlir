@@ -1,7 +1,7 @@
 // RUN: qcc-opt %s --split-input-file -o /dev/null
 
-// TODO: The verifier should reject the IR snippets below. If a check learns to reject a case, move the case to a file
-// where it is appropriate.
+// Invalid IR that no check rejects, neither the verifier nor a check pass. Move a case to the tests of the check that
+// starts rejecting it. The RUN line catches this for the verifier only: when adding a check pass, go through this file.
 
 // Qubit 0 is taken out of the vector twice and consumed twice. Allowed is at most one usage.
 func.func @extract_twice() {

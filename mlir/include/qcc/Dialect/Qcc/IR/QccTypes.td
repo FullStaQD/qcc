@@ -34,7 +34,7 @@ def Qcc_QubitType : TypeDef<Qcc_Dialect, "Qubit", [VectorElementTypeInterface]> 
         qubit may be consumed at most once, whether on its own after `vector.extract` or as part of the vector. An
         element that an operation overwrites, e.g. with `vector.insert`, is discarded, not consumed.
 
-        The verifier does not catch every violation of these rules; IR that violates them has undefined behavior.
+        Not every violation of these rules is diagnosed; IR that violates them has undefined behavior.
 
         Example:
         ```mlir

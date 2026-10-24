@@ -1,7 +1,7 @@
 // RUN: qcc-opt %s --split-input-file -o /dev/null
 
-// TODO: The verifier should reject the IR snippets below. If a check learns to reject a case, move the case to
-// invalid.mlir.
+// Invalid IR that no check rejects, neither the verifier nor a check pass. Move a case to the tests of the check that
+// starts rejecting it. The RUN line catches this for the verifier only: when adding a check pass, go through this file.
 
 // The bound qubits come back swapped. Yielding `%e0, %e1` would be valid and looks the same to the verifier.
 func.func @yield_swapped_through_vector(%cond: i1) {

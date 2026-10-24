@@ -44,7 +44,7 @@ def QCF_IfOp : QCF_Op<"if", [
         The `else` region may be omitted if it would only yield the bound qubits unchanged. This requires that there
         are no classical results.
 
-        The verifier does not catch every violation of these rules; IR that violates them has undefined behavior.
+        Not every violation of these rules is diagnosed; IR that violates them has undefined behavior.
 
         Example:
         ```mlir
