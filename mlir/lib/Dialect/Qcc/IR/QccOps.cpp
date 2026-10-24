@@ -10,6 +10,7 @@
 #include "qcc/Dialect/Qcc/IR/Qcc.h"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/IR/Block.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/Diagnostics.h"
@@ -20,6 +21,7 @@
 #include "mlir/IR/TypeRange.h"
 #include "mlir/IR/Types.h"
 #include "mlir/IR/Value.h"
+#include "mlir/IR/Visitors.h"
 #include "mlir/Interfaces/FunctionInterfaces.h"
 
 #include "llvm/ADT/STLExtras.h"
@@ -80,17 +82,21 @@ static void printRefType(OpAsmPrinter& printer, Operation* /*op*/, Type refType,
 // Shared verification
 //===----------------------------------------------------------------------===//
 
-LogicalResult qcc::verifyNoMultiUseQubits(Operation* op) {
-  auto function = dyn_cast_if_present<FunctionOpInterface>(op->getParentOp());
-  if (!function) {
-    return op->emitOpError() << "must be directly inside a function";
-  }
-  if (!op->getParentRegion()->hasOneBlock()) {
-    return op->emitOpError() << "must be in a single-block function";
-  }
-  if (llvm::any_of(function.getArgumentTypes(), isQubitOrQubitVector) ||
-      llvm::any_of(function.getResultTypes(), isQubitOrQubitVector)) {
-    return op->emitOpError() << "must be in a function without qubit arguments and results";
+LogicalResult qcc::detail::verifyNoMultiUseQubits(Operation* op) {
+  Operation* parent = op->getParentOp();
+  if (parent == nullptr || !parent->hasTrait<QubitScope>()) {
+    auto function = dyn_cast_if_present<FunctionOpInterface>(parent);
+    if (!function) {
+      return op->emitOpError() << "must be directly inside a function or a qubit scope";
+    }
+    // A qubit scope verifies its regions itself (see `verifyQubitScope`). Hence we only check functions here.
+    if (!op->getParentRegion()->hasOneBlock()) {
+      return op->emitOpError() << "must be in a single-block function";
+    }
+    if (llvm::any_of(function.getArgumentTypes(), isQubitOrQubitVector) ||
+        llvm::any_of(function.getResultTypes(), isQubitOrQubitVector)) {
+      return op->emitOpError() << "must be in a function without qubit arguments and results";
+    }
   }
 
   // Result qubits must only be used at most once.
@@ -109,6 +115,49 @@ LogicalResult qcc::verifyNoMultiUseQubits(Operation* op) {
     if (isQubitOrQubitVector(qubit.getType()) && !qubit.hasOneUse()) {
       return op->emitOpError() << "qubit operand #" << operand.getOperandNumber() << " has " << qubit.getNumUses()
                                << " uses, but qubit values are affine";
+    }
+  }
+  return success();
+}
+
+LogicalResult qcc::detail::verifyQubitScope(Operation* op) {
+  // No capture. A nested qubit scope verifies its own regions, which suffices: a qubit from outside of `op` is also
+  // from outside of the nested scope.
+  for (Region& region : op->getRegions()) {
+    const WalkResult walk = region.walk<WalkOrder::PreOrder>([&](Operation* nested) {
+      for (OpOperand& operand : nested->getOpOperands()) {
+        Value value = operand.get();
+        if (!isQubitOrQubitVector(value.getType())) {
+          continue;
+        }
+        Region* valueRegion = value.getParentRegion();
+        if (valueRegion == nullptr) {
+          nested->emitError("operation's operand is unlinked");
+          return WalkResult::interrupt();
+        }
+        Operation* valueParent = valueRegion->getParentOp();
+        if (valueParent == nullptr || !op->isAncestor(valueParent)) {
+          InFlightDiagnostic diag = nested->emitOpError()
+                                    << "illegal capture of qubit operand #" << operand.getOperandNumber();
+          diag.attachNote(op->getLoc()) << "qubit scope here";
+          return WalkResult::interrupt();
+        }
+      }
+      return nested->hasTrait<QubitScope>() ? WalkResult::skip() : WalkResult::advance();
+    });
+    if (walk.wasInterrupted()) {
+      return failure();
+    }
+  }
+
+  // Qubit bindings must be used at most once. We do not check vectors (more complex).
+  for (Region& region : op->getRegions()) {
+    for (BlockArgument binding : region.getArguments()) {
+      if (isa<QubitType>(binding.getType()) && binding.hasNUsesOrMore(2)) {
+        return op->emitOpError() << "qubit binding #" << binding.getArgNumber() << " of region #"
+                                 << region.getRegionNumber() << " has " << binding.getNumUses()
+                                 << " uses, but qubit values are affine";
+      }
     }
   }
   return success();
@@ -157,6 +206,25 @@ LogicalResult qcc::detail::verifyQubitLaneOpInterface(Operation* op) {
     }
   }
   return success();
+}
+
+Value qcc::walkBackAlongLane(OpOperand& qubitUse) {
+  Value qubit = qubitUse.get();
+  Operation* user = qubitUse.getOwner();
+  Block* block = user->getBlock();
+
+  while (auto result = dyn_cast<OpResult>(qubit)) {
+    Operation* owner = result.getOwner();
+    auto laneOp = dyn_cast<QubitLaneOpInterface>(owner);
+    // Dominance may not be verified yet, so a lane may still run in a circle.
+    if (!laneOp || owner->getBlock() != block || !owner->isBeforeInBlock(user)) {
+      break;
+    }
+    qubit = laneOp.getTiedQubitOperand(result);
+    user = owner;
+  }
+
+  return qubit;
 }
 
 //===----------------------------------------------------------------------===//

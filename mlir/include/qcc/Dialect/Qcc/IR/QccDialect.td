@@ -27,7 +27,8 @@ def Qcc_Dialect : Dialect {
         `!qcc.qubit` is the qubit type for a value-semantics context. It follows an affine type discipline: A qubit
         value may be consumed at most once on any execution path (no-cloning). It may also be left unused, which traces
         the qubit out. *A* way to enforce this is the `NoMultiUseQubits` trait which is designed for use with IR
-        centered around the `qcirc` dialect.
+        centered around the `qcirc` dialect. Its companion for ops with regions (e.g. `qcf.if`) is the `QubitScope`
+        trait: qubits enter such a region only as arguments of its entry block (bindings), never by capture.
 
         The following IR snippet shows a module with an attached MAGIC (Ions) device and a function marked as the entry
         point.

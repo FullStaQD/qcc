@@ -30,6 +30,13 @@ def Qcc_QubitType : TypeDef<Qcc_Dialect, "Qubit", [VectorElementTypeInterface]> 
         The type is *affine*: each value may be consumed at most once on any execution path (no-cloning). A value that
         is never consumed is discarded, which traces the qubit out.
 
+        A vector of qubits, e.g. `vector<2x!qcc.qubit>`, holds distinct qubits. Taking an element out (`vector.extract`)
+        yields the qubit, not a copy. The discipline applies to each qubit in the vector, not to the vector value: each
+        qubit may be consumed at most once, whether on its own after `vector.extract` or as part of the vector. An
+        element that an operation overwrites, e.g. with `vector.insert`, is discarded, not consumed.
+
+        Not every violation of these rules is diagnosed; IR that violates them has undefined behavior.
+
         Example:
         ```mlir
         !qcc.qubit
@@ -91,5 +98,12 @@ def Qcc_RefType : TypeDef<Qcc_Dialect, "Ref"> {
   ];
   let genVerifyDecl = 1;
 }
+
+//===----------------------------------------------------------------------===//
+// Qcc type constraints
+//===----------------------------------------------------------------------===//
+
+// What a qubit lane carries: `!qcc.qubit` or a vector of them.
+def Qcc_QubitOrQubitVector : Type<CPred<"::qcc::isQubitOrQubitVector($_self)">, "qubit or vector of qubits">;
 
 #endif // INCLUDE_QCC_DIALECT_QCC_IR_QCCTYPES_TD_

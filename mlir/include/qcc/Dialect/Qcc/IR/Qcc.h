@@ -81,26 +81,63 @@ llvm::LogicalResult verifyQubitLaneOpInterface(mlir::Operation* op);
 #include "qcc/Dialect/Qcc/IR/QccAttrInterfaces.h.inc"
 #include "qcc/Dialect/Qcc/IR/QccOpInterfaces.h.inc"
 
+namespace qcc {
+
+/// Walks back from the qubit operand `qubitUse` along its lane, through `QubitLaneOpInterface` ops. Returns the value
+/// where the walk stops: a block argument, or a result of an op that is not a lane op.
+///
+/// This holds when `qubitUse` sits directly in a verified function or qubit scope, where a lane never leaves its block.
+/// On other IR, the walk also stops at a lane op in another block or after the op it feeds, instead of asserting: a
+/// verifier may call it before dominance is verified.
+mlir::Value walkBackAlongLane(mlir::OpOperand& qubitUse);
+
+} // namespace qcc
+
 //===----------------------------------------------------------------------===//
 // Qcc Traits
 //===----------------------------------------------------------------------===//
 
 namespace qcc {
 
-/// Imposes the following constraints:
-/// - The operation sits directly in a function (`func.func` or any other `FunctionOpInterface` operation) with a
-///   single block, and that function has no qubits among its arguments and results.
-///   TODO: needs generalization once qcf.if is added.
-/// - Each scalar qubit result of the operation is used at most once.
-/// - Each qubit operand of the operation, scalar or vector, has no other use.
+namespace detail {
 llvm::LogicalResult verifyNoMultiUseQubits(mlir::Operation* op);
+llvm::LogicalResult verifyQubitScope(mlir::Operation* op);
+} // namespace detail
 
 /// Corresponds to `Qcc_NoMultiUseQubits` in tablegen.
+///
+/// Imposes the following constraints:
+/// - The operation sits directly in a qubit scope (see `QubitScope`) or in a function (`func.func` or any other
+///   `FunctionOpInterface` operation). Such a function has a single block and no qubits among its arguments and
+///   results.
+/// - Each scalar qubit result of the operation is used at most once. A vector result may be used several times, to
+///   take it apart (`vector.extract`).
+/// - Each qubit operand of the operation, scalar or vector, has no other use. For a vector operand, this also rejects
+///   taking elements out of it (`vector.extract`): stricter than `QubitType` if the taken-out qubit is never consumed.
+///
+/// TODO: Counting uses fits the affine discipline of `QubitType` only where every use consumes, as for scalar qubits.
+/// `vector.extract` uses a vector without consuming it, so violations inside a vector, e.g. taking the same element out
+/// twice and consuming both, go unnoticed. Undecided how to close the gap; probably a check pass, with only the
+/// simplest violations caught here.
 template <typename ConcreteType>
 class NoMultiUseQubits // NOLINT(bugprone-crtp-constructor-accessibility)
     : public mlir::OpTrait::TraitBase<ConcreteType, NoMultiUseQubits> {
 public:
-  static llvm::LogicalResult verifyTrait(mlir::Operation* op) { return verifyNoMultiUseQubits(op); }
+  static llvm::LogicalResult verifyTrait(mlir::Operation* op) { return detail::verifyNoMultiUseQubits(op); }
+};
+
+/// Corresponds to `Qcc_QubitScopeImpl` in tablegen.
+///
+/// Imposes the following constraints on the regions of a qubit scope:
+/// - No operation in them, at any depth, uses a qubit (scalar or vector) from outside the scope. Qubits enter only as
+///   arguments of the entry blocks, the *bindings*.
+/// - Each scalar qubit binding is used at most once.
+/// The `SingleBlock` trait, verified first, ensures that each region has at most one block.
+template <typename ConcreteType>
+class QubitScope // NOLINT(bugprone-crtp-constructor-accessibility)
+    : public mlir::OpTrait::TraitBase<ConcreteType, QubitScope> {
+public:
+  static llvm::LogicalResult verifyTrait(mlir::Operation* op) { return detail::verifyQubitScope(op); }
 };
 
 } // namespace qcc
