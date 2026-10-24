@@ -34,11 +34,11 @@ def QCF_IfOp : QCF_Op<"if", [
 
         The qubits the regions act on are bound in the binding list: `(%a = %a_in)` binds the qubit `%a_in` (or a vector
         of qubits) to the argument `%a` of the `then` region. The `else` region binds the qubits in the same order but
-        can choose different names. The regions must not capture qubits; classical values may be captured. The qubit
+        can choose different names. 
+        
+        `qcf.if` adheres to the `QubitLaneOpInterface`: The regions must not capture qubits; classical values may be captured. The qubit
         bound to argument `i` is yielded at position `i` by each region and leaves the op as result `i`: in the example
-        `%a_in`, `%a`, `%a1` and `%a_out` are the same qubit.
-
-        Classical results follow the qubits, both in the results and in the yields, and they must not be qubits. The
+        `%a_in`, `%a`, `%a1` and `%a_out` are the same qubit. Classical results follow the qubits, both in the results and in the yields, and they must not be qubits. The
         result types follow `->`, as for `scf.if`: the leading ones, one per binding, also type the bound qubits.
 
         The `else` region may be omitted if it would only yield the bound qubits unchanged. This requires that there
