@@ -32,6 +32,16 @@ func.func @vector_result_taken_apart(%cond: i1) {
   return
 }
 
+// A qubit taken out of a vector may be put back at its position.
+func.func @insert_back() {
+  %q0, %q1 = qcc.static [0, 1] : !qcc.qubit
+  %v = vector.from_elements %q0, %q1 : vector<2x!qcc.qubit>
+  %e = vector.extract %v[0] : !qcc.qubit from vector<2x!qcc.qubit>
+  %h = qcirc.single h %e : !qcc.qubit
+  %w = vector.insert %h, %v[0] : !qcc.qubit into vector<2x!qcc.qubit>
+  return
+}
+
 // -----
 
 func.func @nested_region(%cond: i1) {
