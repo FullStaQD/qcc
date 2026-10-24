@@ -29,3 +29,22 @@ func.func @qubit_vector() {
   %q = vector.extract %qs[1] : !qcc.qubit from vector<2x!qcc.qubit>
   return
 }
+
+// Reference types: classical storage, qubit references, and unsized angles.
+// CHECK-LABEL: func.func @references
+// CHECK-SAME:    (%[[R:.*]]: !qcc.ref<i1>, %{{.*}}: !qcc.qubit_ref, %{{.*}}: !qcc.angle, %{{.*}}: !qcc.ref<!qcc.angle>)
+func.func @references(%r: !qcc.ref<i1>, %q: !qcc.qubit_ref, %a: !qcc.angle, %ra: !qcc.ref<!qcc.angle>) {
+  // CHECK: %[[V:.*]] = qcc.ref.load %[[R]] : !qcc.ref<i1>
+  %v = qcc.ref.load %r : !qcc.ref<i1>
+  // CHECK: qcc.ref.store %[[V]], %[[R]] : !qcc.ref<i1>
+  qcc.ref.store %v, %r : !qcc.ref<i1>
+  return
+}
+
+// A reference holds any classical type, also builtin ones and tensors of them.
+// CHECK-LABEL: func.func @classical_references
+// CHECK-SAME:    !qcc.ref<index>, %{{.*}}: !qcc.ref<complex<f32>>, %{{.*}}: !qcc.ref<tensor<2xsi8>>, %{{.*}}: !qcc.ref<vector<2xf64>>)
+func.func @classical_references(%i: !qcc.ref<index>, %c: !qcc.ref<complex<f32>>, %t: !qcc.ref<tensor<2xsi8>>,
+                                %v: !qcc.ref<vector<2xf64>>) {
+  return
+}

@@ -38,6 +38,21 @@ def QCC_DeviceAttrInterface : AttrInterface<"DeviceAttrInterface"> {
 }
 
 //===----------------------------------------------------------------------===//
+// ClassicalTypeInterface
+//===----------------------------------------------------------------------===//
+
+def Qcc_ClassicalTypeInterface : TypeInterface<"ClassicalTypeInterface"> {
+  let description = [{
+        A marker for dialect types of classical values, such as `!qcc.angle`. Only classical values can be stored in a
+        `!qcc.ref`.
+
+        The builtin integer, floating-point, `index`, and `complex` types are classical as well, and so are tensors
+        and vectors of classical elements (see `qcc::isClassicalType`).
+    }];
+  let cppNamespace = "::qcc";
+}
+
+//===----------------------------------------------------------------------===//
 // QubitLaneOpInterface
 //===----------------------------------------------------------------------===//
 

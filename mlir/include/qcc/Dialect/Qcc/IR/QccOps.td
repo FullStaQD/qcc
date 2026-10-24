@@ -53,4 +53,47 @@ def Qcc_StaticOp : Op<Qcc_Dialect, "static", [NoMemoryEffect, Qcc_NoMultiUseQubi
   let hasVerifier = 1;
 }
 
+def Qcc_RefLoadOp : Op<Qcc_Dialect, "ref.load"> {
+  let summary = "reads classical storage";
+  let description = [{
+        Returns the value that `ref` currently holds.
+
+        Example:
+        ```mlir
+        %value = qcc.ref.load %c : !qcc.ref<!oq3.bit>
+        ```
+    }];
+
+  let arguments = (ins Arg<Qcc_RefType, "the storage to read", [MemRead]>:$ref);
+  let results = (outs AnyType:$result);
+
+  let assemblyFormat = "$ref attr-dict `:` custom<RefType>(type($ref), type($result))";
+  let hasVerifier = 1;
+
+  let builders = [
+    // Reads the element type of `ref`.
+    OpBuilder<(ins "::mlir::Value":$ref), [{
+      build($_builder, $_state, ::llvm::cast<::qcc::RefType>(ref.getType()).getElementType(), ref);
+    }]>
+  ];
+}
+
+def Qcc_RefStoreOp : Op<Qcc_Dialect, "ref.store"> {
+  let summary = "writes classical storage";
+  let description = [{
+        Replaces the value that `ref` holds by `value`.
+
+        Example:
+        ```mlir
+        qcc.ref.store %bit, %c : !qcc.ref<!oq3.bit>
+        ```
+    }];
+
+  let arguments = (ins AnyType:$value,
+                       Arg<Qcc_RefType, "the storage to write", [MemWrite]>:$ref);
+
+  let assemblyFormat = "$value `,` $ref attr-dict `:` custom<RefType>(type($ref), type($value))";
+  let hasVerifier = 1;
+}
+
 #endif // INCLUDE_QCC_DIALECT_QCC_IR_QCCOPS_TD_

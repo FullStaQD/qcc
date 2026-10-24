@@ -1,0 +1,12 @@
+add_mlir_library(
+  QCCOQ3Import
+  Import.cpp
+  Lexer.cpp
+  LINK_LIBS
+  PRIVATE
+  MLIRIR
+  MLIRSupport
+  MLIRFuncDialect
+  MLIRTranslateLib
+  QCCOQ3Dialect
+  QCCQccDialect)

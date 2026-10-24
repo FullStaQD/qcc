@@ -9,4 +9,4 @@ add_mlir_library(
   QCCAuxDialect
   QCCMagicDevice
   QCCMagicDialect
-  QCCQVecTransforms)
+  QCCDialectUtils)

@@ -20,4 +20,4 @@ add_mlir_dialect_library(
   QCCAuxDialect
   QCCMagicDevice
   QCCMagicDialect
-  QCCQVecTransforms)
+  QCCDialectUtils)
