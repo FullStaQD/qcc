@@ -50,7 +50,8 @@ def Qcc_QubitRefType : TypeDef<Qcc_Dialect, "QubitRef"> {
   let summary = "reference to a qubit";
   let description = [{
         A value of type `!qcc.qubit_ref` names a qubit in a reference-semantics context, the way a pointer names an
-        object.
+        object. Two values may name the same qubit, so distinct values do not imply distinct qubits. A value is valid
+        only while its qubit is allocated; using it outside that lifetime has undefined behavior.
 
         Example:
         ```mlir
