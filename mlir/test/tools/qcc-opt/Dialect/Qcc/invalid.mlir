@@ -75,6 +75,18 @@ llvm.func @static_outside_func() {
 
 // -----
 
+// A qubit scope may hold ops with `NoMultiUseQubits`, but not the qubit source.
+func.func @static_in_qubit_scope(%cond: i1) {
+  qcf.if %cond {
+    // expected-error @+1 {{'qcc.static' op must be directly inside a 'func.func'}}
+    %q = qcc.static [0] : !qcc.qubit
+    qcf.yield
+  }
+  return
+}
+
+// -----
+
 func.func @static_twice() {
   // expected-note @+1 {{the earlier 'qcc.static' is here}}
   %q0 = qcc.static [0] : !qcc.qubit
