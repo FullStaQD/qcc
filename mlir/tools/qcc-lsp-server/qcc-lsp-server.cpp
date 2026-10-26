@@ -13,6 +13,7 @@
 #include "qcc/Dialect/OQ3/IR/OQ3.h"
 #include "qcc/Dialect/QCF/IR/QCF.h"
 #include "qcc/Dialect/QCirc/IR/QCirc.h"
+#include "qcc/Dialect/QRef/IR/QRef.h"
 #include "qcc/Dialect/QVec/IR/QVec.h"
 #include "qcc/Dialect/Qcc/IR/Qcc.h"
 
@@ -31,7 +32,7 @@ int main(int argc, char** argv) {
   // Register our custom project dialects.
   registry.insert<jasp::JaspDialect, mlir::qc::QCDialect, mlir::qco::QCODialect, qcc::aux::AuxDialect,
                   qcc::magic::MagicDialect, qcc::oq3::OQ3Dialect, qcc::QccDialect, qcc::qcf::QCFDialect,
-                  qcc::qcirc::QCircDialect, qcc::qvec::QVecDialect>();
+                  qcc::qcirc::QCircDialect, qcc::qref::QRefDialect, qcc::qvec::QVecDialect>();
 
   return mlir::succeeded(mlir::MlirLspServerMain(argc, argv, registry)) ? 0 : 1;
 }

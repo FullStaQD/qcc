@@ -48,3 +48,59 @@ func.func @classical_references(%i: !qcc.ref<index>, %c: !qcc.ref<complex<f32>>,
                                 %v: !qcc.ref<vector<2xf64>>) {
   return
 }
+
+// References to static qubits. Unlike `qcc.static`, the op may sit anywhere, also more than once per function.
+// CHECK-LABEL: func.func @static_ref
+func.func @static_ref(%cond: i1) {
+  // CHECK: %{{.*}}:3 = qcc.static_ref [3, 0, 7] : !qcc.qubit_ref
+  %q3, %q0, %q7 = qcc.static_ref [3, 0, 7] : !qcc.qubit_ref
+  // CHECK: qcc.static_ref [] : !qcc.qubit_ref
+  qcc.static_ref [] : !qcc.qubit_ref
+  scf.if %cond {
+    // CHECK: qcc.static_ref [0] : !qcc.qubit_ref
+    %q = qcc.static_ref [0] : !qcc.qubit_ref
+  }
+  return
+}
+
+// CHECK-LABEL: func.func @alloc_and_dealloc
+// CHECK-SAME:    (%[[N:.*]]: index)
+func.func @alloc_and_dealloc(%n: index) {
+  // CHECK: %[[Q:.*]] = qcc.alloc : !qcc.qubit_ref
+  %q = qcc.alloc : !qcc.qubit_ref
+  // CHECK: %[[R:.*]] = qcc.alloc %[[N]] : tensor<?x!qcc.qubit_ref>
+  %r = qcc.alloc %n : tensor<?x!qcc.qubit_ref>
+  // CHECK: qcc.alloc : tensor<3x!qcc.qubit_ref>
+  %s = qcc.alloc : tensor<3x!qcc.qubit_ref>
+  // An array may be empty.
+  // CHECK: qcc.alloc : tensor<0x!qcc.qubit_ref>
+  %e = qcc.alloc : tensor<0x!qcc.qubit_ref>
+  // CHECK: qcc.dealloc %[[Q]] : !qcc.qubit_ref
+  qcc.dealloc %q : !qcc.qubit_ref
+  // CHECK: qcc.dealloc %[[R]] : tensor<?x!qcc.qubit_ref>
+  qcc.dealloc %r : tensor<?x!qcc.qubit_ref>
+  return
+}
+
+// The parts of arrays can be freed: an element, a slice, a concatenation.
+// CHECK-LABEL: func.func @dealloc_parts
+func.func @dealloc_parts() {
+  %r = qcc.alloc : tensor<4x!qcc.qubit_ref>
+  %s = qcc.alloc : tensor<2x!qcc.qubit_ref>
+  %c0 = arith.constant 0 : index
+  // CHECK: %[[ELEMENT:.*]] = tensor.extract
+  %element = tensor.extract %r[%c0] : tensor<4x!qcc.qubit_ref>
+  // CHECK: qcc.dealloc %[[ELEMENT]] : !qcc.qubit_ref
+  qcc.dealloc %element : !qcc.qubit_ref
+  // CHECK: %[[SLICE:.*]] = tensor.extract_slice
+  %slice = tensor.extract_slice %r[1] [2] [1] : tensor<4x!qcc.qubit_ref> to tensor<2x!qcc.qubit_ref>
+  // CHECK: qcc.dealloc %[[SLICE]] : tensor<2x!qcc.qubit_ref>
+  qcc.dealloc %slice : tensor<2x!qcc.qubit_ref>
+  %last = tensor.extract_slice %r[3] [1] [1] : tensor<4x!qcc.qubit_ref> to tensor<1x!qcc.qubit_ref>
+  // CHECK: %[[BOTH:.*]] = tensor.concat
+  %both = tensor.concat dim(0) %last, %s
+      : (tensor<1x!qcc.qubit_ref>, tensor<2x!qcc.qubit_ref>) -> tensor<3x!qcc.qubit_ref>
+  // CHECK: qcc.dealloc %[[BOTH]] : tensor<3x!qcc.qubit_ref>
+  qcc.dealloc %both : tensor<3x!qcc.qubit_ref>
+  return
+}

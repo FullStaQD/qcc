@@ -15,6 +15,7 @@ include "qcc/Dialect/Qcc/IR/QccInterfaces.td"
 
 include "mlir/IR/AttrTypeBase.td"
 include "mlir/IR/BuiltinTypeInterfaces.td"
+include "mlir/IR/CommonTypeConstraints.td"
 
 //===----------------------------------------------------------------------===//
 // Qcc types
@@ -51,11 +52,17 @@ def Qcc_QubitRefType : TypeDef<Qcc_Dialect, "QubitRef"> {
   let description = [{
         A value of type `!qcc.qubit_ref` names a qubit in a reference-semantics context, the way a pointer names an
         object. Two values may name the same qubit, so distinct values do not imply distinct qubits. A value is valid
-        only while its qubit is allocated; using it outside that lifetime has undefined behavior.
+        only while its qubit is allocated; using it outside that lifetime has undefined behavior. A static qubit
+        (`qcc.static_ref`) is allocated for the whole program, a qubit from `qcc.alloc` until its `qcc.dealloc`, if
+        any.
+
+        An array of qubits is a 1D tensor of references. The tensor has value semantics: an array never changes which
+        qubits it names, only its elements are references.
 
         Example:
         ```mlir
         !qcc.qubit_ref
+        tensor<?x!qcc.qubit_ref>   // an array of qubits
         ```
     }];
 }
@@ -106,5 +113,12 @@ def Qcc_RefType : TypeDef<Qcc_Dialect, "Ref"> {
 
 // What a qubit lane carries: `!qcc.qubit` or a vector of them.
 def Qcc_QubitOrQubitVector : Type<CPred<"::qcc::isQubitOrQubitVector($_self)">, "qubit or vector of qubits">;
+
+// What `qcc.alloc` returns and `qcc.dealloc` takes: one qubit or an array of them.
+def Qcc_QubitRefOrArray : AnyTypeOf<[Qcc_QubitRefType, 1DTensorOf<[Qcc_QubitRefType]>],
+                                    "qubit reference or 1D tensor of qubit references">;
+
+// A gate parameter: an angle in radians.
+def Qcc_GateParam : AnyTypeOf<[F64], "64-bit float angle">;
 
 #endif // INCLUDE_QCC_DIALECT_QCC_IR_QCCTYPES_TD_

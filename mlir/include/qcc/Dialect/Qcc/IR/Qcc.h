@@ -24,8 +24,9 @@
 #include "mlir/IR/TypeRange.h"
 #include "mlir/IR/Types.h"
 #include "mlir/IR/Value.h"
+#include "mlir/IR/ValueRange.h"
 #include "mlir/Interfaces/FunctionInterfaces.h"
-#include "mlir/Interfaces/SideEffectInterfaces.h" // IWYU pragma: keep
+#include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Support/LLVM.h"
 
 #include "llvm/ADT/ArrayRef.h"
@@ -36,6 +37,7 @@
 
 #include <cassert>
 #include <cstdint> // IWYU pragma: keep
+#include <optional>
 
 //===----------------------------------------------------------------------===//
 // Qcc Dialect
@@ -62,6 +64,57 @@ bool isQubitOrQubitVector(mlir::Type type);
 bool isClassicalType(mlir::Type type);
 
 } // namespace qcc
+
+//===----------------------------------------------------------------------===//
+// Qcc Attributes
+//===----------------------------------------------------------------------===//
+
+#include "qcc/Dialect/Qcc/IR/QccEnums.h.inc"
+
+#define GET_ATTRDEF_CLASSES
+#include "qcc/Dialect/Qcc/IR/QccAttrs.h.inc"
+
+//===----------------------------------------------------------------------===//
+// Qcc Resources
+//===----------------------------------------------------------------------===//
+
+namespace qcc {
+
+/// The qubits that `!qcc.qubit_ref` values name. An operation that acts on a qubit through a reference reads and
+/// writes this resource, `qcc.alloc` allocates in it, and `qcc.dealloc` frees in it.
+///
+/// Like every resource, it is part of the default resource: effects on qubits may conflict with effects on the default
+/// resource, e.g. with a `memref.load`. It is disjoint from other resources, e.g. `oq3::ProgramStructureResource`.
+struct QubitResource : public mlir::SideEffects::Resource::Base<QubitResource> {
+  [[nodiscard]] llvm::StringRef getName() const override { return "qcc.qubits"; }
+};
+
+} // namespace qcc
+
+//===----------------------------------------------------------------------===//
+// Gates
+//===----------------------------------------------------------------------===//
+
+namespace qcc {
+
+/// Parses the types of a gate (custom directive `GateTypes`): `[<angle type>, ]<qubit type>`, the angle type once for
+/// all angles.
+mlir::ParseResult parseGateTypes(mlir::OpAsmParser& parser, llvm::SmallVectorImpl<mlir::Type>& paramTypes,
+                                 llvm::ArrayRef<mlir::OpAsmParser::UnresolvedOperand> params, mlir::Type& qubitType);
+
+/// Prints the types of a gate (custom directive `GateTypes`): `[<angle type>, ]<qubit type>`.
+void printGateTypes(mlir::OpAsmPrinter& printer, mlir::Operation* op, mlir::TypeRange paramTypes,
+                    mlir::OperandRange params, mlir::Type qubitType);
+
+} // namespace qcc
+
+namespace qcc::detail {
+
+/// Verifies that `op`, a gate of `kind`, has as many `params` as the kind takes.
+llvm::LogicalResult verifyGateParams(mlir::Operation* op, SingleGateKind kind, mlir::ValueRange params);
+llvm::LogicalResult verifyGateParams(mlir::Operation* op, PairGateKind kind, mlir::ValueRange params);
+
+} // namespace qcc::detail
 
 //===----------------------------------------------------------------------===//
 // Qcc Interfaces
@@ -148,6 +201,14 @@ public:
 
 #define GET_OP_CLASSES
 #include "qcc/Dialect/Qcc/IR/QccOps.h.inc"
+
+namespace qcc {
+
+/// Returns the index of the static qubit that `ref` names if `ref` is a result of `qcc.static_ref`, otherwise
+/// `std::nullopt`. Two references with the same index name the same qubit.
+std::optional<int64_t> getStaticRefIndex(mlir::Value ref);
+
+} // namespace qcc
 
 //===----------------------------------------------------------------------===//
 // Shared ODS helpers

@@ -13,7 +13,9 @@
 #include "mlir/IR/Block.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinAttributes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Diagnostics.h"
+#include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/OperationSupport.h"
@@ -21,15 +23,18 @@
 #include "mlir/IR/TypeRange.h"
 #include "mlir/IR/Types.h"
 #include "mlir/IR/Value.h"
+#include "mlir/IR/ValueRange.h"
 #include "mlir/IR/Visitors.h"
 #include "mlir/Interfaces/FunctionInterfaces.h"
 
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringRef.h"
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 
 using namespace mlir;
 using namespace qcc;
@@ -50,11 +55,16 @@ static ParseResult parseStaticTypes(OpAsmParser& parser, SmallVectorImpl<Type>& 
   return success();
 }
 
-/// Prints the type of a `qcc.static`: one type, shared by all its qubits.
+/// Prints the type of a `qcc.static` or `qcc.static_ref`: one type, shared by all its qubits.
 static void printStaticTypes(OpAsmPrinter& printer, Operation* op, TypeRange qubitTypes,
                              DenseI64ArrayAttr /*indices*/) {
+  if (!qubitTypes.empty()) {
+    printer << qubitTypes.front();
+    return;
+  }
   // An op without qubits has no result to read the type from.
-  printer << (qubitTypes.empty() ? Type(QubitType::get(op->getContext())) : qubitTypes.front());
+  MLIRContext* ctx = op->getContext();
+  printer << (isa<StaticRefOp>(op) ? Type(QubitRefType::get(ctx)) : Type(QubitType::get(ctx)));
 }
 
 static ParseResult parseRefType(OpAsmParser& parser, Type& refType, Type& valueType) {
@@ -228,8 +238,68 @@ Value qcc::walkBackAlongLane(OpOperand& qubitUse) {
 }
 
 //===----------------------------------------------------------------------===//
-// StaticOp
+// Gates
 //===----------------------------------------------------------------------===//
+
+ParseResult qcc::parseGateTypes(OpAsmParser& parser, SmallVectorImpl<Type>& paramTypes,
+                                ArrayRef<OpAsmParser::UnresolvedOperand> params, Type& qubitType) {
+  if (!params.empty()) {
+    Type paramType;
+    if (parser.parseType(paramType) || parser.parseComma()) {
+      return failure();
+    }
+    paramTypes.assign(params.size(), paramType);
+  }
+  return parser.parseType(qubitType);
+}
+
+void qcc::printGateTypes(OpAsmPrinter& printer, Operation* /*op*/, TypeRange paramTypes, OperandRange /*params*/,
+                         Type qubitType) {
+  if (!paramTypes.empty()) {
+    printer << paramTypes.front() << ", "; // The type constraints guarantee they are all equal.
+  }
+  printer << qubitType;
+}
+
+/// Verifies that the gate `kind`, which takes `expectedNumParams` parameters, has `numParams`.
+static LogicalResult verifyNumGateParams(Operation* op, StringRef kind, unsigned expectedNumParams, size_t numParams) {
+  if (numParams != expectedNumParams) {
+    return op->emitOpError() << "gate '" << kind << "' takes " << expectedNumParams << " parameter(s), got "
+                             << numParams;
+  }
+  return success();
+}
+
+LogicalResult qcc::detail::verifyGateParams(Operation* op, SingleGateKind kind, ValueRange params) {
+  return verifyNumGateParams(op, stringifySingleGateKind(kind), SingleGateKindAttr::getNumParams(kind), params.size());
+}
+
+LogicalResult qcc::detail::verifyGateParams(Operation* op, PairGateKind kind, ValueRange params) {
+  return verifyNumGateParams(op, stringifyPairGateKind(kind), PairGateKindAttr::getNumParams(kind), params.size());
+}
+
+//===----------------------------------------------------------------------===//
+// StaticOp and StaticRefOp
+//===----------------------------------------------------------------------===//
+
+/// Verifies the indices of a `qcc.static` or `qcc.static_ref`: one per qubit, non-negative and distinct.
+static LogicalResult verifyStaticIndices(Operation* op, ArrayRef<int64_t> indices) {
+  if (indices.size() != op->getNumResults()) {
+    return op->emitOpError() << "expected one qubit per index, got " << op->getNumResults() << " qubit(s) for "
+                             << indices.size() << " indices";
+  }
+
+  llvm::SmallSet<int64_t, 8> seen;
+  for (const int64_t index : indices) {
+    if (index < 0) {
+      return op->emitOpError() << "index must be non-negative, got " << index;
+    }
+    if (!seen.insert(index).second) {
+      return op->emitOpError() << "index " << index << " appears more than once";
+    }
+  }
+  return success();
+}
 
 void StaticOp::build(OpBuilder& builder, OperationState& state, ArrayRef<int64_t> indices) {
   const SmallVector<Type> qubitTypes(indices.size(), QubitType::get(builder.getContext()));
@@ -237,20 +307,8 @@ void StaticOp::build(OpBuilder& builder, OperationState& state, ArrayRef<int64_t
 }
 
 LogicalResult StaticOp::verify() {
-  const ArrayRef<int64_t> indices = getIndices();
-  if (indices.size() != getNumResults()) {
-    return emitOpError() << "expected one qubit per index, got " << getNumResults() << " qubit(s) for "
-                         << indices.size() << " indices";
-  }
-
-  llvm::SmallSet<int64_t, 8> seen;
-  for (const int64_t index : indices) {
-    if (index < 0) {
-      return emitOpError() << "index must be non-negative, got " << index;
-    }
-    if (!seen.insert(index).second) {
-      return emitOpError() << "index " << index << " appears more than once";
-    }
+  if (failed(verifyStaticIndices(*this, getIndices()))) {
+    return failure();
   }
 
   if (!isa_and_present<func::FuncOp>((*this)->getParentOp())) {
@@ -267,6 +325,52 @@ LogicalResult StaticOp::verify() {
   }
   return success();
 }
+
+void StaticRefOp::build(OpBuilder& builder, OperationState& state, ArrayRef<int64_t> indices) {
+  const SmallVector<Type> refTypes(indices.size(), QubitRefType::get(builder.getContext()));
+  build(builder, state, refTypes, indices);
+}
+
+LogicalResult StaticRefOp::verify() { return verifyStaticIndices(*this, getIndices()); }
+
+std::optional<int64_t> qcc::getStaticRefIndex(Value ref) {
+  auto staticRef = ref.getDefiningOp<StaticRefOp>();
+  if (!staticRef) {
+    return std::nullopt;
+  }
+  const ArrayRef<int64_t> indices = staticRef.getIndices();
+  const unsigned resultNumber = cast<OpResult>(ref).getResultNumber();
+  // Verifiers may call this before the op is verified, i.e. before one index per result is ensured.
+  return resultNumber < indices.size() ? std::optional(indices[resultNumber]) : std::nullopt;
+}
+
+//===----------------------------------------------------------------------===//
+// AllocOp and DeallocOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult AllocOp::verify() {
+  auto arrayType = dyn_cast<RankedTensorType>(getQubits().getType());
+  const bool hasDynamicSize = arrayType && arrayType.isDynamicDim(0);
+  if (hasDynamicSize && !getDynamicSize()) {
+    return emitOpError() << "requires a size operand for an array of dynamic size";
+  }
+  if (!hasDynamicSize && getDynamicSize()) {
+    return emitOpError() << "has a size operand, but " << getQubits().getType() << " has no dynamic size";
+  }
+  return success();
+}
+
+LogicalResult DeallocOp::verify() {
+  // Only a static qubit given directly is caught: the verifier does not trace the qubits of an array.
+  if (const std::optional<int64_t> index = getStaticRefIndex(getQubits())) {
+    return emitOpError() << "cannot free static qubit " << *index << ": only qubits from 'qcc.alloc' can be freed";
+  }
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// RefLoadOp and RefStoreOp
+//===----------------------------------------------------------------------===//
 
 LogicalResult RefLoadOp::verify() {
   Type elementType = getRef().getType().getElementType();

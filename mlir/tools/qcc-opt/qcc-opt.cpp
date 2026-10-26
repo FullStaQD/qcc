@@ -22,6 +22,7 @@
 #include "qcc/Dialect/OQ3/IR/OQ3.h"
 #include "qcc/Dialect/QCF/IR/QCF.h"
 #include "qcc/Dialect/QCirc/IR/QCirc.h"
+#include "qcc/Dialect/QRef/IR/QRef.h"
 #include "qcc/Dialect/QVec/IR/QVec.h"
 #include "qcc/Dialect/QVec/Transforms/Passes.h"
 #include "qcc/Dialect/Qcc/IR/Qcc.h"
@@ -89,6 +90,7 @@ int main(int argc, char** argv) {
     qcc::QccDialect,
     qcc::qcf::QCFDialect,
     qcc::qcirc::QCircDialect,
+    qcc::qref::QRefDialect,
     qcc::qvec::QVecDialect
       // clang-format on
       >();

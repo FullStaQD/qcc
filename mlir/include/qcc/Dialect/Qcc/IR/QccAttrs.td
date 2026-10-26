@@ -7,11 +7,11 @@
 //
 // ===----------------------------------------------------------------------===//
 
-#ifndef INCLUDE_QCC_DIALECT_QCIRC_IR_QCIRCATTRS_TD_
-#define INCLUDE_QCC_DIALECT_QCIRC_IR_QCIRCATTRS_TD_
+#ifndef INCLUDE_QCC_DIALECT_QCC_IR_QCCATTRS_TD_
+#define INCLUDE_QCC_DIALECT_QCC_IR_QCCATTRS_TD_
 
-include "qcc/Dialect/QCirc/IR/QCircDialect.td"
-include "qcc/Dialect/QCirc/IR/QCircEnums.td"
+include "qcc/Dialect/Qcc/IR/QccDialect.td"
+include "qcc/Dialect/Qcc/IR/QccEnums.td"
 
 include "mlir/IR/EnumAttr.td"
 
@@ -20,32 +20,32 @@ include "mlir/IR/EnumAttr.td"
 //===----------------------------------------------------------------------===//
 
 // The body of a `switch` over the cases of `e`.
-class QCirc_ArityCases<EnumInfo e, string enumName> {
+class Qcc_ArityCases<EnumInfo e, string enumName> {
   string result = !interleave(!foreach(c, e.enumerants,
       "    case " # enumName # "::" # c.symbol # ": return "
-        # !cast<string>(!cast<QCirc_GateCase>(c).numParams) # ";"), "\n");
+        # !cast<string>(!cast<Qcc_GateCase>(c).numParams) # ";"), "\n");
 }
 
-def QCirc_SingleGateKindAttr : EnumAttr<QCirc_Dialect, QCirc_SingleGateKind, "single_gate"> {
+def Qcc_SingleGateKindAttr : EnumAttr<Qcc_Dialect, Qcc_SingleGateKind, "single_gate"> {
   let assemblyFormat = "$value";
   let extraClassDeclaration = [{
-    /// Number of angle parameters a `qcirc.single` of `kind` takes.
-    static unsigned getNumParams(::qcc::qcirc::SingleGateKind kind) {
+    /// Number of angle parameters a single-qubit gate of `kind` takes.
+    static unsigned getNumParams(::qcc::SingleGateKind kind) {
       switch (kind) {
-}] # QCirc_ArityCases<QCirc_SingleGateKind, "::qcc::qcirc::SingleGateKind">.result # [{
+}] # Qcc_ArityCases<Qcc_SingleGateKind, "::qcc::SingleGateKind">.result # [{
       }
       llvm_unreachable("unknown single-qubit gate kind");
     }
   }];
 }
 
-def QCirc_PairGateKindAttr : EnumAttr<QCirc_Dialect, QCirc_PairGateKind, "pair_gate"> {
+def Qcc_PairGateKindAttr : EnumAttr<Qcc_Dialect, Qcc_PairGateKind, "pair_gate"> {
   let assemblyFormat = "$value";
   let extraClassDeclaration = [{
-    /// Number of angle parameters a `qcirc.pair` of `kind` takes.
-    static unsigned getNumParams(::qcc::qcirc::PairGateKind kind) {
+    /// Number of angle parameters a two-qubit gate of `kind` takes.
+    static unsigned getNumParams(::qcc::PairGateKind kind) {
       switch (kind) {
-}] # QCirc_ArityCases<QCirc_PairGateKind, "::qcc::qcirc::PairGateKind">.result # [{
+}] # Qcc_ArityCases<Qcc_PairGateKind, "::qcc::PairGateKind">.result # [{
       }
       llvm_unreachable("unknown two-qubit gate kind");
     }
@@ -56,8 +56,8 @@ def QCirc_PairGateKindAttr : EnumAttr<QCirc_Dialect, QCirc_PairGateKind, "pair_g
 // Basis attribute
 //===----------------------------------------------------------------------===//
 
-def QCirc_BasisAttr : EnumAttr<QCirc_Dialect, QCirc_Basis, "basis"> {
+def Qcc_BasisAttr : EnumAttr<Qcc_Dialect, Qcc_Basis, "basis"> {
   let assemblyFormat = "$value";
 }
 
-#endif // INCLUDE_QCC_DIALECT_QCIRC_IR_QCIRCATTRS_TD_
+#endif // INCLUDE_QCC_DIALECT_QCC_IR_QCCATTRS_TD_
