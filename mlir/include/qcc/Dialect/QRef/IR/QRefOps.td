@@ -24,14 +24,15 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 //===----------------------------------------------------------------------===//
 
 // A qubit operand: the operation acts on the qubit that the reference names, so it reads and writes it.
-class QRef_Qubit<string desc> : Arg<Qcc_QubitRefType, desc, [MemRead<Qcc_QubitResource>, MemWrite<Qcc_QubitResource>]>;
+class QRef_QubitArg<string desc>
+    : Arg<Qcc_QubitRefType, desc, [MemRead<Qcc_QubitResource>, MemWrite<Qcc_QubitResource>]>;
 
 class QRef_Op<string mnemonic, list<Trait> traits = []> : Op<QRef_Dialect, mnemonic, traits>;
 
 def QRef_SingleOp : QRef_Op<"single"> {
   let summary = "single-qubit gate";
   let description = [{
-        Applies a single-qubit gate to the qubit that `qubit` names.
+        Applies a single-qubit gate to `qubit`.
 
         A parametrised gate takes its angles (radians) as operands. How many it takes is fixed per gate kind (see the
         `SingleGateKind` enum).
@@ -45,7 +46,7 @@ def QRef_SingleOp : QRef_Op<"single"> {
     }];
 
   let arguments = (ins Qcc_SingleGateKindAttr:$gate_kind,
-                       QRef_Qubit<"the qubit to act on">:$qubit,
+                       QRef_QubitArg<"the qubit to act on">:$qubit,
                        Variadic<Qcc_GateParam>:$params);
 
   let assemblyFormat = [{
@@ -66,12 +67,11 @@ def QRef_SingleOp : QRef_Op<"single"> {
 def QRef_PairOp : QRef_Op<"pair", [AllTypesMatch<["lhs", "rhs"]>]> {
   let summary = "two-qubit gate";
   let description = [{
-        Applies a two-qubit gate to the distinct qubits that `lhs` and `rhs` name. For controlled gates `lhs` is the
-        control.
+        Applies a two-qubit gate to the distinct qubits `lhs` and `rhs`. For controlled gates `lhs` is the control.
 
         A parametrised gate takes its angles (radians) as operands (see also the `PairGateKind` enum).
 
-        Not every case of `lhs` and `rhs` naming the same qubit is diagnosed; such IR has undefined behavior.
+        It is undefined behaviour if `lhs` and `rhs` refer to the same qubit.
 
         Example:
         ```mlir
@@ -81,8 +81,8 @@ def QRef_PairOp : QRef_Op<"pair", [AllTypesMatch<["lhs", "rhs"]>]> {
     }];
 
   let arguments = (ins Qcc_PairGateKindAttr:$gate_kind,
-                       QRef_Qubit<"the first qubit to act on">:$lhs,
-                       QRef_Qubit<"the second qubit to act on">:$rhs,
+                       QRef_QubitArg<"the first qubit to act on">:$lhs,
+                       QRef_QubitArg<"the second qubit to act on">:$rhs,
                        Variadic<Qcc_GateParam>:$params);
 
   let assemblyFormat = [{
@@ -103,9 +103,9 @@ def QRef_PairOp : QRef_Op<"pair", [AllTypesMatch<["lhs", "rhs"]>]> {
 def QRef_MeasureOp : QRef_Op<"measure"> {
   let summary = "measures a qubit";
   let description = [{
-        Measures the qubit that `qubit` names in the given basis, which projects its state, and returns the outcome as
-        a classical bit: `z` measures in the computational basis (|0⟩ gives 0, |1⟩ gives 1), `x` in the basis |+⟩, |−⟩
-        (|+⟩ gives 0, |−⟩ gives 1).
+        Measures `qubit` in the given basis, which projects its state. Returns the outcome as a classical bit: `z`
+        measures in the computational basis (|0⟩ gives 0, |1⟩ gives 1), `x` in the basis |+⟩, |−⟩ (|+⟩ gives 0, |−⟩
+        gives 1).
 
         Example:
         ```mlir
@@ -114,7 +114,7 @@ def QRef_MeasureOp : QRef_Op<"measure"> {
     }];
 
   let arguments = (ins Qcc_BasisAttr:$basis,
-                       QRef_Qubit<"the qubit to measure">:$qubit);
+                       QRef_QubitArg<"the qubit to measure">:$qubit);
   let results = (outs I1:$bit);
 
   let assemblyFormat = [{
@@ -131,7 +131,7 @@ def QRef_MeasureOp : QRef_Op<"measure"> {
 def QRef_ResetOp : QRef_Op<"reset"> {
   let summary = "resets a qubit to a basis state";
   let description = [{
-        Resets the qubit that `qubit` names to the first state of the given basis: `z` sends it to |0⟩, `x` to |+⟩.
+        Resets `qubit` to the first state of the given basis: `z` sends it to |0⟩, `x` to |+⟩.
 
         Example:
         ```mlir
@@ -140,7 +140,7 @@ def QRef_ResetOp : QRef_Op<"reset"> {
     }];
 
   let arguments = (ins Qcc_BasisAttr:$basis,
-                       QRef_Qubit<"the qubit to reset">:$qubit);
+                       QRef_QubitArg<"the qubit to reset">:$qubit);
 
   let assemblyFormat = [{
         $basis $qubit attr-dict `:` type($qubit)
