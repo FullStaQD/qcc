@@ -80,8 +80,8 @@ bool isClassicalType(mlir::Type type);
 
 namespace qcc {
 
-/// The qubits that `!qcc.qubit_ref` values name. An operation that acts on a qubit through a reference reads and
-/// writes this resource, `qcc.alloc` allocates in it, and `qcc.dealloc` frees in it.
+/// Side-effect resource for qubits that operations access by reference. An operation that acts on a qubit through a
+/// reference reads and writes this resource, `qcc.alloc` allocates in it, and `qcc.dealloc` frees in it.
 ///
 /// Like every resource, it is part of the default resource: effects on qubits may conflict with effects on the default
 /// resource, e.g. with a `memref.load`. It is disjoint from other resources, e.g. `oq3::ProgramStructureResource`.
@@ -97,8 +97,7 @@ struct QubitResource : public mlir::SideEffects::Resource::Base<QubitResource> {
 
 namespace qcc {
 
-/// Parses the types of a gate (custom directive `GateTypes`): `[<angle type>, ]<qubit type>`, the angle type once for
-/// all angles.
+/// Parses the types of a gate (custom directive `GateTypes`): `[<angle type>, ]<qubit type>`.
 mlir::ParseResult parseGateTypes(mlir::OpAsmParser& parser, llvm::SmallVectorImpl<mlir::Type>& paramTypes,
                                  llvm::ArrayRef<mlir::OpAsmParser::UnresolvedOperand> params, mlir::Type& qubitType);
 
@@ -110,8 +109,9 @@ void printGateTypes(mlir::OpAsmPrinter& printer, mlir::Operation* op, mlir::Type
 
 namespace qcc::detail {
 
-/// Verifies that `op`, a gate of `kind`, has as many `params` as the kind takes.
+/// Verifies that `op`, a single gate of `kind`, takes as many params as given by `params`.
 llvm::LogicalResult verifyGateParams(mlir::Operation* op, SingleGateKind kind, mlir::ValueRange params);
+/// Verifies that `op`, a pair gate of `kind`, takes as many params as given by `params`.
 llvm::LogicalResult verifyGateParams(mlir::Operation* op, PairGateKind kind, mlir::ValueRange params);
 
 } // namespace qcc::detail

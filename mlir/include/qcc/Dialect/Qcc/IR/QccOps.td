@@ -62,8 +62,8 @@ def Qcc_StaticRefOp : Op<Qcc_Dialect, "static_ref", [Pure]> {
         distinct, but need not be dense or sorted. A static qubit is identified by its index: two `qcc.static_ref` ops
         that list the same index name the same qubit.
 
-        The op only names the qubits, so it may sit anywhere. Unlike `qcc.static`, it does not imply that they are in
-        |0⟩: every qubit is in |0⟩ only at the start of the program.
+        The op only names the qubits, so it may sit anywhere. It does not imply that they are in |0⟩: this guarantee
+        only holds at the start of the program.
 
         Example:
         ```mlir

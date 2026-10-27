@@ -145,7 +145,7 @@ def Qcc_QubitLaneOpInterface : OpInterface<"QubitLaneOpInterface"> {
 // QubitResource
 //===----------------------------------------------------------------------===//
 
-// The qubits that `!qcc.qubit_ref` values name (see `qcc::QubitResource`).
+// Side-effect resource for qubits that operations access by reference (see `qcc::QubitResource`).
 def Qcc_QubitResource : Resource<"::qcc::QubitResource">;
 
 //===----------------------------------------------------------------------===//

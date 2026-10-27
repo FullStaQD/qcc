@@ -62,7 +62,8 @@ def Qcc_QubitRefType : TypeDef<Qcc_Dialect, "QubitRef"> {
         Example:
         ```mlir
         !qcc.qubit_ref
-        tensor<?x!qcc.qubit_ref>   // an array of qubits
+        tensor<3x!qcc.qubit_ref>   // an array of qubits, static size
+        tensor<?x!qcc.qubit_ref>   // an array of qubits, dynamic size
         ```
     }];
 }
@@ -114,11 +115,10 @@ def Qcc_RefType : TypeDef<Qcc_Dialect, "Ref"> {
 // What a qubit lane carries: `!qcc.qubit` or a vector of them.
 def Qcc_QubitOrQubitVector : Type<CPred<"::qcc::isQubitOrQubitVector($_self)">, "qubit or vector of qubits">;
 
-// What `qcc.alloc` returns and `qcc.dealloc` takes: one qubit or an array of them.
 def Qcc_QubitRefOrArray : AnyTypeOf<[Qcc_QubitRefType, 1DTensorOf<[Qcc_QubitRefType]>],
                                     "qubit reference or 1D tensor of qubit references">;
 
-// A gate parameter: an angle in radians.
+// An angle in radians.
 def Qcc_GateParam : AnyTypeOf<[F64], "64-bit float angle">;
 
 #endif // INCLUDE_QCC_DIALECT_QCC_IR_QCCTYPES_TD_

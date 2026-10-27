@@ -32,8 +32,8 @@ def Qcc_Dialect : Dialect {
 
         `!qcc.qubit_ref` is the qubit type for a memory-semantics context, such as the `qref` dialect: a reference names
         a qubit, and operations act on that qubit in place. References come from `qcc.static_ref` and `qcc.alloc`, and
-        an array of qubits is a 1D tensor of references. Operations on qubits through references have memory effects on
-        the `QubitResource`.
+        an array of qubits is a 1D tensor of references. Operations on qubits through references should have memory
+        effects on the `QubitResource`.
 
         The gate kinds and bases (`SingleGateKind`, `PairGateKind`, `Basis`) are shared by `qcirc` and `qref`.
 
