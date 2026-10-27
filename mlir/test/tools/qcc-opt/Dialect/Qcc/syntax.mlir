@@ -72,7 +72,7 @@ func.func @alloc_and_dealloc(%n: index) {
   %r = qcc.alloc %n : tensor<?x!qcc.qubit_ref>
   // CHECK: qcc.alloc : tensor<3x!qcc.qubit_ref>
   %s = qcc.alloc : tensor<3x!qcc.qubit_ref>
-  // An array may be empty.
+  // A qubit array may be empty.
   // CHECK: qcc.alloc : tensor<0x!qcc.qubit_ref>
   %e = qcc.alloc : tensor<0x!qcc.qubit_ref>
   // CHECK: qcc.dealloc %[[Q]] : !qcc.qubit_ref
