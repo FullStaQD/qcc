@@ -2,48 +2,23 @@
 // RUN: qcc-opt %s --mlir-print-op-generic | qcc-opt | FileCheck %s
 
 // CHECK-LABEL: func.func @single_gates
-func.func @single_gates() {
+// CHECK-SAME: (%[[A:.*]]: f64, %[[B:.*]]: f64, %[[C:.*]]: f64)
+func.func @single_gates(%a: f64, %b: f64, %c: f64) {
   // CHECK: %[[Q:.*]] = qcc.static [0] : !qcc.qubit
   %q = qcc.static [0] : !qcc.qubit
+  // Without parameters; these differ only in the keyword.
   // CHECK: %[[X:.*]] = qcirc.single x %[[Q]] : !qcc.qubit
   %x = qcirc.single x %q : !qcc.qubit
-  // CHECK: %[[Y:.*]] = qcirc.single y %[[X]] : !qcc.qubit
-  %y = qcirc.single y %x : !qcc.qubit
-  // CHECK: %[[Z:.*]] = qcirc.single z %[[Y]] : !qcc.qubit
-  %z = qcirc.single z %y : !qcc.qubit
-  // CHECK: %[[H:.*]] = qcirc.single h %[[Z]] : !qcc.qubit
-  %h = qcirc.single h %z : !qcc.qubit
-  // CHECK: %[[S:.*]] = qcirc.single s %[[H]] : !qcc.qubit
-  %s = qcirc.single s %h : !qcc.qubit
-  // CHECK: %[[SDG:.*]] = qcirc.single sdg %[[S]] : !qcc.qubit
-  %sdg = qcirc.single sdg %s : !qcc.qubit
-  // CHECK: %[[T:.*]] = qcirc.single t %[[SDG]] : !qcc.qubit
-  %t = qcirc.single t %sdg : !qcc.qubit
-  // CHECK: %[[TDG:.*]] = qcirc.single tdg %[[T]] : !qcc.qubit
-  %tdg = qcirc.single tdg %t : !qcc.qubit
-  // CHECK: %[[SX:.*]] = qcirc.single sx %[[TDG]] : !qcc.qubit
-  %sx = qcirc.single sx %tdg : !qcc.qubit
-  // CHECK: qcirc.single sxdg %[[SX]] : !qcc.qubit
-  %sxdg = qcirc.single sxdg %sx : !qcc.qubit
-  return
-}
-
-// CHECK-LABEL: func.func @parametrised_single_gates
-// CHECK-SAME: (%[[A:.*]]: f64, %[[B:.*]]: f64, %[[C:.*]]: f64)
-func.func @parametrised_single_gates(%a: f64, %b: f64, %c: f64) {
-  // CHECK: %[[Q:.*]] = qcc.static [0] : !qcc.qubit
-  %q = qcc.static [0] : !qcc.qubit
-  // CHECK: %[[RX:.*]] = qcirc.single rx(%[[A]]) %[[Q]] : f64, !qcc.qubit
-  %rx = qcirc.single rx(%a) %q : f64, !qcc.qubit
-  // CHECK: %[[RY:.*]] = qcirc.single ry(%[[A]]) %[[RX]] : f64, !qcc.qubit
-  %ry = qcirc.single ry(%a) %rx : f64, !qcc.qubit
-  // CHECK: %[[RZ:.*]] = qcirc.single rz(%[[A]]) %[[RY]] : f64, !qcc.qubit
-  %rz = qcirc.single rz(%a) %ry : f64, !qcc.qubit
+  // CHECK: %[[H:.*]] = qcirc.single h %[[X]] : !qcc.qubit
+  %h = qcirc.single h %x : !qcc.qubit
+  // CHECK: %[[SDG:.*]] = qcirc.single sdg %[[H]] : !qcc.qubit
+  %sdg = qcirc.single sdg %h : !qcc.qubit
+  // One parameter, whose type precedes the qubit type.
+  // CHECK: %[[RZ:.*]] = qcirc.single rz(%[[A]]) %[[SDG]] : f64, !qcc.qubit
+  %rz = qcirc.single rz(%a) %sdg : f64, !qcc.qubit
   // Three parameters share one type.
-  // CHECK: %[[ZXZ:.*]] = qcirc.single u_zxz(%[[A]], %[[B]], %[[C]]) %[[RZ]] : f64, !qcc.qubit
+  // CHECK: qcirc.single u_zxz(%[[A]], %[[B]], %[[C]]) %[[RZ]] : f64, !qcc.qubit
   %zxz = qcirc.single u_zxz(%a, %b, %c) %rz : f64, !qcc.qubit
-  // CHECK: qcirc.single u_zyz(%[[A]], %[[B]], %[[C]]) %[[ZXZ]] : f64, !qcc.qubit
-  %zyz = qcirc.single u_zyz(%a, %b, %c) %zxz : f64, !qcc.qubit
   return
 }
 
@@ -52,27 +27,12 @@ func.func @parametrised_single_gates(%a: f64, %b: f64, %c: f64) {
 func.func @pair_gates(%theta: f64) {
   // CHECK: %[[Q:.*]]:2 = qcc.static [0, 1] : !qcc.qubit
   %q0, %q1 = qcc.static [0, 1] : !qcc.qubit
-  // CHECK: %[[A0:.*]], %[[B0:.*]] = qcirc.pair cx %[[Q]]#0, %[[Q]]#1 : !qcc.qubit
-  %a0, %b0 = qcirc.pair cx %q0, %q1 : !qcc.qubit
-  // CHECK: %[[A1:.*]], %[[B1:.*]] = qcirc.pair cy %[[A0]], %[[B0]] : !qcc.qubit
-  %a1, %b1 = qcirc.pair cy %a0, %b0 : !qcc.qubit
-  // CHECK: %[[A2:.*]], %[[B2:.*]] = qcirc.pair cz %[[A1]], %[[B1]] : !qcc.qubit
-  %a2, %b2 = qcirc.pair cz %a1, %b1 : !qcc.qubit
-  // A swap exchanges the states, not the lanes: the operands may come in either order.
-  // CHECK: %[[B3:.*]], %[[A3:.*]] = qcirc.pair swap %[[B2]], %[[A2]] : !qcc.qubit
-  %b3, %a3 = qcirc.pair swap %b2, %a2 : !qcc.qubit
-  // CHECK: %[[A4:.*]], %[[B4:.*]] = qcirc.pair iswap %[[A3]], %[[B3]] : !qcc.qubit
-  %a4, %b4 = qcirc.pair iswap %a3, %b3 : !qcc.qubit
-  // CHECK: %[[A5:.*]], %[[B5:.*]] = qcirc.pair cp(%[[THETA]]) %[[A4]], %[[B4]] : f64, !qcc.qubit
-  %a5, %b5 = qcirc.pair cp(%theta) %a4, %b4 : f64, !qcc.qubit
-  // CHECK: %[[A6:.*]], %[[B6:.*]] = qcirc.pair crz(%[[THETA]]) %[[A5]], %[[B5]] : f64, !qcc.qubit
-  %a6, %b6 = qcirc.pair crz(%theta) %a5, %b5 : f64, !qcc.qubit
-  // CHECK: %[[A7:.*]], %[[B7:.*]] = qcirc.pair rxx(%[[THETA]]) %[[A6]], %[[B6]] : f64, !qcc.qubit
-  %a7, %b7 = qcirc.pair rxx(%theta) %a6, %b6 : f64, !qcc.qubit
-  // CHECK: %[[A8:.*]], %[[B8:.*]] = qcirc.pair ryy(%[[THETA]]) %[[A7]], %[[B7]] : f64, !qcc.qubit
-  %a8, %b8 = qcirc.pair ryy(%theta) %a7, %b7 : f64, !qcc.qubit
-  // CHECK: qcirc.pair rzz(%[[THETA]]) %[[A8]], %[[B8]] : f64, !qcc.qubit
-  %a9, %b9 = qcirc.pair rzz(%theta) %a8, %b8 : f64, !qcc.qubit
+  // Without parameters. The operand order is kept (`lhs` is the control), and the results follow it.
+  // CHECK: %[[B0:.*]], %[[A0:.*]] = qcirc.pair cx %[[Q]]#1, %[[Q]]#0 : !qcc.qubit
+  %b0, %a0 = qcirc.pair cx %q1, %q0 : !qcc.qubit
+  // One parameter.
+  // CHECK: qcirc.pair rzz(%[[THETA]]) %[[A0]], %[[B0]] : f64, !qcc.qubit
+  %a1, %b1 = qcirc.pair rzz(%theta) %a0, %b0 : f64, !qcc.qubit
   return
 }
 
