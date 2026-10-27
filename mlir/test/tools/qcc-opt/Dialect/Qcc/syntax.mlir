@@ -5,9 +5,9 @@
 
 // CHECK-LABEL: func.func @static
 func.func @static() {
-  // The indices need not be dense or sorted.
-  // CHECK: %{{.*}}:3 = qcc.static [3, 0, 7] : !qcc.qubit
-  %q3, %q0, %q7 = qcc.static [3, 0, 7] : !qcc.qubit
+  // The indices need not be dense.
+  // CHECK: %{{.*}}:3 = qcc.static [0, 3, 7] : !qcc.qubit
+  %q0, %q3, %q7 = qcc.static [0, 3, 7] : !qcc.qubit
   return
 }
 
@@ -52,8 +52,8 @@ func.func @classical_references(%i: !qcc.ref<index>, %c: !qcc.ref<complex<f32>>,
 // References to static qubits. Unlike `qcc.static`, the op may sit anywhere, also more than once per function.
 // CHECK-LABEL: func.func @static_ref
 func.func @static_ref(%cond: i1) {
-  // CHECK: %{{.*}}:3 = qcc.static_ref [3, 0, 7] : !qcc.qubit_ref
-  %q3, %q0, %q7 = qcc.static_ref [3, 0, 7] : !qcc.qubit_ref
+  // CHECK: %{{.*}}:3 = qcc.static_ref [0, 3, 7] : !qcc.qubit_ref
+  %q0, %q3, %q7 = qcc.static_ref [0, 3, 7] : !qcc.qubit_ref
   // CHECK: qcc.static_ref [] : !qcc.qubit_ref
   qcc.static_ref [] : !qcc.qubit_ref
   scf.if %cond {

@@ -10,9 +10,9 @@
 #include "qcc/Dialect/QCirc/IR/QCirc.h"
 #include "qcc/Dialect/Qcc/IR/Qcc.h"
 
-#include "mlir/IR/BuiltinTypes.h"
-#include "mlir/IR/OpImplementation.h"
-#include "mlir/IR/Operation.h"
+#include "mlir/IR/BuiltinTypes.h"     // IWYU pragma: keep
+#include "mlir/IR/OpImplementation.h" // IWYU pragma: keep
+#include "mlir/IR/Operation.h"        // IWYU pragma: keep
 
 using namespace mlir;
 using namespace qcc::qcirc;

@@ -28,9 +28,8 @@
 #include "mlir/Interfaces/FunctionInterfaces.h"
 
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/StringRef.h" // IWYU pragma: keep
 
 #include <cstddef>
 #include <cstdint>
@@ -282,20 +281,21 @@ LogicalResult qcc::detail::verifyGateParams(Operation* op, PairGateKind kind, Va
 // StaticOp and StaticRefOp
 //===----------------------------------------------------------------------===//
 
-/// Verifies the indices of a `qcc.static` or `qcc.static_ref`: one per qubit, non-negative and distinct.
+/// Verifies the indices of a `qcc.static` or `qcc.static_ref`: one per qubit, non-negative and strictly increasing.
 static LogicalResult verifyStaticIndices(Operation* op, ArrayRef<int64_t> indices) {
   if (indices.size() != op->getNumResults()) {
     return op->emitOpError() << "expected one qubit per index, got " << op->getNumResults() << " qubit(s) for "
                              << indices.size() << " indices";
   }
 
-  llvm::SmallSet<int64_t, 8> seen;
-  for (const int64_t index : indices) {
-    if (index < 0) {
-      return op->emitOpError() << "index must be non-negative, got " << index;
-    }
-    if (!seen.insert(index).second) {
-      return op->emitOpError() << "index " << index << " appears more than once";
+  // The indices must increase, so a non-negative first index covers all of them.
+  if (!indices.empty() && indices.front() < 0) {
+    return op->emitOpError() << "index must be non-negative, got " << indices.front();
+  }
+  for (size_t i = 1; i < indices.size(); ++i) {
+    if (indices[i] <= indices[i - 1]) {
+      return op->emitOpError() << "indices must be strictly increasing, got " << indices[i] << " after "
+                               << indices[i - 1];
     }
   }
   return success();

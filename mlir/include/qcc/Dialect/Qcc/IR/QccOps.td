@@ -29,7 +29,7 @@ def Qcc_StaticOp : Op<Qcc_Dialect, "static", [NoMemoryEffect, Qcc_NoMultiUseQubi
   let summary = "the qubits of a function, by static index";
   let description = [{
         Creates the qubits a function works on, one result per index, each initialized in |0⟩. The indices are
-        non-negative and distinct, but need not be dense or sorted.
+        non-negative and strictly increasing, but need not be dense.
 
         The op is the only source of `!qcc.qubit` values. It sits directly in a `func.func`, and a function holds at
         most one of them.
@@ -59,8 +59,8 @@ def Qcc_StaticRefOp : Op<Qcc_Dialect, "static_ref", [Pure]> {
   let summary = "references to qubits, by static index";
   let description = [{
         Returns a reference to each qubit in `indices`, one result per index. The indices are non-negative and
-        distinct, but need not be dense or sorted. A static qubit is identified by its index: two `qcc.static_ref` ops
-        that list the same index name the same qubit.
+        strictly increasing, but need not be dense. A static qubit is identified by its index: two `qcc.static_ref`
+        ops that list the same index name the same qubit.
 
         The op only names the qubits, so it may sit anywhere. It does not imply that they are in |0⟩: this guarantee
         only holds at the start of the program.

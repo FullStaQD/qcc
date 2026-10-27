@@ -60,8 +60,16 @@ func.func @static_negative_index() {
 // -----
 
 func.func @static_duplicate_index() {
-  // expected-error @+1 {{'qcc.static' op index 2 appears more than once}}
+  // expected-error @+1 {{'qcc.static' op indices must be strictly increasing, got 2 after 2}}
   %q0, %q1 = qcc.static [2, 2] : !qcc.qubit
+  return
+}
+
+// -----
+
+func.func @static_unsorted_indices() {
+  // expected-error @+1 {{'qcc.static' op indices must be strictly increasing, got 0 after 3}}
+  %q3, %q0 = qcc.static [3, 0] : !qcc.qubit
   return
 }
 
@@ -169,8 +177,16 @@ func.func @static_ref_negative_index() {
 // -----
 
 func.func @static_ref_duplicate_index() {
-  // expected-error @+1 {{'qcc.static_ref' op index 2 appears more than once}}
+  // expected-error @+1 {{'qcc.static_ref' op indices must be strictly increasing, got 2 after 2}}
   %q0, %q1 = qcc.static_ref [2, 2] : !qcc.qubit_ref
+  return
+}
+
+// -----
+
+func.func @static_ref_unsorted_indices() {
+  // expected-error @+1 {{'qcc.static_ref' op indices must be strictly increasing, got 0 after 3}}
+  %q3, %q0 = qcc.static_ref [3, 0] : !qcc.qubit_ref
   return
 }
 
