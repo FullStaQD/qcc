@@ -1,7 +1,7 @@
-// RUN: qcc-opt %s | FileCheck %s
-// RUN: qcc-opt %s --mlir-print-op-generic | qcc-opt | FileCheck %s
+// RUN: qcc-opt %s --allow-unregistered-dialect | FileCheck %s
+// RUN: qcc-opt %s --allow-unregistered-dialect --mlir-print-op-generic | qcc-opt --allow-unregistered-dialect | FileCheck %s
 
-// Round trip of the metadata attributes.
+// Round trip of the metadata attributes and of the gate kinds and bases.
 
 // qcc-opt introduces an alias for the devices and traps.
 // CHECK: #magic_trap = #magic.trap<capacity = 1, couplings = [dense<0.000000e+00> : tensor<1x1xf64>]>
@@ -19,4 +19,8 @@ module attributes {qcc.device = #magic.device<name = "single-trap", time_unit_ns
   llvm.func @kernel() attributes {qcc.entry_point} {
     llvm.return
   }
+
+  // Reusable gate kinds and basis attributes.
+  // CHECK: "foreign.attrs"() {basis = #qcc<basis x>, pair_gate = #qcc<pair_gate cx>, single_gate = #qcc<single_gate rz>} : () -> ()
+  "foreign.attrs"() {basis = #qcc<basis x>, pair_gate = #qcc<pair_gate cx>, single_gate = #qcc<single_gate rz>} : () -> ()
 }

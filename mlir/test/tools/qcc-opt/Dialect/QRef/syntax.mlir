@@ -1,6 +1,5 @@
 // RUN: qcc-opt %s | FileCheck %s
 // RUN: qcc-opt %s --mlir-print-op-generic | qcc-opt | FileCheck %s
-// RUN: qcc-opt %s --mlir-print-op-generic | FileCheck %s --check-prefix=CHECK-GENERIC
 
 // CHECK-LABEL: func.func @single_gates
 func.func @single_gates() {
@@ -136,16 +135,3 @@ func.func @array(%n: index) {
 // CHECK-NEXT:      %[[Q:.*]] = tensor.extract %[[R]][%{{.*}}] : tensor<?x!qcc.qubit_ref>
 // CHECK-NEXT:      qref.single h %[[Q]] : !qcc.qubit_ref
 // CHECK:         qcc.dealloc %[[R]] : tensor<?x!qcc.qubit_ref>
-
-// The gate kinds and bases are attributes of the `qcc` dialect, shared with `qcirc`.
-// CHECK-GENERIC-LABEL: sym_name = "attributes"
-func.func @attributes(%theta: f64) -> i1 {
-  %q0, %q1 = qcc.static_ref [0, 1] : !qcc.qubit_ref
-  // CHECK-GENERIC: "qref.single"(%{{.*}}, %{{.*}}) <{gate_kind = #qcc<single_gate rz>}>
-  qref.single rz(%theta) %q0 : f64, !qcc.qubit_ref
-  // CHECK-GENERIC: "qref.pair"(%{{.*}}, %{{.*}}) <{gate_kind = #qcc<pair_gate cx>}>
-  qref.pair cx %q0, %q1 : !qcc.qubit_ref
-  // CHECK-GENERIC: "qref.measure"(%{{.*}}) <{basis = #qcc<basis x>}>
-  %bit = qref.measure x %q0 : !qcc.qubit_ref -> i1
-  return %bit : i1
-}
