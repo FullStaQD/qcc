@@ -1,7 +1,7 @@
 // RUN: qcc-opt %s --allow-unregistered-dialect | FileCheck %s
 // RUN: qcc-opt %s --allow-unregistered-dialect --mlir-print-op-generic | qcc-opt --allow-unregistered-dialect | FileCheck %s
 
-// Round trip of the metadata attributes and of the gate kinds and bases.
+// Round trip of various attributes.
 
 // qcc-opt introduces an alias for the devices and traps.
 // CHECK: #magic_trap = #magic.trap<capacity = 1, couplings = [dense<0.000000e+00> : tensor<1x1xf64>]>
