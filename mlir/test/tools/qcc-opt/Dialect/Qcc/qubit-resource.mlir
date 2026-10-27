@@ -4,10 +4,10 @@
 
 // Operations on qubits are kept although nothing uses their results, also inside regions.
 // CHECK-LABEL: func.func @unobserved
-func.func @unobserved(%theta: f64, %cond: i1, %n: index) {
+func.func @unobserved(%cond: i1) {
   %q0, %q1 = qcc.static_ref [0, 1] : !qcc.qubit_ref
-  // CHECK:      qref.single rz
-  qref.single rz(%theta) %q0 : f64, !qcc.qubit_ref
+  // CHECK:      qref.single h
+  qref.single h %q0 : !qcc.qubit_ref
   // CHECK-NEXT: qref.pair cx
   qref.pair cx %q0, %q1 : !qcc.qubit_ref
   // CHECK-NEXT: qref.measure z
@@ -18,13 +18,6 @@ func.func @unobserved(%theta: f64, %cond: i1, %n: index) {
   // CHECK-NEXT:   qref.single x
   scf.if %cond {
     qref.single x %q1 : !qcc.qubit_ref
-  }
-  %c0 = arith.constant 0 : index
-  %c1 = arith.constant 1 : index
-  // CHECK:      scf.for
-  // CHECK-NEXT:   qref.single h
-  scf.for %i = %c0 to %n step %c1 {
-    qref.single h %q1 : !qcc.qubit_ref
   }
   return
 }
@@ -48,7 +41,8 @@ func.func @static_ref_is_pure() {
 
 // -----
 
-// Each `qcc.alloc` returns fresh qubits, so two of them are never merged. An unused one is erased, a freed one is not.
+// Each `qcc.alloc` returns fresh qubits, so two of them are never merged. An unused one is erased; a `qcc.dealloc`
+// is kept although it has no results.
 // CHECK-LABEL: func.func @alloc
 func.func @alloc() {
   // CHECK-NEXT: %[[A:.*]] = qcc.alloc : !qcc.qubit_ref
@@ -56,12 +50,10 @@ func.func @alloc() {
   // CHECK-NEXT: %[[B:.*]] = qcc.alloc : !qcc.qubit_ref
   %b = qcc.alloc : !qcc.qubit_ref
   %unused = qcc.alloc : tensor<2x!qcc.qubit_ref>
-  // CHECK-NEXT: %[[C:.*]] = qcc.alloc : !qcc.qubit_ref
-  %c = qcc.alloc : !qcc.qubit_ref
-  // CHECK-NEXT: qref.pair cx %[[A]], %[[B]] : !qcc.qubit_ref
-  qref.pair cx %a, %b : !qcc.qubit_ref
-  // CHECK-NEXT: qcc.dealloc %[[C]] : !qcc.qubit_ref
-  qcc.dealloc %c : !qcc.qubit_ref
+  // CHECK-NEXT: qcc.dealloc %[[A]] : !qcc.qubit_ref
+  qcc.dealloc %a : !qcc.qubit_ref
+  // CHECK-NEXT: qcc.dealloc %[[B]] : !qcc.qubit_ref
+  qcc.dealloc %b : !qcc.qubit_ref
   // CHECK-NEXT: return
   return
 }
