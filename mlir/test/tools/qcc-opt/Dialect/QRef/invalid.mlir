@@ -56,8 +56,8 @@ func.func @pair_same_static_qubit() {
 
 // -----
 
-// The pair is verified before the `qcc.static_ref` that defines its operands, which then has fewer indices than
-// results. The pair must not read beyond the indices.
+// The use precedes the definition, so the pair is verified before the `qcc.static_ref` that defines its operands,
+// which then has fewer indices than results. The pair must not read beyond the indices.
 func.func @pair_on_unverified_static_ref() {
   qref.pair cx %a, %b : !qcc.qubit_ref
   // expected-error @+1 {{'qcc.static_ref' op expected one qubit per index, got 2 qubit(s) for 1 indices}}
