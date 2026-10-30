@@ -31,7 +31,11 @@ using namespace qcc;
 
 #include "qcc/Dialect/Qcc/IR/QccAttrInterfaces.cpp.inc"
 #include "qcc/Dialect/Qcc/IR/QccDialect.cpp.inc"
+#include "qcc/Dialect/Qcc/IR/QccEnums.cpp.inc"
 #include "qcc/Dialect/Qcc/IR/QccTypeInterfaces.cpp.inc"
+
+#define GET_ATTRDEF_CLASSES
+#include "qcc/Dialect/Qcc/IR/QccAttrs.cpp.inc"
 
 #define GET_TYPEDEF_CLASSES
 #include "qcc/Dialect/Qcc/IR/QccTypes.cpp.inc"
@@ -41,6 +45,11 @@ using namespace qcc;
 //===----------------------------------------------------------------------===//
 
 void QccDialect::initialize() {
+  addAttributes<
+#define GET_ATTRDEF_LIST
+#include "qcc/Dialect/Qcc/IR/QccAttrs.cpp.inc"
+      >();
+
   addTypes<
 #define GET_TYPEDEF_LIST
 #include "qcc/Dialect/Qcc/IR/QccTypes.cpp.inc"

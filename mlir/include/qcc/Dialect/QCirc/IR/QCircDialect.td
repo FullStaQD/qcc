@@ -11,7 +11,6 @@
 #define INCLUDE_QCC_DIALECT_QCIRC_IR_QCIRCDIALECT_TD_
 
 include "mlir/IR/DialectBase.td"
-include "mlir/IR/AttrTypeBase.td"
 
 //===----------------------------------------------------------------------===//
 // QCirc dialect
@@ -40,11 +39,11 @@ def QCirc_Dialect : Dialect {
     let name = "qcirc";
     let cppNamespace = "::qcc::qcirc";
 
-    // `!qcc.qubit` appears in our operations' assembly.
+    // `!qcc.qubit` and the gate-kind attributes appear in our operations' assembly.
     let dependentDialects = ["::qcc::QccDialect"];
 
     let useDefaultTypePrinterParser = 0;      // set to 1 once we define types of our own.
-    let useDefaultAttributePrinterParser = 1; // needed by the gate-kind attributes.
+    let useDefaultAttributePrinterParser = 0; // set to 1 once we define attributes of our own.
 }
 
 #endif // INCLUDE_QCC_DIALECT_QCIRC_IR_QCIRCDIALECT_TD_

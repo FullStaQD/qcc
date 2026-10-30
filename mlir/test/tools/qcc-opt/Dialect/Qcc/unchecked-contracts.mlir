@@ -35,3 +35,45 @@ func.func @duplicate_qubits() {
   %w = vector.broadcast %q : !qcc.qubit to vector<2x!qcc.qubit>
   return
 }
+
+// -----
+
+// The qubit is freed twice. Each qubit may be freed at most once.
+func.func @dealloc_twice() {
+  %q = qcc.alloc : !qcc.qubit_ref
+  qcc.dealloc %q : !qcc.qubit_ref
+  qcc.dealloc %q : !qcc.qubit_ref
+  return
+}
+
+// -----
+
+// Element 0 is freed on its own and again with the array.
+func.func @dealloc_element_and_array() {
+  %r = qcc.alloc : tensor<2x!qcc.qubit_ref>
+  %c0 = arith.constant 0 : index
+  %q = tensor.extract %r[%c0] : tensor<2x!qcc.qubit_ref>
+  qcc.dealloc %q : !qcc.qubit_ref
+  qcc.dealloc %r : tensor<2x!qcc.qubit_ref>
+  return
+}
+
+// -----
+
+// The array holds static qubits, which are never freed. Only a static qubit given directly is rejected.
+func.func @dealloc_static_qubits_of_array() {
+  %q0, %q1 = qcc.static_ref [0, 1] : !qcc.qubit_ref
+  %r = tensor.from_elements %q0, %q1 : tensor<2x!qcc.qubit_ref>
+  qcc.dealloc %r : tensor<2x!qcc.qubit_ref>
+  return
+}
+
+// -----
+
+// The qubit is acted on after it is freed.
+func.func @use_after_dealloc() {
+  %q = qcc.alloc : !qcc.qubit_ref
+  qcc.dealloc %q : !qcc.qubit_ref
+  qref.single h %q : !qcc.qubit_ref
+  return
+}

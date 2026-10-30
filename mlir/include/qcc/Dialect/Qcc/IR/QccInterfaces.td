@@ -12,6 +12,7 @@
 
 include "mlir/IR/Interfaces.td"
 include "mlir/IR/OpBase.td"
+include "mlir/Interfaces/SideEffectInterfaceBase.td"
 
 //===----------------------------------------------------------------------===//
 // DeviceAttrInterface
@@ -139,6 +140,13 @@ def Qcc_QubitLaneOpInterface : OpInterface<"QubitLaneOpInterface"> {
 
   let verify = [{ return ::qcc::detail::verifyQubitLaneOpInterface($_op); }];
 }
+
+//===----------------------------------------------------------------------===//
+// QubitResource
+//===----------------------------------------------------------------------===//
+
+// Side-effect resource for qubits that operations access by reference (see `qcc::QubitResource`).
+def Qcc_QubitResource : Resource<"::qcc::QubitResource">;
 
 //===----------------------------------------------------------------------===//
 // Traits
