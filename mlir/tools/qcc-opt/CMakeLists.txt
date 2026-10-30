@@ -42,6 +42,9 @@ target_link_libraries(
           QCCQVecTransforms
           QCCQccTransforms
           QCCQCOToQVec
+          QCCQCToQRef
+          QCCQRefToQCirc
+          QCCQCircToQRef
           QCCQVecToMagic
           QCCToHiSEPQ
           QCCToQIR
