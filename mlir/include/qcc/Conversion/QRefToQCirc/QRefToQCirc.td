@@ -24,6 +24,8 @@ def ConvertQRefToQCirc : Pass<"convert-qref-to-qcirc", "mlir::func::FuncOp"> {
         Only gates, measurements and resets use it.
       - Qubit ops sit at the top level of the function or inside `scf` regions, and the function has a single block.
 
+      TODO: Some control flow like `scf.for` not yet supported. Needs to be added.
+
       Functions without qubit references are left alone.
 
       Example:

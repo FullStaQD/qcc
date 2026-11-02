@@ -144,8 +144,7 @@ private:
   LogicalResult checkPreconditions() {
     Region& body = func.getBody();
     if (!body.hasOneBlock()) {
-      return func.emitOpError() << "acts on qubits, so it must have a single block: only 'scf.if' is supported as "
-                                   "control flow around qubit ops";
+      return func.emitOpError() << "has multiple blocks, which " << passName << " does not support";
     }
     if (llvm::any_of(func.getArgumentTypes(), [](Type type) { return holdsQubitRefs(type); })) {
       return func.emitOpError() << "has a qubit reference argument, which " << passName << " does not support";
@@ -176,9 +175,8 @@ private:
   LogicalResult checkPlacement(Operation* op) {
     for (Operation* parent = op->getParentOp(); parent != func.getOperation(); parent = parent->getParentOp()) {
       if (!isa<scf::IfOp>(parent)) {
-        InFlightDiagnostic diag = op->emitOpError()
-                                  << "must sit at the top level of the function or inside 'scf.if', but is inside '"
-                                  << parent->getName() << "'";
+        InFlightDiagnostic diag = op->emitOpError() << "is inside '" << parent->getName() << "', which " << passName
+                                                    << " does not support";
         diag.attachNote(parent->getLoc()) << "see the enclosing op";
         return diag;
       }

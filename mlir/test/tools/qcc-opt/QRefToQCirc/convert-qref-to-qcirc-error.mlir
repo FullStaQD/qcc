@@ -62,20 +62,6 @@ func.func @yielded(%cond: i1) {
 // -----
 
 // Loops are not supported yet.
-func.func @loop(%n: index) {
-  %q = qcc.static_ref [0] : !qcc.qubit_ref
-  %c0 = arith.constant 0 : index
-  %c1 = arith.constant 1 : index
-  // expected-note @+1 {{see the enclosing op}}
-  scf.for %i = %c0 to %n step %c1 {
-    // expected-error @+1 {{'qref.single' op must sit at the top level of the function or inside 'scf.if', but is inside 'scf.for'}}
-    qref.single h %q : !qcc.qubit_ref
-  }
-  return
-}
-
-// -----
-
 func.func @if_in_loop(%n: index, %cond: i1) {
   %q = qcc.static_ref [0] : !qcc.qubit_ref
   %c0 = arith.constant 0 : index
@@ -83,7 +69,7 @@ func.func @if_in_loop(%n: index, %cond: i1) {
   // expected-note @+1 {{see the enclosing op}}
   scf.for %i = %c0 to %n step %c1 {
     scf.if %cond {
-      // expected-error @+1 {{'qref.single' op must sit at the top level of the function or inside 'scf.if', but is inside 'scf.for'}}
+      // expected-error @+1 {{'qref.single' op is inside 'scf.for', which convert-qref-to-qcirc does not support}}
       qref.single h %q : !qcc.qubit_ref
     }
   }
@@ -92,8 +78,9 @@ func.func @if_in_loop(%n: index, %cond: i1) {
 
 // -----
 
-// Unstructured control flow is not supported yet.
-// expected-error @+1 {{'func.func' op acts on qubits, so it must have a single block: only 'scf.if' is supported as control flow around qubit ops}}
+// qref allows multiple blocks but qcirc doesn't. Unstructured control flow has to be raised to structured control flow
+// before using this pass.
+// expected-error @+1 {{'func.func' op has multiple blocks, which convert-qref-to-qcirc does not support}}
 func.func @blocks(%cond: i1) {
   %q = qcc.static_ref [0] : !qcc.qubit_ref
   cf.cond_br %cond, ^bb1, ^bb2
