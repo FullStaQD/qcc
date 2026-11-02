@@ -10,6 +10,7 @@
 #include "qcc/Dialect/QCF/IR/QCF.h"
 #include "qcc/Dialect/Qcc/IR/Qcc.h"
 
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/Block.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinAttributes.h"
@@ -260,8 +261,32 @@ struct InlineConstantCondition : OpRewritePattern<IfOp> {
   }
 };
 
+/// A `qcf` op without qubit bindings is equivalent to the corresponding `scf` operation. In that case canonicalizing to
+/// `scf` is better to benefit from upstream optimizations.
+struct ConvertUnboundToSCF : OpRewritePattern<IfOp> {
+  using OpRewritePattern::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(IfOp op, PatternRewriter& rewriter) const override {
+    if (!op.getQubitsIn().empty()) {
+      return failure();
+    }
+    auto ifOp = scf::IfOp::create(rewriter, op.getLoc(), op.getResultTypes(), op.getCondition(),
+                                  /*addThenBlock=*/false, /*addElseBlock=*/false);
+    for (auto [from, to] : llvm::zip_equal(op->getRegions(), ifOp->getRegions())) {
+      rewriter.inlineRegionBefore(from, to, to.end());
+      if (!to.empty()) {
+        Operation* yield = to.front().getTerminator();
+        rewriter.setInsertionPoint(yield);
+        rewriter.replaceOpWithNewOp<scf::YieldOp>(yield, yield->getOperands());
+      }
+    }
+    rewriter.replaceOp(op, ifOp.getResults());
+    return success();
+  }
+};
+
 } // namespace
 
 void IfOp::getCanonicalizationPatterns(RewritePatternSet& results, MLIRContext* context) {
-  results.add<RemoveTrivialElse, InlineConstantCondition>(context);
+  results.add<RemoveTrivialElse, InlineConstantCondition, ConvertUnboundToSCF>(context);
 }

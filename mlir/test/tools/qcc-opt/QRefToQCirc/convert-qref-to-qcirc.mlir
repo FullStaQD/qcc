@@ -63,13 +63,13 @@ func.func @if_without_else(%cond: i1) {
 
 // -----
 
-// The bindings are the qubits that either region acts on, in the order of their indices, wherever they are named.
-// Classical results follow the qubits.
+// The bindings are only the qubits that either region acts on, in the order of their indices, wherever they are named.
 // CHECK-LABEL: func.func @if_else
 // CHECK-SAME:  (%[[COND:.*]]: i1) -> i1
 func.func @if_else(%cond: i1) -> i1 {
   %q2 = qcc.static_ref [2] : !qcc.qubit_ref
   %q0 = qcc.static_ref [0] : !qcc.qubit_ref
+  %q3 = qcc.static_ref [3] : !qcc.qubit_ref
   %bit = scf.if %cond -> i1 {
     %m = qref.measure z %q2 : !qcc.qubit_ref -> i1
     scf.yield %m : i1
@@ -79,9 +79,10 @@ func.func @if_else(%cond: i1) -> i1 {
     %false = arith.constant false
     scf.yield %false : i1
   }
+  qref.single x %q3 : !qcc.qubit_ref
   return %bit : i1
 }
-// CHECK:         %[[Q:.*]]:3 = qcc.static [0, 1, 2] : !qcc.qubit
+// CHECK:         %[[Q:.*]]:4 = qcc.static [0, 1, 2, 3] : !qcc.qubit
 // CHECK-NEXT:    %[[IF:.*]]:4 = qcf.if %[[COND]] (%[[A0:.*]] = %[[Q]]#0, %[[A1:.*]] = %[[Q]]#1, %[[A2:.*]] = %[[Q]]#2) -> (!qcc.qubit, !qcc.qubit, !qcc.qubit, i1) {
 // CHECK-NEXT:      %[[M2:.*]], %[[M:.*]] = qcirc.measure z %[[A2]] : !qcc.qubit -> i1
 // CHECK-NEXT:      qcf.yield %[[A0]], %[[A1]], %[[M2]], %[[M]] : !qcc.qubit, !qcc.qubit, !qcc.qubit, i1
@@ -90,6 +91,7 @@ func.func @if_else(%cond: i1) -> i1 {
 // CHECK-NEXT:      %[[FALSE:.*]] = arith.constant false
 // CHECK-NEXT:      qcf.yield %[[R]], %[[L]], %[[B2]], %[[FALSE]] : !qcc.qubit, !qcc.qubit, !qcc.qubit, i1
 // CHECK-NEXT:    }
+// CHECK-NEXT:    %{{.*}} = qcirc.single x %[[Q]]#3 : !qcc.qubit
 // CHECK-NEXT:    return %[[IF]]#3 : i1
 
 // -----
@@ -120,7 +122,7 @@ func.func @nested_if(%c0: i1, %c1: i1) {
 
 // -----
 
-// An `scf.if` without qubit ops stays.
+// An `scf.if` without qubit ops stays (to not fight canonicalizer).
 // CHECK-LABEL: func.func @classical_if
 // CHECK-SAME:  (%[[COND:.*]]: i1, %[[A:.*]]: i32, %[[B:.*]]: i32) -> i32
 func.func @classical_if(%cond: i1, %a: i32, %b: i32) -> i32 {

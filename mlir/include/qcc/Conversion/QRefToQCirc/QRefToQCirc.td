@@ -16,7 +16,7 @@ def ConvertQRefToQCirc : Pass<"convert-qref-to-qcirc", "mlir::func::FuncOp"> {
       Turns `!qcc.qubit_ref` into `!qcc.qubit`. Moreover
 
       - All `qcc.static_ref` become a single `qcc.static` near the entry of the function.
-      - `scf` becomes `qcf`.
+      - An `scf` op that acts on qubits becomes a `qcf` op.
 
       Preconditions:
       - The function does not call other functions.
@@ -24,7 +24,7 @@ def ConvertQRefToQCirc : Pass<"convert-qref-to-qcirc", "mlir::func::FuncOp"> {
         Only gates, measurements and resets use it.
       - Qubit ops sit at the top level of the function or inside `scf` regions, and the function has a single block.
 
-      TODO: Some control flow like `scf.for` not yet supported. Needs to be added.
+      TODO: Some control flow like `scf.for` is not yet supported. Needs to be added.
 
       Functions without qubit references are left alone.
 

@@ -10,5 +10,6 @@ add_mlir_dialect_library(
   MLIRIR
   MLIRSupport
   MLIRControlFlowInterfaces
+  MLIRSCFDialect
   MLIRSideEffectInterfaces
   QCCQccDialect)
