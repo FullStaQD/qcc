@@ -69,8 +69,8 @@ static bool holdsQubitRefs(Operation* op) {
          });
 }
 
-/// Whether `op` is a qref op: a gate, a measurement or a reset.
-static bool isQRefOp(Operation* op) { return isa<qref::SingleOp, qref::PairOp, qref::MeasureOp, qref::ResetOp>(op); }
+/// Shorthand for: Whether `op` is from the `qref` dialect.
+static bool isQRefOp(Operation* op) { return isa_and_present<qref::QRefDialect>(op->getDialect()); }
 
 /// The index of the static qubit that `qubit` names. The preconditions ensure that it comes from `qcc.static_ref`.
 static int64_t getIndex(Value qubit) {
@@ -196,7 +196,8 @@ private:
           .Case([&](qref::PairOp pair) { convertPair(pair, qubits); })
           .Case([&](qref::MeasureOp measure) { convertMeasure(measure, qubits); })
           .Case([&](qref::ResetOp reset) { convertReset(reset, qubits); })
-          .Case([&](scf::IfOp ifOp) { convertIf(ifOp, qubits); });
+          .Case([&](scf::IfOp ifOp) { convertIf(ifOp, qubits); })
+          .Default([](Operation* other) { assert(!isQRefOp(other) && "every qref op is converted"); });
     }
   }
 
