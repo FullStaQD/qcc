@@ -21,7 +21,7 @@ func.func @argument(%q: !qcc.qubit_ref) {
 // -----
 
 func.func @alloc() {
-  // expected-error @+1 {{'qcc.alloc' op is not supported on qubit references: every qubit must come from 'qcc.static_ref', and only gates, measurements and resets may use it}}
+  // expected-error @+1 {{'qcc.alloc' op uses qubit references in a way convert-qref-to-qcirc does not support: every qubit must come from 'qcc.static_ref', and only gates, measurements and resets may use it}}
   %q = qcc.alloc : !qcc.qubit_ref
   qref.single h %q : !qcc.qubit_ref
   return
@@ -31,7 +31,7 @@ func.func @alloc() {
 
 func.func @array() {
   %q:2 = qcc.static_ref [0, 1] : !qcc.qubit_ref
-  // expected-error @+1 {{'tensor.from_elements' op is not supported on qubit references}}
+  // expected-error @+1 {{'tensor.from_elements' op uses qubit references in a way convert-qref-to-qcirc does not support}}
   %r = tensor.from_elements %q#0, %q#1 : tensor<2x!qcc.qubit_ref>
   %c0 = arith.constant 0 : index
   %e = tensor.extract %r[%c0] : tensor<2x!qcc.qubit_ref>
@@ -44,7 +44,7 @@ func.func @array() {
 func.func @returned() -> !qcc.qubit_ref {
   %q = qcc.static_ref [0] : !qcc.qubit_ref
   qref.single h %q : !qcc.qubit_ref
-  // expected-error @+1 {{'func.return' op is not supported on qubit references}}
+  // expected-error @+1 {{'func.return' op uses qubit references in a way convert-qref-to-qcirc does not support}}
   return %q : !qcc.qubit_ref
 }
 
@@ -52,7 +52,7 @@ func.func @returned() -> !qcc.qubit_ref {
 
 func.func @yielded(%cond: i1) {
   %q:2 = qcc.static_ref [0, 1] : !qcc.qubit_ref
-  // expected-error @+1 {{'scf.if' op is not supported on qubit references}}
+  // expected-error @+1 {{'scf.if' op uses qubit references in a way convert-qref-to-qcirc does not support}}
   %r = scf.if %cond -> !qcc.qubit_ref {
     scf.yield %q#0 : !qcc.qubit_ref
   } else {

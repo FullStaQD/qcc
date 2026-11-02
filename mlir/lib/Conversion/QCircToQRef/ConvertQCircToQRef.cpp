@@ -161,10 +161,10 @@ protected:
     MLIRContext* ctx = &getContext();
 
     // Precondition: no vectors of qubits.
-    const WalkResult vectors = getOperation()->walk([](Operation* op) {
+    const WalkResult vectors = getOperation()->walk([&](Operation* op) {
       auto isQubitVector = [](Type type) { return isa<VectorType>(type) && isQubitOrQubitVector(type); };
       if (llvm::any_of(op->getOperandTypes(), isQubitVector) || llvm::any_of(op->getResultTypes(), isQubitVector)) {
-        op->emitOpError() << "is not supported on vectors of qubits";
+        op->emitOpError() << "uses a vector of qubits, which " << getArgument() << " does not support";
         return WalkResult::interrupt();
       }
       return WalkResult::advance();

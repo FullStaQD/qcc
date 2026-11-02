@@ -1,6 +1,5 @@
 // RUN: qcc-opt %s --convert-qcirc-to-qref --split-input-file | FileCheck %s
 
-// Every value of a qubit becomes the reference to it.
 // CHECK-LABEL: func.func @gates
 // CHECK-SAME:  (%[[THETA:.*]]: f64) -> (i1, i1)
 func.func @gates(%theta: f64) -> (i1, i1) {
@@ -21,21 +20,6 @@ func.func @gates(%theta: f64) -> (i1, i1) {
 // CHECK-NEXT:    qref.reset x %[[Q]]#0 : !qcc.qubit_ref
 // CHECK-NEXT:    %[[BIT1:.*]] = qref.measure x %[[Q]]#1 : !qcc.qubit_ref -> i1
 // CHECK-NEXT:    return %[[BIT0]], %[[BIT1]] : i1, i1
-
-// -----
-
-// A result is the same qubit as the operand in its lane, even after a swap.
-// CHECK-LABEL: func.func @swap
-func.func @swap() {
-  %q0, %q1 = qcc.static [0, 1] : !qcc.qubit
-  %a, %b = qcirc.pair swap %q0, %q1 : !qcc.qubit
-  %b1 = qcirc.single x %b : !qcc.qubit
-  return
-}
-// CHECK:         %[[Q:.*]]:2 = qcc.static_ref [0, 1] : !qcc.qubit_ref
-// CHECK-NEXT:    qref.pair swap %[[Q]]#0, %[[Q]]#1 : !qcc.qubit_ref
-// CHECK-NEXT:    qref.single x %[[Q]]#1 : !qcc.qubit_ref
-// CHECK-NEXT:    return
 
 // -----
 

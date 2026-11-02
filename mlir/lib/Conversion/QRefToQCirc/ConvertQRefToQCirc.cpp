@@ -101,7 +101,7 @@ namespace {
 
 class FunctionConverter {
 public:
-  explicit FunctionConverter(func::FuncOp func) : func(func) {}
+  FunctionConverter(func::FuncOp func, StringRef passName) : func(func), passName(passName) {}
 
   LogicalResult run() {
     if (failed(checkPreconditions())) {
@@ -160,8 +160,9 @@ private:
         return succeeded(checkPlacement(op)) ? WalkResult::advance() : WalkResult::interrupt();
       }
       if (!isa<StaticRefOp>(op) && holdsQubitRefs(op)) {
-        op->emitOpError() << "is not supported on qubit references: every qubit must come from 'qcc.static_ref', and "
-                             "only gates, measurements and resets may use it";
+        op->emitOpError() << "uses qubit references in a way " << passName
+                          << " does not support: every qubit must come from 'qcc.static_ref', and only gates, "
+                             "measurements and resets may use it";
         return WalkResult::interrupt();
       }
       return WalkResult::advance();
@@ -288,6 +289,7 @@ private:
   }
 
   func::FuncOp func;
+  StringRef passName;
 };
 
 struct ConvertQRefToQCirc final : impl::ConvertQRefToQCircBase<ConvertQRefToQCirc> {
@@ -303,7 +305,7 @@ protected:
       return;
     }
 
-    if (failed(FunctionConverter(func).run())) {
+    if (failed(FunctionConverter(func, getArgument()).run())) {
       signalPassFailure();
     }
   }
