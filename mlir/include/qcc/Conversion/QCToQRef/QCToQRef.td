@@ -13,8 +13,7 @@ def ConvertQCToQRef : Pass<"convert-qc-to-qref", "mlir::func::FuncOp"> {
   let summary = "Converts `qc` ops into `qref` ops.";
 
   let description = [{
-      Bridges the `qc` IR of the Qrisp lowering to `qref`. Both act on qubits in place, so the ops map one to one and
-      every `!qc.qubit` becomes a `!qcc.qubit_ref`:
+      Both dialects act on qubits in place, so the ops map one to one and every `!qc.qubit` becomes a `!qcc.qubit_ref`:
 
       - `qc.static N` becomes `qcc.static_ref [N]`.
       - A gate becomes the `qref.single` or `qref.pair` of the same name. `p` becomes `rz`, and `u(theta, phi, lambda)`

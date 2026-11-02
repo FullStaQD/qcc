@@ -10,20 +10,18 @@
 include "mlir/Pass/PassBase.td"
 
 def ConvertQCircToQRef : Pass<"convert-qcirc-to-qref", "mlir::func::FuncOp"> {
-  let summary = "Converts `qcirc` ops into `qref` ops, and `qcf.if` into `scf.if`.";
+  let summary = "Converts `qcirc` ops into `qref` ops.";
 
   let description = [{
-      Turns qubit values into references to their qubits. Every `!qcc.qubit` value of a qubit becomes the reference
-      to it:
+      Turns `!qcc.qubit` into `!qcc.qubit_ref`. Moreover
 
-      - `qcc.static` becomes `qcc.static_ref` with the same indices. The function is taken to be a program on its own,
-        so its qubits are in |0⟩ when it starts either way.
-      - Each gate, measurement and reset becomes its `qref` counterpart. Its qubit results are the references it acts
-        on.
-      - `qcf.if` becomes `scf.if` with the classical results only. Its bindings and its qubit results are the bound
-        references.
+      - `qcc.static` becomes `qcc.static_ref` with the same indices.
+      - `qcf` becomes `scf`.
 
       Vectors of qubits are not supported.
+
+      Preconditions:
+      - The function is a whole program on its own, so its qubits are in |0⟩ when it starts.
 
       Example:
 

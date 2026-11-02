@@ -10,24 +10,21 @@
 include "mlir/Pass/PassBase.td"
 
 def ConvertQRefToQCirc : Pass<"convert-qref-to-qcirc", "mlir::func::FuncOp"> {
-  let summary = "Converts `qref` ops into `qcirc` ops, and `scf.if` around them into `qcf.if`.";
+  let summary = "Converts `qref` ops into `qcirc` ops.";
 
   let description = [{
-      Turns the qubit references of a function into qubit values. A `qcc.static` at the top of the function creates
-      every static qubit that a `qcc.static_ref` in it names, and the static qubit with index N is the same qubit in
-      both. Each gate, measurement and reset becomes its `qcirc` counterpart, which consumes the current value of its
-      qubits and returns their next one. An `scf.if` with qubit ops inside becomes a `qcf.if` that binds the qubits its
-      regions act on, in the order of their indices; its classical results follow the qubits.
+      Turns `!qcc.qubit_ref` into `!qcc.qubit`. Moreover
 
-      The function is taken to be a program on its own: its qubits are in |0⟩ when it starts, as `qcc.static` states.
-      A `qcc.static_ref` does not state this, but the qubits are in |0⟩ at the start of a program.
+      - All `qcc.static_ref` become a single `qcc.static` near the entry of the function.
+      - `scf` becomes `qcf`.
 
-      Functions without qubit references are left alone. A function with them must meet these preconditions, or the
-      pass fails:
-      - It is self-contained: it calls no function.
+      Preconditions:
+      - The function does not call other functions.
       - Every qubit is a static qubit: it comes from `qcc.static_ref`, not from `qcc.alloc`, an argument or an array.
         Only gates, measurements and resets use it.
-      - Qubit ops sit at the top level of the function or inside `scf.if`, and the function has a single block.
+      - Qubit ops sit at the top level of the function or inside `scf` regions, and the function has a single block.
+
+      Functions without qubit references are left alone.
 
       Example:
 
