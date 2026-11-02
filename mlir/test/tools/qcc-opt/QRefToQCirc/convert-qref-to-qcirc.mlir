@@ -8,6 +8,7 @@ func.func @gates(%theta: f64) -> (i1, i1) {
   qref.single h %q0 : !qcc.qubit_ref
   qref.single rz(%theta) %q1 : f64, !qcc.qubit_ref
   qref.pair cx %q0, %q1 : !qcc.qubit_ref
+  qref.pair rzz(%theta) %q0, %q1 : f64, !qcc.qubit_ref
   %b0 = qref.measure z %q0 : !qcc.qubit_ref -> i1
   qref.reset x %q0 : !qcc.qubit_ref
   %b1 = qref.measure x %q1 : !qcc.qubit_ref -> i1
@@ -17,9 +18,10 @@ func.func @gates(%theta: f64) -> (i1, i1) {
 // CHECK-NEXT:    %[[A1:.*]] = qcirc.single h %[[Q]]#0 : !qcc.qubit
 // CHECK-NEXT:    %[[B1:.*]] = qcirc.single rz(%[[THETA]]) %[[Q]]#1 : f64, !qcc.qubit
 // CHECK-NEXT:    %[[A2:.*]], %[[B2:.*]] = qcirc.pair cx %[[A1]], %[[B1]] : !qcc.qubit
-// CHECK-NEXT:    %[[A3:.*]], %[[BIT0:.*]] = qcirc.measure z %[[A2]] : !qcc.qubit -> i1
-// CHECK-NEXT:    %{{.*}} = qcirc.reset x %[[A3]] : !qcc.qubit
-// CHECK-NEXT:    %{{.*}}, %[[BIT1:.*]] = qcirc.measure x %[[B2]] : !qcc.qubit -> i1
+// CHECK-NEXT:    %[[A3:.*]], %[[B3:.*]] = qcirc.pair rzz(%[[THETA]]) %[[A2]], %[[B2]] : f64, !qcc.qubit
+// CHECK-NEXT:    %[[A4:.*]], %[[BIT0:.*]] = qcirc.measure z %[[A3]] : !qcc.qubit -> i1
+// CHECK-NEXT:    %{{.*}} = qcirc.reset x %[[A4]] : !qcc.qubit
+// CHECK-NEXT:    %{{.*}}, %[[BIT1:.*]] = qcirc.measure x %[[B3]] : !qcc.qubit -> i1
 // CHECK-NEXT:    return %[[BIT0]], %[[BIT1]] : i1, i1
 
 // -----
