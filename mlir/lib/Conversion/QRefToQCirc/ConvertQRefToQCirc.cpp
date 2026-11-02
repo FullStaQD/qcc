@@ -148,21 +148,23 @@ private:
                                    "control flow around qubit ops";
     }
     if (llvm::any_of(func.getArgumentTypes(), [](Type type) { return holdsQubitRefs(type); })) {
-      return func.emitOpError() << "has a qubit reference argument, but every qubit must come from 'qcc.static_ref'";
+      return func.emitOpError() << "has a qubit reference argument, which " << passName << " does not support";
     }
 
     const WalkResult result = body.walk<WalkOrder::PreOrder>([&](Operation* op) {
       if (isa<CallOpInterface>(op)) {
-        op->emitOpError() << "is not supported: a function acting on qubits must be self-contained";
+        op->emitOpError() << "calls a function, which " << passName << " does not support";
         return WalkResult::interrupt();
       }
       if (isQRefOp(op)) {
         return succeeded(checkPlacement(op)) ? WalkResult::advance() : WalkResult::interrupt();
       }
+      if (isa<AllocOp>(op)) {
+        op->emitOpError() << "is not supported by " << passName;
+        return WalkResult::interrupt();
+      }
       if (!isa<StaticRefOp>(op) && holdsQubitRefs(op)) {
-        op->emitOpError() << "uses qubit references in a way " << passName
-                          << " does not support: every qubit must come from 'qcc.static_ref', and only gates, "
-                             "measurements and resets may use it";
+        op->emitOpError() << "is not supported by " << passName << " on qubit references";
         return WalkResult::interrupt();
       }
       return WalkResult::advance();
