@@ -11,7 +11,7 @@
 #include "qcc/Dialect/QRef/IR/QRef.h"
 #include "qcc/Dialect/Qcc/IR/Qcc.h"
 
-#include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h" // IWYU pragma: keep
 #include "mlir/Dialect/QC/IR/QCDialect.h"
 #include "mlir/Dialect/QC/IR/QCOps.h"
 #include "mlir/IR/Block.h"
