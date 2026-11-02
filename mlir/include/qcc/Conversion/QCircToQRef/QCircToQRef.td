@@ -18,10 +18,9 @@ def ConvertQCircToQRef : Pass<"convert-qcirc-to-qref", "mlir::func::FuncOp"> {
       - `qcc.static` becomes `qcc.static_ref` with the same indices.
       - `qcf` becomes `scf`.
 
-      Vectors of qubits are not supported.
-
       Preconditions:
       - The function is a whole program on its own, so its qubits are in |0⟩ when it starts.
+      - Vectors of qubits are not supported.
 
       Example:
 

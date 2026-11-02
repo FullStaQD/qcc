@@ -13,7 +13,7 @@
 #include "qcc/Dialect/QRef/IR/QRef.h"
 #include "qcc/Dialect/Qcc/IR/Qcc.h"
 
-#include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h" // IWYU pragma: keep
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/MLIRContext.h"
@@ -28,7 +28,7 @@
 #include "mlir/Transforms/DialectConversion.h"
 
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/SmallVector.h" // IWYU pragma: keep
 
 #include <utility>
 
@@ -60,7 +60,7 @@ struct StaticConversion final : OpConversionPattern<StaticOp> {
   }
 };
 
-/// Converts `qcirc.single` into `qref.single`. Its qubit result is the reference it acts on.
+/// Converts `qcirc.single` into `qref.single`.
 struct SingleConversion final : OpConversionPattern<qcirc::SingleOp> {
   using OpConversionPattern::OpConversionPattern;
 
@@ -72,7 +72,7 @@ struct SingleConversion final : OpConversionPattern<qcirc::SingleOp> {
   }
 };
 
-/// Converts `qcirc.pair` into `qref.pair`. Its qubit results are the references it acts on.
+/// Converts `qcirc.pair` into `qref.pair`.
 struct PairConversion final : OpConversionPattern<qcirc::PairOp> {
   using OpConversionPattern::OpConversionPattern;
 
@@ -85,7 +85,7 @@ struct PairConversion final : OpConversionPattern<qcirc::PairOp> {
   }
 };
 
-/// Converts `qcirc.measure` into `qref.measure`. Its qubit result is the reference it acts on.
+/// Converts `qcirc.measure` into `qref.measure`.
 struct MeasureConversion final : OpConversionPattern<qcirc::MeasureOp> {
   using OpConversionPattern::OpConversionPattern;
 
@@ -97,7 +97,7 @@ struct MeasureConversion final : OpConversionPattern<qcirc::MeasureOp> {
   }
 };
 
-/// Converts `qcirc.reset` into `qref.reset`. Its qubit result is the reference it acts on.
+/// Converts `qcirc.reset` into `qref.reset`.
 struct ResetConversion final : OpConversionPattern<qcirc::ResetOp> {
   using OpConversionPattern::OpConversionPattern;
 
@@ -109,8 +109,8 @@ struct ResetConversion final : OpConversionPattern<qcirc::ResetOp> {
   }
 };
 
-/// Converts `qcf.if` into `scf.if` with the classical results only. Its bindings and its qubit results are the bound
-/// references. An omitted else region stays omitted.
+/// Converts `qcf.if` into `scf.if` with the classical results only. The bound qubits are captured. An omitted else
+/// region stays omitted.
 struct IfConversion final : OpConversionPattern<qcf::IfOp> {
   using OpConversionPattern::OpConversionPattern;
 
@@ -137,7 +137,7 @@ struct IfConversion final : OpConversionPattern<qcf::IfOp> {
   }
 };
 
-/// Converts `qcf.yield` into `scf.yield` of the classical values: references need not be yielded.
+/// Converts `qcf.yield` into `scf.yield` of the classical values.
 struct YieldConversion final : OpConversionPattern<qcf::YieldOp> {
   using OpConversionPattern::OpConversionPattern;
 
@@ -160,16 +160,23 @@ protected:
   void runOnOperation() override {
     MLIRContext* ctx = &getContext();
 
-    // Precondition: no vectors of qubits.
-    const WalkResult vectors = getOperation()->walk([&](Operation* op) {
-      auto isQubitVector = [](Type type) { return isa<VectorType>(type) && isQubitOrQubitVector(type); };
-      if (llvm::any_of(op->getOperandTypes(), isQubitVector) || llvm::any_of(op->getResultTypes(), isQubitVector)) {
+    // Preconditions: no vectors of qubits, and only `qcc.static`, `qcirc` and `qcf` ops use qubits.
+    const WalkResult unsupported = getOperation()->walk<WalkOrder::PreOrder>([&](Operation* op) {
+      auto holds = [&](auto predicate) {
+        return llvm::any_of(op->getOperandTypes(), predicate) || llvm::any_of(op->getResultTypes(), predicate);
+      };
+      if (holds(isQubitVector)) {
         op->emitOpError() << "uses a vector of qubits, which " << getArgument() << " does not support";
+        return WalkResult::interrupt();
+      }
+      if (!isa<StaticOp>(op) && !isa_and_present<qcirc::QCircDialect, qcf::QCFDialect>(op->getDialect()) &&
+          holds(isQubitOrQubitVector)) {
+        op->emitOpError() << "is not supported by " << getArgument() << " on qubits";
         return WalkResult::interrupt();
       }
       return WalkResult::advance();
     });
-    if (vectors.wasInterrupted()) {
+    if (unsupported.wasInterrupted()) {
       return signalPassFailure();
     }
 
