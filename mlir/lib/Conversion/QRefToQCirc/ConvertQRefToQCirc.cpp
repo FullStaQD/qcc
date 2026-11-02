@@ -158,7 +158,7 @@ private:
       if (isQRefOp(op)) {
         return succeeded(checkPlacement(op)) ? WalkResult::advance() : WalkResult::interrupt();
       }
-      if (isa<AllocOp>(op)) {
+      if (isa<AllocOp, StaticOp>(op)) {
         op->emitOpError() << "is not supported by " << passName;
         return WalkResult::interrupt();
       }

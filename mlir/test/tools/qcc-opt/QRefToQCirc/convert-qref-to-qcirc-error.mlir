@@ -29,6 +29,17 @@ func.func @alloc() {
 
 // -----
 
+// The pass creates the only `qcc.static` of the function itself.
+func.func @static() {
+  // expected-error @+1 {{'qcc.static' op is not supported by convert-qref-to-qcirc}}
+  %q = qcc.static [0] : !qcc.qubit
+  %r = qcc.static_ref [1] : !qcc.qubit_ref
+  qref.single h %r : !qcc.qubit_ref
+  return
+}
+
+// -----
+
 func.func @array() {
   %q:2 = qcc.static_ref [0, 1] : !qcc.qubit_ref
   // expected-error @+1 {{'tensor.from_elements' op is not supported by convert-qref-to-qcirc on qubit references}}
