@@ -23,6 +23,7 @@ def ConvertQRefToQCirc : Pass<"convert-qref-to-qcirc", "mlir::func::FuncOp"> {
       - Every qubit is a static qubit: it comes from `qcc.static_ref`, not from `qcc.alloc`, an argument or an array.
         Only gates, measurements and resets use it.
       - Qubit ops sit at the top level of the function or inside `scf` regions, and the function has a single block.
+      - A function with `!qcc.qubit_ref` has no `!qcc.qubit`.
 
       TODO: Some control flow like `scf.for` is not yet supported. Needs to be added.
 

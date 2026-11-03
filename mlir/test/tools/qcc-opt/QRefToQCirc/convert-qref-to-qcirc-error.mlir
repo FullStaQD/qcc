@@ -29,11 +29,12 @@ func.func @alloc() {
 
 // -----
 
-// The pass creates the only `qcc.static` of the function itself.
 func.func @static() {
-  // expected-error @+1 {{'qcc.static' op is not supported by convert-qref-to-qcirc}}
+  // expected-error @+1 {{'qcc.static' op uses '!qcc.qubit' in a function that uses '!qcc.qubit_ref'; mixing qubit types is ill-defined}}
   %q = qcc.static [0] : !qcc.qubit
-  %r = qcc.static_ref [1] : !qcc.qubit_ref
+  %r = qcc.static_ref [0] : !qcc.qubit_ref
+  // Ill-defined because MLIR is free to reorder the x and h gates below (side effects)
+  %q1 = qcirc.single x %q : !qcc.qubit
   qref.single h %r : !qcc.qubit_ref
   return
 }

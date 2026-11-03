@@ -188,10 +188,10 @@ protected:
         op->emitOpError() << "is not supported by " << getArgument() << " on qubits";
         return WalkResult::interrupt();
       }
-      // mixing qubit values and qubit references not supported
+      // mixing qubit values and qubit references is ill-defined
       if (holdsQubits && holds(op, isQubitRefOrArray)) {
-        op->emitOpError() << "uses qubit references in a function with qubits, which " << getArgument()
-                          << " does not support";
+        op->emitOpError()
+            << "uses '!qcc.qubit_ref' in a function that uses '!qcc.qubit'; mixing qubit types is ill-defined";
         return WalkResult::interrupt();
       }
       return WalkResult::advance();

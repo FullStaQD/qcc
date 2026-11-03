@@ -25,7 +25,7 @@ func.func @scf_if(%cond: i1) {
 // A `qref` op (has effects) has no defined order relative to the `qcirc` ops (no memory effects) on the same qubit.
 func.func @static_ref() {
   %q = qcc.static [0] : !qcc.qubit
-  // expected-error @+1 {{'qcc.static_ref' op uses qubit references in a function with qubits, which convert-qcirc-to-qref does not support}}
+  // expected-error @+1 {{'qcc.static_ref' op uses '!qcc.qubit_ref' in a function that uses '!qcc.qubit'; mixing qubit types is ill-defined}}
   %r = qcc.static_ref [0] : !qcc.qubit_ref
   // Order of h and x not well-defined (h gate could be sunk after x gate), hence mixing qubit types must be rejected.
   %q1 = qcirc.single h %q : !qcc.qubit
@@ -38,7 +38,7 @@ func.func @static_ref() {
 func.func @qubit_ref_argument(%r: !qcc.qubit_ref) {
   %q = qcc.static [0] : !qcc.qubit
   %q1 = qcirc.single h %q : !qcc.qubit
-  // expected-error @+1 {{'qref.single' op uses qubit references in a function with qubits, which convert-qcirc-to-qref does not support}}
+  // expected-error @+1 {{'qref.single' op uses '!qcc.qubit_ref' in a function that uses '!qcc.qubit'; mixing qubit types is ill-defined}}
   qref.single x %r : !qcc.qubit_ref
   return
 }

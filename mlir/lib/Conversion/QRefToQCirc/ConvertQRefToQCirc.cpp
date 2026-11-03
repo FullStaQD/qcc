@@ -158,8 +158,13 @@ private:
       if (isQRefOp(op)) {
         return succeeded(checkPlacement(op)) ? WalkResult::advance() : WalkResult::interrupt();
       }
-      if (isa<AllocOp, StaticOp>(op)) {
+      if (isa<AllocOp>(op)) {
         op->emitOpError() << "is not supported by " << passName;
+        return WalkResult::interrupt();
+      }
+      if (isa<StaticOp>(op)) {
+        op->emitOpError()
+            << "uses '!qcc.qubit' in a function that uses '!qcc.qubit_ref'; mixing qubit types is ill-defined";
         return WalkResult::interrupt();
       }
       if (!isa<StaticRefOp>(op) && holdsQubitRefs(op)) {
