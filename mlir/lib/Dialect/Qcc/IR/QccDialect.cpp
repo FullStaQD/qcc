@@ -112,6 +112,11 @@ bool qcc::isQubitOrQubitVector(Type type) {
   return isa<QubitType>(vectorType ? vectorType.getElementType() : type);
 }
 
+bool qcc::isQubitVector(Type type) {
+  auto vectorType = dyn_cast<VectorType>(type);
+  return vectorType && isa<QubitType>(vectorType.getElementType());
+}
+
 bool qcc::isClassicalType(Type type) {
   if (isa<TensorType, VectorType>(type)) {
     return isClassicalType(cast<ShapedType>(type).getElementType());
