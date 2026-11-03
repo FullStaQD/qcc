@@ -26,7 +26,8 @@ def MagicLayer : Pass<"magic-layer", "mlir::func::FuncOp"> {
       - a ZZ layer: one `active_zz` per trap and one `inter_trap_zz` per coupling across traps,
 
       strictly alternating, followed by at most one `rz` per trap (diagonal rotations that never met a `zxz`) and then
-      the `mzd` ops in their original order. All other ops (e.g. `aux.record_int`) stay where they are.
+      the `mzd` ops in their original order. All other ops after `magic.init` (e.g. `aux.record_int`) come after the
+      measurements, in their original order.
 
       The schedule is greedy and commutation-aware: diagonal gates (`rz`, `active_zz`, `inter_trap_zz`) commute with
       each other and gates on distinct ions commute; nothing else does. A coupling joins the latest ZZ layer such that

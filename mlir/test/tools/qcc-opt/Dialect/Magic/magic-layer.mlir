@@ -153,8 +153,7 @@ func.func @residual_rz() {
 !a = !magic.ion_chain<0, [0:1]>
 !b = !magic.ion_chain<1, [1:1]>
 
-// Trap 0 is measured before the gate on trap 1. The measurements go behind the layers in their original order; the
-// records stay where they are.
+// Trap 0 is measured before the gate on trap 1.
 // CHECK-LABEL: func.func @measurements_last
 func.func @measurements_last() {
   %a0, %b0 = magic.init : !a, !b
@@ -166,6 +165,7 @@ func.func @measurements_last() {
   return
 }
 
+// The measurements go behind the layers in their original order; the records come after the measurements.
 // CHECK:      %[[INIT:.*]]:2 = magic.init : !chain, !chain1
 // CHECK-NEXT: %[[B1:.*]] = magic.zxz %[[INIT]]#1 ions [1]
 // CHECK-NEXT: %[[M0:.*]] = magic.mzd %[[INIT]]#0 : !chain -> i1
