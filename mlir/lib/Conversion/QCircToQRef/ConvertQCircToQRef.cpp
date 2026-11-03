@@ -41,7 +41,7 @@ using namespace mlir;
 
 namespace {
 
-/// Converts `!qcc.qubit` into `!qcc.qubit_ref` and leaves every other type alone.
+/// Converts `!qcc.qubit` into `!qcc.qubit_ref`.
 struct QCircToQRefTypeConverter final : TypeConverter {
   explicit QCircToQRefTypeConverter(MLIRContext* ctx) {
     addConversion([](Type type) { return type; });
