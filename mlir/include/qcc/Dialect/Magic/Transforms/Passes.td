@@ -12,6 +12,54 @@
 
 include "mlir/Pass/PassBase.td"
 
+def MagicLayer : Pass<"magic-layer", "mlir::func::FuncOp"> {
+  let summary = "Schedules the gates into alternating `zxz` layers and ZZ blocks.";
+
+  let description = [{
+      A scheduler for the gates the conversion into `magic` emits: `zxz`, `rz`, `active_zz` and `inter_trap_zz`. It
+      runs before shuttles, swaps and recodes exist, so every ion is active and stays in the trap `magic.init` puts it
+      in.
+
+      The gates are replaced by a sequence of *layers*, emitted right behind `magic.init`:
+
+      - a rotation layer: one `zxz` per trap over all ions that have a rotation ready, or
+      - a ZZ block: one `active_zz` per trap and one `inter_trap_zz` per coupling across traps,
+
+      strictly alternating, followed by at most one `rz` per trap (diagonal rotations that never met a `zxz`) and then
+      the `mzd` ops in their original order. All other ops (e.g. `aux.record_int`) stay where they are.
+
+      The schedule is greedy and commutation-aware: diagonal gates (`rz`, `active_zz`, `inter_trap_zz`) commute with
+      each other and gates on distinct ions commute; nothing else does. A coupling joins the latest block such that
+      only diagonal gates touch its ions between that block and the gate; two couplings of the same pair in one block
+      *add* their angles. `rz` gates float over blocks and are folded into the neighbouring `zxz`; consecutive `zxz`
+      on one ion are fused. Nothing follows an `mzd` on its chain, so the measurements do not constrain the schedule.
+
+      Rejected with a diagnostic: other `magic` ops, a second `magic.init`, and non-magic ops on chains.
+
+      Example (a Bell pair: `h` on both ions, `rzz(pi/2)`, `rz(-pi/2)` on both, `h` on ion 1):
+
+      ```mlir
+      %c0 = magic.init : !c
+      %c1 = magic.zxz %c0 ions [0] {z1 = [1.5708], x = [1.5708], z2 = [1.5708]} : !c
+      %c2 = magic.zxz %c1 ions [1] {z1 = [1.5708], x = [1.5708], z2 = [1.5708]} : !c
+      %c3 = magic.active_zz %c2 {angles = dense<[[0.0, 1.5708], [1.5708, 0.0]]> : tensor<2x2xf64>} : !c
+      %c4 = magic.rz %c3 ions [0, 1] {angles = [-1.5708, -1.5708]} : !c
+      %c5 = magic.zxz %c4 ions [1] {z1 = [1.5708], x = [1.5708], z2 = [1.5708]} : !c
+      ```
+
+      turns into
+
+      ```mlir
+      %c0 = magic.init : !c
+      %c1 = magic.zxz %c0 ions [0, 1] {...} : !c   // h on both, the rz of ion 0 folded in
+      %c2 = magic.active_zz %c1 {...} : !c
+      %c3 = magic.zxz %c2 ions [1] {...} : !c      // the rz of ion 1 folded into its h
+      ```
+  }];
+
+  let dependentDialects = ["qcc::magic::MagicDialect"];
+}
+
 def MagicShuttleInterTrapZZ : Pass<"magic-shuttle-inter-trap-zz", "mlir::func::FuncOp"> {
   let summary = "Lowers `magic.inter_trap_zz` to shuttles and `active_zz`.";
 
