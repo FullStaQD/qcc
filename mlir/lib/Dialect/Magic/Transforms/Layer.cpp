@@ -82,7 +82,7 @@ struct Gate {
 struct Layer {
   enum class Kind : uint8_t {
     SQ, ///< A `zxz` per trap over the ions in `sq`.
-    ZZ, ///< A ZZ block over the pairs in `zz`.
+    ZZ, ///< A ZZ layer over the pairs in `zz`.
   };
 
   explicit Layer(Kind kind) : kind(kind) {}
@@ -115,13 +115,13 @@ struct Schedule {
 /// Per ion the core tracks `last[i]`, the index of the latest layer with a gate on `i`, `lastSQ[i]`, the latest `SQ`
 /// layer with a rotation on `i`, and `pending[i]`, an `rz` angle seen but not yet placed. Rules:
 ///
-/// - `rz`: only accumulates in `pending`. Being diagonal it commutes with every ZZ block, so it floats until the next
+/// - `rz`: only accumulates in `pending`. Being diagonal it commutes with every ZZ layer, so it floats until the next
 ///   `zxz` on its ion absorbs it, or the end is reached.
 /// - `zxz`: first absorbs `pending`. If the latest layer on `i` is an `SQ` layer the two rotations fuse (nothing
 ///   touches `i` in between); otherwise it goes into the first `SQ` layer after `last[i]`.
-/// - `zz`: goes into the earliest ZZ layer after the latest layer on any of its ions, which is the latest ZZ block such
-///   that only diagonal gates touch the block's ions between it and the gate. Angles of a pair already coupled in that
-///   block add up.
+/// - `zz`: goes into the earliest ZZ layer after the latest layer on any of its ions, which is the latest ZZ layer such
+///   that only diagonal gates touch the layer's ions between it and the gate. Angles of a pair already coupled in that
+///   layer add up.
 /// - At the end, every `pending` rotation is folded into `lastSQ[i]` if there is one (only diagonal gates on `i`
 ///   follow it, so it commutes back); the rest becomes `residualRZ`.
 ///

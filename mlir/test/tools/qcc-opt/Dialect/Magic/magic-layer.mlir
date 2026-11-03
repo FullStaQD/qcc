@@ -34,8 +34,8 @@ func.func @bell() {
 !a = !magic.ion_chain<0, [0:1, 1:1]>
 !b = !magic.ion_chain<1, [2:1, 3:1]>
 
-// Two traps. All couplings end up in one block: per trap one active_zz, then the coupling across the traps, with the
-// lower trap first. The rz on ion 3 never meets a zxz and stays a residual rz on trap 1.
+// Two traps. All couplings end up in one ZZ layer: per trap one active_zz, then the coupling across the traps, with
+// the lower trap first. The rz on ion 3 never meets a zxz and stays a residual rz on trap 1.
 // CHECK-LABEL: func.func @two_traps
 func.func @two_traps() {
   %a0, %b0 = magic.init : !a, !b
@@ -68,19 +68,19 @@ func.func @two_traps() {
 // CHECK-LABEL: func.func @merge_across_rz_not_across_x
 func.func @merge_across_rz_not_across_x() {
   %c0 = magic.init : !c
-  // The first two couplings form one block, the last one a second block.
+  // The first two couplings form one ZZ layer, the last one a second.
   %c1 = magic.active_zz %c0 {angles = dense<[[0.0, 0.5, 0.0], [0.5, 0.0, 0.0], [0.0, 0.0, 0.0]]> : tensor<3x3xf64>} : !c
-  // Diagonal: does not split the block.
+  // Diagonal: does not split the ZZ layer.
   %c2 = magic.rz %c1 ions [1] {angles = [0.25]} : !c
   %c3 = magic.active_zz %c2 {angles = dense<[[0.0, 0.0, 0.0], [0.0, 0.0, 0.25], [0.0, 0.25, 0.0]]> : tensor<3x3xf64>} : !c
-  // x: splits the block.
+  // x: splits the ZZ layer.
   %c4 = magic.zxz %c3 ions [1] {z1 = [0.0], x = [3.1415926535897931], z2 = [0.0]} : !c
   %c5 = magic.active_zz %c4 {angles = dense<[[0.0, 0.0, 0.0], [0.0, 0.0, 0.125], [0.0, 0.125, 0.0]]> : tensor<3x3xf64>} : !c
   return
 }
 
-// The first block couples (0, 1) and (1, 2), the x on ion 1 sits alone in between and absorbs the rz, the last
-// coupling opens a second block.
+// The first ZZ layer couples (0, 1) and (1, 2), the x on ion 1 sits alone in between and absorbs the rz, the last
+// coupling opens a second ZZ layer.
 // CHECK:      %[[C0:.*]] = magic.init : !chain
 // CHECK-NEXT: %[[C1:.*]] = magic.active_zz %[[C0]] {angles = dense<{{\[\[}}0.000000e+00, 5.000000e-01, 0.000000e+00], [5.000000e-01, 0.000000e+00, 2.500000e-01], [0.000000e+00, 2.500000e-01, 0.000000e+00]]> : tensor<3x3xf64>} : !chain
 // CHECK-NEXT: %[[C2:.*]] = magic.zxz %[[C1]] ions [1] {x = [3.1415926535897931], z1 = [2.500000e-01], z2 = [0.000000e+00]} : !chain
@@ -91,7 +91,7 @@ func.func @merge_across_rz_not_across_x() {
 
 !c = !magic.ion_chain<0, [0:1, 1:1, 2:1]>
 
-// Two couplings of the same pair in one block add up; ion 2 is not coupled at all.
+// Two couplings of the same pair in one ZZ layer add up; ion 2 is not coupled at all.
 // CHECK-LABEL: func.func @couplings_add_up
 func.func @couplings_add_up() {
   %c0 = magic.init : !c
@@ -109,7 +109,7 @@ func.func @couplings_add_up() {
 !a = !magic.ion_chain<0, [0:1, 1:1]>
 !b = !magic.ion_chain<1, [2:1]>
 
-// Couplings that cancel out within a block are dropped, within a trap and across traps.
+// Couplings that cancel out within a ZZ layer are dropped, within a trap and across traps.
 // CHECK-LABEL: func.func @couplings_cancel
 func.func @couplings_cancel() {
   %a0, %b0 = magic.init : !a, !b

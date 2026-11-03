@@ -13,7 +13,7 @@
 include "mlir/Pass/PassBase.td"
 
 def MagicLayer : Pass<"magic-layer", "mlir::func::FuncOp"> {
-  let summary = "Schedules the gates into alternating `zxz` layers and ZZ blocks.";
+  let summary = "Schedules the gates into alternating SQ and ZZ layers.";
 
   let description = [{
       A scheduler for the gates the conversion into `magic` emits: `zxz`, `rz`, `active_zz` and `inter_trap_zz`. It
@@ -22,16 +22,16 @@ def MagicLayer : Pass<"magic-layer", "mlir::func::FuncOp"> {
 
       The gates are replaced by a sequence of *layers*, emitted right behind `magic.init`:
 
-      - a rotation layer: one `zxz` per trap over all ions that have a rotation ready, or
-      - a ZZ block: one `active_zz` per trap and one `inter_trap_zz` per coupling across traps,
+      - an SQ (single-qubit) layer: one `zxz` per trap over all ions that have a rotation ready, or
+      - a ZZ layer: one `active_zz` per trap and one `inter_trap_zz` per coupling across traps,
 
       strictly alternating, followed by at most one `rz` per trap (diagonal rotations that never met a `zxz`) and then
       the `mzd` ops in their original order. All other ops (e.g. `aux.record_int`) stay where they are.
 
       The schedule is greedy and commutation-aware: diagonal gates (`rz`, `active_zz`, `inter_trap_zz`) commute with
-      each other and gates on distinct ions commute; nothing else does. A coupling joins the latest block such that
-      only diagonal gates touch its ions between that block and the gate; two couplings of the same pair in one block
-      *add* their angles. `rz` gates float over blocks and are folded into the neighbouring `zxz`; consecutive `zxz`
+      each other and gates on distinct ions commute; nothing else does. A coupling joins the latest ZZ layer such that
+      only diagonal gates touch its ions between that layer and the gate; two couplings of the same pair in one ZZ layer
+      *add* their angles. `rz` gates float over ZZ layers and are folded into the neighbouring `zxz`; consecutive `zxz`
       on one ion are fused. Nothing follows an `mzd` on its chain, so the measurements do not constrain the schedule.
 
       Rejected with a diagnostic: other `magic` ops, a second `magic.init`, and non-magic ops on chains.
