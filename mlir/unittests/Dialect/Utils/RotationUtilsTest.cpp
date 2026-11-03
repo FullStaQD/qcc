@@ -37,3 +37,26 @@ TEST(RotationUtilsTest, NormalizeAngle) {
     EXPECT_FALSE(std::signbit(normalizeAngle(angle)));
   }
 }
+
+TEST(RotationUtilsTest, FuseZXZWithRZ) {
+  const ZXZAngles zxz{.z1 = 0.1, .x = 0.2, .z2 = 0.3};
+  const ZXZAngles before = fuseZXZ(0.1, zxz);
+  const ZXZAngles after = fuseZXZ(zxz, 0.1);
+
+  // The Rz angle is added exactly: to z1 if the Rz comes first, to z2 if it comes last.
+  EXPECT_EQ(before.z1, 0.2);
+  EXPECT_EQ(before.x, 0.2);
+  EXPECT_EQ(before.z2, 0.3);
+  EXPECT_EQ(after.z1, 0.1);
+  EXPECT_EQ(after.x, 0.2);
+  EXPECT_EQ(after.z2, 0.4);
+
+  // The general fuseZXZ agrees up to rounding.
+  auto expectNear = [](const ZXZAngles& actual, const ZXZAngles& expected) {
+    EXPECT_NEAR(actual.z1, expected.z1, 1e-12);
+    EXPECT_NEAR(actual.x, expected.x, 1e-12);
+    EXPECT_NEAR(actual.z2, expected.z2, 1e-12);
+  };
+  expectNear(before, fuseZXZ(ZXZAngles{.z1 = 0.1}, zxz));
+  expectNear(after, fuseZXZ(zxz, ZXZAngles{.z1 = 0.1}));
+}
