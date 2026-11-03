@@ -21,9 +21,13 @@ func.func @bell() {
 }
 
 // CHECK:      %[[C0:.*]] = magic.init : !chain
+// First SQ layer:
 // CHECK-NEXT: %[[C1:.*]] = magic.zxz %[[C0]] ions [0, 1] {x = [1.5707963267948966, 1.5707963267948966], z1 = [1.57079632679489{{[0-9]+}}, 1.5707963267948966], z2 = [0.000000e+00, 1.5707963267948966]} : !chain
+// ZZ layer:
 // CHECK-NEXT: %[[C2:.*]] = magic.active_zz %[[C1]] {angles = dense<{{\[\[}}0.000000e+00, 1.5707963267948966], [1.5707963267948966, 0.000000e+00]]> : tensor<2x2xf64>} : !chain
+// Second SQ layer:
 // CHECK-NEXT: %[[C3:.*]] = magic.zxz %[[C2]] ions [1] {x = [1.5707963267948966], z1 = [0.000000e+00], z2 = [1.5707963267948966]} : !chain
+// No residual rz, then the measurements:
 // CHECK-NEXT: %[[M:.*]]:2 = magic.mzd %[[C3]] : !chain -> i1, i1
 // CHECK-NEXT: aux.record_int %[[M]]#0 : i1
 // CHECK-NEXT: aux.record_int %[[M]]#1 : i1
@@ -34,8 +38,6 @@ func.func @bell() {
 !a = !magic.ion_chain<0, [0:1, 1:1]>
 !b = !magic.ion_chain<1, [2:1, 3:1]>
 
-// Two traps. All couplings end up in one ZZ layer: per trap one active_zz, then the coupling across the traps, with
-// the lower trap first. The rz on ion 3 never meets a zxz and stays a residual rz on trap 1.
 // CHECK-LABEL: func.func @two_traps
 func.func @two_traps() {
   %a0, %b0 = magic.init : !a, !b
@@ -51,11 +53,14 @@ func.func @two_traps() {
 }
 
 // CHECK:      %[[INIT:.*]]:2 = magic.init : !chain, !chain1
+// SQ layer:
 // CHECK-NEXT: %[[A1:.*]] = magic.zxz %[[INIT]]#0 ions [0] {x = [2.000000e-01], z1 = [1.000000e-01], z2 = [3.000000e-01]} : !chain
 // CHECK-NEXT: %[[B1:.*]] = magic.zxz %[[INIT]]#1 ions [2] {x = [5.000000e-01], z1 = [4.000000e-01], z2 = [6.000000e-01]} : !chain1
+// All couplings in a single ZZ layer, the one across the traps last, lower trap first:
 // CHECK-NEXT: %[[A2:.*]] = magic.active_zz %[[A1]] {angles = dense<{{\[\[}}0.000000e+00, 5.000000e-01], [5.000000e-01, 0.000000e+00]]> : tensor<2x2xf64>} : !chain
 // CHECK-NEXT: %[[B2:.*]] = magic.active_zz %[[B1]] {angles = dense<{{\[\[}}0.000000e+00, 1.250000e-01], [1.250000e-01, 0.000000e+00]]> : tensor<2x2xf64>} : !chain1
 // CHECK-NEXT: %[[A3:.*]], %[[B3:.*]] = magic.inter_trap_zz %[[A2]], %[[B2]] ions [1, 2] {angle = 2.500000e-01 : f64} : !chain, !chain1
+// Residual rz:
 // CHECK-NEXT: %[[B4:.*]] = magic.rz %[[B3]] ions [3] {angles = [7.500000e-01]} : !chain1
 // CHECK-NEXT: magic.mzd %[[A3]] : !chain -> i1, i1
 // CHECK-NEXT: magic.mzd %[[B4]] : !chain1 -> i1, i1
@@ -70,7 +75,7 @@ func.func @merge_across_rz_not_across_x() {
   %c0 = magic.init : !c
   // The first two couplings form one ZZ layer, the last one a second.
   %c1 = magic.active_zz %c0 {angles = dense<[[0.0, 0.5, 0.0], [0.5, 0.0, 0.0], [0.0, 0.0, 0.0]]> : tensor<3x3xf64>} : !c
-  // Diagonal: does not split the ZZ layer.
+  // Z-Basis: does not split the ZZ layer.
   %c2 = magic.rz %c1 ions [1] {angles = [0.25]} : !c
   %c3 = magic.active_zz %c2 {angles = dense<[[0.0, 0.0, 0.0], [0.0, 0.0, 0.25], [0.0, 0.25, 0.0]]> : tensor<3x3xf64>} : !c
   // x: splits the ZZ layer.
