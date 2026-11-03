@@ -5,22 +5,22 @@
 // CHECK-LABEL: func.func @one_trap
 func.func @one_trap() {
   %c0 = magic.init : !c
-  %c1 = magic.zxz %c0 ions [0] {z1 = [0.1], x = [0.2], z2 = [0.3]} : !c
-  %c2 = magic.zxz %c1 ions [1] {z1 = [0.4], x = [0.5], z2 = [0.6]} : !c
-  %c3 = magic.active_zz %c2 {angles = dense<[[0.0, 0.25], [0.25, 0.0]]> : tensor<2x2xf64>} : !c
-  %c4 = magic.rz %c3 ions [0] {angles = [0.1]} : !c
-  %c5 = magic.rz %c4 ions [1] {angles = [0.3]} : !c
-  %c6 = magic.zxz %c5 ions [1] {z1 = [0.7], x = [0.8], z2 = [0.9]} : !c
+  %c1 = magic.zxz %c0 ions [0] {z1 = [0.125], x = [0.25], z2 = [0.375]} : !c
+  %c2 = magic.zxz %c1 ions [1] {z1 = [0.5], x = [0.625], z2 = [0.75]} : !c
+  %c3 = magic.active_zz %c2 {angles = dense<[[0.0, 0.5], [0.5, 0.0]]> : tensor<2x2xf64>} : !c
+  %c4 = magic.rz %c3 ions [0] {angles = [0.5]} : !c
+  %c5 = magic.rz %c4 ions [1] {angles = [0.5]} : !c
+  %c6 = magic.zxz %c5 ions [1] {z1 = [0.875], x = [1.0], z2 = [1.125]} : !c
   return
 }
 
 // CHECK:      %[[C0:.*]] = magic.init : !chain
-// First SQ layer, the rz on ion 0 folded back in (z2 = 0.3 + 0.1):
-// CHECK-NEXT: %[[C1:.*]] = magic.zxz %[[C0]] ions [0, 1] {x = [2.000000e-01, 5.000000e-01], z1 = [1.000000e-01, 4.000000e-01], z2 = [4.000000e-01, 6.000000e-01]} : !chain
+// First SQ layer, the rz on ion 0 folded back in (z2 = 0.375 + 0.5):
+// CHECK-NEXT: %[[C1:.*]] = magic.zxz %[[C0]] ions [0, 1] {x = [2.500000e-01, 6.250000e-01], z1 = [1.250000e-01, 5.000000e-01], z2 = [8.750000e-01, 7.500000e-01]} : !chain
 // ZZ layer:
-// CHECK-NEXT: %[[C2:.*]] = magic.active_zz %[[C1]] {angles = dense<{{\[\[}}0.000000e+00, 2.500000e-01], [2.500000e-01, 0.000000e+00]]> : tensor<2x2xf64>} : !chain
-// Second SQ layer, the rz on ion 1 folded in (z1 = 0.7 + 0.3):
-// CHECK-NEXT: magic.zxz %[[C2]] ions [1] {x = [8.000000e-01], z1 = [1.000000e+00], z2 = [9.000000e-01]} : !chain
+// CHECK-NEXT: %[[C2:.*]] = magic.active_zz %[[C1]] {angles = dense<{{\[\[}}0.000000e+00, 5.000000e-01], [5.000000e-01, 0.000000e+00]]> : tensor<2x2xf64>} : !chain
+// Second SQ layer, the rz on ion 1 folded in (z1 = 0.875 + 0.5):
+// CHECK-NEXT: magic.zxz %[[C2]] ions [1] {x = [1.000000e+00], z1 = [1.375000e+00], z2 = [1.125000e+00]} : !chain
 // CHECK-NEXT: return
 
 // -----
