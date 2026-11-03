@@ -2,35 +2,25 @@
 
 !c = !magic.ion_chain<0, [0:1, 1:1]>
 
-// A Bell pair after decomposition into rzz and zxz.
-// CHECK-LABEL: func.func @bell
-func.func @bell() {
+// CHECK-LABEL: func.func @one_trap
+func.func @one_trap() {
   %c0 = magic.init : !c
-  // h on ion 0.
-  %c1 = magic.zxz %c0 ions [0] {z1 = [1.5707963267948966], x = [1.5707963267948966], z2 = [1.5707963267948966]} : !c
-  // cx from ion 0 to ion 1, implemented by the following five gates.
-  %c2 = magic.zxz %c1 ions [1] {z1 = [1.5707963267948966], x = [1.5707963267948966], z2 = [1.5707963267948966]} : !c
-  %c3 = magic.active_zz %c2 {angles = dense<[[0.0, 1.5707963267948966], [1.5707963267948966, 0.0]]> : tensor<2x2xf64>} : !c
-  %c4 = magic.rz %c3 ions [0] {angles = [-1.5707963267948966]} : !c
-  %c5 = magic.rz %c4 ions [1] {angles = [-1.5707963267948966]} : !c
-  %c6 = magic.zxz %c5 ions [1] {z1 = [1.5707963267948966], x = [1.5707963267948966], z2 = [1.5707963267948966]} : !c
-  %m0, %m1 = magic.mzd %c6 : !c -> i1, i1
-  aux.record_int %m0 : i1
-  aux.record_int %m1 : i1
+  %c1 = magic.zxz %c0 ions [0] {z1 = [0.1], x = [0.2], z2 = [0.3]} : !c
+  %c2 = magic.zxz %c1 ions [1] {z1 = [0.4], x = [0.5], z2 = [0.6]} : !c
+  %c3 = magic.active_zz %c2 {angles = dense<[[0.0, 0.25], [0.25, 0.0]]> : tensor<2x2xf64>} : !c
+  %c4 = magic.rz %c3 ions [0] {angles = [0.1]} : !c
+  %c5 = magic.rz %c4 ions [1] {angles = [0.3]} : !c
+  %c6 = magic.zxz %c5 ions [1] {z1 = [0.7], x = [0.8], z2 = [0.9]} : !c
   return
 }
 
 // CHECK:      %[[C0:.*]] = magic.init : !chain
-// First SQ layer:
-// CHECK-NEXT: %[[C1:.*]] = magic.zxz %[[C0]] ions [0, 1] {x = [1.5707963267948966, 1.5707963267948966], z1 = [1.57079632679489{{[0-9]+}}, 1.5707963267948966], z2 = [0.000000e+00, 1.5707963267948966]} : !chain
+// First SQ layer, the rz on ion 0 folded back in (z2 = 0.3 + 0.1):
+// CHECK-NEXT: %[[C1:.*]] = magic.zxz %[[C0]] ions [0, 1] {x = [2.000000e-01, 5.000000e-01], z1 = [1.000000e-01, 4.000000e-01], z2 = [4.000000e-01, 6.000000e-01]} : !chain
 // ZZ layer:
-// CHECK-NEXT: %[[C2:.*]] = magic.active_zz %[[C1]] {angles = dense<{{\[\[}}0.000000e+00, 1.5707963267948966], [1.5707963267948966, 0.000000e+00]]> : tensor<2x2xf64>} : !chain
-// Second SQ layer:
-// CHECK-NEXT: %[[C3:.*]] = magic.zxz %[[C2]] ions [1] {x = [1.5707963267948966], z1 = [0.000000e+00], z2 = [1.5707963267948966]} : !chain
-// No residual rz, then the measurements:
-// CHECK-NEXT: %[[M:.*]]:2 = magic.mzd %[[C3]] : !chain -> i1, i1
-// CHECK-NEXT: aux.record_int %[[M]]#0 : i1
-// CHECK-NEXT: aux.record_int %[[M]]#1 : i1
+// CHECK-NEXT: %[[C2:.*]] = magic.active_zz %[[C1]] {angles = dense<{{\[\[}}0.000000e+00, 2.500000e-01], [2.500000e-01, 0.000000e+00]]> : tensor<2x2xf64>} : !chain
+// Second SQ layer, the rz on ion 1 folded in (z1 = 0.7 + 0.3):
+// CHECK-NEXT: magic.zxz %[[C2]] ions [1] {x = [8.000000e-01], z1 = [1.000000e+00], z2 = [9.000000e-01]} : !chain
 // CHECK-NEXT: return
 
 // -----
