@@ -85,3 +85,11 @@ ZXZAngles qcc::decomposeZXZ(const Matrix2x2& unitary) {
 ZXZAngles qcc::fuseZXZ(const ZXZAngles& first, const ZXZAngles& second) {
   return decomposeZXZ(zxzMatrix(second) * zxzMatrix(first));
 }
+
+ZXZAngles qcc::fuseZXZ(double zAngle, const ZXZAngles& zxz) {
+  return ZXZAngles{.z1 = normalizeAngle(zAngle + zxz.z1), .x = normalizeAngle(zxz.x), .z2 = normalizeAngle(zxz.z2)};
+}
+
+ZXZAngles qcc::fuseZXZ(const ZXZAngles& zxz, double zAngle) {
+  return ZXZAngles{.z1 = normalizeAngle(zxz.z1), .x = normalizeAngle(zxz.x), .z2 = normalizeAngle(zxz.z2 + zAngle)};
+}

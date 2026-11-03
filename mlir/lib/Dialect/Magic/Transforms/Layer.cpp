@@ -165,7 +165,7 @@ static Schedule layerGates(ArrayRef<Gate> gates) {
       const Ion ion = gate.ions.front();
       ZXZAngles zxz = gate.zxz;
       if (std::optional<double> angle = takePending(ion)) {
-        zxz = fuseZXZ(ZXZAngles{.z1 = *angle}, zxz);
+        zxz = fuseZXZ(*angle, zxz);
       }
 
       int64_t index = lastLayer(ion);
@@ -231,7 +231,7 @@ static Schedule layerGates(ArrayRef<Gate> gates) {
       continue;
     }
     ZXZAngles& existing = layers[static_cast<size_t>(it->second)].sq.at(ion);
-    existing = fuseZXZ(existing, ZXZAngles{.z1 = angle});
+    existing = fuseZXZ(existing, angle);
   }
 
   return schedule;
