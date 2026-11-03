@@ -39,6 +39,14 @@ namespace qcc {
 
 using namespace mlir;
 
+/// Whether an operand or a result of `op` has a type that satisfies `predicate`.
+static bool holds(Operation* op, function_ref<bool(Type)> predicate) {
+  return llvm::any_of(op->getOperandTypes(), predicate) || llvm::any_of(op->getResultTypes(), predicate);
+}
+
+/// Whether `type` is `!qcc.qubit_ref` or a shaped type of them.
+static bool isQubitRefOrArray(Type type) { return isa<QubitRefType>(getElementTypeOrSelf(type)); }
+
 namespace {
 
 /// Converts `!qcc.qubit` into `!qcc.qubit_ref`.
@@ -160,22 +168,35 @@ protected:
   void runOnOperation() override {
     MLIRContext* ctx = &getContext();
 
-    // Preconditions: no vectors of qubits, and only `qcc.static`, `qcirc` and `qcf` ops use qubits.
+    const bool holdsQubits =
+        getOperation()
+            ->walk([](Operation* op) {
+              return holds(op, isQubitOrQubitVector) ? WalkResult::interrupt() : WalkResult::advance();
+            })
+            .wasInterrupted();
+
+    // Check preconditions:
     const WalkResult unsupported = getOperation()->walk<WalkOrder::PreOrder>([&](Operation* op) {
-      auto holds = [&](auto predicate) {
-        return llvm::any_of(op->getOperandTypes(), predicate) || llvm::any_of(op->getResultTypes(), predicate);
-      };
-      if (holds(isQubitVector)) {
+      // no qubit vectors
+      if (holds(op, isQubitVector)) {
         op->emitOpError() << "uses a vector of qubits, which " << getArgument() << " does not support";
         return WalkResult::interrupt();
       }
+      // only ops from a whitelist allowed
       if (!isa<StaticOp>(op) && !isa_and_present<qcirc::QCircDialect, qcf::QCFDialect>(op->getDialect()) &&
-          holds(isQubitOrQubitVector)) {
+          holds(op, isQubitOrQubitVector)) {
         op->emitOpError() << "is not supported by " << getArgument() << " on qubits";
+        return WalkResult::interrupt();
+      }
+      // mixing qubit values and qubit references not supported
+      if (holdsQubits && holds(op, isQubitRefOrArray)) {
+        op->emitOpError() << "uses qubit references in a function with qubits, which " << getArgument()
+                          << " does not support";
         return WalkResult::interrupt();
       }
       return WalkResult::advance();
     });
+
     if (unsupported.wasInterrupted()) {
       return signalPassFailure();
     }

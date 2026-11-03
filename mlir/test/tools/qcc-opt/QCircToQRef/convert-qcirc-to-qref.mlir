@@ -96,3 +96,16 @@ func.func @nested_if(%c0: i1, %c1: i1) {
 // CHECK-NEXT:      }
 // CHECK-NEXT:    }
 // CHECK-NEXT:    return
+
+// -----
+
+// A function without qubits may use qubit references (both at the same time would be invalid).
+// CHECK-LABEL: func.func @qubit_refs_only
+func.func @qubit_refs_only() {
+  %q = qcc.static_ref [0] : !qcc.qubit_ref
+  qref.single h %q : !qcc.qubit_ref
+  return
+}
+// CHECK:         %[[Q:.*]] = qcc.static_ref [0] : !qcc.qubit_ref
+// CHECK-NEXT:    qref.single h %[[Q]] : !qcc.qubit_ref
+// CHECK-NEXT:    return

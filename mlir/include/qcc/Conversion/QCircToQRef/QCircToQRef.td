@@ -21,6 +21,7 @@ def ConvertQCircToQRef : Pass<"convert-qcirc-to-qref", "mlir::func::FuncOp"> {
       Preconditions:
       - The function is a whole program on its own, so its qubits are in |0⟩ when it starts.
       - Vectors of qubits are not supported.
+      - A function with `!qcc.qubit` has no `!qcc.qubit_ref`.
 
       Example:
 
