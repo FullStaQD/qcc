@@ -359,8 +359,8 @@ private:
         if (trapA == trapB || entry(i, j) == 0.0) {
           continue;
         }
-        // The lower trap first, so the output does not depend on the lane order.
-        const bool ordered = trapA < trapB;
+        // The lower ion first, as `inter_trap_zz` wants its ions.
+        const bool ordered = ionA < ionB;
         TypedValue<IonChainType>& first = chains[ordered ? trapA : trapB];
         TypedValue<IonChainType>& second = chains[ordered ? trapB : trapA];
         auto interTrap = InterTrapZZOp::create(

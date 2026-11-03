@@ -332,6 +332,15 @@ func.func @inter_trap_zz_ion_not_in_chain() {
 
 // -----
 
+func.func @inter_trap_zz_ions_unsorted() {
+  %a, %b = magic.init : !magic.ion_chain<0, [0:1]>, !magic.ion_chain<1, [1:1]>
+  // expected-error @+1 {{'magic.inter_trap_zz' op ions must be listed in increasing order, got ion 0 after ion 1}}
+  %b1, %a1 = magic.inter_trap_zz %b, %a ions [1, 0] {angle = 1.0} : !magic.ion_chain<1, [1:1]>, !magic.ion_chain<0, [0:1]>
+  return
+}
+
+// -----
+
 func.func @swap_one_ion() {
   %c0 = magic.init : !magic.ion_chain<0, [0:1, 1:1]>
   // expected-error @+1 {{'magic.swap' op expected exactly two ions, got 1}}

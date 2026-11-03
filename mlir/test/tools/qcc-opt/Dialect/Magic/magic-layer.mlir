@@ -44,7 +44,7 @@ func.func @two_traps() {
   %a1 = magic.zxz %a0 ions [0] {z1 = [0.1], x = [0.2], z2 = [0.3]} : !a
   %b1 = magic.zxz %b0 ions [2] {z1 = [0.4], x = [0.5], z2 = [0.6]} : !b
   %a2 = magic.active_zz %a1 {angles = dense<[[0.0, 0.5], [0.5, 0.0]]> : tensor<2x2xf64>} : !a
-  %b2, %a3 = magic.inter_trap_zz %b1, %a2 ions [2, 1] {angle = 0.25} : !b, !a
+  %a3, %b2 = magic.inter_trap_zz %a2, %b1 ions [1, 2] {angle = 0.25} : !a, !b
   %b3 = magic.active_zz %b2 {angles = dense<[[0.0, 0.125], [0.125, 0.0]]> : tensor<2x2xf64>} : !b
   %b4 = magic.rz %b3 ions [3] {angles = [0.75]} : !b
   %ma0, %ma1 = magic.mzd %a3 : !a -> i1, i1
@@ -56,7 +56,7 @@ func.func @two_traps() {
 // SQ layer:
 // CHECK-NEXT: %[[A1:.*]] = magic.zxz %[[INIT]]#0 ions [0] {x = [2.000000e-01], z1 = [1.000000e-01], z2 = [3.000000e-01]} : !chain
 // CHECK-NEXT: %[[B1:.*]] = magic.zxz %[[INIT]]#1 ions [2] {x = [5.000000e-01], z1 = [4.000000e-01], z2 = [6.000000e-01]} : !chain1
-// All couplings in a single ZZ layer, the one across the traps last, lower trap first:
+// All couplings in a single ZZ layer, the one across the traps last:
 // CHECK-NEXT: %[[A2:.*]] = magic.active_zz %[[A1]] {angles = dense<{{\[\[}}0.000000e+00, 5.000000e-01], [5.000000e-01, 0.000000e+00]]> : tensor<2x2xf64>} : !chain
 // CHECK-NEXT: %[[B2:.*]] = magic.active_zz %[[B1]] {angles = dense<{{\[\[}}0.000000e+00, 1.250000e-01], [1.250000e-01, 0.000000e+00]]> : tensor<2x2xf64>} : !chain1
 // CHECK-NEXT: %[[A3:.*]], %[[B3:.*]] = magic.inter_trap_zz %[[A2]], %[[B2]] ions [1, 2] {angle = 2.500000e-01 : f64} : !chain, !chain1

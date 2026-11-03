@@ -448,17 +448,13 @@ private:
       }
     }
 
+    // Every `pair` is already sorted (see `Layer::zz`), as `inter_trap_zz` requires.
     for (const auto& [pair, angle] : couplings) {
-      auto [ionA, ionB] = pair;
-      int64_t trapA = trapOf.at(ionA);
-      int64_t trapB = trapOf.at(ionB);
+      const auto [ionA, ionB] = pair;
+      const int64_t trapA = trapOf.at(ionA);
+      const int64_t trapB = trapOf.at(ionB);
       if (angle == 0.0 || trapA == trapB) {
         continue;
-      }
-      // The lower trap first, so the output does not depend on the ion ids.
-      if (trapA > trapB) {
-        std::swap(ionA, ionB);
-        std::swap(trapA, trapB);
       }
       TypedValue<IonChainType>& chainA = chains.at(trapA);
       TypedValue<IonChainType>& chainB = chains.at(trapB);
