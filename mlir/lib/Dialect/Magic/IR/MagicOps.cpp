@@ -22,6 +22,7 @@
 #include "mlir/IR/Region.h"
 #include "mlir/IR/Value.h"
 
+#include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Sequence.h"
@@ -252,6 +253,14 @@ LogicalResult SymZXZOp::verify() {
                  succeeded(verifyOneAnglePerIon(*this, "x", getX(), numIons)));
 }
 
+OpFoldResult RZOp::fold(FoldAdaptor /*adaptor*/) {
+  if (llvm::all_of(getAngles().getAsValueRange<FloatAttr>(),
+                   [](const APFloat& angle) { return normalizeAngle(angle.convertToDouble()) == 0.0; })) {
+    return getChainIn();
+  }
+  return {};
+}
+
 LogicalResult RZOp::canonicalize(RZOp op, PatternRewriter& rewriter) {
   // Per ion the sum of the angles of this op and, if it directly follows one, the preceding `rz`. Chain values are
   // affine, so the preceding op has no other user.
@@ -276,14 +285,10 @@ LogicalResult RZOp::canonicalize(RZOp op, PatternRewriter& rewriter) {
     }
   }
 
-  Value chainIn = previous ? previous.getChainIn() : op.getChainIn();
-  if (ions.empty()) {
-    rewriter.replaceOp(op, chainIn);
-  } else if (previous || ions.size() != op.getIons().size()) {
-    rewriter.replaceOpWithNewOp<RZOp>(op, chainIn, ions, sums);
-  } else {
+  if (!previous && ions.size() == op.getIons().size()) {
     return failure();
   }
+  rewriter.replaceOpWithNewOp<RZOp>(op, previous ? previous.getChainIn() : op.getChainIn(), ions, sums);
   if (previous) {
     rewriter.eraseOp(previous);
   }
@@ -333,13 +338,8 @@ LogicalResult ActiveZZOp::canonicalize(ActiveZZOp op, PatternRewriter& rewriter)
     sums.push_back(normalizeAngle(first + second));
   }
 
-  Value chainIn = previous.getChainIn();
-  if (llvm::all_of(sums, [](double angle) { return angle == 0.0; })) {
-    rewriter.replaceOp(op, chainIn);
-  } else {
-    rewriter.replaceOpWithNewOp<ActiveZZOp>(op, op.getType(), chainIn,
-                                            DenseElementsAttr::get(op.getAngles().getType(), ArrayRef(sums)));
-  }
+  rewriter.replaceOpWithNewOp<ActiveZZOp>(op, op.getType(), previous.getChainIn(),
+                                          DenseElementsAttr::get(op.getAngles().getType(), ArrayRef(sums)));
   rewriter.eraseOp(previous);
   return success();
 }
@@ -506,12 +506,8 @@ LogicalResult InterTrapZZOp::canonicalize(InterTrapZZOp op, PatternRewriter& rew
 
   Value aIn = previous.getAIn();
   Value bIn = previous.getBIn();
-  if (sum == 0.0) {
-    rewriter.replaceOp(op, ValueRange{aIn, bIn});
-  } else {
-    rewriter.replaceOpWithNewOp<InterTrapZZOp>(op, aIn.getType(), bIn.getType(), aIn, bIn, op.getIonsAttr(),
-                                               rewriter.getF64FloatAttr(sum));
-  }
+  rewriter.replaceOpWithNewOp<InterTrapZZOp>(op, aIn.getType(), bIn.getType(), aIn, bIn, op.getIonsAttr(),
+                                             rewriter.getF64FloatAttr(sum));
   rewriter.eraseOp(previous);
   return success();
 }

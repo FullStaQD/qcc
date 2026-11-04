@@ -132,6 +132,9 @@ def Magic_RZOp : Magic_SingleIonGateOp<"rz", [Magic_Native]> {
                        DenseI64ArrayAttr:$ions,
                        F64ArrayAttr:$angles);
 
+  // With all angles zero (wrapped into (-pi, pi]) it is a no-op.
+  let hasFolder = 1;
+
   // Merges two consecutive `rz`, drops zero angles.
   let hasCanonicalizeMethod = 1;
 

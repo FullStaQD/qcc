@@ -94,6 +94,26 @@ func.func @rz_zero() {
 
 !c = !magic.ion_chain<0, [0:1, 1:1, 2:1]>
 
+// Adjacent rz that add up to zero on every ion disappear.
+// CHECK-LABEL: func.func @rz_pair_cancels
+func.func @rz_pair_cancels() {
+  %c0 = magic.init : !c
+  %c1 = magic.rz %c0 ions [0, 2] {angles = [0.5, 3.0]} : !c
+  %c2 = magic.rz %c1 ions [0, 2] {angles = [-0.5, -3.0]} : !c
+  %m0, %m1, %m2 = magic.mzd %c2 : !c -> i1, i1, i1
+  aux.record_int %m0 : i1
+  aux.record_int %m1 : i1
+  aux.record_int %m2 : i1
+  return
+}
+
+// CHECK:      %[[C0:.*]] = magic.init
+// CHECK-NEXT: magic.mzd %[[C0]]
+
+// -----
+
+!c = !magic.ion_chain<0, [0:1, 1:1, 2:1]>
+
 // Symmetric rotations are native instructions of their own and never merge.
 // CHECK-LABEL: func.func @sym_zxz_kept
 func.func @sym_zxz_kept() {
