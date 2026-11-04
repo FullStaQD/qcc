@@ -17,46 +17,45 @@ def MagicLayer : Pass<"magic-layer", "mlir::func::FuncOp"> {
 
   let description = [{
       A scheduler for the gates the conversion into `magic` emits: `zxz`, `rz`, `active_zz` and `inter_trap_zz`. It
-      runs before shuttles, swaps and recodes exist, so every ion is active and stays in the trap `magic.init` puts it
-      in.
+      runs before shuttles, swaps and recodes exist, so every ion is active and stays in the trap.
 
       The gates are replaced by a sequence of *layers*, emitted right behind `magic.init`:
 
       - an SQ (single-qubit) layer: one `zxz` per trap over all ions that have a rotation ready, or
       - a ZZ layer: one `active_zz` per trap and one `inter_trap_zz` per coupling across traps,
 
-      strictly alternating, followed by at most one `rz` per trap (diagonal rotations that never met a `zxz`) and then
+      strictly alternating, followed by at most one residual `rz` per trap (Z rotations that never met a `zxz`) and then
       the `mzd` ops in their original order. All other ops after `magic.init` (e.g. `aux.record_int`) come after the
       measurements, in their original order.
 
-      The schedule is greedy and commutation-aware: diagonal gates (`rz`, `active_zz`, `inter_trap_zz`) commute with
-      each other and gates on distinct ions commute; nothing else does. A coupling joins the earliest ZZ layer such that
-      only diagonal gates touch its ions between that layer and the gate; two couplings of the same pair in one ZZ layer
-      *add* their angles. Couplings that add up to zero are dropped, and the gates are scheduled again without them, so
-      that they do not keep the gates around them apart. `rz` gates float over ZZ layers and are folded into the
-      neighbouring `zxz`; consecutive `zxz` on one ion are fused. Nothing follows an `mzd` on its chain, so the
-      measurements do not constrain the schedule.
+      The schedule is greedy and commutation-aware for the diagonal gates (`rz`, `active_zz`, `inter_trap_zz`). ZZ
+      couplings are moved to the earliest layer possible (and merged).
 
-      Rejected with a diagnostic: other `magic` ops, a second `magic.init`, and non-magic ops on chains.
-
-      Example (a Bell pair: `h` on both ions, `rzz(pi/2)`, `rz(-pi/2)` on both, `h` on ion 1):
+      Example (three ions in one trap):
 
       ```mlir
       %c0 = magic.init : !c
-      %c1 = magic.zxz %c0 ions [0] {z1 = [1.5708], x = [1.5708], z2 = [1.5708]} : !c
-      %c2 = magic.zxz %c1 ions [1] {z1 = [1.5708], x = [1.5708], z2 = [1.5708]} : !c
-      %c3 = magic.active_zz %c2 {angles = dense<[[0.0, 1.5708], [1.5708, 0.0]]> : tensor<2x2xf64>} : !c
-      %c4 = magic.rz %c3 ions [0, 1] {angles = [-1.5708, -1.5708]} : !c
-      %c5 = magic.zxz %c4 ions [1] {z1 = [1.5708], x = [1.5708], z2 = [1.5708]} : !c
+      %c1 = magic.zxz %c0 ions [0] {z1 = [0.5], x = [0.5], z2 = [0.5]} : !c
+      %c2 = magic.zxz %c1 ions [1] {z1 = [0.5], x = [0.5], z2 = [0.5]} : !c
+      %c3 = magic.active_zz %c2 {angles = dense<[[0.0, 0.25, 0.0], [0.25, 0.0, 0.25], [0.0, 0.25, 0.0]]>
+                                     : tensor<3x3xf64>} : !c
+      %c4 = magic.rz %c3 ions [0, 1, 2] {angles = [0.25, 0.25, 0.25]} : !c
+      %c5 = magic.zxz %c4 ions [1] {z1 = [0.5], x = [0.5], z2 = [0.5]} : !c
       ```
 
       turns into
 
       ```mlir
       %c0 = magic.init : !c
-      %c1 = magic.zxz %c0 ions [0, 1] {...} : !c   // h on both, the rz of ion 0 folded in
-      %c2 = magic.active_zz %c1 {...} : !c
-      %c3 = magic.zxz %c2 ions [1] {...} : !c      // the rz of ion 1 folded into its h
+      // SQ layer; the rz of ion 0 is folded back into its zxz (z2 = 0.5 + 0.25).
+      %c1 = magic.zxz %c0 ions [0, 1] {z1 = [0.5, 0.5], x = [0.5, 0.5], z2 = [0.75, 0.5]} : !c
+      // ZZ layer.
+      %c2 = magic.active_zz %c1 {angles = dense<[[0.0, 0.25, 0.0], [0.25, 0.0, 0.25], [0.0, 0.25, 0.0]]>
+                                     : tensor<3x3xf64>} : !c
+      // SQ layer; the rz of ion 1 is folded into the next zxz (z1 = 0.5 + 0.25).
+      %c3 = magic.zxz %c2 ions [1] {z1 = [0.75], x = [0.5], z2 = [0.5]} : !c
+      // Ion 2 meets no zxz, so its rz stays: a residual rz behind the layers.
+      %c4 = magic.rz %c3 ions [2] {angles = [0.25]} : !c
       ```
   }];
 
