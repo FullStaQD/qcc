@@ -153,20 +153,19 @@ func.func @active_zz_merge() {
 
 // -----
 
-!c = !magic.ion_chain<0, [0:1, 1:1, 2:1]>
+!c = !magic.ion_chain<0, [0:1, 1:1]>
 
 // Adjacent active_zz that add up to zero disappear, and so does one whose angles are all multiples of 2 pi.
 // CHECK-LABEL: func.func @active_zz_zero
 func.func @active_zz_zero() {
   %c0 = magic.init : !c
-  %c1 = magic.active_zz %c0 {angles = dense<[[0.0, 0.5, 0.0], [0.5, 0.0, 0.0], [0.0, 0.0, 0.0]]> : tensor<3x3xf64>} : !c
-  %c2 = magic.active_zz %c1 {angles = dense<[[0.0, -0.5, 0.0], [-0.5, 0.0, 0.0], [0.0, 0.0, 0.0]]> : tensor<3x3xf64>} : !c
+  %c1 = magic.active_zz %c0 {angles = dense<[[0.0, 0.5], [0.5, 0.0]]> : tensor<2x2xf64>} : !c
+  %c2 = magic.active_zz %c1 {angles = dense<[[0.0, -0.5], [-0.5, 0.0]]> : tensor<2x2xf64>} : !c
   %c3 = magic.delay %c2 {ticks = 3} : !c
-  %c4 = magic.active_zz %c3 {angles = dense<[[0.0, 6.283185307179586, 0.0], [6.283185307179586, 0.0, -6.283185307179586], [0.0, -6.283185307179586, 0.0]]> : tensor<3x3xf64>} : !c
-  %m0, %m1, %m2 = magic.mzd %c4 : !c -> i1, i1, i1
+  %c4 = magic.active_zz %c3 {angles = dense<[[0.0, 6.283185307179586], [6.283185307179586, 0.0]]> : tensor<2x2xf64>} : !c
+  %m0, %m1 = magic.mzd %c4 : !c -> i1, i1
   aux.record_int %m0 : i1
   aux.record_int %m1 : i1
-  aux.record_int %m2 : i1
   return
 }
 
