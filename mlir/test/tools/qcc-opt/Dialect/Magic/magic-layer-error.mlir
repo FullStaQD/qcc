@@ -1,7 +1,5 @@
 // RUN: qcc-opt %s --magic-layer --split-input-file --verify-diagnostics
 
-// Every case below is well-formed IR that `magic-layer` declines to handle.
-
 !c = !magic.ion_chain<0, [0:1]>
 
 func.func @sym_zxz() {
