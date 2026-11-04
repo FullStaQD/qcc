@@ -1,6 +1,3 @@
-# `QVecTypes.td` includes mqt-core's `QCOTypes.td`, which is not on TableGen's default search path.
-list(APPEND LLVM_TABLEGEN_FLAGS -I ${mqt-core_SOURCE_DIR}/mlir/include)
-
 set(LLVM_TARGET_DEFINITIONS QVecDialect.td)
 mlir_tablegen(QVecDialect.h.inc -gen-dialect-decls -dialect=qvec)
 mlir_tablegen(QVecDialect.cpp.inc -gen-dialect-defs -dialect=qvec)

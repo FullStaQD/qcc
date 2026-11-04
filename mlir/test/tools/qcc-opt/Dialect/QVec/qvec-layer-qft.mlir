@@ -34,21 +34,18 @@ func.func @main() attributes { qcc.entry_point } {
 }
 
 // CHECK-LABEL: func.func @main
-// CHECK-DAG:     qco.static 0
-// CHECK-DAG:     qco.static 1
-// CHECK-DAG:     qco.static 2
-// CHECK-DAG:     qco.static 3
-// CHECK:         qvec.single u_zxz(%{{.*}}, %{{.*}}, %{{.*}}) %{{.*}} : vector<1xf64>, vector<1x!qco.qubit>
+// CHECK:         qcc.static [0, 1, 2, 3] : !qcc.qubit
+// CHECK:         qvec.single u_zxz(%{{.*}}, %{{.*}}, %{{.*}}) %{{.*}} : vector<1xf64>, vector<1x!qcc.qubit>
 // cp(t) contributes rzz(-t/2): -pi/4, -pi/8, -pi/16 from q0 to q1, q2, q3.
 // CHECK:         arith.constant dense<{{\[\[}}0.000000e+00, -0.78539816339744828, -0.39269908169872414, -0.19634954084936207], [-0.78539816339744828, 0.000000e+00, 0.000000e+00, 0.000000e+00], [-0.39269908169872414, 0.000000e+00, 0.000000e+00, 0.000000e+00], [-0.19634954084936207, 0.000000e+00, 0.000000e+00, 0.000000e+00]]> : vector<4x4xf64>
-// CHECK:         qvec.global zz(%{{.*}}) %{{.*}} : vector<4x!qco.qubit>, vector<4x4xf64>
-// CHECK:         qvec.single u_zxz(%{{.*}}, %{{.*}}, %{{.*}}) %{{.*}} : vector<1xf64>, vector<1x!qco.qubit>
-// CHECK:         qvec.global zz(%{{.*}}) %{{.*}} : vector<3x!qco.qubit>, vector<3x3xf64>
-// CHECK:         qvec.single u_zxz(%{{.*}}, %{{.*}}, %{{.*}}) %{{.*}} : vector<1xf64>, vector<1x!qco.qubit>
-// CHECK:         qvec.global zz(%{{.*}}) %{{.*}} : vector<2x!qco.qubit>, vector<2x2xf64>
-// CHECK:         qvec.single u_zxz(%{{.*}}, %{{.*}}, %{{.*}}) %{{.*}} : vector<1xf64>, vector<1x!qco.qubit>
+// CHECK:         qvec.global zz(%{{.*}}) %{{.*}} : vector<4x!qcc.qubit>, vector<4x4xf64>
+// CHECK:         qvec.single u_zxz(%{{.*}}, %{{.*}}, %{{.*}}) %{{.*}} : vector<1xf64>, vector<1x!qcc.qubit>
+// CHECK:         qvec.global zz(%{{.*}}) %{{.*}} : vector<3x!qcc.qubit>, vector<3x3xf64>
+// CHECK:         qvec.single u_zxz(%{{.*}}, %{{.*}}, %{{.*}}) %{{.*}} : vector<1xf64>, vector<1x!qcc.qubit>
+// CHECK:         qvec.global zz(%{{.*}}) %{{.*}} : vector<2x!qcc.qubit>, vector<2x2xf64>
+// CHECK:         qvec.single u_zxz(%{{.*}}, %{{.*}}, %{{.*}}) %{{.*}} : vector<1xf64>, vector<1x!qcc.qubit>
 // CHECK-NOT:     qvec.single
 // CHECK-NOT:     qvec.global
-// CHECK-COUNT-4: qvec.measure z %{{.*}} : vector<1x!qco.qubit> -> vector<1xi1>
+// CHECK-COUNT-4: qvec.measure z %{{.*}} : vector<1x!qcc.qubit> -> vector<1xi1>
 // CHECK-COUNT-4: aux.record_int
 // CHECK:         return

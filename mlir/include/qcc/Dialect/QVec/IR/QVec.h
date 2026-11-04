@@ -11,14 +11,12 @@
 
 #include "qcc/Dialect/Qcc/IR/Qcc.h" // IWYU pragma: keep
 
-#include "mlir/Dialect/QCO/IR/QCODialect.h" // IWYU pragma: keep
-#include "mlir/Dialect/QCO/IR/QCOOps.h"
 #include "mlir/IR/BuiltinTypes.h"
-#include "mlir/IR/Types.h"
 #include "mlir/IR/Value.h"
 
 #include <cassert>
 #include <cstdint>
+#include <optional>
 
 //===----------------------------------------------------------------------===//
 // QVec Dialect
@@ -36,16 +34,10 @@
 #include "qcc/Dialect/QVec/IR/QVecAttrs.h.inc"
 
 //===----------------------------------------------------------------------===//
-// QVec type predicates
+// QVec gate parameters
 //===----------------------------------------------------------------------===//
 
 namespace qcc::qvec {
-
-/// Whether `type` is a vector with element type `!qco.qubit`.
-inline bool isQubitVector(mlir::Type type) {
-  auto vectorType = mlir::dyn_cast<mlir::VectorType>(type);
-  return vectorType && mlir::isa<mlir::qco::QubitType>(vectorType.getElementType());
-}
 
 /// Positions of the three parameters of `qvec.single u_zxz(z1, x, z2)` = Rz(z2) * Rx(x) * Rz(z1), z1 applied first.
 namespace zxz {
@@ -65,8 +57,8 @@ inline constexpr unsigned z2 = 2;
 
 namespace qcc::qvec {
 
-/// Traces back the qubit at `index` in the vector `qubits` to a StaticOp and returns it if possible (null value if
-/// not).
-mlir::qco::StaticOp getStaticOpAncestor(mlir::TypedValue<mlir::VectorType> qubits, int64_t index);
+/// Traces back the qubit at `index` in the vector `qubits` to its `qcc.static` and returns its static index, or nullopt
+/// if that fails.
+std::optional<int64_t> getStaticQubitIndex(mlir::TypedValue<mlir::VectorType> qubits, int64_t index);
 
 } // namespace qcc::qvec

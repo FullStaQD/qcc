@@ -8,7 +8,9 @@
 // ===----------------------------------------------------------------------===//
 
 #include "qcc/Dialect/QVec/IR/QVec.h"
+#include "qcc/Dialect/Qcc/IR/Qcc.h"
 
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/QCO/IR/QCODialect.h"
 #include "mlir/Dialect/QCO/IR/QCOOps.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
@@ -21,14 +23,18 @@
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Value.h"
 #include "mlir/IR/ValueRange.h"
+#include "mlir/IR/Visitors.h"
 #include "mlir/Pass/Pass.h" // IWYU pragma: keep
 #include "mlir/Support/LogicalResult.h"
 #include "mlir/Transforms/DialectConversion.h"
 
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/SmallVectorExtras.h"
 #include "llvm/ADT/TypeSwitch.h"
 
+#include <cassert>
 #include <cstdint>
 #include <optional>
 
@@ -36,6 +42,11 @@ using namespace mlir;
 using namespace qcc::qvec;
 using qcc::PairGateKind;
 using qcc::SingleGateKind;
+
+/// Returns `type`, with `!qcc.qubit` in place of `!qco.qubit`.
+static Type convertQubitType(Type type) {
+  return isa<qco::QubitType>(type) ? qcc::QubitType::get(type.getContext()) : type;
+}
 
 /// Packs `elements` into a vector and returns corresponding `vector.from_elements` op. Used for the qubits as well as
 /// for the angle, which `qvec` wants lane-aligned with the qubits: a `vector<1xf64>` here.
@@ -117,6 +128,23 @@ struct RZZLowering final : public OpConversionPattern<qco::RZZOp> {
 
   LogicalResult matchAndRewrite(qco::RZZOp op, OpAdaptor adaptor, ConversionPatternRewriter& rewriter) const override {
     replaceWithPair(rewriter, op, PairGateKind::RZZ, adaptor.getQubit0In(), adaptor.getQubit1In(), adaptor.getTheta());
+    return success();
+  }
+};
+
+/// Replaces `qco.static` by the result of the function's `qcc.static` for the same index (see `createStatics`).
+struct StaticLowering final : public OpConversionPattern<qco::StaticOp> {
+  using OpConversionPattern::OpConversionPattern;
+
+  LogicalResult matchAndRewrite(qco::StaticOp op, OpAdaptor /*adaptor*/,
+                                ConversionPatternRewriter& rewriter) const override {
+    auto func = op->getParentOfType<func::FuncOp>();
+    qcc::StaticOp qccStatic = *func.getOps<qcc::StaticOp>().begin();
+    ArrayRef<int64_t> indices = qccStatic.getIndices();
+    const auto index = static_cast<int64_t>(op.getIndex());
+    const auto* position = llvm::lower_bound(indices, index);
+    assert(position != indices.end() && *position == index && "`createStatics` covers every index");
+    rewriter.replaceOp(op, qccStatic.getResult(static_cast<unsigned>(position - indices.begin())));
     return success();
   }
 };
@@ -230,13 +258,14 @@ struct SinkLowering final : public OpConversionPattern<qco::SinkOp> {
 /// Correctness: The semantics of `qco.if` are identical to `scf.if`. `qco.if` explicitly uses qubits
 /// as operands and sends them to the blocks via block arguments. This is necessary for linearity
 /// checking. Coming from `qco`, we can assume that linearity holds, and allow `scf.if` to simply
-/// capture the qubit values, consuming them in each branch.
+/// capture the qubit values, consuming them in each branch. A qubit straight from `qcc.static` must not be captured
+/// this way (see `createStatics`).
 struct IfLowering final : public OpConversionPattern<qco::IfOp> {
   using OpConversionPattern::OpConversionPattern;
 
   LogicalResult matchAndRewrite(qco::IfOp op, OpAdaptor adaptor, ConversionPatternRewriter& rewriter) const override {
-    auto ifOp = scf::IfOp::create(rewriter, op.getLoc(), op.getResultTypes(), adaptor.getCondition(),
-                                  /*withElseRegion=*/true);
+    auto ifOp = scf::IfOp::create(rewriter, op.getLoc(), llvm::map_to_vector(op.getResultTypes(), convertQubitType),
+                                  adaptor.getCondition(), /*withElseRegion=*/true);
 
     rewriter.eraseBlock(&ifOp.getThenRegion().front());
     inlineBranch(op.getThenRegion(), ifOp.getThenRegion(), adaptor.getQubits(), rewriter);
@@ -326,10 +355,15 @@ protected:
     ModuleOp moduleOp = getOperation();
     auto* ctx = moduleOp.getContext();
 
+    for (auto func : moduleOp.getOps<func::FuncOp>()) {
+      if (!func.isExternal() && failed(createStatics(func))) {
+        return signalPassFailure();
+      }
+    }
+
     ConversionTarget target(*ctx);
-    target.addLegalDialect<QVecDialect, vector::VectorDialect, scf::SCFDialect>();
+    target.addLegalDialect<qcc::QccDialect, QVecDialect, vector::VectorDialect, scf::SCFDialect>();
     target.addIllegalDialect<qco::QCODialect>();
-    target.addLegalOp<qco::StaticOp>(); // still needed as qubit source
 
     RewritePatternSet patterns(ctx);
     patterns.add<SingleGateLowering<qco::HOp, SingleGateKind::H>,     //
@@ -344,12 +378,60 @@ protected:
                  RotationLowering<qco::RYOp, SingleGateKind::RY>,     //
                  RotationLowering<qco::RZOp, SingleGateKind::RZ>,     //
                  RotationLowering<qco::POp, SingleGateKind::RZ>,      //
-                 ISwapLowering, RZZLowering, IdLowering, GPhaseLowering, CtrlLowering, MeasureLowering, ResetLowering,
-                 SinkLowering, IfLowering, YieldLowering>(ctx);
+                 ISwapLowering, RZZLowering, StaticLowering, IdLowering, GPhaseLowering, CtrlLowering, MeasureLowering,
+                 ResetLowering, SinkLowering, IfLowering, YieldLowering>(ctx);
 
     if (failed(applyPartialConversion(moduleOp, target, std::move(patterns)))) {
       signalPassFailure();
     }
+  }
+
+private:
+  /// Puts one `qcc.static` at the start of `func`, with the indices of all its `qco.static` ops, which
+  /// `StaticLowering` then maps onto. Fails with a diagnostic on what `qcc.static` cannot express.
+  LogicalResult createStatics(func::FuncOp func) {
+    auto isQubit = [](Type type) { return isa<qco::QubitType>(type); };
+    if (llvm::any_of(func.getArgumentTypes(), isQubit) || llvm::any_of(func.getResultTypes(), isQubit)) {
+      return func.emitOpError() << "takes or returns qubits, which " << getArgument() << " does not support";
+    }
+
+    // A `qcc.static` hands out each qubit once, but `scf.if` captures what `qco.if` binds in both branches.
+    const WalkResult walk = func.walk([&](qco::IfOp ifOp) {
+      for (Value qubit : ifOp.getQubits()) {
+        if (auto staticOp = qubit.getDefiningOp<qco::StaticOp>()) {
+          ifOp.emitOpError() << "binds qubit " << staticOp.getIndex() << " straight from its `qco.static`, which "
+                             << getArgument() << " does not support";
+          return WalkResult::interrupt();
+        }
+      }
+      return WalkResult::advance();
+    });
+    if (walk.wasInterrupted()) {
+      return failure();
+    }
+
+    SmallVector<qco::StaticOp> statics;
+    func.walk([&](qco::StaticOp staticOp) { statics.push_back(staticOp); });
+    if (statics.empty()) {
+      return success();
+    }
+    llvm::stable_sort(statics, [](qco::StaticOp lhs, qco::StaticOp rhs) { return lhs.getIndex() < rhs.getIndex(); });
+
+    SmallVector<int64_t> indices;
+    SmallVector<Location> locs;
+    for (qco::StaticOp staticOp : statics) {
+      const auto index = static_cast<int64_t>(staticOp.getIndex());
+      if (!indices.empty() && indices.back() == index) {
+        return staticOp.emitOpError() << "refers to qubit " << index << " a second time, which " << getArgument()
+                                      << " does not support";
+      }
+      indices.push_back(index);
+      locs.push_back(staticOp.getLoc());
+    }
+
+    auto builder = OpBuilder::atBlockBegin(&func.getBody().front());
+    qcc::StaticOp::create(builder, builder.getFusedLoc(locs), indices);
+    return success();
   }
 };
 

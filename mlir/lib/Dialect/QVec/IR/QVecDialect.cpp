@@ -10,7 +10,6 @@
 #include "qcc/Dialect/QVec/IR/QVec.h"
 #include "qcc/Dialect/Qcc/IR/Qcc.h"
 
-#include "mlir/Dialect/QCO/IR/QCOOps.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/BuiltinTypes.h"
@@ -104,22 +103,6 @@ LogicalResult GlobalOp::verify() {
 }
 
 //===----------------------------------------------------------------------===//
-// Qubit lanes
-//===----------------------------------------------------------------------===//
-
-// One lane per qubit vector operand (see the TODO at `QVec_Op`).
-
-unsigned SingleOp::getNumQubitLanes() { return 1; }
-
-unsigned PairOp::getNumQubitLanes() { return 2; }
-
-unsigned GlobalOp::getNumQubitLanes() { return 1; }
-
-unsigned MeasureOp::getNumQubitLanes() { return 1; }
-
-unsigned ResetOp::getNumQubitLanes() { return 1; }
-
-//===----------------------------------------------------------------------===//
 // Dialect
 //===----------------------------------------------------------------------===//
 
@@ -200,7 +183,7 @@ static QubitStep stepTo(Value value, std::optional<int64_t> index = std::nullopt
 /// Whether `type` carries qubits, one or a whole vector of them.
 static bool carriesQubits(Type type) {
   auto shapedType = dyn_cast<ShapedType>(type);
-  return isa<qco::QubitType>(shapedType ? shapedType.getElementType() : type);
+  return isa<qcc::QubitType>(shapedType ? shapedType.getElementType() : type);
 }
 
 static QubitStep stepBack(QubitRef qubit);
@@ -256,8 +239,8 @@ static QubitStep stepBackElement(Value element) {
     return stepTo(extractOp.getSource(), extractOp.getStaticPosition().front());
   }
 
-  // An operation without qubit inputs creates the qubits it returns, `qco.static` and `qco.alloc` being the ones we
-  // care about. Anything else may well pass a qubit through, and we cannot tell from where.
+  // An operation without qubit inputs creates the qubits it returns, `qcc.static` being the one we care about.
+  // Anything else may well pass a qubit through, and we cannot tell from where.
   if (llvm::none_of(definingOp->getOperandTypes(), carriesQubits)) {
     return QubitStep(QubitStep::Kind::Origin);
   }
@@ -314,18 +297,22 @@ static QubitStep stepBack(QubitRef qubit) {
   return qubit.isInVector() ? stepBackVectorElement(qubit.value, *qubit.index) : stepBackElement(qubit.value);
 }
 
-qco::StaticOp qcc::qvec::getStaticOpAncestor(TypedValue<VectorType> qubits, int64_t index) {
+std::optional<int64_t> qcc::qvec::getStaticQubitIndex(TypedValue<VectorType> qubits, int64_t index) {
   assert(index >= 0 && index < qubits.getType().getNumElements() && "index out of bounds for qubits");
 
   // Every step moves strictly towards a definition, so the walk terminates.
   for (QubitRef qubit{.value = qubits, .index = index};;) {
     const QubitStep step = stepBack(qubit);
     if (step.getKind() == QubitStep::Kind::Unknown) {
-      return {};
+      return std::nullopt;
     }
     if (step.getKind() == QubitStep::Kind::Origin) {
-      // A vector value is never defined by a `qco.static`, so this covers both ends of the walk.
-      return qubit.value.getDefiningOp<qco::StaticOp>();
+      // A vector value is never defined by a `qcc.static`, so this covers both ends of the walk.
+      auto staticOp = qubit.value.getDefiningOp<qcc::StaticOp>();
+      if (!staticOp) {
+        return std::nullopt;
+      }
+      return staticOp.getIndices()[cast<OpResult>(qubit.value).getResultNumber()];
     }
     assert(step.getKind() == QubitStep::Kind::Stepped && "unexpected QubitStep::Kind");
     qubit = step.getQubit();

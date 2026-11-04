@@ -30,16 +30,9 @@
 // CHECK-VLEN64-LABEL:  func.func @eight_qubits
 // CHECK-QEW16-LABEL:   func.func @eight_qubits
 func.func @eight_qubits() {
-    %q0 = qco.static 0 : !qco.qubit
-    %q1 = qco.static 1 : !qco.qubit
-    %q2 = qco.static 2 : !qco.qubit
-    %q3 = qco.static 3 : !qco.qubit
-    %q4 = qco.static 4 : !qco.qubit
-    %q5 = qco.static 5 : !qco.qubit
-    %q6 = qco.static 6 : !qco.qubit
-    %q7 = qco.static 7 : !qco.qubit
-    %qs = vector.from_elements %q0, %q1, %q2, %q3, %q4, %q5, %q6, %q7 : vector<8x!qco.qubit>
-    %h = qvec.single h %qs : vector<8x!qco.qubit>
+    %q0, %q1, %q2, %q3, %q4, %q5, %q6, %q7 = qcc.static [0, 1, 2, 3, 4, 5, 6, 7] : !qcc.qubit
+    %qs = vector.from_elements %q0, %q1, %q2, %q3, %q4, %q5, %q6, %q7 : vector<8x!qcc.qubit>
+    %h = qvec.single h %qs : vector<8x!qcc.qubit>
     func.return
 }
 
@@ -63,17 +56,9 @@ func.func @eight_qubits() {
 // CHECK-VLEN64-LABEL:  func.func @nine_qubits
 // CHECK-QEW16-LABEL:   func.func @nine_qubits
 func.func @nine_qubits() {
-    %q0 = qco.static 0 : !qco.qubit
-    %q1 = qco.static 1 : !qco.qubit
-    %q2 = qco.static 2 : !qco.qubit
-    %q3 = qco.static 3 : !qco.qubit
-    %q4 = qco.static 4 : !qco.qubit
-    %q5 = qco.static 5 : !qco.qubit
-    %q6 = qco.static 6 : !qco.qubit
-    %q7 = qco.static 7 : !qco.qubit
-    %q8 = qco.static 8 : !qco.qubit
-    %qs = vector.from_elements %q0, %q1, %q2, %q3, %q4, %q5, %q6, %q7, %q8 : vector<9x!qco.qubit>
-    %h = qvec.single h %qs : vector<9x!qco.qubit>
+    %q0, %q1, %q2, %q3, %q4, %q5, %q6, %q7, %q8 = qcc.static [0, 1, 2, 3, 4, 5, 6, 7, 8] : !qcc.qubit
+    %qs = vector.from_elements %q0, %q1, %q2, %q3, %q4, %q5, %q6, %q7, %q8 : vector<9x!qcc.qubit>
+    %h = qvec.single h %qs : vector<9x!qcc.qubit>
     func.return
 }
 

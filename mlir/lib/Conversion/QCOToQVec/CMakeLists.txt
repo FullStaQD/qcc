@@ -15,6 +15,7 @@ add_mlir_conversion_library(
   MLIRQTensorDialect
   MLIRFuncDialect
   MLIRVectorDialect
+  QCCQccDialect
   QCCQVecDialect
   # Conversion infra
   MLIRTransforms

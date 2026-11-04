@@ -27,13 +27,9 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 // quantum-unaware passes. Note that e.g. a `Pure` measurement would allow some passes to hoist them out of control-flow
 // or alternatively sink into control-flow (see code motion) under circumstances where this is not consistent with the
 // intended semantics.
-//
-// TODO: Drop the override of `getNumQubitLanes` once our qubits are `!qcc.qubit`. The default counts the leading
-// results of that type and finds none on `!qco.qubit`.
 class QVec_Op<string mnemonic, list<Trait> traits = []>
     : Op<QVec_Dialect, mnemonic,
-         !listconcat(traits, [MemoryEffects<[MemRead, MemWrite]>,
-                              DeclareOpInterfaceMethods<Qcc_QubitLaneOpInterface, ["getNumQubitLanes"]>])>;
+         !listconcat(traits, [MemoryEffects<[MemRead, MemWrite]>, Qcc_QubitLaneOpInterface])>;
 
 def QVec_SingleOp : QVec_Op<"single", [AllTypesMatch<["qubits_in", "qubits_out"]>]> {
   let summary = "single-qubit gate across a vector of qubits";
@@ -47,9 +43,9 @@ def QVec_SingleOp : QVec_Op<"single", [AllTypesMatch<["qubits_in", "qubits_out"]
 
         Example:
         ```mlir
-        %qs_out = qvec.single h %qs : vector<4x!qco.qubit>
-        %qs_rz = qvec.single rz(%theta) %qs : vector<4xf64>, vector<4x!qco.qubit>
-        %qs_u = qvec.single u_zxz(%z1, %x, %z2) %qs : vector<4xf64>, vector<4x!qco.qubit>
+        %qs_out = qvec.single h %qs : vector<4x!qcc.qubit>
+        %qs_rz = qvec.single rz(%theta) %qs : vector<4xf64>, vector<4x!qcc.qubit>
+        %qs_u = qvec.single u_zxz(%z1, %x, %z2) %qs : vector<4xf64>, vector<4x!qcc.qubit>
         ```
     }];
 
@@ -84,8 +80,8 @@ def QVec_PairOp : QVec_Op<"pair", [AllTypesMatch<["lhs_in", "rhs_in", "lhs_out",
 
         Example:
         ```mlir
-        %cs_out, %ts_out = qvec.pair cx %ctrls, %tgts : vector<4x!qco.qubit>
-        %as_out, %bs_out = qvec.pair rzz(%theta) %as, %bs : vector<4xf64>, vector<4x!qco.qubit>
+        %cs_out, %ts_out = qvec.pair cx %ctrls, %tgts : vector<4x!qcc.qubit>
+        %as_out, %bs_out = qvec.pair rzz(%theta) %as, %bs : vector<4xf64>, vector<4x!qcc.qubit>
         ```
     }];
 
@@ -126,7 +122,7 @@ def QVec_GlobalOp : QVec_Op<"global", [AllTypesMatch<["qubits_in", "qubits_out"]
 
         Example:
         ```mlir
-        %qs_out = qvec.global zz(%A) %qs : vector<4x!qco.qubit>, vector<4x4xf64>
+        %qs_out = qvec.global zz(%A) %qs : vector<4x!qcc.qubit>, vector<4x4xf64>
         ```
     }];
 
@@ -158,7 +154,7 @@ def QVec_MeasureOp : QVec_Op<"measure", [AllTypesMatch<["qubits_in", "qubits_out
 
         Example:
         ```mlir
-        %qs_out, %bits = qvec.measure z %qs : vector<4x!qco.qubit> -> vector<4xi1>
+        %qs_out, %bits = qvec.measure z %qs : vector<4x!qcc.qubit> -> vector<4xi1>
         ```
     }];
 
@@ -187,7 +183,7 @@ def QVec_ResetOp : QVec_Op<"reset", [AllTypesMatch<["qubits_in", "qubits_out"]>]
 
         Example:
         ```mlir
-        %qs_out = qvec.reset z %qs : vector<4x!qco.qubit>
+        %qs_out = qvec.reset z %qs : vector<4x!qcc.qubit>
         ```
     }];
 

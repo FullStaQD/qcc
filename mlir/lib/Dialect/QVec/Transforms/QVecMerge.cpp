@@ -10,7 +10,6 @@
 #include "qcc/Dialect/QVec/IR/QVec.h"
 #include "qcc/Dialect/QVec/Transforms/Passes.h" // IWYU pragma: keep
 
-#include "mlir/Dialect/QCO/IR/QCOOps.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/Block.h"
 #include "mlir/IR/Builders.h"
@@ -26,6 +25,7 @@
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Transforms/RegionUtils.h"
 
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
@@ -35,6 +35,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <limits>
+#include <optional>
 #include <utility>
 
 using namespace mlir;
@@ -84,7 +85,7 @@ static std::optional<uint32_t> getSecondaryBucketKey(QubitLaneOpInterface op) {
 /// Makes `value` available at `before`, hoisting whatever defines it if it is not already. Returns true iff succeeded.
 /// IR might still be mutated if unsuccessful (but still correct).
 ///
-/// TODO: we only hoist pure operations (in practice `vector.from_elements`, `vector.extract`, `qco.static`, etc). Not
+/// TODO: we only hoist pure operations (in practice `vector.from_elements`, `vector.extract`, constants, etc). Not
 /// because it is the right model but because it seems to be so strict a condition that it is correct in any case - but
 /// needlessly restrictive. An example which does not hoist although it would make sense is: a1 = t(a0); a2 = t(a1); b1
 /// = x(b0); b2 = t(b1). Here we could merge the first and last T-Gate, but the x (non-pure) would need to be hoisted
@@ -124,8 +125,8 @@ struct Group {
   SmallVector<QubitLaneOpInterface> members;
   /// Total number of qubits per operand lane, i.e. the VF the merged operation would have.
   int64_t width = 0;
-  /// The qubits the group acts on, i.e. the merged operations would have.
-  DenseSet<qco::StaticOp> qubits;
+  /// The static indices of the qubits the group acts on, i.e. the merged operation would have.
+  DenseSet<int64_t> qubits;
 
   /// Build the first (lane=0) or second (lane=1, if available) qubit vector operand for the merged operation by
   /// collecting each member's qubits in the same lanes.
@@ -146,21 +147,21 @@ struct Group {
 
 } // namespace
 
-/// Returns the list of static qubits this `qvec` op operates on. Or nullopt if any of them cannot be identified.
+/// Returns the static indices of the qubits this `qvec` op operates on. Or nullopt if any of them cannot be identified.
 ///
-/// The static ops are found by tracing each qubit element through the IR.
-static std::optional<SmallVector<qco::StaticOp>> getStaticQubits(QubitLaneOpInterface op) {
-  SmallVector<qco::StaticOp> qubits;
+/// The indices are found by tracing each qubit element through the IR.
+static std::optional<SmallVector<int64_t>> getStaticQubits(QubitLaneOpInterface op) {
+  SmallVector<int64_t> qubits;
   for (Value qubitOperand : op.getQubitOperands()) {
     auto operand = cast<TypedValue<VectorType>>(qubitOperand);
     for (int64_t index = 0; index < operand.getType().getNumElements(); ++index) {
-      qco::StaticOp staticOp = getStaticOpAncestor(operand, index);
-      if (!staticOp) {
+      std::optional<int64_t> qubit = getStaticQubitIndex(operand, index);
+      if (!qubit) {
         // Ideally we would like to never return nullopt, but this cannot be guaranteed if the pass is run in an
         // arbitrary context.
         return std::nullopt;
       }
-      qubits.push_back(staticOp);
+      qubits.push_back(*qubit);
     }
   }
   return qubits;
@@ -307,7 +308,7 @@ static void mergeOpsInBlock(Block& block, int64_t limitVF) {
       const bool emptyOrFits =
           group.members.empty() ||
           (group.width + width <= limitVF &&
-           llvm::none_of(*staticQubits, [&](qco::StaticOp qubit) { return group.qubits.contains(qubit); }) &&
+           llvm::none_of(*staticQubits, [&](int64_t qubit) { return group.qubits.contains(qubit); }) &&
            llvm::all_of(candidate.getQubitOperands(),
                         [&](Value operand) { return makeAvailableBefore(operand, group.members.front()); }));
 

@@ -68,3 +68,40 @@ func.func @u_gate() {
   %u = qco.u(%theta, %theta, %theta) %q0 : !qco.qubit -> !qco.qubit
   func.return
 }
+
+// -----
+
+// The `scf.if` would use the qubit in both branches, but a `qcc.static` hands out each qubit only once.
+func.func @if_binds_static(%cond: i1) {
+  %q0 = qco.static 0 : !qco.qubit
+  // expected-error @+1 {{'qco.if' op binds qubit 0 straight from its `qco.static`, which convert-qco-to-qvec does not support}}
+  %q1 = qco.if %cond args(%a0 = %q0) -> (!qco.qubit) {
+    %x = qco.x %a0 : !qco.qubit -> !qco.qubit
+    qco.yield %x : !qco.qubit
+  } else args(%a0 = %q0) {
+    qco.yield %a0 : !qco.qubit
+  }
+  func.return
+}
+
+// -----
+
+// A `qcc.static` takes each index once.
+func.func @static_twice() {
+  %q0 = qco.static 0 : !qco.qubit
+  %h = qco.h %q0 : !qco.qubit -> !qco.qubit
+  qco.sink %h : !qco.qubit
+  // expected-error @+1 {{'qco.static' op refers to qubit 0 a second time, which convert-qco-to-qvec does not support}}
+  %again = qco.static 0 : !qco.qubit
+  %x = qco.x %again : !qco.qubit -> !qco.qubit
+  func.return
+}
+
+// -----
+
+// Qubits come from `qcc.static`, never from function arguments.
+// expected-error @+1 {{'func.func' op takes or returns qubits, which convert-qco-to-qvec does not support}}
+func.func @qubit_argument(%q: !qco.qubit) {
+  %h = qco.h %q : !qco.qubit -> !qco.qubit
+  func.return
+}

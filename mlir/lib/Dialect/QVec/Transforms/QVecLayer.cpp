@@ -19,7 +19,6 @@
 #include "qcc/Dialect/Utils/RotationUtils.h"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/Dialect/QCO/IR/QCOOps.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/Block.h"
 #include "mlir/IR/Builders.h"
@@ -58,7 +57,7 @@ using namespace qcc::qvec;
 
 namespace {
 
-/// A static qubit, identified by the index of its `qco.static`.
+/// A static qubit, identified by its `qcc.static` index.
 using Qubit = int64_t;
 
 /// One gate of the input program on static qubits, in the gate set the pass understands.
@@ -248,12 +247,12 @@ static Schedule layerGates(ArrayRef<Gate> gates) {
 /// Whether `type` carries qubits, one or a whole vector of them.
 static bool carriesQubits(Type type) {
   auto shapedType = dyn_cast<ShapedType>(type);
-  return isa<qco::QubitType>(shapedType ? shapedType.getElementType() : type);
+  return isa<qcc::QubitType>(shapedType ? shapedType.getElementType() : type);
 }
 
 /// Whether `op` only moves qubits around between vectors. The rebuild regenerates all of that.
 static bool isQubitPlumbing(Operation* op) {
-  return isa<qco::StaticOp, vector::FromElementsOp, vector::ExtractOp, vector::ExtractStridedSliceOp,
+  return isa<qcc::StaticOp, vector::FromElementsOp, vector::ExtractOp, vector::ExtractStridedSliceOp,
              vector::BroadcastOp>(op) &&
          llvm::any_of(op->getResultTypes(), carriesQubits);
 }
@@ -274,11 +273,11 @@ struct Program {
 /// Resolves every lane of `qubits` to its static qubit, or fails with a diagnostic at `op`.
 static LogicalResult resolveQubits(Operation* op, TypedValue<VectorType> qubits, SmallVectorImpl<Qubit>& result) {
   for (int64_t lane = 0, width = qubits.getType().getNumElements(); lane < width; ++lane) {
-    qco::StaticOp staticOp = getStaticOpAncestor(qubits, lane);
-    if (!staticOp) {
-      return op->emitOpError() << "lane " << lane << " cannot be traced back to a `qco.static` qubit";
+    std::optional<Qubit> qubit = getStaticQubitIndex(qubits, lane);
+    if (!qubit) {
+      return op->emitOpError() << "lane " << lane << " cannot be traced back to a `qcc.static` qubit";
     }
-    result.push_back(static_cast<Qubit>(staticOp.getIndex()));
+    result.push_back(*qubit);
   }
   return success();
 }
@@ -388,7 +387,7 @@ static FailureOr<Program> analyzeFunction(func::FuncOp func) {
   }
   Block& block = func.getBody().front();
   if (llvm::any_of(block.getArgumentTypes(), carriesQubits)) {
-    return func.emitOpError() << "qvec-layer expects qubits to come from `qco.static`, not from arguments";
+    return func.emitOpError() << "qvec-layer expects qubits to come from `qcc.static`, not from arguments";
   }
 
   Program program;
@@ -452,17 +451,21 @@ static FailureOr<Program> analyzeFunction(func::FuncOp func) {
 
 namespace {
 
-/// Emits the rebuilt body. Every qubit lives in a scalar `!qco.qubit` value between layers; a layer gathers its
+/// Emits the rebuilt body. Every qubit lives in a scalar `!qcc.qubit` value between layers; a layer gathers its
 /// lanes with `vector.from_elements` and scatters the result back with `vector.extract`, which keeps the provenance
 /// traceable for everything downstream.
 class BodyBuilder {
 public:
   BodyBuilder(const OpBuilder& builder, Location loc) : builder(builder), loc(loc) {}
 
+  /// Creates the one `qcc.static` of the function, for `qubits` in ascending order.
   void declareQubits(ArrayRef<Qubit> qubits) {
-    for (Qubit qubit : qubits) {
-      current[qubit] =
-          qco::StaticOp::create(builder, loc, qco::QubitType::get(builder.getContext()), static_cast<uint64_t>(qubit));
+    if (qubits.empty()) {
+      return;
+    }
+    auto staticOp = qcc::StaticOp::create(builder, loc, qubits);
+    for (auto [qubit, value] : llvm::zip_equal(qubits, staticOp.getQubits())) {
+      current[qubit] = value;
     }
   }
 

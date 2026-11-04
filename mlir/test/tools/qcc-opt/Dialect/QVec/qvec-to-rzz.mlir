@@ -1,29 +1,29 @@
 // RUN: qcc-opt %s -qvec-to-rzz --split-input-file | FileCheck %s
 
 // CHECK-LABEL: func.func @cz
-func.func @cz(%as: vector<2x!qco.qubit>, %bs: vector<2x!qco.qubit>) -> (vector<2x!qco.qubit>, vector<2x!qco.qubit>) {
-    %a, %b = qvec.pair cz %as, %bs : vector<2x!qco.qubit>
-    func.return %a, %b : vector<2x!qco.qubit>, vector<2x!qco.qubit>
+func.func @cz(%as: vector<2x!qcc.qubit>, %bs: vector<2x!qcc.qubit>) -> (vector<2x!qcc.qubit>, vector<2x!qcc.qubit>) {
+    %a, %b = qvec.pair cz %as, %bs : vector<2x!qcc.qubit>
+    func.return %a, %b : vector<2x!qcc.qubit>, vector<2x!qcc.qubit>
 }
 
 // cz = (rz(-pi/2) (x) rz(-pi/2)) * rzz(pi/2)
 // CHECK-DAG:     %[[P:.*]] = arith.constant dense<1.5707963267948966> : vector<2xf64>
 // CHECK-DAG:     %[[M:.*]] = arith.constant dense<-1.5707963267948966> : vector<2xf64>
-// CHECK:         %[[A:.*]], %[[B:.*]] = qvec.pair rzz(%[[P]]) %{{.*}}, %{{.*}} : vector<2xf64>, vector<2x!qco.qubit>
-// CHECK:         %[[A1:.*]] = qvec.single rz(%[[M]]) %[[A]] : vector<2xf64>, vector<2x!qco.qubit>
-// CHECK:         %[[B1:.*]] = qvec.single rz(%[[M]]) %[[B]] : vector<2xf64>, vector<2x!qco.qubit>
+// CHECK:         %[[A:.*]], %[[B:.*]] = qvec.pair rzz(%[[P]]) %{{.*}}, %{{.*}} : vector<2xf64>, vector<2x!qcc.qubit>
+// CHECK:         %[[A1:.*]] = qvec.single rz(%[[M]]) %[[A]] : vector<2xf64>, vector<2x!qcc.qubit>
+// CHECK:         %[[B1:.*]] = qvec.single rz(%[[M]]) %[[B]] : vector<2xf64>, vector<2x!qcc.qubit>
 // CHECK:         return %[[A1]], %[[B1]]
 
 // -----
 
 // CHECK-LABEL: func.func @cx
-func.func @cx(%cs: vector<1x!qco.qubit>, %ts: vector<1x!qco.qubit>) -> (vector<1x!qco.qubit>, vector<1x!qco.qubit>) {
-    %c, %t = qvec.pair cx %cs, %ts : vector<1x!qco.qubit>
-    func.return %c, %t : vector<1x!qco.qubit>, vector<1x!qco.qubit>
+func.func @cx(%cs: vector<1x!qcc.qubit>, %ts: vector<1x!qcc.qubit>) -> (vector<1x!qcc.qubit>, vector<1x!qcc.qubit>) {
+    %c, %t = qvec.pair cx %cs, %ts : vector<1x!qcc.qubit>
+    func.return %c, %t : vector<1x!qcc.qubit>, vector<1x!qcc.qubit>
 }
 
 // cx = h_t * cz * h_t; the target is the right operand.
-// CHECK:         %[[T0:.*]] = qvec.single h %{{.*}} : vector<1x!qco.qubit>
+// CHECK:         %[[T0:.*]] = qvec.single h %{{.*}} : vector<1x!qcc.qubit>
 // CHECK:         %[[C1:.*]], %[[T1:.*]] = qvec.pair rzz(%{{.*}}) %{{.*}}, %[[T0]]
 // CHECK:         %[[C2:.*]] = qvec.single rz(%{{.*}}) %[[C1]]
 // CHECK:         %[[T2:.*]] = qvec.single rz(%{{.*}}) %[[T1]]
@@ -33,13 +33,13 @@ func.func @cx(%cs: vector<1x!qco.qubit>, %ts: vector<1x!qco.qubit>) -> (vector<1
 // -----
 
 // CHECK-LABEL: func.func @cy
-func.func @cy(%cs: vector<1x!qco.qubit>, %ts: vector<1x!qco.qubit>) -> (vector<1x!qco.qubit>, vector<1x!qco.qubit>) {
-    %c, %t = qvec.pair cy %cs, %ts : vector<1x!qco.qubit>
-    func.return %c, %t : vector<1x!qco.qubit>, vector<1x!qco.qubit>
+func.func @cy(%cs: vector<1x!qcc.qubit>, %ts: vector<1x!qcc.qubit>) -> (vector<1x!qcc.qubit>, vector<1x!qcc.qubit>) {
+    %c, %t = qvec.pair cy %cs, %ts : vector<1x!qcc.qubit>
+    func.return %c, %t : vector<1x!qcc.qubit>, vector<1x!qcc.qubit>
 }
 
 // cy = s_t * cx * sdg_t
-// CHECK:         %[[T0:.*]] = qvec.single sdg %{{.*}} : vector<1x!qco.qubit>
+// CHECK:         %[[T0:.*]] = qvec.single sdg %{{.*}} : vector<1x!qcc.qubit>
 // CHECK:         %[[T1:.*]] = qvec.single h %[[T0]]
 // CHECK:         %[[C2:.*]], %[[T2:.*]] = qvec.pair rzz(%{{.*}}) %{{.*}}, %[[T1]]
 // CHECK:         %[[C3:.*]] = qvec.single rz(%{{.*}}) %[[C2]]
@@ -51,16 +51,16 @@ func.func @cy(%cs: vector<1x!qco.qubit>, %ts: vector<1x!qco.qubit>) -> (vector<1
 // -----
 
 // CHECK-LABEL: func.func @cp_constant
-func.func @cp_constant(%as: vector<2x!qco.qubit>, %bs: vector<2x!qco.qubit>) -> (vector<2x!qco.qubit>, vector<2x!qco.qubit>) {
+func.func @cp_constant(%as: vector<2x!qcc.qubit>, %bs: vector<2x!qcc.qubit>) -> (vector<2x!qcc.qubit>, vector<2x!qcc.qubit>) {
     %theta = arith.constant dense<[0.5, 0.25]> : vector<2xf64>
-    %a, %b = qvec.pair cp(%theta) %as, %bs : vector<2xf64>, vector<2x!qco.qubit>
-    func.return %a, %b : vector<2x!qco.qubit>, vector<2x!qco.qubit>
+    %a, %b = qvec.pair cp(%theta) %as, %bs : vector<2xf64>, vector<2x!qcc.qubit>
+    func.return %a, %b : vector<2x!qcc.qubit>, vector<2x!qcc.qubit>
 }
 
 // cp(t) = (rz(t/2) (x) rz(t/2)) * rzz(-t/2), folded lane by lane.
 // CHECK-DAG:     %[[MH:.*]] = arith.constant dense<[-2.500000e-01, -1.250000e-01]> : vector<2xf64>
 // CHECK-DAG:     %[[H:.*]] = arith.constant dense<[2.500000e-01, 1.250000e-01]> : vector<2xf64>
-// CHECK:         %[[A:.*]], %[[B:.*]] = qvec.pair rzz(%[[MH]]) %{{.*}}, %{{.*}} : vector<2xf64>, vector<2x!qco.qubit>
+// CHECK:         %[[A:.*]], %[[B:.*]] = qvec.pair rzz(%[[MH]]) %{{.*}}, %{{.*}} : vector<2xf64>, vector<2x!qcc.qubit>
 // CHECK:         %[[A1:.*]] = qvec.single rz(%[[H]]) %[[A]]
 // CHECK:         %[[B1:.*]] = qvec.single rz(%[[H]]) %[[B]]
 // CHECK:         return %[[A1]], %[[B1]]
@@ -68,8 +68,8 @@ func.func @cp_constant(%as: vector<2x!qco.qubit>, %bs: vector<2x!qco.qubit>) -> 
 // -----
 
 // CHECK-LABEL: func.func @cp_dynamic
-func.func @cp_dynamic(%as: vector<1x!qco.qubit>, %bs: vector<1x!qco.qubit>, %theta: vector<1xf64>) {
-    %a, %b = qvec.pair cp(%theta) %as, %bs : vector<1xf64>, vector<1x!qco.qubit>
+func.func @cp_dynamic(%as: vector<1x!qcc.qubit>, %bs: vector<1x!qcc.qubit>, %theta: vector<1xf64>) {
+    %a, %b = qvec.pair cp(%theta) %as, %bs : vector<1xf64>, vector<1x!qcc.qubit>
     func.return
 }
 
@@ -85,32 +85,32 @@ func.func @cp_dynamic(%as: vector<1x!qco.qubit>, %bs: vector<1x!qco.qubit>, %the
 // -----
 
 // CHECK-LABEL: func.func @crz
-func.func @crz(%cs: vector<1x!qco.qubit>, %ts: vector<1x!qco.qubit>) -> (vector<1x!qco.qubit>, vector<1x!qco.qubit>) {
+func.func @crz(%cs: vector<1x!qcc.qubit>, %ts: vector<1x!qcc.qubit>) -> (vector<1x!qcc.qubit>, vector<1x!qcc.qubit>) {
     %theta = arith.constant dense<0.5> : vector<1xf64>
-    %c, %t = qvec.pair crz(%theta) %cs, %ts : vector<1xf64>, vector<1x!qco.qubit>
-    func.return %c, %t : vector<1x!qco.qubit>, vector<1x!qco.qubit>
+    %c, %t = qvec.pair crz(%theta) %cs, %ts : vector<1xf64>, vector<1x!qcc.qubit>
+    func.return %c, %t : vector<1x!qcc.qubit>, vector<1x!qcc.qubit>
 }
 
 // crz(t) = (1 (x) rz(t/2)) * rzz(-t/2): unlike cp, only the target gets an rz.
 // CHECK-DAG:     %[[MH:.*]] = arith.constant dense<-2.500000e-01> : vector<1xf64>
 // CHECK-DAG:     %[[H:.*]] = arith.constant dense<2.500000e-01> : vector<1xf64>
-// CHECK:         %[[C:.*]], %[[T:.*]] = qvec.pair rzz(%[[MH]]) %arg0, %arg1 : vector<1xf64>, vector<1x!qco.qubit>
+// CHECK:         %[[C:.*]], %[[T:.*]] = qvec.pair rzz(%[[MH]]) %arg0, %arg1 : vector<1xf64>, vector<1x!qcc.qubit>
 // CHECK:         %[[T1:.*]] = qvec.single rz(%[[H]]) %[[T]]
 // CHECK:         return %[[C]], %[[T1]]
 
 // -----
 
 // CHECK-LABEL: func.func @rxx
-func.func @rxx(%as: vector<1x!qco.qubit>, %bs: vector<1x!qco.qubit>, %theta: vector<1xf64>)
-    -> (vector<1x!qco.qubit>, vector<1x!qco.qubit>) {
-    %a, %b = qvec.pair rxx(%theta) %as, %bs : vector<1xf64>, vector<1x!qco.qubit>
-    func.return %a, %b : vector<1x!qco.qubit>, vector<1x!qco.qubit>
+func.func @rxx(%as: vector<1x!qcc.qubit>, %bs: vector<1x!qcc.qubit>, %theta: vector<1xf64>)
+    -> (vector<1x!qcc.qubit>, vector<1x!qcc.qubit>) {
+    %a, %b = qvec.pair rxx(%theta) %as, %bs : vector<1xf64>, vector<1x!qcc.qubit>
+    func.return %a, %b : vector<1x!qcc.qubit>, vector<1x!qcc.qubit>
 }
 
 // rxx(t) = (h (x) h) * rzz(t) * (h (x) h)
-// CHECK:         %[[A0:.*]] = qvec.single h %arg0 : vector<1x!qco.qubit>
-// CHECK:         %[[B0:.*]] = qvec.single h %arg1 : vector<1x!qco.qubit>
-// CHECK:         %[[A1:.*]], %[[B1:.*]] = qvec.pair rzz(%arg2) %[[A0]], %[[B0]] : vector<1xf64>, vector<1x!qco.qubit>
+// CHECK:         %[[A0:.*]] = qvec.single h %arg0 : vector<1x!qcc.qubit>
+// CHECK:         %[[B0:.*]] = qvec.single h %arg1 : vector<1x!qcc.qubit>
+// CHECK:         %[[A1:.*]], %[[B1:.*]] = qvec.pair rzz(%arg2) %[[A0]], %[[B0]] : vector<1xf64>, vector<1x!qcc.qubit>
 // CHECK:         %[[A2:.*]] = qvec.single h %[[A1]]
 // CHECK:         %[[B2:.*]] = qvec.single h %[[B1]]
 // CHECK:         return %[[A2]], %[[B2]]
@@ -118,10 +118,10 @@ func.func @rxx(%as: vector<1x!qco.qubit>, %bs: vector<1x!qco.qubit>, %theta: vec
 // -----
 
 // CHECK-LABEL: func.func @ryy
-func.func @ryy(%as: vector<1x!qco.qubit>, %bs: vector<1x!qco.qubit>, %theta: vector<1xf64>)
-    -> (vector<1x!qco.qubit>, vector<1x!qco.qubit>) {
-    %a, %b = qvec.pair ryy(%theta) %as, %bs : vector<1xf64>, vector<1x!qco.qubit>
-    func.return %a, %b : vector<1x!qco.qubit>, vector<1x!qco.qubit>
+func.func @ryy(%as: vector<1x!qcc.qubit>, %bs: vector<1x!qcc.qubit>, %theta: vector<1xf64>)
+    -> (vector<1x!qcc.qubit>, vector<1x!qcc.qubit>) {
+    %a, %b = qvec.pair ryy(%theta) %as, %bs : vector<1xf64>, vector<1x!qcc.qubit>
+    func.return %a, %b : vector<1x!qcc.qubit>, vector<1x!qcc.qubit>
 }
 
 // ryy(t) = (rx(-pi/2) (x) rx(-pi/2)) * rzz(t) * (rx(pi/2) (x) rx(pi/2))
@@ -137,8 +137,8 @@ func.func @ryy(%as: vector<1x!qco.qubit>, %bs: vector<1x!qco.qubit>, %theta: vec
 // -----
 
 // CHECK-LABEL: func.func @swap
-func.func @swap(%as: vector<1x!qco.qubit>, %bs: vector<1x!qco.qubit>) {
-    %a, %b = qvec.pair swap %as, %bs : vector<1x!qco.qubit>
+func.func @swap(%as: vector<1x!qcc.qubit>, %bs: vector<1x!qcc.qubit>) {
+    %a, %b = qvec.pair swap %as, %bs : vector<1x!qcc.qubit>
     func.return
 }
 
@@ -149,8 +149,8 @@ func.func @swap(%as: vector<1x!qco.qubit>, %bs: vector<1x!qco.qubit>) {
 // -----
 
 // CHECK-LABEL: func.func @iswap
-func.func @iswap(%as: vector<1x!qco.qubit>, %bs: vector<1x!qco.qubit>) {
-    %a, %b = qvec.pair iswap %as, %bs : vector<1x!qco.qubit>
+func.func @iswap(%as: vector<1x!qcc.qubit>, %bs: vector<1x!qcc.qubit>) {
+    %a, %b = qvec.pair iswap %as, %bs : vector<1x!qcc.qubit>
     func.return
 }
 
@@ -163,8 +163,8 @@ func.func @iswap(%as: vector<1x!qco.qubit>, %bs: vector<1x!qco.qubit>) {
 // -----
 
 // CHECK-LABEL: func.func @rzz_stays
-func.func @rzz_stays(%as: vector<1x!qco.qubit>, %bs: vector<1x!qco.qubit>, %theta: vector<1xf64>) {
-    %a, %b = qvec.pair rzz(%theta) %as, %bs : vector<1xf64>, vector<1x!qco.qubit>
+func.func @rzz_stays(%as: vector<1x!qcc.qubit>, %bs: vector<1x!qcc.qubit>, %theta: vector<1xf64>) {
+    %a, %b = qvec.pair rzz(%theta) %as, %bs : vector<1xf64>, vector<1x!qcc.qubit>
     func.return
 }
 

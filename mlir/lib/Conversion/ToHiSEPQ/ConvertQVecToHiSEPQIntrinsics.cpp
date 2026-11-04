@@ -14,7 +14,6 @@
 #include "qcc/Dialect/Qcc/IR/Qcc.h"
 
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
-#include "mlir/Dialect/QCO/IR/QCOOps.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/Builders.h"
@@ -30,6 +29,7 @@
 
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/SmallVectorExtras.h"
 #include "llvm/ADT/StringRef.h"
 
 #include <cstdint>
@@ -66,15 +66,15 @@ struct Diagnostics {
 
 } // namespace
 
-/// Reads the qubit indices out of a vector by tracing every element to a `qco.static`.
+/// Reads the qubit indices out of a vector by tracing every element to its `qcc.static`.
 static std::optional<SmallVector<int64_t>> getQubitIndices(TypedValue<VectorType> qubitVector) {
   SmallVector<int64_t> indices;
   for (int64_t index = 0; index < qubitVector.getType().getNumElements(); ++index) {
-    qco::StaticOp staticOp = getStaticOpAncestor(qubitVector, index);
-    if (!staticOp) {
+    std::optional<int64_t> qubit = getStaticQubitIndex(qubitVector, index);
+    if (!qubit) {
       return std::nullopt;
     }
-    indices.push_back(static_cast<int64_t>(staticOp.getIndex()));
+    indices.push_back(*qubit);
   }
 
   return indices;
@@ -116,7 +116,7 @@ static std::optional<ResolvedQubits> resolveQubitVector(Operation* op, TypedValu
                                                         const HiSEPQMachine& machine, Diagnostics& diags) {
   auto indices = getQubitIndices(qubits);
   if (!indices) {
-    (void)diags.report(op, "expects every qubit vector element to trace back to a 'qco.static' operation");
+    (void)diags.report(op, "expects every qubit vector element to trace back to a 'qcc.static' operation");
     return std::nullopt;
   }
 
@@ -351,6 +351,51 @@ struct ResetOpLowering : public OpRewritePattern<ResetOp> {
   HiSEPQMachine machine;
 };
 
+/// Drops the `scf.if` results that carry qubits nobody uses anymore.
+///
+/// The instructions act on the qubits in place, so once the `qvec` ops are lowered, the qubit values only remain to be
+/// yielded through `scf.if`. Dropping these results lets them die, the `qcc.static` that creates them included: it may
+/// hand out each qubit only once and must not outlive the pass, as `convert-scf-to-cf` splits its function into blocks.
+struct IfOpQubitResultsErasure : public OpRewritePattern<scf::IfOp> {
+  using OpRewritePattern::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(scf::IfOp op, PatternRewriter& rewriter) const override {
+    auto isDroppable = [](OpResult result) {
+      return result.use_empty() && qcc::isQubitOrQubitVector(result.getType());
+    };
+    if (llvm::none_of(op.getResults(), isDroppable)) {
+      return failure();
+    }
+
+    SmallVector<unsigned> kept;
+    SmallVector<Type> keptTypes;
+    for (OpResult result : op.getResults()) {
+      if (!isDroppable(result)) {
+        kept.push_back(result.getResultNumber());
+        keptTypes.push_back(result.getType());
+      }
+    }
+
+    // An `scf.if` with results has both branches.
+    auto newOp = scf::IfOp::create(rewriter, op.getLoc(), keptTypes, op.getCondition());
+    rewriter.inlineRegionBefore(op.getThenRegion(), newOp.getThenRegion(), newOp.getThenRegion().end());
+    rewriter.inlineRegionBefore(op.getElseRegion(), newOp.getElseRegion(), newOp.getElseRegion().end());
+    for (scf::YieldOp yield : {newOp.thenYield(), newOp.elseYield()}) {
+      SmallVector<Value> operands =
+          llvm::map_to_vector(kept, [&](unsigned number) { return yield.getOperand(number); });
+      rewriter.modifyOpInPlace(yield, [&] { yield->setOperands(operands); });
+    }
+
+    // The dropped results have no uses, so they need no replacement.
+    SmallVector<Value> replacements(op.getNumResults());
+    for (auto [number, result] : llvm::zip_equal(kept, newOp.getResults())) {
+      replacements[number] = result;
+    }
+    rewriter.replaceOp(op, replacements);
+    return success();
+  }
+};
+
 /// Erases an `aux` output recording op.
 ///
 /// TODO: Lower them properly once HiSEP-Q specifies how a program reports its results.
@@ -397,7 +442,7 @@ protected:
     Diagnostics diags;
     RewritePatternSet patterns(ctx);
     patterns.add<SingleOpLowering, PairOpLowering, MeasureOpLowering, ResetOpLowering>(ctx, &diags, machine);
-    patterns.add<RecordOpErasure<aux::RecordIntOp>, RecordOpErasure<aux::RecordMemRefOp>>(ctx);
+    patterns.add<IfOpQubitResultsErasure, RecordOpErasure<aux::RecordIntOp>, RecordOpErasure<aux::RecordMemRefOp>>(ctx);
 
     if (failed(applyPatternsGreedily(moduleOp, std::move(patterns))) || diags.hadError) {
       signalPassFailure();

@@ -35,15 +35,15 @@ def QVec_Dialect : Dialect {
         Example:
         ```mlir
         // A Hadamard gate on all four qubits in %qs.
-        %qs_out = qvec.single h %qs : vector<4x!qco.qubit>
+        %qs_out = qvec.single h %qs : vector<4x!qcc.qubit>
         ```
     }];
 
     let name = "qvec";
     let cppNamespace = "::qcc::qvec";
 
-    // `!qco.qubit` and the gate-kind attributes of `qcc` appear in our operations' assembly.
-    let dependentDialects = ["::mlir::qco::QCODialect", "::qcc::QccDialect"];
+    // `!qcc.qubit` and the gate-kind attributes of `qcc` appear in our operations' assembly.
+    let dependentDialects = ["::qcc::QccDialect"];
 
     let useDefaultTypePrinterParser = 0;      // set to 1 once we define types of our own.
     let useDefaultAttributePrinterParser = 1; // needed by the gate-kind attributes.
