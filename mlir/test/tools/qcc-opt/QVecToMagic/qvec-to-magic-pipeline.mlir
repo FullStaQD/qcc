@@ -11,14 +11,14 @@ func.func @bell() {
     %mpi_2 = arith.constant dense<-1.5707963267948966> : vector<1xf64>
     %a0 = vector.from_elements %q0 : vector<1x!qco.qubit>
     %b0 = vector.from_elements %q1 : vector<1x!qco.qubit>
-    %a1 = qvec.single u_zxz(%pi_2, %pi_2, %pi_2) %a0 : vector<1x!qco.qubit>, vector<1xf64>
-    %b1 = qvec.single u_zxz(%pi_2, %pi_2, %pi_2) %b0 : vector<1x!qco.qubit>, vector<1xf64>
-    %a2, %b2 = qvec.pair rzz(%pi_2) %a1, %b1 : vector<1x!qco.qubit>, vector<1xf64>
-    %a3 = qvec.single rz(%mpi_2) %a2 : vector<1x!qco.qubit>, vector<1xf64>
-    %b3 = qvec.single rz(%mpi_2) %b2 : vector<1x!qco.qubit>, vector<1xf64>
-    %b4 = qvec.single u_zxz(%pi_2, %pi_2, %pi_2) %b3 : vector<1x!qco.qubit>, vector<1xf64>
-    %a4, %ra = qvec.mz %a3 : vector<1x!qco.qubit> -> vector<1xi1>
-    %b5, %rb = qvec.mz %b4 : vector<1x!qco.qubit> -> vector<1xi1>
+    %a1 = qvec.single u_zxz(%pi_2, %pi_2, %pi_2) %a0 : vector<1xf64>, vector<1x!qco.qubit>
+    %b1 = qvec.single u_zxz(%pi_2, %pi_2, %pi_2) %b0 : vector<1xf64>, vector<1x!qco.qubit>
+    %a2, %b2 = qvec.pair rzz(%pi_2) %a1, %b1 : vector<1xf64>, vector<1x!qco.qubit>
+    %a3 = qvec.single rz(%mpi_2) %a2 : vector<1xf64>, vector<1x!qco.qubit>
+    %b3 = qvec.single rz(%mpi_2) %b2 : vector<1xf64>, vector<1x!qco.qubit>
+    %b4 = qvec.single u_zxz(%pi_2, %pi_2, %pi_2) %b3 : vector<1xf64>, vector<1x!qco.qubit>
+    %a4, %ra = qvec.measure z %a3 : vector<1x!qco.qubit> -> vector<1xi1>
+    %b5, %rb = qvec.measure z %b4 : vector<1x!qco.qubit> -> vector<1xi1>
     %r0 = vector.extract %ra[0] : i1 from vector<1xi1>
     %r1 = vector.extract %rb[0] : i1 from vector<1xi1>
     aux.record_int %r0 : i1

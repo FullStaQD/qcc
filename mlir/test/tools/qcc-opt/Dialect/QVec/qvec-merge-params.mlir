@@ -19,11 +19,11 @@ func.func @parametrised_ops_pass_through() {
     %h0 = qvec.single h %v0 : vector<1x!qco.qubit>
     %h1 = qvec.single h %v1 : vector<1x!qco.qubit>
 
-    %r0 = qvec.single rz(%theta) %h0 : vector<1x!qco.qubit>, vector<1xf64>
-    %r1 = qvec.single rz(%theta) %h1 : vector<1x!qco.qubit>, vector<1xf64>
+    %r0 = qvec.single rz(%theta) %h0 : vector<1xf64>, vector<1x!qco.qubit>
+    %r1 = qvec.single rz(%theta) %h1 : vector<1xf64>, vector<1x!qco.qubit>
 
-    %a0, %b0 = qvec.pair rzz(%theta) %r0, %v2 : vector<1x!qco.qubit>, vector<1xf64>
-    %a1, %b1 = qvec.pair rzz(%theta) %r1, %v3 : vector<1x!qco.qubit>, vector<1xf64>
+    %a0, %b0 = qvec.pair rzz(%theta) %r0, %v2 : vector<1xf64>, vector<1x!qco.qubit>
+    %a1, %b1 = qvec.pair rzz(%theta) %r1, %v3 : vector<1xf64>, vector<1x!qco.qubit>
 
     %e0 = vector.extract %a0[0] : !qco.qubit from vector<1x!qco.qubit>
     %e1 = vector.extract %b0[0] : !qco.qubit from vector<1x!qco.qubit>
@@ -35,8 +35,8 @@ func.func @parametrised_ops_pass_through() {
 
 // CHECK:         qvec.single h %{{.*}} : vector<2x!qco.qubit>
 // CHECK-NOT:     qvec.single h
-// CHECK:         qvec.single rz(%{{.*}}) %{{.*}} : vector<1x!qco.qubit>, vector<1xf64>
-// CHECK:         qvec.single rz(%{{.*}}) %{{.*}} : vector<1x!qco.qubit>, vector<1xf64>
-// CHECK:         qvec.pair rzz(%{{.*}}) %{{.*}}, %{{.*}} : vector<1x!qco.qubit>, vector<1xf64>
-// CHECK:         qvec.pair rzz(%{{.*}}) %{{.*}}, %{{.*}} : vector<1x!qco.qubit>, vector<1xf64>
+// CHECK:         qvec.single rz(%{{.*}}) %{{.*}} : vector<1xf64>, vector<1x!qco.qubit>
+// CHECK:         qvec.single rz(%{{.*}}) %{{.*}} : vector<1xf64>, vector<1x!qco.qubit>
+// CHECK:         qvec.pair rzz(%{{.*}}) %{{.*}}, %{{.*}} : vector<1xf64>, vector<1x!qco.qubit>
+// CHECK:         qvec.pair rzz(%{{.*}}) %{{.*}}, %{{.*}} : vector<1xf64>, vector<1x!qco.qubit>
 // CHECK:         qvec.global zz(%{{.*}}) %{{.*}} : vector<2x!qco.qubit>, vector<2x2xf64>

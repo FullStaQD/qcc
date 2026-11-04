@@ -9,6 +9,8 @@
 
 #pragma once
 
+#include "qcc/Dialect/Qcc/IR/Qcc.h" // IWYU pragma: keep
+
 #include "mlir/Dialect/QCO/IR/QCODialect.h" // IWYU pragma: keep
 #include "mlir/Dialect/QCO/IR/QCOOps.h"
 #include "mlir/IR/BuiltinTypes.h"
@@ -53,12 +55,6 @@ inline constexpr unsigned z2 = 2;
 } // namespace zxz
 
 } // namespace qcc::qvec
-
-//===----------------------------------------------------------------------===//
-// QVec Interfaces
-//===----------------------------------------------------------------------===//
-
-#include "qcc/Dialect/QVec/IR/QVecInterfaces.h.inc"
 
 //===----------------------------------------------------------------------===//
 // QVec Operations

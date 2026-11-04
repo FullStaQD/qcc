@@ -4,14 +4,14 @@
 func.func @rz_rz(%qs: vector<2x!qco.qubit>) -> vector<2x!qco.qubit> {
     %a = arith.constant dense<[0.5, 0.25]> : vector<2xf64>
     %b = arith.constant dense<[0.25, -0.5]> : vector<2xf64>
-    %r0 = qvec.single rz(%a) %qs : vector<2x!qco.qubit>, vector<2xf64>
-    %r1 = qvec.single rz(%b) %r0 : vector<2x!qco.qubit>, vector<2xf64>
+    %r0 = qvec.single rz(%a) %qs : vector<2xf64>, vector<2x!qco.qubit>
+    %r1 = qvec.single rz(%b) %r0 : vector<2xf64>, vector<2x!qco.qubit>
     func.return %r1 : vector<2x!qco.qubit>
 }
 
 // Two rz add up lane by lane and stay an rz.
 // CHECK:         %[[T:.*]] = arith.constant dense<[7.500000e-01, -2.500000e-01]> : vector<2xf64>
-// CHECK:         %[[R:.*]] = qvec.single rz(%[[T]]) %arg0 : vector<2x!qco.qubit>, vector<2xf64>
+// CHECK:         %[[R:.*]] = qvec.single rz(%[[T]]) %arg0 : vector<2xf64>, vector<2x!qco.qubit>
 // CHECK-NOT:     qvec.single
 // CHECK:         return %[[R]]
 
@@ -21,8 +21,8 @@ func.func @rz_rz(%qs: vector<2x!qco.qubit>) -> vector<2x!qco.qubit> {
 func.func @x_x_is_identity(%qs: vector<1x!qco.qubit>) {
     %zero = arith.constant dense<0.0> : vector<1xf64>
     %pi = arith.constant dense<3.1415926535897931> : vector<1xf64>
-    %x0 = qvec.single u_zxz(%zero, %pi, %zero) %qs : vector<1x!qco.qubit>, vector<1xf64>
-    %x1 = qvec.single u_zxz(%zero, %pi, %zero) %x0 : vector<1x!qco.qubit>, vector<1xf64>
+    %x0 = qvec.single u_zxz(%zero, %pi, %zero) %qs : vector<1xf64>, vector<1x!qco.qubit>
+    %x1 = qvec.single u_zxz(%zero, %pi, %zero) %x0 : vector<1xf64>, vector<1x!qco.qubit>
     func.return
 }
 
@@ -38,9 +38,9 @@ func.func @chain_and_rz(%qs: vector<1x!qco.qubit>) {
     %a = arith.constant dense<0.5> : vector<1xf64>
     %b = arith.constant dense<0.25> : vector<1xf64>
     // rx(0.5), rx(0.25), rz(0.25): three gates fuse into one u_zxz = Rz(0.25) Rx(0.75).
-    %x0 = qvec.single u_zxz(%zero, %a, %zero) %qs : vector<1x!qco.qubit>, vector<1xf64>
-    %x1 = qvec.single u_zxz(%zero, %b, %zero) %x0 : vector<1x!qco.qubit>, vector<1xf64>
-    %r = qvec.single rz(%b) %x1 : vector<1x!qco.qubit>, vector<1xf64>
+    %x0 = qvec.single u_zxz(%zero, %a, %zero) %qs : vector<1xf64>, vector<1x!qco.qubit>
+    %x1 = qvec.single u_zxz(%zero, %b, %zero) %x0 : vector<1xf64>, vector<1x!qco.qubit>
+    %r = qvec.single rz(%b) %x1 : vector<1xf64>, vector<1x!qco.qubit>
     func.return
 }
 

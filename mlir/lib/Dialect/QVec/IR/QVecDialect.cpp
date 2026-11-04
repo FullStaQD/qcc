@@ -8,6 +8,7 @@
 // ===----------------------------------------------------------------------===//
 
 #include "qcc/Dialect/QVec/IR/QVec.h"
+#include "qcc/Dialect/Qcc/IR/Qcc.h"
 
 #include "mlir/Dialect/QCO/IR/QCOOps.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
@@ -34,40 +35,9 @@ using namespace qcc::qvec;
 
 #include "qcc/Dialect/QVec/IR/QVecDialect.cpp.inc"
 #include "qcc/Dialect/QVec/IR/QVecEnums.cpp.inc"
-#include "qcc/Dialect/QVec/IR/QVecInterfaces.cpp.inc"
 
 #define GET_ATTRDEF_CLASSES
 #include "qcc/Dialect/QVec/IR/QVecAttrs.cpp.inc"
-
-//===----------------------------------------------------------------------===//
-// Custom assembly: `: <qubit vector type>[, <angle vector type>]`
-//===----------------------------------------------------------------------===//
-
-/// Parses the type part of a `single` / `pair` (custom assembly).
-static ParseResult parseGateTypes(OpAsmParser& parser, Type& qubitsType, SmallVectorImpl<Type>& paramTypes,
-                                  ArrayRef<OpAsmParser::UnresolvedOperand> params) {
-  if (parser.parseType(qubitsType)) {
-    return failure();
-  }
-  if (params.empty()) {
-    return success();
-  }
-  Type paramType;
-  if (parser.parseComma() || parser.parseType(paramType)) {
-    return failure();
-  }
-  paramTypes.assign(params.size(), paramType);
-  return success();
-}
-
-/// Prints the type of a `single` / `pair` (custom assembly).
-static void printGateTypes(OpAsmPrinter& printer, Operation* /*op*/, Type qubitsType, TypeRange paramTypes,
-                           OperandRange /*params*/) {
-  printer << qubitsType;
-  if (!paramTypes.empty()) {
-    printer << ", " << paramTypes.front(); // The verifier guarantees they are all equal.
-  }
-}
 
 #define GET_OP_CLASSES
 #include "qcc/Dialect/QVec/IR/QVecOps.cpp.inc"
@@ -76,13 +46,8 @@ static void printGateTypes(OpAsmPrinter& printer, Operation* /*op*/, Type qubits
 // Verifiers
 //===----------------------------------------------------------------------===//
 
-/// Verify gate parameters for `single` and `pair` ops.
-static LogicalResult verifyGateParams(Operation* op, StringRef kind, unsigned expectedNumParams, VectorType qubitsType,
-                                      OperandRange params) {
-  if (params.size() != expectedNumParams) {
-    return op->emitOpError() << "gate '" << kind << "' takes " << expectedNumParams << " parameter(s), got "
-                             << params.size();
-  }
+/// Verifies that the angle vectors `params` of a gate are lane-aligned with its qubit vector of type `qubitsType`.
+static LogicalResult verifyParamShapes(Operation* op, VectorType qubitsType, OperandRange params) {
   for (Value param : params) {
     auto paramType = cast<VectorType>(param.getType());
     if (paramType.getShape() != qubitsType.getShape()) {
@@ -94,13 +59,17 @@ static LogicalResult verifyGateParams(Operation* op, StringRef kind, unsigned ex
 }
 
 LogicalResult SingleOp::verify() {
-  return verifyGateParams(*this, stringifySingleGateKind(getGateKind()),
-                          SingleGateKindAttr::getNumParams(getGateKind()), getQubitsIn().getType(), getParams());
+  if (failed(qcc::detail::verifyGateParams(*this, getGateKind(), getParams()))) {
+    return failure();
+  }
+  return verifyParamShapes(*this, getQubitsIn().getType(), getParams());
 }
 
 LogicalResult PairOp::verify() {
-  return verifyGateParams(*this, stringifyPairGateKind(getGateKind()), PairGateKindAttr::getNumParams(getGateKind()),
-                          getLhsIn().getType(), getParams());
+  if (failed(qcc::detail::verifyGateParams(*this, getGateKind(), getParams()))) {
+    return failure();
+  }
+  return verifyParamShapes(*this, getLhsIn().getType(), getParams());
 }
 
 LogicalResult GlobalOp::verify() {
@@ -133,6 +102,26 @@ LogicalResult GlobalOp::verify() {
   }
   return success();
 }
+
+//===----------------------------------------------------------------------===//
+// Qubit lanes
+//===----------------------------------------------------------------------===//
+
+// One lane per qubit vector operand (see the TODO at `QVec_Op`).
+
+unsigned SingleOp::getNumQubitLanes() { return 1; }
+
+unsigned PairOp::getNumQubitLanes() { return 2; }
+
+unsigned GlobalOp::getNumQubitLanes() { return 1; }
+
+unsigned MeasureOp::getNumQubitLanes() { return 1; }
+
+unsigned ResetOp::getNumQubitLanes() { return 1; }
+
+//===----------------------------------------------------------------------===//
+// Dialect
+//===----------------------------------------------------------------------===//
 
 void QVecDialect::initialize() {
   addTypes<>();
@@ -286,10 +275,10 @@ static QubitStep stepBackVectorElement(Value qubits, int64_t index) {
     return stepBackIfResult(ifOp, cast<OpResult>(qubits), index);
   }
 
-  // A `qvec` operation hands its qubits on lane by lane, element order untouched, so the index carries over.
-  if (auto laneOp = dyn_cast<QubitLaneOpInterface>(definingOp)) {
-    Value tied = laneOp.getTiedQubitOperand(cast<OpResult>(qubits));
-    return tied ? stepTo(tied, index) : QubitStep(QubitStep::Kind::Origin);
+  // A lane op, e.g. a `qvec` operation, hands its qubits on lane by lane, element order untouched, so the index carries
+  // over.
+  if (auto laneOp = dyn_cast<qcc::QubitLaneOpInterface>(definingOp)) {
+    return stepTo(laneOp.getTiedQubitOperand(cast<OpResult>(qubits)), index);
   }
 
   if (auto fromElementsOp = dyn_cast<vector::FromElementsOp>(definingOp)) {

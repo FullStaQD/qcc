@@ -107,10 +107,13 @@ def ConvertQVecToHiSEPQIntrinsics : Pass<"convert-qvec-to-hisepq-intrinsics", "m
       - Qubit indices are below `num-qubit-control-lines` and encoded in an unsigned `i{QEW}`, and there are no more
         qubits than LMUL 8 holds at the minimum VLEN.
 
-      Gates without an intrinsic are rejected (error).
+      Gates without an intrinsic and measurements or resets in basis `x` are rejected (error). There is no reset
+      instruction either, so `qvec.reset z` becomes a measurement followed by an `llvm.riscv.qv.x` on each qubit
+      measured in |1⟩.
 
       - `llvm.riscv.qv.mz` returns void and the QISA specifies no way to read a measurement back, so the classical
-        result of `qvec.mz` is replaced with `poison`, i.e. the measurement result is lost.
+        result of `qvec.measure` is replaced with `poison`, i.e. the measurement result is lost. The flips of a reset
+        depend on such a result too.
       - `aux.record_int` and `aux.record_memref` are erased, so the program produces no output.
 
       TODO: Support both once HiSEP-Q specifies the corresponding QISA operations.
@@ -124,6 +127,8 @@ def ConvertQVecToHiSEPQIntrinsics : Pass<"convert-qvec-to-hisepq-intrinsics", "m
   ];
 
   let dependentDialects = [
-    "mlir::LLVM::LLVMDialect"
+    "mlir::LLVM::LLVMDialect",
+    "mlir::scf::SCFDialect",
+    "mlir::vector::VectorDialect"
   ];
 }

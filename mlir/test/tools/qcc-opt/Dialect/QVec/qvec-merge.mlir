@@ -115,10 +115,10 @@ func.func @measurements() {
     %a1, %b1 = qvec.pair cx %a0, %b0 : vector<1x!qco.qubit>
     %c1, %d1 = qvec.pair cx %c0, %d0 : vector<1x!qco.qubit>
 
-    %ao, %a2 = qvec.mz %a1 : vector<1x!qco.qubit> -> vector<1xi1>
-    %bo, %b2 = qvec.mz %b1 : vector<1x!qco.qubit> -> vector<1xi1>
-    %do, %c2 = qvec.mz %c1 : vector<1x!qco.qubit> -> vector<1xi1>
-    %eo, %d2 = qvec.mz %d1 : vector<1x!qco.qubit> -> vector<1xi1>
+    %ao, %a2 = qvec.measure z %a1 : vector<1x!qco.qubit> -> vector<1xi1>
+    %bo, %b2 = qvec.measure z %b1 : vector<1x!qco.qubit> -> vector<1xi1>
+    %do, %c2 = qvec.measure z %c1 : vector<1x!qco.qubit> -> vector<1xi1>
+    %eo, %d2 = qvec.measure z %d1 : vector<1x!qco.qubit> -> vector<1xi1>
 
     func.return
 }
@@ -127,8 +127,8 @@ func.func @measurements() {
 // CHECK-NOT:     qvec.pair cx
 // CHECK-COUNT-4: vector.extract
 // CHECK:         %[[V0:.*]] = vector.from_elements
-// CHECK:         qvec.mz %[[V0]] : vector<4x!qco.qubit> -> vector<4xi1>
-// CHECK-NOT:     qvec.mz
+// CHECK:         qvec.measure z %[[V0]] : vector<4x!qco.qubit> -> vector<4xi1>
+// CHECK-NOT:     qvec.measure
 
 // -----
 
@@ -139,11 +139,11 @@ func.func @measurement_bits_extracted_for_user(%k: i1) -> i1 {
     %a0 = vector.from_elements %q0 : vector<1x!qco.qubit>
     %b0 = vector.from_elements %q1 : vector<1x!qco.qubit>
 
-    %a1, %r0 = qvec.mz %a0 : vector<1x!qco.qubit> -> vector<1xi1>
+    %a1, %r0 = qvec.measure z %a0 : vector<1x!qco.qubit> -> vector<1xi1>
     %r00 = vector.extract %r0[0] : i1 from vector<1xi1>
     %xori = arith.xori %r00, %k : i1
 
-    %b1, %t0 = qvec.mz %b0 : vector<1x!qco.qubit> -> vector<1xi1>
+    %b1, %t0 = qvec.measure z %b0 : vector<1x!qco.qubit> -> vector<1xi1>
     %t00 = vector.extract %t0[0] : i1 from vector<1xi1>
     %andi = arith.andi %xori, %t00 : i1
 
@@ -151,11 +151,46 @@ func.func @measurement_bits_extracted_for_user(%k: i1) -> i1 {
 }
 
 // Measure with a single instruction, then extract the bits where they are used.
-// CHECK:         %{{.*}}, %[[BITS:.*]] = qvec.mz %{{.*}} : vector<2x!qco.qubit> -> vector<2xi1>
+// CHECK:         %{{.*}}, %[[BITS:.*]] = qvec.measure z %{{.*}} : vector<2x!qco.qubit> -> vector<2xi1>
 // CHECK-DAG:     %[[R0:.*]] = vector.extract %[[BITS]][0] : i1 from vector<2xi1>
 // CHECK-DAG:     %[[R1:.*]] = vector.extract %[[BITS]][1] : i1 from vector<2xi1>
 // CHECK-DAG:     %[[N:.*]] = arith.xori %[[R0]], %{{.*}} : i1
 // CHECK:         arith.andi %[[N]], %[[R1]] : i1
+
+// -----
+
+// Measurements and resets merge per basis, and never with each other.
+
+// CHECK-LABEL: func.func @bases
+func.func @bases() {
+    %q0 = qco.static 0 : !qco.qubit
+    %q1 = qco.static 1 : !qco.qubit
+    %q2 = qco.static 2 : !qco.qubit
+    %q3 = qco.static 3 : !qco.qubit
+    %q4 = qco.static 4 : !qco.qubit
+    %q5 = qco.static 5 : !qco.qubit
+    %v0 = vector.from_elements %q0 : vector<1x!qco.qubit>
+    %v1 = vector.from_elements %q1 : vector<1x!qco.qubit>
+    %v2 = vector.from_elements %q2 : vector<1x!qco.qubit>
+    %v3 = vector.from_elements %q3 : vector<1x!qco.qubit>
+    %v4 = vector.from_elements %q4 : vector<1x!qco.qubit>
+    %v5 = vector.from_elements %q5 : vector<1x!qco.qubit>
+
+    %a, %bits_a = qvec.measure z %v0 : vector<1x!qco.qubit> -> vector<1xi1>
+    %b, %bits_b = qvec.measure x %v1 : vector<1x!qco.qubit> -> vector<1xi1>
+    %c, %bits_c = qvec.measure z %v2 : vector<1x!qco.qubit> -> vector<1xi1>
+    %d = qvec.reset z %v3 : vector<1x!qco.qubit>
+    %e = qvec.reset x %v4 : vector<1x!qco.qubit>
+    %f = qvec.reset z %v5 : vector<1x!qco.qubit>
+
+    func.return
+}
+
+// CHECK:         qvec.measure z %{{.*}} : vector<2x!qco.qubit> -> vector<2xi1>
+// CHECK:         qvec.measure x %{{.*}} : vector<1x!qco.qubit> -> vector<1xi1>
+// CHECK:         qvec.reset z %{{.*}} : vector<2x!qco.qubit>
+// CHECK:         qvec.reset x %{{.*}} : vector<1x!qco.qubit>
+// CHECK-NOT:     qvec.
 
 // -----
 
@@ -269,7 +304,7 @@ func.func @merge_behind_ifs() {
     %v2 = vector.from_elements %q2 : vector<1x!qco.qubit>
 
     %h0 = qvec.single h %v0 : vector<1x!qco.qubit>
-    %m2, %bits = qvec.mz %v2 : vector<1x!qco.qubit> -> vector<1xi1>
+    %m2, %bits = qvec.measure z %v2 : vector<1x!qco.qubit> -> vector<1xi1>
     %cond = vector.extract %bits[0] : i1 from vector<1xi1>
 
     %a0 = scf.if %cond -> (vector<1x!qco.qubit>) {

@@ -30,7 +30,7 @@ func.func @unsupported_ctrl_body() {
 
 // -----
 
-// A controlled rz is not a cp (they differ by a relative phase), and `qvec` has no crz kind.
+// A controlled rz is not a cp (they differ by a relative phase), and the pass has no pattern for crz.
 func.func @controlled_rz() {
   %theta = arith.constant 0.5 : f64
   %q0 = qco.static 0 : !qco.qubit
@@ -60,7 +60,7 @@ func.func @two_gates_in_ctrl_body() {
 
 // -----
 
-// No `qvec` kind for the general u gate.
+// The pass has no pattern for the general u gate (u_zyz).
 func.func @u_gate() {
   %theta = arith.constant 0.5 : f64
   %q0 = qco.static 0 : !qco.qubit

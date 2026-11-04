@@ -20,18 +20,18 @@ func.func @spanning_block() attributes {qcc.entry_point} {
   %z1 = arith.constant dense<[0.1, 0.2]> : vector<2xf64>
   %x = arith.constant dense<[0.3, 0.4]> : vector<2xf64>
   %z2 = arith.constant dense<[0.5, 0.6]> : vector<2xf64>
-  %l1 = qvec.single u_zxz(%z1, %x, %z2) %v1 : vector<2x!qco.qubit>, vector<2xf64>
+  %l1 = qvec.single u_zxz(%z1, %x, %z2) %v1 : vector<2xf64>, vector<2x!qco.qubit>
   %b1 = vector.extract %l1[0] : !qco.qubit from vector<2x!qco.qubit>
   %b2 = vector.extract %l1[1] : !qco.qubit from vector<2x!qco.qubit>
   %v2 = vector.from_elements %a0, %a3 : vector<2x!qco.qubit>
   %t = arith.constant dense<[0.7, 0.8]> : vector<2xf64>
-  %l2 = qvec.single rz(%t) %v2 : vector<2x!qco.qubit>, vector<2xf64>
+  %l2 = qvec.single rz(%t) %v2 : vector<2xf64>, vector<2x!qco.qubit>
   %c0 = vector.extract %l2[0] : !qco.qubit from vector<2x!qco.qubit>
   %c3 = vector.extract %l2[1] : !qco.qubit from vector<2x!qco.qubit>
   %m0 = vector.from_elements %c3, %b2 : vector<2x!qco.qubit>
-  %o0, %r0 = qvec.mz %m0 : vector<2x!qco.qubit> -> vector<2xi1>
+  %o0, %r0 = qvec.measure z %m0 : vector<2x!qco.qubit> -> vector<2xi1>
   %m1 = vector.from_elements %b1, %c0 : vector<2x!qco.qubit>
-  %o1, %r1 = qvec.mz %m1 : vector<2x!qco.qubit> -> vector<2xi1>
+  %o1, %r1 = qvec.measure z %m1 : vector<2x!qco.qubit> -> vector<2xi1>
   %r3 = vector.extract %r0[0] : i1 from vector<2xi1>
   %r2 = vector.extract %r0[1] : i1 from vector<2xi1>
   %r1b = vector.extract %r1[0] : i1 from vector<2xi1>
@@ -71,7 +71,7 @@ func.func @one_op_per_trap() {
   %q3 = qco.static 3 : !qco.qubit
   %v0 = vector.from_elements %q0, %q1, %q2, %q3 : vector<4x!qco.qubit>
   %h = arith.constant dense<1.5707963267948966> : vector<4xf64>
-  %l0 = qvec.single u_zxz(%h, %h, %h) %v0 : vector<4x!qco.qubit>, vector<4xf64>
+  %l0 = qvec.single u_zxz(%h, %h, %h) %v0 : vector<4xf64>, vector<4x!qco.qubit>
   %a0 = vector.extract %l0[0] : !qco.qubit from vector<4x!qco.qubit>
   %a1 = vector.extract %l0[1] : !qco.qubit from vector<4x!qco.qubit>
   %a2 = vector.extract %l0[2] : !qco.qubit from vector<4x!qco.qubit>
@@ -82,7 +82,7 @@ func.func @one_op_per_trap() {
   %b2 = vector.extract %l1[0] : !qco.qubit from vector<2x!qco.qubit>
   %b3 = vector.extract %l1[1] : !qco.qubit from vector<2x!qco.qubit>
   %m = vector.from_elements %a0, %a1, %b2, %b3 : vector<4x!qco.qubit>
-  %o, %r = qvec.mz %m : vector<4x!qco.qubit> -> vector<4xi1>
+  %o, %r = qvec.measure z %m : vector<4x!qco.qubit> -> vector<4xi1>
   %r0 = vector.extract %r[0] : i1 from vector<4xi1>
   %r1 = vector.extract %r[1] : i1 from vector<4xi1>
   %r2 = vector.extract %r[2] : i1 from vector<4xi1>
@@ -119,7 +119,7 @@ func.func @three_qubits() {
   %q1 = qco.static 1 : !qco.qubit
   %q2 = qco.static 2 : !qco.qubit
   %v = vector.from_elements %q0, %q1, %q2 : vector<3x!qco.qubit>
-  %o, %r = qvec.mz %v : vector<3x!qco.qubit> -> vector<3xi1>
+  %o, %r = qvec.measure z %v : vector<3x!qco.qubit> -> vector<3xi1>
   %r0 = vector.extract %r[0] : i1 from vector<3xi1>
   %r1 = vector.extract %r[1] : i1 from vector<3xi1>
   %r2 = vector.extract %r[2] : i1 from vector<3xi1>
@@ -135,15 +135,15 @@ func.func @three_qubits() {
 
 // -----
 
-// Measuring and recording are optional. The chain is measured as a whole, so qubit 2 is measured without a `qvec.mz`;
-// its result and the one of qubit 1 stay unused.
+// Measuring and recording are optional. The chain is measured as a whole, so qubit 2 is measured without a
+// `qvec.measure`; its result and the one of qubit 1 stay unused.
 // CHECK-LABEL: func.func @partly_observed
 func.func @partly_observed() {
   %q0 = qco.static 0 : !qco.qubit
   %q1 = qco.static 1 : !qco.qubit
   %q2 = qco.static 2 : !qco.qubit
   %v = vector.from_elements %q0, %q1 : vector<2x!qco.qubit>
-  %o, %r = qvec.mz %v : vector<2x!qco.qubit> -> vector<2xi1>
+  %o, %r = qvec.measure z %v : vector<2x!qco.qubit> -> vector<2xi1>
   %r0 = vector.extract %r[0] : i1 from vector<2xi1>
   aux.record_int %r0 : i1
   return

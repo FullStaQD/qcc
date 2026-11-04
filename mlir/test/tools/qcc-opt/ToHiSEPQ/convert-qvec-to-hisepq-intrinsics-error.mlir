@@ -38,6 +38,26 @@ func.func @unsupported_pair_gate() {
 
 // -----
 
+func.func @measure_x() {
+  %q0 = qco.static 0 : !qco.qubit
+  %qs = vector.from_elements %q0 : vector<1x!qco.qubit>
+  // expected-error @+1 {{'qvec.measure' op basis 'x' has no HiSEP-Q intrinsic}}
+  %qs_out, %result = qvec.measure x %qs : vector<1x!qco.qubit> -> vector<1xi1>
+  func.return
+}
+
+// -----
+
+func.func @reset_x() {
+  %q0 = qco.static 0 : !qco.qubit
+  %qs = vector.from_elements %q0 : vector<1x!qco.qubit>
+  // expected-error @+1 {{'qvec.reset' op basis 'x' has no HiSEP-Q lowering}}
+  %qs_out = qvec.reset x %qs : vector<1x!qco.qubit>
+  func.return
+}
+
+// -----
+
 // Both operands of a pair are checked before either is materialized, so a bad target is reported
 // once and nothing is left behind for the controls.
 
@@ -66,8 +86,8 @@ func.func @qubit_vector_is_not_from_elements(%qs: vector<1x!qco.qubit>) {
 
 func.func @qubit_vector_is_not_static(%q: !qco.qubit) {
   %qs = vector.from_elements %q : vector<1x!qco.qubit>
-  // expected-error @+1 {{'qvec.mz' op expects every qubit vector element to trace back to a 'qco.static' operation}}
-  %qs_out, %result = qvec.mz %qs : vector<1x!qco.qubit> -> vector<1xi1>
+  // expected-error @+1 {{'qvec.measure' op expects every qubit vector element to trace back to a 'qco.static' operation}}
+  %qs_out, %result = qvec.measure z %qs : vector<1x!qco.qubit> -> vector<1xi1>
   func.return
 }
 

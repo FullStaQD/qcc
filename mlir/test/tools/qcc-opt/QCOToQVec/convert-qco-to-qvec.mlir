@@ -36,7 +36,9 @@ func.func @single_gates() {
 // CHECK:         qvec.single sdg
 // CHECK:         qvec.single t
 // CHECK:         qvec.single tdg
-// CHECK:         qvec.single i
+// `qvec` has no identity gate, so `qco.id` is dropped.
+// CHECK-NOT:     qvec.single
+// CHECK:         return
 
 // -----
 
@@ -106,7 +108,7 @@ func.func @measurement() -> i1 {
 }
 
 // CHECK:         %[[A0:.*]] = vector.from_elements %{{.*}} : vector<1x!qco.qubit>
-// CHECK:         %[[A1:.*]], %[[BITS:.*]] = qvec.mz %[[A0]] : vector<1x!qco.qubit> -> vector<1xi1>
+// CHECK:         %[[A1:.*]], %[[BITS:.*]] = qvec.measure z %[[A0]] : vector<1x!qco.qubit> -> vector<1xi1>
 // CHECK-DAG:     %[[A2:.*]] = vector.extract %[[A1]][0] : !qco.qubit from vector<1x!qco.qubit>
 // CHECK-DAG:     %[[BIT:.*]] = vector.extract %[[BITS]][0] : i1 from vector<1xi1>
 // CHECK:         return %[[BIT]] : i1
@@ -155,13 +157,13 @@ func.func @rotations() {
 // CHECK:         %[[T:.*]] = arith.constant 5.000000e-01 : f64
 // CHECK:         %[[A0:.*]] = vector.from_elements %{{.*}} : vector<1x!qco.qubit>
 // CHECK:         %[[T0:.*]] = vector.from_elements %[[T]] : vector<1xf64>
-// CHECK:         %[[A1:.*]] = qvec.single rx(%[[T0]]) %[[A0]] : vector<1x!qco.qubit>, vector<1xf64>
+// CHECK:         %[[A1:.*]] = qvec.single rx(%[[T0]]) %[[A0]] : vector<1xf64>, vector<1x!qco.qubit>
 // CHECK:         vector.extract %[[A1]][0]
-// CHECK:         qvec.single ry(%{{.*}}) %{{.*}} : vector<1x!qco.qubit>, vector<1xf64>
-// CHECK:         qvec.single rz(%{{.*}}) %{{.*}} : vector<1x!qco.qubit>, vector<1xf64>
-// CHECK:         qvec.single rz(%{{.*}}) %{{.*}} : vector<1x!qco.qubit>, vector<1xf64>
+// CHECK:         qvec.single ry(%{{.*}}) %{{.*}} : vector<1xf64>, vector<1x!qco.qubit>
+// CHECK:         qvec.single rz(%{{.*}}) %{{.*}} : vector<1xf64>, vector<1x!qco.qubit>
+// CHECK:         qvec.single rz(%{{.*}}) %{{.*}} : vector<1xf64>, vector<1x!qco.qubit>
 // CHECK:         %[[T1:.*]] = vector.from_elements %[[T]] : vector<1xf64>
-// CHECK:         qvec.pair rzz(%[[T1]]) %{{.*}}, %{{.*}} : vector<1x!qco.qubit>, vector<1xf64>
+// CHECK:         qvec.pair rzz(%[[T1]]) %{{.*}}, %{{.*}} : vector<1xf64>, vector<1x!qco.qubit>
 
 // -----
 
@@ -192,11 +194,11 @@ func.func @controlled_phase() {
 // CHECK-DAG:     %[[C0:.*]] = vector.from_elements %[[C]] : vector<1x!qco.qubit>
 // CHECK-DAG:     %[[T0:.*]] = vector.from_elements %[[TG]] : vector<1x!qco.qubit>
 // CHECK-DAG:     %[[P0:.*]] = vector.from_elements %[[T]] : vector<1xf64>
-// CHECK:         %[[C1:.*]], %[[T1:.*]] = qvec.pair cp(%[[P0]]) %[[C0]], %[[T0]] : vector<1x!qco.qubit>, vector<1xf64>
+// CHECK:         %[[C1:.*]], %[[T1:.*]] = qvec.pair cp(%[[P0]]) %[[C0]], %[[T0]] : vector<1xf64>, vector<1x!qco.qubit>
 // CHECK:         %[[C2:.*]] = vector.extract %[[C1]][0]
 // CHECK:         %[[C3:.*]] = vector.from_elements %[[C2]] : vector<1x!qco.qubit>
 // CHECK:         %[[P1:.*]] = vector.from_elements %[[T]] : vector<1xf64>
-// CHECK:         qvec.single rz(%[[P1]]) %[[C3]] : vector<1x!qco.qubit>, vector<1xf64>
+// CHECK:         qvec.single rz(%[[P1]]) %[[C3]] : vector<1xf64>, vector<1x!qco.qubit>
 
 // -----
 
@@ -265,8 +267,6 @@ func.func @conditional_with_classical_result(%cond: i1, %lhs: i64, %rhs: i64) ->
 
 // -----
 
-// Until QVec and HiSEP-Q have a reset, it is emulated by flipping the qubit if it measures |1>.
-
 // CHECK-LABEL: func.func @reset
 func.func @reset() {
     %q0 = qco.static 0 : !qco.qubit
@@ -276,13 +276,7 @@ func.func @reset() {
 }
 
 // CHECK:         %[[V:.*]] = vector.from_elements %{{.*}} : vector<1x!qco.qubit>
-// CHECK:         %[[M:.*]], %[[BITS:.*]] = qvec.mz %[[V]] : vector<1x!qco.qubit> -> vector<1xi1>
-// CHECK:         %[[ONE:.*]] = vector.extract %[[BITS]][0] : i1 from vector<1xi1>
-// CHECK:         %[[R:.*]] = scf.if %[[ONE]] -> (vector<1x!qco.qubit>) {
-// CHECK:           %[[F:.*]] = qvec.single x %[[M]] : vector<1x!qco.qubit>
-// CHECK:           scf.yield %[[F]] : vector<1x!qco.qubit>
-// CHECK:         } else {
-// CHECK:           scf.yield %[[M]] : vector<1x!qco.qubit>
-// CHECK:         }
-// CHECK:         vector.extract %[[R]][0]
-// CHECK:         qvec.single x
+// CHECK:         %[[R:.*]] = qvec.reset z %[[V]] : vector<1x!qco.qubit>
+// CHECK:         %[[Q:.*]] = vector.extract %[[R]][0] : !qco.qubit from vector<1x!qco.qubit>
+// CHECK:         %[[W:.*]] = vector.from_elements %[[Q]] : vector<1x!qco.qubit>
+// CHECK:         qvec.single x %[[W]]

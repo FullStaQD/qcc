@@ -97,3 +97,14 @@ Value qcc::qvec::scaleAngles(OpBuilder& builder, Location loc, Value angles, dou
   const int64_t width = cast<VectorType>(angles.getType()).getNumElements();
   return arith::MulFOp::create(builder, loc, angles, buildSplatAngleVector(builder, loc, width, factor));
 }
+
+Value qcc::qvec::offsetAngles(OpBuilder& builder, Location loc, Value angles, double offset) {
+  if (std::optional<SmallVector<double>> values = getConstantAngles(angles)) {
+    for (double& value : *values) {
+      value += offset;
+    }
+    return buildAngleVector(builder, loc, *values);
+  }
+  const int64_t width = cast<VectorType>(angles.getType()).getNumElements();
+  return arith::AddFOp::create(builder, loc, angles, buildSplatAngleVector(builder, loc, width, offset));
+}

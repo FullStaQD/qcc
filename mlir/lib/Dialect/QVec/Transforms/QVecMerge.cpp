@@ -39,9 +39,12 @@
 
 using namespace mlir;
 using namespace qcc::qvec;
+using qcc::QubitLaneOpInterface;
 
 /// The number of qubits one lane of `op` carries, i.e. the op's current VF.
-static int64_t getVectorLength(QubitLaneOpInterface op) { return op.getQubitResult(0).getType().getNumElements(); }
+static int64_t getVectorLength(QubitLaneOpInterface op) {
+  return cast<VectorType>(op.getQubitResult(0).getType()).getNumElements();
+}
 
 /// Identical bucket key for two ops expresses the fact that they can in principle be merged if no other op blocks and
 /// qubit lanes are disjoint. BucketKey = (operation name, secondary bucket key).
@@ -67,7 +70,7 @@ static std::optional<uint32_t> getSecondaryBucketKey(QubitLaneOpInterface op) {
         return static_cast<uint32_t>(pairOp.getGateKind());
       })
       .Case([](GlobalOp) -> std::optional<uint32_t> { return std::nullopt; })
-      .Case([](MZOp) -> std::optional<uint32_t> { return 0U; }) // No gate kind its instances could differ in.
+      .Case<MeasureOp, ResetOp>([](auto op) -> std::optional<uint32_t> { return static_cast<uint32_t>(op.getBasis()); })
       .Default([](Operation*) -> std::optional<uint32_t> {
         assert(false && "unhandled qvec operation, it stays unmerged");
         return std::nullopt;
@@ -130,7 +133,7 @@ struct Group {
     assert((lane == 0 || lane == 1) && "lane can only be 0 or 1");
     SmallVector<Value> elements;
     for (QubitLaneOpInterface member : this->members) {
-      TypedValue<VectorType> operand = member.getQubitOperand(lane);
+      auto operand = cast<TypedValue<VectorType>>(member.getQubitOperand(lane));
       for (int64_t index = 0; index < operand.getType().getNumElements(); ++index) {
         elements.push_back(vector::ExtractOp::create(builder, loc, operand, index));
       }
@@ -148,11 +151,12 @@ struct Group {
 /// The static ops are found by tracing each qubit element through the IR.
 static std::optional<SmallVector<qco::StaticOp>> getStaticQubits(QubitLaneOpInterface op) {
   SmallVector<qco::StaticOp> qubits;
-  for (auto operand : op.getQubitOperands()) {
+  for (Value qubitOperand : op.getQubitOperands()) {
+    auto operand = cast<TypedValue<VectorType>>(qubitOperand);
     for (int64_t index = 0; index < operand.getType().getNumElements(); ++index) {
       qco::StaticOp staticOp = getStaticOpAncestor(operand, index);
       if (!staticOp) {
-        // Ideally we would like to never return nullopt, but this cannot be guaranteed if the pass is ran in an
+        // Ideally we would like to never return nullopt, but this cannot be guaranteed if the pass is run in an
         // arbitrary context.
         return std::nullopt;
       }
@@ -186,10 +190,8 @@ static void mergeGroup(const Group& group) {
           .Case([&](PairOp pairOp) {
             return PairOp::create(builder, loc, pairOp.getGateKind(), operands[0], operands[1]);
           })
-          .Case([&](MZOp) {
-            auto bitsType = VectorType::get({group.width}, builder.getI1Type());
-            return MZOp::create(builder, loc, operands[0].getType(), bitsType, operands[0]);
-          });
+          .Case([&](MeasureOp measureOp) { return MeasureOp::create(builder, loc, measureOp.getBasis(), operands[0]); })
+          .Case([&](ResetOp resetOp) { return ResetOp::create(builder, loc, resetOp.getBasis(), operands[0]); });
 
   // Replace uses of members by our newly created merged op.
   int64_t offset = 0;

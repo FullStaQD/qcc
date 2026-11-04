@@ -158,7 +158,7 @@ private:
         .Case([&](vector::ExtractOp extract) { return convertExtract(extract); })
         .Case([&](qvec::SingleOp single) { return convertSingle(single); })
         .Case([&](qvec::GlobalOp global) { return convertGlobal(global); })
-        .Case([&](qvec::MZOp mz) { return convertMZ(mz); })
+        .Case([&](qvec::MeasureOp measure) { return convertMeasure(measure); })
         .Case([&](mlir::qco::SinkOp sink) {
           replaced.push_back(sink);
           return success();
@@ -248,12 +248,12 @@ private:
   }
 
   LogicalResult convertSingle(qvec::SingleOp single) {
-    const qvec::SingleGateKind kind = single.getGateKind();
-    if (kind != qvec::SingleGateKind::UZXZ && kind != qvec::SingleGateKind::RZ) {
-      return single.emitOpError() << "gate '" << qvec::stringifySingleGateKind(kind)
+    const SingleGateKind kind = single.getGateKind();
+    if (kind != SingleGateKind::UZXZ && kind != SingleGateKind::RZ) {
+      return single.emitOpError() << "gate '" << stringifySingleGateKind(kind)
                                   << "' is not supported, run `qvec-to-u-zxz` and `qvec-layer` first";
     }
-    if (failed(checkLayer(single, kind == qvec::SingleGateKind::UZXZ ? Layer::ZXZ : Layer::RZ))) {
+    if (failed(checkLayer(single, kind == SingleGateKind::UZXZ ? Layer::ZXZ : Layer::RZ))) {
       return failure();
     }
     const FailureOr<ArrayRef<int64_t>> ions = lookupLanes(single, single.getQubitsIn());
@@ -285,7 +285,7 @@ private:
       if (trapIons.empty()) {
         continue;
       }
-      if (kind == qvec::SingleGateKind::UZXZ) {
+      if (kind == SingleGateKind::UZXZ) {
         chain = ZXZOp::create(builder, single.getLoc(), chain, trapIons, trapParams[qvec::zxz::z1],
                               trapParams[qvec::zxz::x], trapParams[qvec::zxz::z2]);
       } else {
@@ -376,21 +376,25 @@ private:
     return success();
   }
 
-  LogicalResult convertMZ(qvec::MZOp mz) {
-    const FailureOr<ArrayRef<int64_t>> ions = lookupLanes(mz, mz.getQubitsIn());
+  LogicalResult convertMeasure(qvec::MeasureOp measure) {
+    if (measure.getBasis() != Basis::Z) {
+      return measure.emitOpError() << "measures in basis '" << stringifyBasis(measure.getBasis())
+                                   << "', which convert-qvec-to-magic does not support";
+    }
+    const FailureOr<ArrayRef<int64_t>> ions = lookupLanes(measure, measure.getQubitsIn());
     if (failed(ions)) {
       return failure();
     }
     if (!measured) {
       // The first measurement ends the program: every chain is measured as a whole.
-      OpBuilder builder(mz);
+      OpBuilder builder(measure);
       for (const TypedValue<IonChainType> chain : chains) {
         const IonChainType type = chain.getType();
         if (type.getNumIons() == 0) {
           continue;
         }
         auto mzd =
-            MZDOp::create(builder, mz.getLoc(), SmallVector<Type>(type.getNumIons(), builder.getI1Type()), chain);
+            MZDOp::create(builder, measure.getLoc(), SmallVector<Type>(type.getNumIons(), builder.getI1Type()), chain);
         for (auto [ion, bit] : llvm::zip_equal(type.getIons(), mzd.getBits())) {
           bitOf[ion] = bit;
         }
@@ -398,13 +402,13 @@ private:
       measured = true;
     }
     for (const int64_t ion : *ions) {
-      if (!measuredBy.try_emplace(ion, mz).second) {
-        return mz.emitOpError() << "measures qubit " << ion << " a second time";
+      if (!measuredBy.try_emplace(ion, measure).second) {
+        return measure.emitOpError() << "measures qubit " << ion << " a second time";
       }
     }
-    lanes[mz.getQubitsOut()] = SmallVector<int64_t>(*ions);
-    lanes[mz.getBits()] = SmallVector<int64_t>(*ions);
-    replaced.push_back(mz);
+    lanes[measure.getQubitsOut()] = SmallVector<int64_t>(*ions);
+    lanes[measure.getBits()] = SmallVector<int64_t>(*ions);
+    replaced.push_back(measure);
     return success();
   }
 
@@ -457,11 +461,11 @@ private:
   SmallVector<TypedValue<IonChainType>> chains;
   /// The ion held by a scalar qubit value.
   llvm::DenseMap<Value, int64_t> ionOf;
-  /// The ion per lane of a qubit vector, or of the bit vector of a `qvec.mz`.
+  /// The ion per lane of a qubit vector, or of the bit vector of a `qvec.measure`.
   llvm::DenseMap<Value, SmallVector<int64_t>> lanes;
   /// The `magic.mzd` result per ion, once measured.
   llvm::DenseMap<int64_t, Value> bitOf;
-  /// The `qvec.mz` that measures an ion.
+  /// The `qvec.measure` that measures an ion.
   llvm::DenseMap<int64_t, Operation*> measuredBy;
   llvm::DenseSet<int64_t> usedQubits;
   /// The ops to erase, in program order.

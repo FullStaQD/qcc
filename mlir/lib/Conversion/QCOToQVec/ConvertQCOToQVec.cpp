@@ -34,6 +34,8 @@
 
 using namespace mlir;
 using namespace qcc::qvec;
+using qcc::PairGateKind;
+using qcc::SingleGateKind;
 
 /// Packs `elements` into a vector and returns corresponding `vector.from_elements` op. Used for the qubits as well as
 /// for the angle, which `qvec` wants lane-aligned with the qubits: a `vector<1xf64>` here.
@@ -115,6 +117,16 @@ struct RZZLowering final : public OpConversionPattern<qco::RZZOp> {
 
   LogicalResult matchAndRewrite(qco::RZZOp op, OpAdaptor adaptor, ConversionPatternRewriter& rewriter) const override {
     replaceWithPair(rewriter, op, PairGateKind::RZZ, adaptor.getQubit0In(), adaptor.getQubit1In(), adaptor.getTheta());
+    return success();
+  }
+};
+
+/// Drops `qco.id`: `qvec` has no identity gate.
+struct IdLowering final : public OpConversionPattern<qco::IdOp> {
+  using OpConversionPattern::OpConversionPattern;
+
+  LogicalResult matchAndRewrite(qco::IdOp op, OpAdaptor adaptor, ConversionPatternRewriter& rewriter) const override {
+    rewriter.replaceOp(op, adaptor.getQubitIn());
     return success();
   }
 };
@@ -265,7 +277,7 @@ struct YieldLowering final : public OpConversionPattern<qco::YieldOp> {
   }
 };
 
-/// Rewrites `qco.measure` into a one-element `qvec.mz`.
+/// Rewrites `qco.measure` into a one-element `qvec.measure z`.
 struct MeasureLowering final : public OpConversionPattern<qco::MeasureOp> {
   using OpConversionPattern::OpConversionPattern;
 
@@ -273,20 +285,17 @@ struct MeasureLowering final : public OpConversionPattern<qco::MeasureOp> {
                                 ConversionPatternRewriter& rewriter) const override {
     Location loc = op.getLoc();
     Value qubits = buildVector(rewriter, loc, adaptor.getQubitIn());
-    auto bitsType = VectorType::get({1}, rewriter.getI1Type());
-    auto mzOp = MZOp::create(rewriter, loc, qubits.getType(), bitsType, qubits);
+    auto measureOp = MeasureOp::create(rewriter, loc, qcc::Basis::Z, qubits);
 
     rewriter.replaceOp(op, ValueRange{
-                               vector::ExtractOp::create(rewriter, loc, mzOp.getQubitsOut(), 0),
-                               vector::ExtractOp::create(rewriter, loc, mzOp.getBits(), 0),
+                               vector::ExtractOp::create(rewriter, loc, measureOp.getQubitsOut(), 0),
+                               vector::ExtractOp::create(rewriter, loc, measureOp.getBits(), 0),
                            });
     return success();
   }
 };
 
-/// Rewrites `qco.reset` into a measurement followed by an `x` if the qubit was measured in |1⟩.
-///
-/// TODO: Replace with a real reset once QVec and HiSEP-Q provide one.
+/// Rewrites `qco.reset` into a one-element `qvec.reset z`.
 struct ResetLowering final : public OpConversionPattern<qco::ResetOp> {
   using OpConversionPattern::OpConversionPattern;
 
@@ -294,20 +303,8 @@ struct ResetLowering final : public OpConversionPattern<qco::ResetOp> {
                                 ConversionPatternRewriter& rewriter) const override {
     Location loc = op.getLoc();
     Value qubits = buildVector(rewriter, loc, adaptor.getQubitIn());
-    auto bitsType = VectorType::get({1}, rewriter.getI1Type());
-    auto mzOp = MZOp::create(rewriter, loc, qubits.getType(), bitsType, qubits);
-    Value measured = mzOp.getQubitsOut();
-    Value one = vector::ExtractOp::create(rewriter, loc, mzOp.getBits(), 0);
-
-    auto ifOp = scf::IfOp::create(
-        rewriter, loc, one,
-        [&](OpBuilder& builder, Location branchLoc) {
-          auto flipOp = SingleOp::create(builder, branchLoc, SingleGateKind::X, measured, ValueRange{});
-          scf::YieldOp::create(builder, branchLoc, flipOp.getQubitsOut());
-        },
-        [&](OpBuilder& builder, Location branchLoc) { scf::YieldOp::create(builder, branchLoc, measured); });
-
-    rewriter.replaceOp(op, vector::ExtractOp::create(rewriter, loc, ifOp.getResult(0), 0));
+    auto resetOp = ResetOp::create(rewriter, loc, qcc::Basis::Z, qubits);
+    rewriter.replaceOp(op, vector::ExtractOp::create(rewriter, loc, resetOp.getQubitsOut(), 0));
     return success();
   }
 };
@@ -335,8 +332,7 @@ protected:
     target.addLegalOp<qco::StaticOp>(); // still needed as qubit source
 
     RewritePatternSet patterns(ctx);
-    patterns.add<SingleGateLowering<qco::IdOp, SingleGateKind::I>,    //
-                 SingleGateLowering<qco::HOp, SingleGateKind::H>,     //
+    patterns.add<SingleGateLowering<qco::HOp, SingleGateKind::H>,     //
                  SingleGateLowering<qco::XOp, SingleGateKind::X>,     //
                  SingleGateLowering<qco::YOp, SingleGateKind::Y>,     //
                  SingleGateLowering<qco::ZOp, SingleGateKind::Z>,     //
@@ -348,8 +344,8 @@ protected:
                  RotationLowering<qco::RYOp, SingleGateKind::RY>,     //
                  RotationLowering<qco::RZOp, SingleGateKind::RZ>,     //
                  RotationLowering<qco::POp, SingleGateKind::RZ>,      //
-                 ISwapLowering, RZZLowering, GPhaseLowering, CtrlLowering, MeasureLowering, ResetLowering, SinkLowering,
-                 IfLowering, YieldLowering>(ctx);
+                 ISwapLowering, RZZLowering, IdLowering, GPhaseLowering, CtrlLowering, MeasureLowering, ResetLowering,
+                 SinkLowering, IfLowering, YieldLowering>(ctx);
 
     if (failed(applyPartialConversion(moduleOp, target, std::move(patterns)))) {
       signalPassFailure();

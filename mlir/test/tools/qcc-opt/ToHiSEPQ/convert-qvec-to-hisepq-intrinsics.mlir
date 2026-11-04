@@ -73,15 +73,53 @@ func.func @measurement() -> vector<2xi1> {
     %q1 = qco.static 1 : !qco.qubit
     %qs = vector.from_elements %q0, %q1 : vector<2x!qco.qubit>
 
-    %qs_out, %result = qvec.mz %qs : vector<2x!qco.qubit> -> vector<2xi1>
+    %qs_out, %result = qvec.measure z %qs : vector<2x!qco.qubit> -> vector<2xi1>
 
     func.return %result : vector<2xi1>
 }
 
-// CHECK-NOT:     qvec.mz
+// CHECK-NOT:     qvec.measure
 // CHECK:         %[[RES:.*]] = llvm.mlir.poison : vector<2xi1>
 // CHECK:         llvm.call_intrinsic "llvm.riscv.qv.mz"(%{{.*}}, %{{.*}}, %{{.*}}, %{{.*}})
 // CHECK:         return %[[RES]] : vector<2xi1>
+
+// -----
+
+// There is no reset instruction: the qubits are measured, and each one is flipped on its own if it measured |1⟩.
+// The flips branch on poison as long as the measurement results are lost.
+
+// CHECK-LABEL: func.func @reset
+func.func @reset() {
+    %q0 = qco.static 0 : !qco.qubit
+    %q1 = qco.static 1 : !qco.qubit
+    %qs = vector.from_elements %q0, %q1 : vector<2x!qco.qubit>
+
+    %r = qvec.reset z %qs : vector<2x!qco.qubit>
+    %h = qvec.single h %r : vector<2x!qco.qubit>
+
+    func.return
+}
+
+// CHECK-NOT:     qvec.
+// CHECK-DAG:     %[[IDX:.*]] = llvm.mlir.constant(dense<[0, 1]> : vector<2xi8>) : vector<2xi8>
+// CHECK-DAG:     %[[IDX0:.*]] = llvm.mlir.constant(dense<0> : vector<1xi8>) : vector<1xi8>
+// CHECK-DAG:     %[[IDX1:.*]] = llvm.mlir.constant(dense<1> : vector<1xi8>) : vector<1xi8>
+// CHECK-DAG:     %[[BITS:.*]] = llvm.mlir.poison : vector<2xi1>
+// CHECK:         %[[V:.*]] = llvm.intr.vector.insert %[[IDX]]
+// CHECK:         llvm.call_intrinsic "llvm.riscv.qv.mz"(%[[V]], %{{.*}}, %{{.*}}, %{{.*}})
+// CHECK:         %[[BIT0:.*]] = vector.extract %[[BITS]][0] : i1 from vector<2xi1>
+// CHECK:         scf.if %[[BIT0]] {
+// CHECK:           %[[V0:.*]] = llvm.intr.vector.insert %[[IDX0]]
+// CHECK:           llvm.call_intrinsic "llvm.riscv.qv.x"(%[[V0]], %{{.*}}, %{{.*}}, %{{.*}})
+// CHECK:         }
+// CHECK:         %[[BIT1:.*]] = vector.extract %[[BITS]][1] : i1 from vector<2xi1>
+// CHECK:         scf.if %[[BIT1]] {
+// CHECK:           %[[V1:.*]] = llvm.intr.vector.insert %[[IDX1]]
+// CHECK:           llvm.call_intrinsic "llvm.riscv.qv.x"(%[[V1]], %{{.*}}, %{{.*}}, %{{.*}})
+// CHECK:         }
+// The qubits after the reset are the ones before.
+// CHECK:         %[[W:.*]] = llvm.intr.vector.insert %[[IDX]]
+// CHECK:         llvm.call_intrinsic "llvm.riscv.qv.h"(%[[W]], %{{.*}}, %{{.*}}, %{{.*}})
 
 // -----
 
@@ -97,7 +135,7 @@ func.func @threaded() -> vector<2xi1> {
 
     %h = qvec.single h %ctrls : vector<2x!qco.qubit>
     %ctrls_out, %tgts_out = qvec.pair cx %h, %tgts : vector<2x!qco.qubit>
-    %mq, %bits = qvec.mz %ctrls_out : vector<2x!qco.qubit> -> vector<2xi1>
+    %mq, %bits = qvec.measure z %ctrls_out : vector<2x!qco.qubit> -> vector<2xi1>
     %x = qvec.single x %mq : vector<2x!qco.qubit>
 
     func.return %bits : vector<2xi1>
@@ -144,7 +182,7 @@ func.func @sparse_qubit_indices() {
 func.func @output_recording(%value: i64, %buffer: memref<4xi1>) {
     %q0 = qco.static 0 : !qco.qubit
     %qs = vector.from_elements %q0 : vector<1x!qco.qubit>
-    %mz, %bits = qvec.mz %qs : vector<1x!qco.qubit> -> vector<1xi1>
+    %mz, %bits = qvec.measure z %qs : vector<1x!qco.qubit> -> vector<1xi1>
 
     aux.record_int %value : i64
     aux.record_memref %buffer : memref<4xi1>

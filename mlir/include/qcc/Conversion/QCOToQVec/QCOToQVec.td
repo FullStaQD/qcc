@@ -27,14 +27,14 @@ def ConvertQCOToQVec : Pass<"convert-qco-to-qvec", "mlir::ModuleOp"> {
       ```mlir
       %qs = vector.from_elements %q0 : vector<1x!qco.qubit>
       %ts = vector.from_elements %theta : vector<1xf64>
-      %rs = qvec.single rz(%ts) %qs : vector<1x!qco.qubit>, vector<1xf64>
+      %rs = qvec.single rz(%ts) %qs : vector<1xf64>, vector<1x!qco.qubit>
       %q1 = vector.extract %rs[0] : !qco.qubit from vector<1x!qco.qubit>
       ```
 
-      Similar for pairs and measurements.
+      Similar for pairs, measurements and resets.
 
-      Gates which cannot be translated 1:1 are decomposed if possible. Gates that cannot be legalized make the pass
-      fail. `qco.static` is kept as the source of qubits, and `qco.sink` is erased.
+      Gates that cannot be legalized make the pass fail; `qco.id` is dropped. `qco.static` is kept as the source of
+      qubits, and `qco.sink` is erased.
    }];
 
   let dependentDialects = [

@@ -9,14 +9,14 @@ func.func @bell() {
     %mpi_2 = arith.constant dense<-1.5707963267948966> : vector<1xf64>
     %a0 = vector.from_elements %q0 : vector<1x!qco.qubit>
     %b0 = vector.from_elements %q1 : vector<1x!qco.qubit>
-    %a1 = qvec.single u_zxz(%pi_2, %pi_2, %pi_2) %a0 : vector<1x!qco.qubit>, vector<1xf64>
-    %b1 = qvec.single u_zxz(%pi_2, %pi_2, %pi_2) %b0 : vector<1x!qco.qubit>, vector<1xf64>
-    %a2, %b2 = qvec.pair rzz(%pi_2) %a1, %b1 : vector<1x!qco.qubit>, vector<1xf64>
-    %a3 = qvec.single rz(%mpi_2) %a2 : vector<1x!qco.qubit>, vector<1xf64>
-    %b3 = qvec.single rz(%mpi_2) %b2 : vector<1x!qco.qubit>, vector<1xf64>
-    %b4 = qvec.single u_zxz(%pi_2, %pi_2, %pi_2) %b3 : vector<1x!qco.qubit>, vector<1xf64>
-    %a4, %ra = qvec.mz %a3 : vector<1x!qco.qubit> -> vector<1xi1>
-    %b5, %rb = qvec.mz %b4 : vector<1x!qco.qubit> -> vector<1xi1>
+    %a1 = qvec.single u_zxz(%pi_2, %pi_2, %pi_2) %a0 : vector<1xf64>, vector<1x!qco.qubit>
+    %b1 = qvec.single u_zxz(%pi_2, %pi_2, %pi_2) %b0 : vector<1xf64>, vector<1x!qco.qubit>
+    %a2, %b2 = qvec.pair rzz(%pi_2) %a1, %b1 : vector<1xf64>, vector<1x!qco.qubit>
+    %a3 = qvec.single rz(%mpi_2) %a2 : vector<1xf64>, vector<1x!qco.qubit>
+    %b3 = qvec.single rz(%mpi_2) %b2 : vector<1xf64>, vector<1x!qco.qubit>
+    %b4 = qvec.single u_zxz(%pi_2, %pi_2, %pi_2) %b3 : vector<1xf64>, vector<1x!qco.qubit>
+    %a4, %ra = qvec.measure z %a3 : vector<1x!qco.qubit> -> vector<1xi1>
+    %b5, %rb = qvec.measure z %b4 : vector<1x!qco.qubit> -> vector<1xi1>
     %r0 = vector.extract %ra[0] : i1 from vector<1xi1>
     %r1 = vector.extract %rb[0] : i1 from vector<1xi1>
     aux.record_int %r0 : i1
@@ -29,7 +29,7 @@ func.func @bell() {
 // CHECK-DAG:     %[[Q0:.*]] = qco.static 0
 // CHECK-DAG:     %[[Q1:.*]] = qco.static 1
 // CHECK:         %[[V0:.*]] = vector.from_elements %[[Q0]], %[[Q1]] : vector<2x!qco.qubit>
-// CHECK:         %[[L0:.*]] = qvec.single u_zxz(%{{.*}}, %{{.*}}, %{{.*}}) %[[V0]] : vector<2x!qco.qubit>, vector<2xf64>
+// CHECK:         %[[L0:.*]] = qvec.single u_zxz(%{{.*}}, %{{.*}}, %{{.*}}) %[[V0]] : vector<2xf64>, vector<2x!qco.qubit>
 // CHECK-DAG:     %[[E0:.*]] = vector.extract %[[L0]][0]
 // CHECK-DAG:     %[[E1:.*]] = vector.extract %[[L0]][1]
 // CHECK:         %[[V1:.*]] = vector.from_elements %[[E0]], %[[E1]] : vector<2x!qco.qubit>
@@ -38,12 +38,12 @@ func.func @bell() {
 // CHECK-DAG:     %[[F0:.*]] = vector.extract %[[L1]][0]
 // CHECK-DAG:     %[[F1:.*]] = vector.extract %[[L1]][1]
 // CHECK:         %[[V2:.*]] = vector.from_elements %[[F1]] : vector<1x!qco.qubit>
-// CHECK:         %[[L2:.*]] = qvec.single u_zxz(%{{.*}}, %{{.*}}, %{{.*}}) %[[V2]] : vector<1x!qco.qubit>, vector<1xf64>
+// CHECK:         %[[L2:.*]] = qvec.single u_zxz(%{{.*}}, %{{.*}}, %{{.*}}) %[[V2]] : vector<1xf64>, vector<1x!qco.qubit>
 // CHECK:         %[[G1:.*]] = vector.extract %[[L2]][0]
 // CHECK:         %[[M0:.*]] = vector.from_elements %[[F0]] : vector<1x!qco.qubit>
-// CHECK:         %{{.*}}, %[[RA:.*]] = qvec.mz %[[M0]] : vector<1x!qco.qubit> -> vector<1xi1>
+// CHECK:         %{{.*}}, %[[RA:.*]] = qvec.measure z %[[M0]] : vector<1x!qco.qubit> -> vector<1xi1>
 // CHECK:         %[[M1:.*]] = vector.from_elements %[[G1]] : vector<1x!qco.qubit>
-// CHECK:         %{{.*}}, %[[RB:.*]] = qvec.mz %[[M1]] : vector<1x!qco.qubit> -> vector<1xi1>
+// CHECK:         %{{.*}}, %[[RB:.*]] = qvec.measure z %[[M1]] : vector<1x!qco.qubit> -> vector<1xi1>
 // CHECK:         %[[R0:.*]] = vector.extract %[[RA]][0] : i1 from vector<1xi1>
 // CHECK:         %[[R1:.*]] = vector.extract %[[RB]][0] : i1 from vector<1xi1>
 // CHECK:         aux.record_int %[[R0]] : i1
@@ -67,11 +67,11 @@ func.func @merge_across_rz_not_across_x() {
     %v2 = vector.from_elements %q2 : vector<1x!qco.qubit>
 
     // The first two rzz become one global zz, the last rzz a second one.
-    %v0a, %v1a = qvec.pair rzz(%a) %v0, %v1 : vector<1x!qco.qubit>, vector<1xf64>
-    %v1b = qvec.single rz(%b) %v1a : vector<1x!qco.qubit>, vector<1xf64>       // diagonal: does not split the block
-    %v1c, %v2c = qvec.pair rzz(%b) %v1b, %v2 : vector<1x!qco.qubit>, vector<1xf64>
-    %v1d = qvec.single u_zxz(%zero, %pi, %zero) %v1c : vector<1x!qco.qubit>, vector<1xf64> // x: splits the block
-    %v1e, %v2e = qvec.pair rzz(%c) %v1d, %v2c : vector<1x!qco.qubit>, vector<1xf64>
+    %v0a, %v1a = qvec.pair rzz(%a) %v0, %v1 : vector<1xf64>, vector<1x!qco.qubit>
+    %v1b = qvec.single rz(%b) %v1a : vector<1xf64>, vector<1x!qco.qubit>       // diagonal: does not split the block
+    %v1c, %v2c = qvec.pair rzz(%b) %v1b, %v2 : vector<1xf64>, vector<1x!qco.qubit>
+    %v1d = qvec.single u_zxz(%zero, %pi, %zero) %v1c : vector<1xf64>, vector<1x!qco.qubit> // x: splits the block
+    %v1e, %v2e = qvec.pair rzz(%c) %v1d, %v2c : vector<1xf64>, vector<1x!qco.qubit>
     func.return
 }
 
@@ -86,7 +86,7 @@ func.func @merge_across_rz_not_across_x() {
 // CHECK:         %[[E1:.*]] = vector.extract %[[L0]][1]
 // CHECK:         %[[V1:.*]] = vector.from_elements %[[E1]] : vector<1x!qco.qubit>
 // CHECK:         %[[X:.*]] = arith.constant dense<3.1415926535897931> : vector<1xf64>
-// CHECK:         %[[L1:.*]] = qvec.single u_zxz(%{{.*}}, %[[X]], %{{.*}}) %[[V1]] : vector<1x!qco.qubit>, vector<1xf64>
+// CHECK:         %[[L1:.*]] = qvec.single u_zxz(%{{.*}}, %[[X]], %{{.*}}) %[[V1]] : vector<1xf64>, vector<1x!qco.qubit>
 // CHECK:         %[[F1:.*]] = vector.extract %[[L1]][0]
 // CHECK:         %[[V2:.*]] = vector.from_elements %[[F1]], %{{.*}} : vector<2x!qco.qubit>
 // CHECK:         %[[A1:.*]] = arith.constant dense<{{\[\[}}0.000000e+00, 1.250000e-01], [1.250000e-01, 0.000000e+00]]> : vector<2x2xf64>
@@ -106,7 +106,7 @@ func.func @rzz_absorbed_by_zz() {
     %v1 = vector.from_elements %q1 : vector<1x!qco.qubit>
     %v2 = vector.from_elements %q2 : vector<1x!qco.qubit>
 
-    %v0a, %v1a = qvec.pair rzz(%a) %v0, %v1 : vector<1x!qco.qubit>, vector<1xf64>
+    %v0a, %v1a = qvec.pair rzz(%a) %v0, %v1 : vector<1xf64>, vector<1x!qco.qubit>
     // A global block whose third qubit is not coupled at all: q2 does not join the layer.
     %e0 = vector.extract %v0a[0] : !qco.qubit from vector<1x!qco.qubit>
     %e1 = vector.extract %v1a[0] : !qco.qubit from vector<1x!qco.qubit>
@@ -133,17 +133,17 @@ func.func @residual_rz() {
     %v0 = vector.from_elements %q0 : vector<1x!qco.qubit>
     %v1 = vector.from_elements %q1 : vector<1x!qco.qubit>
 
-    %v0a = qvec.single rz(%a) %v0 : vector<1x!qco.qubit>, vector<1xf64>
-    %v0b, %v1b = qvec.pair rzz(%b) %v0a, %v1 : vector<1x!qco.qubit>, vector<1xf64>
-    %v1c = qvec.single rz(%a) %v1b : vector<1x!qco.qubit>, vector<1xf64>
-    %v1d = qvec.single rz(%a) %v1c : vector<1x!qco.qubit>, vector<1xf64>
+    %v0a = qvec.single rz(%a) %v0 : vector<1xf64>, vector<1x!qco.qubit>
+    %v0b, %v1b = qvec.pair rzz(%b) %v0a, %v1 : vector<1xf64>, vector<1x!qco.qubit>
+    %v1c = qvec.single rz(%a) %v1b : vector<1xf64>, vector<1x!qco.qubit>
+    %v1d = qvec.single rz(%a) %v1c : vector<1xf64>, vector<1x!qco.qubit>
     func.return
 }
 
 // No u_zxz anywhere, so the rz's of both qubits end up in one trailing rz layer (q1's two rz added up).
 // CHECK:         qvec.global zz
 // CHECK:         %[[T:.*]] = arith.constant dense<[5.000000e-01, 1.000000e+00]> : vector<2xf64>
-// CHECK:         qvec.single rz(%[[T]]) %{{.*}} : vector<2x!qco.qubit>, vector<2xf64>
+// CHECK:         qvec.single rz(%[[T]]) %{{.*}} : vector<2xf64>, vector<2x!qco.qubit>
 // CHECK-NOT:     qvec.
 
 // -----
@@ -169,15 +169,15 @@ func.func @classical_tail(%flag: i1) -> i1 {
     %pi = arith.constant dense<3.1415926535897931> : vector<1xf64>
     %zero = arith.constant dense<0.0> : vector<1xf64>
     %v0 = vector.from_elements %q0 : vector<1x!qco.qubit>
-    %v1 = qvec.single u_zxz(%zero, %pi, %zero) %v0 : vector<1x!qco.qubit>, vector<1xf64>
-    %v2, %bits = qvec.mz %v1 : vector<1x!qco.qubit> -> vector<1xi1>
+    %v1 = qvec.single u_zxz(%zero, %pi, %zero) %v0 : vector<1xf64>, vector<1x!qco.qubit>
+    %v2, %bits = qvec.measure z %v1 : vector<1x!qco.qubit> -> vector<1xi1>
     %bit = vector.extract %bits[0] : i1 from vector<1xi1>
     %r = arith.xori %bit, %flag : i1
     func.return %r : i1
 }
 
 // CHECK:         qvec.single u_zxz
-// CHECK:         %{{.*}}, %[[BITS:.*]] = qvec.mz
+// CHECK:         %{{.*}}, %[[BITS:.*]] = qvec.measure z
 // CHECK:         %[[BIT:.*]] = vector.extract %[[BITS]][0] : i1 from vector<1xi1>
 // CHECK:         %[[R:.*]] = arith.xori %[[BIT]], %arg0 : i1
 // CHECK:         return %[[R]]

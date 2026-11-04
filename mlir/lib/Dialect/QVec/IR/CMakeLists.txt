@@ -4,7 +4,6 @@ add_mlir_dialect_library(
   DEPENDS
   QCCQVecDialectIncGen
   QCCQVecAttrsIncGen
-  QCCQVecInterfacesIncGen
   QCCQVecOpsIncGen
   LINK_LIBS
   PRIVATE
@@ -14,4 +13,5 @@ add_mlir_dialect_library(
   MLIRQCODialect
   MLIRQTensorDialect
   MLIRSCFDialect
-  MLIRVectorDialect)
+  MLIRVectorDialect
+  QCCQccDialect)
