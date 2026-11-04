@@ -192,7 +192,8 @@ static void mergeGroup(const Group& group) {
             return PairOp::create(builder, loc, pairOp.getGateKind(), operands[0], operands[1]);
           })
           .Case([&](MeasureOp measureOp) { return MeasureOp::create(builder, loc, measureOp.getBasis(), operands[0]); })
-          .Case([&](ResetOp resetOp) { return ResetOp::create(builder, loc, resetOp.getBasis(), operands[0]); });
+          .Case([&](ResetOp resetOp) { return ResetOp::create(builder, loc, resetOp.getBasis(), operands[0]); })
+          .DefaultUnreachable("mergeGroup must handle every op getSecondaryBucketKey assigns a key to");
 
   // Replace uses of members by our newly created merged op.
   int64_t offset = 0;

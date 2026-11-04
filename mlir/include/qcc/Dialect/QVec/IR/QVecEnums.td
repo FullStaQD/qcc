@@ -16,8 +16,6 @@ include "mlir/IR/EnumAttr.td"
 // Gate kinds
 //===----------------------------------------------------------------------===//
 
-// `single`, `pair`, `measure` and `reset` take the gate kinds and bases of `qcc`, as `qcirc` does.
-
 // Global gates act on all lanes of a qubit vector jointly. Their parameters are not lane-aligned vectors but a matrix
 // over the lanes (see `qvec.global`), so they carry no arity here.
 def QVec_GlobalGateKind : I32Enum<"GlobalGateKind", "global gate kind", [

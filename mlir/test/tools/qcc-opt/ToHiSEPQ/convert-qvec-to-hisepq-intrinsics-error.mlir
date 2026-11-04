@@ -57,10 +57,9 @@ func.func @reset_x() {
 
 // -----
 
-// Both operands of a pair are checked before either is materialized, so a bad target is reported
-// once and nothing is left behind for the controls. The target is one of two qubits, picked at runtime.
+// The target qubit of the CX gate is chosen dynamically, we cannot handle this situation at the moment.
 
-func.func @pair_target_is_not_static(%pick: i1) {
+func.func @pair_target_chosen_at_runtime(%pick: i1) {
   %q0, %q1, %q2 = qcc.static [0, 1, 2] : !qcc.qubit
   %t = scf.if %pick -> (!qcc.qubit) {
     scf.yield %q1 : !qcc.qubit

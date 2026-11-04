@@ -74,8 +74,7 @@ struct SingleToUZXZ final : OpRewritePattern<SingleOp> {
     case SingleGateKind::RY:
       return uZXZ(splat(-pi / 2), op.getParams().front(), splat(pi / 2));
     case SingleGateKind::UZYZ: {
-      // u_zyz(z1, y, z2) = u_zxz(z1 - pi/2, y, z2 + pi/2), as ry(y) = rz(pi/2) rx(y) rz(-pi/2). The angles z1, y, z2
-      // sit where u_zxz has z1, x, z2.
+      // u_zyz(z1, y, z2) = u_zxz(z1 - pi/2, y, z2 + pi/2).
       ValueRange params = op.getParams();
       Value z1 = offsetAngles(rewriter, loc, params[zxz::z1], -pi / 2);
       Value z2 = offsetAngles(rewriter, loc, params[zxz::z2], pi / 2);
