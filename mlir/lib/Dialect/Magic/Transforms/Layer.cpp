@@ -157,7 +157,7 @@ static Schedule layerGates(ArrayRef<Gate> gates) {
   };
 
   for (const Gate& gate : gates) {
-    switch (gate.kind) { // FIXME: add default case (clarifying invariants)?
+    switch (gate.kind) {
     case Gate::Kind::RZ:
       pending[gate.ions.front()] += gate.angle;
       break;
@@ -372,12 +372,12 @@ public:
   void emitLayer(const Layer& layer) {
     if (layer.kind == Layer::Kind::SQ) {
       assert(layer.zz.empty() && "an SQ layer holds rotations only");
-      emitRotations(layer.sq);
+      emitSQLayer(layer.sq);
       return;
     }
     // FIXME: should we be explicit about the cases SQ vs ZZ?
     assert(layer.sq.empty() && "a ZZ layer holds couplings only");
-    emitCouplings(layer.zz);
+    emitZZLayer(layer.zz);
   }
 
   /// One `rz` per trap.
@@ -408,18 +408,18 @@ public:
 
 private:
   /// One `zxz` per trap.
-  void emitRotations(const std::map<Ion, ZXZAngles>& rotations) { // FIXME: better name (same for arg "rotations")?
+  void emitSQLayer(const std::map<Ion, ZXZAngles>& zxzs) {
     for (auto& [trap, chain] : chains) {
       SmallVector<Ion> ions;
       SmallVector<double> z1;
       SmallVector<double> x;
       SmallVector<double> z2;
-      for (const auto& [ion, rotation] : rotations) {
+      for (const auto& [ion, zxz] : zxzs) {
         if (trapOf.at(ion) == trap) {
           ions.push_back(ion);
-          z1.push_back(rotation.z1);
-          x.push_back(rotation.x);
-          z2.push_back(rotation.z2);
+          z1.push_back(zxz.z1);
+          x.push_back(zxz.x);
+          z2.push_back(zxz.z2);
         }
       }
       if (!ions.empty()) {
@@ -430,7 +430,7 @@ private:
 
   /// One `active_zz` per trap over its active ions, then one `inter_trap_zz` per coupling across traps. Pairs whose
   /// angles cancelled out are left out.
-  void emitCouplings(const std::map<std::pair<Ion, Ion>, double>& couplings) {
+  void emitZZLayer(const std::map<std::pair<Ion, Ion>, double>& couplings) {
     for (auto& [trap, chain] : chains) {
       const SmallVector<Ion> active = chain.getType().getActiveIons();
       const int64_t n = std::ssize(active);
