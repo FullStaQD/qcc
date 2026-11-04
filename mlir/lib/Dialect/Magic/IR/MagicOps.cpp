@@ -312,6 +312,38 @@ void ActiveZZOp::build(OpBuilder& builder, OperationState& state, Value chain, i
   build(builder, state, type, chain, DenseElementsAttr::get(matrixType, ArrayRef(matrix)));
 }
 
+OpFoldResult ActiveZZOp::fold(FoldAdaptor /*adaptor*/) {
+  if (llvm::all_of(getAngles().getValues<double>(), [](double angle) { return normalizeAngle(angle) == 0.0; })) {
+    return getChainIn();
+  }
+  return {};
+}
+
+LogicalResult ActiveZZOp::canonicalize(ActiveZZOp op, PatternRewriter& rewriter) {
+  // Chain values are affine, so the preceding `active_zz` has no other user. Both act on the same chain type, so their
+  // matrices have the same shape.
+  auto previous = op.getChainIn().getDefiningOp<ActiveZZOp>();
+  if (!previous) {
+    return failure();
+  }
+  // The sum stays symmetric with a zero diagonal.
+  SmallVector<double> sums;
+  for (auto [first, second] :
+       llvm::zip_equal(previous.getAngles().getValues<double>(), op.getAngles().getValues<double>())) {
+    sums.push_back(normalizeAngle(first + second));
+  }
+
+  Value chainIn = previous.getChainIn();
+  if (llvm::all_of(sums, [](double angle) { return angle == 0.0; })) {
+    rewriter.replaceOp(op, chainIn);
+  } else {
+    rewriter.replaceOpWithNewOp<ActiveZZOp>(op, op.getType(), chainIn,
+                                            DenseElementsAttr::get(op.getAngles().getType(), ArrayRef(sums)));
+  }
+  rewriter.eraseOp(previous);
+  return success();
+}
+
 LogicalResult ActiveZZOp::verify() {
   const int64_t numActive = getChainIn().getType().getNumActiveIons();
   const ShapedType type = getAngles().getType();
@@ -452,6 +484,37 @@ LogicalResult MZDOp::verify() {
 //===----------------------------------------------------------------------===//
 // InterTrapZZOp
 //===----------------------------------------------------------------------===//
+
+LogicalResult InterTrapZZOp::fold(FoldAdaptor /*adaptor*/, SmallVectorImpl<OpFoldResult>& results) {
+  if (normalizeAngle(getAngle().convertToDouble()) != 0.0) {
+    return failure();
+  }
+  results.push_back(getAIn());
+  results.push_back(getBIn());
+  return success();
+}
+
+LogicalResult InterTrapZZOp::canonicalize(InterTrapZZOp op, PatternRewriter& rewriter) {
+  // The preceding `inter_trap_zz` must produce both chains, and on the same ions. Chain values are affine, so it has
+  // no other user.
+  auto previous = op.getAIn().getDefiningOp<InterTrapZZOp>();
+  if (!previous || op.getAIn() != previous.getAOut() || op.getBIn() != previous.getBOut() ||
+      op.getIons() != previous.getIons()) {
+    return failure();
+  }
+  const double sum = normalizeAngle(previous.getAngle().convertToDouble() + op.getAngle().convertToDouble());
+
+  Value aIn = previous.getAIn();
+  Value bIn = previous.getBIn();
+  if (sum == 0.0) {
+    rewriter.replaceOp(op, ValueRange{aIn, bIn});
+  } else {
+    rewriter.replaceOpWithNewOp<InterTrapZZOp>(op, aIn.getType(), bIn.getType(), aIn, bIn, op.getIonsAttr(),
+                                               rewriter.getF64FloatAttr(sum));
+  }
+  rewriter.eraseOp(previous);
+  return success();
+}
 
 LogicalResult InterTrapZZOp::verify() {
   const IonChainType a = getAIn().getType();

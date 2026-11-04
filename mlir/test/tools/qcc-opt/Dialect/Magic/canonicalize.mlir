@@ -112,6 +112,106 @@ func.func @sym_zxz_kept() {
 
 // -----
 
+!c = !magic.ion_chain<0, [0:1, 1:1, 2:1]>
+
+// Adjacent active_zz add up entrywise (wrapped into (-pi, pi]).
+// CHECK-LABEL: func.func @active_zz_merge
+func.func @active_zz_merge() {
+  %c0 = magic.init : !c
+  %c1 = magic.active_zz %c0 {angles = dense<[[0.0, 0.5, 0.0], [0.5, 0.0, 0.25], [0.0, 0.25, 0.0]]> : tensor<3x3xf64>} : !c
+  %c2 = magic.active_zz %c1 {angles = dense<[[0.0, -0.5, 0.125], [-0.5, 0.0, 3.0], [0.125, 3.0, 0.0]]> : tensor<3x3xf64>} : !c
+  %m0, %m1, %m2 = magic.mzd %c2 : !c -> i1, i1, i1
+  aux.record_int %m0 : i1
+  aux.record_int %m1 : i1
+  aux.record_int %m2 : i1
+  return
+}
+
+// CHECK:      %[[C0:.*]] = magic.init
+// CHECK-NEXT: %[[C1:.*]] = magic.active_zz %[[C0]] {angles = dense<{{\[\[}}0.000000e+00, 0.000000e+00, 1.250000e-01], [0.000000e+00, 0.000000e+00, -3.033185307179{{[0-9]*}}], [1.250000e-01, -3.033185307179{{[0-9]*}}, 0.000000e+00]]>
+// CHECK-NEXT: magic.mzd %[[C1]]
+
+// -----
+
+!c = !magic.ion_chain<0, [0:1, 1:1, 2:1]>
+
+// Adjacent active_zz that add up to zero disappear, and so does one whose angles are all multiples of 2 pi.
+// CHECK-LABEL: func.func @active_zz_zero
+func.func @active_zz_zero() {
+  %c0 = magic.init : !c
+  %c1 = magic.active_zz %c0 {angles = dense<[[0.0, 0.5, 0.0], [0.5, 0.0, 0.0], [0.0, 0.0, 0.0]]> : tensor<3x3xf64>} : !c
+  %c2 = magic.active_zz %c1 {angles = dense<[[0.0, -0.5, 0.0], [-0.5, 0.0, 0.0], [0.0, 0.0, 0.0]]> : tensor<3x3xf64>} : !c
+  %c3 = magic.delay %c2 {ticks = 3} : !c
+  %c4 = magic.active_zz %c3 {angles = dense<[[0.0, 6.283185307179586, 0.0], [6.283185307179586, 0.0, -6.283185307179586], [0.0, -6.283185307179586, 0.0]]> : tensor<3x3xf64>} : !c
+  %m0, %m1, %m2 = magic.mzd %c4 : !c -> i1, i1, i1
+  aux.record_int %m0 : i1
+  aux.record_int %m1 : i1
+  aux.record_int %m2 : i1
+  return
+}
+
+// CHECK:      %[[C0:.*]] = magic.init
+// CHECK-NEXT: %[[C1:.*]] = magic.delay %[[C0]]
+// CHECK-NEXT: magic.mzd %[[C1]]
+
+// -----
+
+!a = !magic.ion_chain<0, [0:1, 1:1]>
+!b = !magic.ion_chain<1, [2:1]>
+
+// Adjacent inter_trap_zz on the same ions add up; on different ions, or with an rz on one of the chains in between,
+// they stay apart.
+// CHECK-LABEL: func.func @inter_trap_zz_merge
+func.func @inter_trap_zz_merge() {
+  %a0, %b0 = magic.init : !a, !b
+  %a1, %b1 = magic.inter_trap_zz %a0, %b0 ions [0, 2] {angle = 0.5} : !a, !b
+  %a2, %b2 = magic.inter_trap_zz %a1, %b1 ions [0, 2] {angle = 0.25} : !a, !b
+  %a3, %b3 = magic.inter_trap_zz %a2, %b2 ions [1, 2] {angle = 0.125} : !a, !b
+  %b4 = magic.rz %b3 ions [2] {angles = [0.25]} : !b
+  %a5, %b5 = magic.inter_trap_zz %a3, %b4 ions [1, 2] {angle = 0.125} : !a, !b
+  %m0, %m1 = magic.mzd %a5 : !a -> i1, i1
+  %m2 = magic.mzd %b5 : !b -> i1
+  aux.record_int %m0 : i1
+  aux.record_int %m1 : i1
+  aux.record_int %m2 : i1
+  return
+}
+
+// CHECK:      %[[INIT:.*]]:2 = magic.init
+// CHECK-NEXT: %[[A1:.*]], %[[B1:.*]] = magic.inter_trap_zz %[[INIT]]#0, %[[INIT]]#1 ions [0, 2] {angle = 7.500000e-01 : f64}
+// CHECK-NEXT: %[[A2:.*]], %[[B2:.*]] = magic.inter_trap_zz %[[A1]], %[[B1]] ions [1, 2] {angle = 1.250000e-01 : f64}
+// CHECK-NEXT: %[[B3:.*]] = magic.rz %[[B2]] ions [2]
+// CHECK-NEXT: %[[A4:.*]], %[[B4:.*]] = magic.inter_trap_zz %[[A2]], %[[B3]] ions [1, 2] {angle = 1.250000e-01 : f64}
+// CHECK-NEXT: magic.mzd %[[A4]]
+// CHECK-NEXT: magic.mzd %[[B4]]
+
+// -----
+
+!a = !magic.ion_chain<0, [0:1, 1:1]>
+!b = !magic.ion_chain<1, [2:1]>
+
+// Adjacent inter_trap_zz that add up to zero disappear, and so do those whose angle is a multiple of 2 pi.
+// CHECK-LABEL: func.func @inter_trap_zz_zero
+func.func @inter_trap_zz_zero() {
+  %a0, %b0 = magic.init : !a, !b
+  %a1, %b1 = magic.inter_trap_zz %a0, %b0 ions [0, 2] {angle = 0.5} : !a, !b
+  %a2, %b2 = magic.inter_trap_zz %a1, %b1 ions [0, 2] {angle = -0.5} : !a, !b
+  %a3, %b3 = magic.inter_trap_zz %a2, %b2 ions [1, 2] {angle = 0.0} : !a, !b
+  %a4, %b4 = magic.inter_trap_zz %a3, %b3 ions [0, 2] {angle = -6.283185307179586} : !a, !b
+  %m0, %m1 = magic.mzd %a4 : !a -> i1, i1
+  %m2 = magic.mzd %b4 : !b -> i1
+  aux.record_int %m0 : i1
+  aux.record_int %m1 : i1
+  aux.record_int %m2 : i1
+  return
+}
+
+// CHECK:      %[[INIT:.*]]:2 = magic.init
+// CHECK-NEXT: magic.mzd %[[INIT]]#0
+// CHECK-NEXT: magic.mzd %[[INIT]]#1
+
+// -----
+
 !t0 = !magic.ion_chain<0, [0:1]>
 !t1 = !magic.ion_chain<1, [1:1]>
 
