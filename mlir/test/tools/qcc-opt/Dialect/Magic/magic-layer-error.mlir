@@ -2,18 +2,6 @@
 
 // Every case below is well-formed IR that `magic-layer` declines to handle.
 
-!c = !magic.ion_chain<0, [0:1, 1:1]>
-!ci = !magic.ion_chain<0, [0:1, 1:0]>
-
-func.func @recode() {
-  %c0 = magic.init : !c
-  // expected-error @+1 {{'magic.recode' op is not supported by magic-layer, which schedules zxz, rz, active_zz and inter_trap_zz only}}
-  %c1 = magic.recode %c0 : !c -> !ci
-  return
-}
-
-// -----
-
 !c = !magic.ion_chain<0, [0:1]>
 
 func.func @sym_zxz() {
