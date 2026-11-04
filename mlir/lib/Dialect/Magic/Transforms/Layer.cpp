@@ -366,8 +366,7 @@ static FailureOr<Program> analyzeBlock(Block& block, StringRef passName) {
         llvm::TypeSwitch<Operation*, LogicalResult>(&op)
             .Case([&](InitOp init) -> LogicalResult {
               if (program.init) {
-                return init.emitOpError()
-                       << "is the second 'magic.init' of the function, which " << passName << " does not support";
+                return init.emitOpError() << "is the second 'magic.init' of the program: expected at most one";
               }
               program.init = init;
               return success();

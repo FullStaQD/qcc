@@ -18,7 +18,7 @@ func.func @sym_zxz() {
 
 func.func @second_init() {
   %a0 = magic.init : !a
-  // expected-error @+1 {{'magic.init' op is the second 'magic.init' of the function, which magic-layer does not support}}
+  // expected-error @+1 {{'magic.init' op is the second 'magic.init' of the program: expected at most one}}
   %b0 = magic.init : !b
   return
 }
