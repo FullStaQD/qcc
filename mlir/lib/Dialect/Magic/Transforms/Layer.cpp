@@ -35,6 +35,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/SmallVectorExtras.h"
 #include "llvm/ADT/TypeSwitch.h"
+#include "llvm/Support/ErrorHandling.h"
 
 #include <algorithm>
 #include <cassert>
@@ -252,9 +253,8 @@ static Schedule layerGatesOnce(ArrayRef<Gate> gates, llvm::BitVector& cancelled)
   return schedule;
 }
 
-/// Schedules `gates` (in program order) into alternating layers by greedy passes, see `layerGatesOnce`. The couplings
-/// that cancel out in a pass are the identity together, so they are dropped and the rest is scheduled again, until
-/// nothing cancels. Otherwise they would emit nothing, but still keep the gates around them apart.
+/// Schedules `gates` (in program order) into alternating layers by greedy passes, see `layerGatesOnce`. After each pass
+/// it is possible that ZZ gates cancel; if that is the case, we repeat and only stop once nothing cancels anymore.
 ///
 /// Measurements do not take part: `mzd` consumes its chain, so nothing follows it on its ions, and all of them go after
 /// the last layer.
@@ -290,7 +290,14 @@ static SmallVector<double> toDoubles(ArrayAttr angles) {
 namespace {
 
 /// Everything the emitter needs besides the schedule.
-struct Program {
+class Program {
+public:
+  /// Appends the gates `op` denotes to `gates` and records `op` in `gateOps`, so that the layers replace it.
+  void addGateOp(Operation* op) {
+    collectGates(op);
+    gateOps.push_back(op);
+  }
+
   /// The one `magic.init` of the function, null if there is none.
   InitOp init;
   /// The gates in program order, see `collectGates`.
@@ -299,48 +306,51 @@ struct Program {
   SmallVector<Operation*> gateOps;
   /// The measurements in program order. They move behind the layers.
   SmallVector<MZDOp> measurements;
+
+private:
+  /// Appends the gates `op` denotes to `gates`: one per ion for single-qubit gates, one per coupled pair for ZZ gates.
+  /// Couplings with a zero angle are left out, so that they do not constrain the schedule.
+  void collectGates(Operation* op) {
+    llvm::TypeSwitch<Operation*>(op)
+        .Case([&](ZXZOp zxz) {
+          for (auto [ion, z1, x, z2] :
+               llvm::zip_equal(zxz.getIons(), toDoubles(zxz.getZ1()), toDoubles(zxz.getX()), toDoubles(zxz.getZ2()))) {
+            gates.push_back(ZXZGate{.ion = ion, .zxz = ZXZAngles{.z1 = z1, .x = x, .z2 = z2}});
+          }
+        })
+        .Case([&](RZOp rz) {
+          for (auto [ion, angle] : llvm::zip_equal(rz.getIons(), toDoubles(rz.getAngles()))) {
+            gates.push_back(RZGate{.ion = ion, .angle = angle});
+          }
+        })
+        .Case([&](ActiveZZOp zz) {
+          // The matrix is symmetric with a zero diagonal, so the upper triangle holds every coupling. The active ions
+          // are in position order, not sorted by id.
+          const SmallVector<Ion> ions = zz.getChainIn().getType().getActiveIons();
+          const SmallVector<double> matrix = llvm::to_vector(zz.getAngles().getValues<double>());
+          const size_t n = ions.size();
+          for (size_t i = 0; i < n; ++i) {
+            for (size_t j = i + 1; j < n; ++j) {
+              const double angle = matrix[(i * n) + j];
+              if (angle != 0.0) {
+                gates.push_back(ZZGate{.ions = std::minmax(ions[i], ions[j]), .angle = angle});
+              }
+            }
+          }
+        })
+        .Case([&](InterTrapZZOp zz) {
+          const double angle = zz.getAngle().convertToDouble();
+          if (angle != 0.0) {
+            const ArrayRef<Ion> ions = zz.getIons();
+            gates.push_back(ZZGate{.ions = std::minmax(ions[0], ions[1]), .angle = angle});
+          }
+        })
+        // Otherwise `op` would be replaced without its gates.
+        .Default([](Operation*) { llvm_unreachable("not a gate op"); });
+  }
 };
 
 } // namespace
-
-/// Appends the gates `op` denotes to `gates`: one per ion for single-qubit gates, one per coupled pair for ZZ gates.
-/// Couplings with a zero angle are left out, so that they do not constrain the schedule.
-static void collectGates(Operation* op, SmallVectorImpl<Gate>& gates) {
-  llvm::TypeSwitch<Operation*>(op)
-      .Case([&](ZXZOp zxz) {
-        for (auto [ion, z1, x, z2] :
-             llvm::zip_equal(zxz.getIons(), toDoubles(zxz.getZ1()), toDoubles(zxz.getX()), toDoubles(zxz.getZ2()))) {
-          gates.push_back(ZXZGate{.ion = ion, .zxz = ZXZAngles{.z1 = z1, .x = x, .z2 = z2}});
-        }
-      })
-      .Case([&](RZOp rz) {
-        for (auto [ion, angle] : llvm::zip_equal(rz.getIons(), toDoubles(rz.getAngles()))) {
-          gates.push_back(RZGate{.ion = ion, .angle = angle});
-        }
-      })
-      .Case([&](ActiveZZOp zz) {
-        // The matrix is symmetric with a zero diagonal, so the upper triangle holds every coupling. The active ions
-        // are in position order, not sorted by id.
-        const SmallVector<Ion> ions = zz.getChainIn().getType().getActiveIons();
-        const SmallVector<double> matrix = llvm::to_vector(zz.getAngles().getValues<double>());
-        const size_t n = ions.size();
-        for (size_t i = 0; i < n; ++i) {
-          for (size_t j = i + 1; j < n; ++j) {
-            const double angle = matrix[(i * n) + j];
-            if (angle != 0.0) {
-              gates.push_back(ZZGate{.ions = std::minmax(ions[i], ions[j]), .angle = angle});
-            }
-          }
-        }
-      })
-      .Case([&](InterTrapZZOp zz) {
-        const double angle = zz.getAngle().convertToDouble();
-        if (angle != 0.0) {
-          const ArrayRef<Ion> ions = zz.getIons();
-          gates.push_back(ZZGate{.ions = std::minmax(ions[0], ions[1]), .angle = angle});
-        }
-      });
-}
 
 /// Whether `op` takes or yields an ion chain.
 static bool touchesChains(Operation* op) {
@@ -363,8 +373,7 @@ static FailureOr<Program> analyzeBlock(Block& block, StringRef passName) {
               return success();
             })
             .Case<ZXZOp, RZOp, ActiveZZOp, InterTrapZZOp>([&](Operation* gate) {
-              collectGates(gate, program.gates); // FIXME: should be a method on Program (including next line)?
-              program.gateOps.push_back(gate);
+              program.addGateOp(gate);
               return success();
             })
             .Case([&](MZDOp mzd) {
