@@ -42,7 +42,7 @@ def QCF_Dialect : Dialect {
     let name = "qcf";
     let cppNamespace = "::qcc::qcf";
 
-    let dependentDialects = ["::qcc::QccDialect"];
+    let dependentDialects = ["::mlir::scf::SCFDialect", "::qcc::QccDialect"];
 }
 
 #endif // INCLUDE_QCC_DIALECT_QCF_IR_QCFDIALECT_TD_

@@ -9,6 +9,8 @@
 
 #include "qcc/Dialect/QCF/IR/QCF.h"
 
+#include "mlir/Dialect/SCF/IR/SCF.h" // IWYU pragma: keep
+
 using namespace mlir;
 using namespace qcc::qcf;
 

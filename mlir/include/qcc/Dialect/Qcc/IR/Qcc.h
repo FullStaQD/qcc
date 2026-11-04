@@ -59,6 +59,9 @@ namespace qcc {
 /// Whether `type` is `!qcc.qubit` or a vector of them.
 bool isQubitOrQubitVector(mlir::Type type);
 
+/// Whether `type` is a vector of `!qcc.qubit`.
+bool isQubitVector(mlir::Type type);
+
 /// Whether `type` is the type of classical values: a type with the `ClassicalTypeInterface`, a builtin integer,
 /// floating-point, `index`, or `complex` type, or a tensor or vector of classical elements.
 bool isClassicalType(mlir::Type type);
