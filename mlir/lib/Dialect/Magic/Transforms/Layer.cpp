@@ -163,8 +163,7 @@ struct Schedule {
 ///   `zxz` on its ion absorbs it, or the end is reached.
 /// - `zxz`: first absorbs `pending`. If the latest layer on `i` is an SQ layer the two rotations fuse (nothing touches
 ///   `i` in between); otherwise it goes into the first SQ layer after `last[i]`.
-/// - `zz`: goes into the latest layer on either of its two ions if that is a ZZ layer, else into the ZZ layer right
-///   after it. Angles of a pair already coupled in that layer add up.
+/// - `zz`: goes into the earliest ZZ layer it commutes back to.
 /// - At the end, every `pending` rotation is folded into `lastSQ[i]` if there is one (only diagonal gates on `i` follow
 ///   it, so it commutes back); the rest becomes `residualRZ`.
 ///
@@ -181,6 +180,8 @@ static Schedule layerGatesOnce(ArrayRef<Gate> gates, llvm::BitVector& cancelled)
   std::map<std::pair<int64_t, std::pair<Ion, Ion>>, SmallVector<size_t>> couplings;
 
   auto lastLayer = [&](Ion ion) { return last.lookup_or(ion, -1); };
+
+  auto lastSQLayer = [&](Ion ion) { return lastSQ.lookup_or(ion, -1); };
 
   auto takePending = [&](Ion ion) -> std::optional<double> {
     auto it = pending.find(ion);
@@ -215,20 +216,14 @@ static Schedule layerGatesOnce(ArrayRef<Gate> gates, llvm::BitVector& cancelled)
 
   auto addZZ = [&](const ZZGate& gate, size_t pos) {
     const auto [ionA, ionB] = gate.ions;
-    const int64_t latest = std::max(lastLayer(ionA), lastLayer(ionB));
-
-    // The latest layer touching either ion if it is a ZZ layer, else the ZZ layer right after it (layer 1 if no layer
-    // touches them yet).
-    int64_t index = latest + 1;
-    if (latest < 0) {
-      index = 1;
-    } else if (!Layers::isSQIndex(latest)) {
-      index = latest;
-    }
+    // The first ZZ layer after the latest SQ layer on either ion (layer 1 if there is none): the coupling commutes back
+    // over everything else on its ions.
+    const int64_t index = std::max({lastSQLayer(ionA), lastSQLayer(ionB), int64_t{0}}) + 1;
     layers.zz(index)[gate.ions] += gate.angle;
     couplings[{index, gate.ions}].push_back(pos);
-    last[ionA] = index;
-    last[ionB] = index;
+    // Either ion may already be in a later ZZ layer.
+    last[ionA] = std::max(lastLayer(ionA), index);
+    last[ionB] = std::max(lastLayer(ionB), index);
   };
 
   for (size_t pos = 0; pos < gates.size(); ++pos) {

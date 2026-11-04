@@ -30,7 +30,7 @@ def MagicLayer : Pass<"magic-layer", "mlir::func::FuncOp"> {
       measurements, in their original order.
 
       The schedule is greedy and commutation-aware: diagonal gates (`rz`, `active_zz`, `inter_trap_zz`) commute with
-      each other and gates on distinct ions commute; nothing else does. A coupling joins the latest ZZ layer such that
+      each other and gates on distinct ions commute; nothing else does. A coupling joins the earliest ZZ layer such that
       only diagonal gates touch its ions between that layer and the gate; two couplings of the same pair in one ZZ layer
       *add* their angles. Couplings that add up to zero are dropped, and the gates are scheduled again without them, so
       that they do not keep the gates around them apart. `rz` gates float over ZZ layers and are folded into the
