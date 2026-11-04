@@ -1,0 +1,27 @@
+add_mlir_conversion_library(
+  QCCQRefToOQ3
+  ConvertQRefToOQ3.cpp
+  DEPENDS
+  QCCQRefToOQ3IncGen
+  QCCOQ3AttrsIncGen
+  QCCOQ3DialectIncGen
+  QCCOQ3OpsIncGen
+  QCCOQ3TypesIncGen
+  QCCQccAttrsIncGen
+  QCCQccDialectIncGen
+  QCCQccInterfacesIncGen
+  QCCQccOpsIncGen
+  QCCQccTypesIncGen
+  QCCQRefDialectIncGen
+  QCCQRefOpsIncGen
+  LINK_LIBS
+  PUBLIC
+  MLIRArithDialect
+  MLIRFuncDialect
+  MLIRIR
+  MLIRMemRefDialect
+  MLIRPass
+  MLIRTensorDialect
+  QCCOQ3Dialect
+  QCCQccDialect
+  QCCQRefDialect)

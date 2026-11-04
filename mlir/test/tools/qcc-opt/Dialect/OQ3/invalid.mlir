@@ -418,6 +418,21 @@ module attributes {oq3.version = #oq3.version<3, 1>} {
 
 // -----
 
+// expected-error @below {{expected the text of a floating-point literal, got '1.2.3'}}
+%x = oq3.constant #oq3.float<"1.2.3"> : !oq3.float
+
+// -----
+
+// expected-error @below {{expected the text of a floating-point literal, got 'e5'}}
+%x = oq3.constant #oq3.float<"e5"> : !oq3.float
+
+// -----
+
+// expected-error @below {{expected the text of a floating-point literal, got '1-2'}}
+%x = oq3.constant #oq3.float<"1-2"> : !oq3.float
+
+// -----
+
 // expected-error @below {{a floating-point literal has type '!oq3.float', got '!oq3.int'}}
 %x = oq3.constant #oq3.float<"1.0"> : !oq3.int
 

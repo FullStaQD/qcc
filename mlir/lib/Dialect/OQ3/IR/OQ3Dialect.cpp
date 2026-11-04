@@ -20,11 +20,13 @@
 #include "mlir/IR/SymbolTable.h"
 #include "mlir/IR/Visitors.h"
 
+#include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/TypeSwitch.h" // IWYU pragma: keep
+#include "llvm/Support/Error.h"
 
 #include <optional>
 #include <string>
@@ -398,10 +400,12 @@ LogicalResult IntLiteralAttr::verify(function_ref<InFlightDiagnostic()> emitErro
 }
 
 LogicalResult FloatLiteralAttr::verify(function_ref<InFlightDiagnostic()> emitError, StringRef text, Type type) {
-  const bool wellFormed = llvm::any_of(text, llvm::isDigit) && llvm::all_of(text, [](char c) {
-                            return llvm::isDigit(c) || c == '.' || c == 'e' || c == 'E' || c == '+' || c == '-';
-                          });
-  if (!wellFormed) {
+  // The character set rules out what `APFloat` accepts beyond OpenQASM's decimal literals: hexadecimal, `inf`, `nan`.
+  const bool decimal = llvm::all_of(
+      text, [](char c) { return llvm::isDigit(c) || c == '.' || c == 'e' || c == 'E' || c == '+' || c == '-'; });
+  llvm::APFloat value(llvm::APFloat::IEEEdouble());
+  const bool parses = !llvm::errorToBool(value.convertFromString(text, llvm::APFloat::rmNearestTiesToEven).takeError());
+  if (!decimal || !parses) {
     return emitError() << "expected the text of a floating-point literal, got '" << text << "'";
   }
   if (!isa<UnsizedFloatType>(type)) {
