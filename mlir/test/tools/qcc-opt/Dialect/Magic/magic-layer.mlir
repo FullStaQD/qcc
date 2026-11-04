@@ -120,6 +120,48 @@ func.func @couplings_cancel() {
 
 // -----
 
+!c = !magic.ion_chain<0, [0:1, 1:1]>
+
+// The couplings cancel out, so they do not keep the zxz on ion 1 out of the first SQ layer.
+// CHECK-LABEL: func.func @cancelled_couplings_leave_no_layer
+func.func @cancelled_couplings_leave_no_layer() {
+  %c0 = magic.init : !c
+  %c1 = magic.zxz %c0 ions [0] {z1 = [0.125], x = [0.25], z2 = [0.375]} : !c
+  %c2 = magic.active_zz %c1 {angles = dense<[[0.0, 0.5], [0.5, 0.0]]> : tensor<2x2xf64>} : !c
+  %c3 = magic.active_zz %c2 {angles = dense<[[0.0, -0.5], [-0.5, 0.0]]> : tensor<2x2xf64>} : !c
+  %c4 = magic.zxz %c3 ions [1] {z1 = [0.5], x = [0.625], z2 = [0.75]} : !c
+  return
+}
+
+// CHECK:      %[[C0:.*]] = magic.init : !chain
+// CHECK-NEXT: magic.zxz %[[C0]] ions [0, 1] {x = [2.500000e-01, 6.250000e-01], z1 = [1.250000e-01, 5.000000e-01], z2 = [3.750000e-01, 7.500000e-01]} : !chain
+// CHECK-NEXT: return
+
+// -----
+
+!c = !magic.ion_chain<0, [0:1, 1:1, 2:1]>
+
+// The couplings of (1, 2) cancel out in the second ZZ layer, where they pulled the second coupling of (0, 1) along.
+// Without them, it joins the first ZZ layer and cancels out there too.
+// CHECK-LABEL: func.func @cancellation_repeats
+func.func @cancellation_repeats() {
+  %c0 = magic.init : !c
+  %c1 = magic.active_zz %c0 {angles = dense<[[0.0, 0.5, 0.0], [0.5, 0.0, 0.0], [0.0, 0.0, 0.0]]> : tensor<3x3xf64>} : !c
+  %c2 = magic.active_zz %c1 {angles = dense<[[0.0, 0.0, 0.0], [0.0, 0.0, 0.125], [0.0, 0.125, 0.0]]> : tensor<3x3xf64>} : !c
+  %c3 = magic.zxz %c2 ions [2] {z1 = [0.125], x = [0.25], z2 = [0.375]} : !c
+  %c4 = magic.active_zz %c3 {angles = dense<[[0.0, 0.0, 0.0], [0.0, 0.0, 0.25], [0.0, 0.25, 0.0]]> : tensor<3x3xf64>} : !c
+  %c5 = magic.active_zz %c4 {angles = dense<[[0.0, 0.0, 0.0], [0.0, 0.0, -0.25], [0.0, -0.25, 0.0]]> : tensor<3x3xf64>} : !c
+  %c6 = magic.active_zz %c5 {angles = dense<[[0.0, -0.5, 0.0], [-0.5, 0.0, 0.0], [0.0, 0.0, 0.0]]> : tensor<3x3xf64>} : !c
+  return
+}
+
+// CHECK:      %[[C0:.*]] = magic.init : !chain
+// CHECK-NEXT: %[[C1:.*]] = magic.active_zz %[[C0]] {angles = dense<{{\[\[}}0.000000e+00, 0.000000e+00, 0.000000e+00], [0.000000e+00, 0.000000e+00, 1.250000e-01], [0.000000e+00, 1.250000e-01, 0.000000e+00]]> : tensor<3x3xf64>} : !chain
+// CHECK-NEXT: magic.zxz %[[C1]] ions [2] {x = [2.500000e-01], z1 = [1.250000e-01], z2 = [3.750000e-01]} : !chain
+// CHECK-NEXT: return
+
+// -----
+
 !c = !magic.ion_chain<0, [0:1, 1:1, 2:1]>
 
 // The couplings of one op are scheduled one by one, in row-major order: (0, 1) joins the first ZZ layer, while (1, 2)

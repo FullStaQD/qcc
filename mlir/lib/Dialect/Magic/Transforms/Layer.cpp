@@ -29,6 +29,7 @@
 #include "mlir/Support/LLVM.h"
 
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
@@ -82,31 +83,67 @@ struct ZZGate {
 /// One gate of the input program, in the gate set the pass understands.
 using Gate = std::variant<ZXZGate, RZGate, ZZGate>;
 
-/// One layer of the schedule. Layers strictly alternate between the two kinds, starting with `SQ` (which may be
-/// empty if the program opens with a coupling).
-struct Layer {
-  enum class Kind : uint8_t {
-    SQ, ///< A `zxz` per trap over the ions in `sq`.
-    ZZ, ///< A ZZ layer over the pairs in `zz`.
-  };
+/// An SQ layer: the rotation each ion receives.
+using SQLayer = std::map<Ion, ZXZAngles>;
 
-  explicit Layer(Kind kind) : kind(kind) {}
+/// A ZZ layer: the angle of each coupled pair `(i, j)` with `i < j`.
+using ZZLayer = std::map<std::pair<Ion, Ion>, double>;
 
-  [[nodiscard]] bool empty() const { return sq.empty() && zz.empty(); }
+/// An SQ layer followed by a ZZ layer.
+struct Round {
+  SQLayer sq;
+  ZZLayer zz;
+};
 
-  // FIXME: poor design? whether sq vs zz is valid depends on kind.
+/// The layers of a schedule: SQ and ZZ layers strictly alternating, starting with SQ. Layer `index` is an SQ layer if
+/// `index` is even, else a ZZ layer. They are stored in rounds of two, so the alternation holds by construction, and
+/// the accessors check that `index` is of the requested kind.
+class Layers {
+public:
+  static bool isSQIndex(int64_t index) { return index % 2 == 0; }
 
-  /// kind determines which of the two maps `sq` vs `zz` is non-empty (the other one must be empty).
-  Kind kind;
-  /// `SQ`: the rotation each ion receives.
-  std::map<Ion, ZXZAngles> sq;
-  /// `ZZ`: the angle of each coupled pair `(i, j)` with `i < j`.
-  std::map<std::pair<Ion, Ion>, double> zz;
+  /// SQ layer `index`, creating its round if it is the next one.
+  SQLayer& sq(int64_t index) {
+    assert(index >= 0 && isSQIndex(index) && "not an SQ layer");
+    return roundAt(index).sq;
+  }
+
+  /// ZZ layer `index`, creating its round if it is the next one.
+  ZZLayer& zz(int64_t index) {
+    assert(index >= 0 && !isSQIndex(index) && "not a ZZ layer");
+    return roundAt(index).zz;
+  }
+
+  [[nodiscard]] ArrayRef<Round> getRounds() const { return rounds; }
+
+  /// Whether every layer holds a gate, except that the first round may open with an empty SQ layer and the last one
+  /// may end with an empty ZZ layer (but no round is empty), and no coupling has a zero angle. An empty layer between
+  /// two others would mean that these two could have been one.
+  [[nodiscard]] bool isCompact() const {
+    return llvm::all_of(llvm::enumerate(rounds), [&](auto item) {
+      auto [pos, round] = item;
+      const bool sqValid = !round.sq.empty() || (pos == 0 && !round.zz.empty());
+      const bool zzValid = !round.zz.empty() || (pos + 1 == rounds.size() && !round.sq.empty());
+      return sqValid && zzValid && !llvm::is_contained(llvm::make_second_range(round.zz), 0.0);
+    });
+  }
+
+private:
+  Round& roundAt(int64_t index) {
+    const auto pos = static_cast<size_t>(index / 2);
+    assert(pos <= rounds.size() && "a round would be skipped");
+    if (pos == rounds.size()) {
+      rounds.emplace_back();
+    }
+    return rounds[pos];
+  }
+
+  SmallVector<Round> rounds;
 };
 
 /// Used by the emitter to generate the final IR.
 struct Schedule {
-  SmallVector<Layer> layers;
+  Layers layers;
   /// Diagonal rotations that never met a `zxz` on their ion; emitted as one `rz` per trap after the layers.
   std::map<Ion, double> residualRZ;
 };
@@ -117,39 +154,33 @@ struct Schedule {
 // Core: gates -> layers
 //===----------------------------------------------------------------------===//
 
-/// Greedily schedules `gates` (in program order) into alternating layers.
+/// One greedy pass of `layerGates`: schedules `gates` (in program order) into alternating layers.
 ///
-/// The core tracks `last[i]`, the index of the latest layer with a gate on (ion) `i`, `lastSQ[i]`, the latest SQ layer
+/// The pass tracks `last[i]`, the index of the latest layer with a gate on (ion) `i`, `lastSQ[i]`, the latest SQ layer
 /// with a gate on `i`, and `pending[i]`, an `rz` angle seen but not yet placed. Rules:
 ///
 /// - `rz`: only accumulates in `pending`. Being diagonal it commutes with every ZZ layer, so it floats until the next
 ///   `zxz` on its ion absorbs it, or the end is reached.
-/// - `zxz`: first absorbs `pending`. If the latest layer on `i` is an `SQ` layer the two rotations fuse (nothing
-///   touches `i` in between); otherwise it goes into the first `SQ` layer after `last[i]`.
+/// - `zxz`: first absorbs `pending`. If the latest layer on `i` is an SQ layer the two rotations fuse (nothing touches
+///   `i` in between); otherwise it goes into the first SQ layer after `last[i]`.
 /// - `zz`: goes into the latest layer on either of its two ions if that is a ZZ layer, else into the ZZ layer right
 ///   after it. Angles of a pair already coupled in that layer add up.
 /// - At the end, every `pending` rotation is folded into `lastSQ[i]` if there is one (only diagonal gates on `i` follow
 ///   it, so it commutes back); the rest becomes `residualRZ`.
 ///
-/// Measurements do not take part: `mzd` consumes its chain, so nothing follows it on its ions, and all of them go after
-/// the last layer.
-static Schedule layerGates(ArrayRef<Gate> gates) {
+/// Sets the bits of `cancelled`, one per gate, of the couplings that cancel out: those of a pair whose angles add up to
+/// zero in its ZZ layer.
+static Schedule layerGatesOnce(ArrayRef<Gate> gates, llvm::BitVector& cancelled) {
+  assert(cancelled.size() == gates.size() && "one bit per gate");
   Schedule schedule;
-  SmallVector<Layer>& layers = schedule.layers;
+  Layers& layers = schedule.layers;
   DenseMap<Ion, int64_t> last;
   DenseMap<Ion, int64_t> lastSQ;
   DenseMap<Ion, double> pending;
+  // The positions in `gates` of the couplings in each ZZ layer, by layer index and pair.
+  std::map<std::pair<int64_t, std::pair<Ion, Ion>>, SmallVector<size_t>> couplings;
 
   auto lastLayer = [&](Ion ion) { return last.lookup_or(ion, -1); };
-
-  auto isSQIndex = [](int64_t index) { return index % 2 == 0; };
-
-  auto layerAt = [&](int64_t index) -> Layer& {
-    while (std::cmp_less_equal(layers.size(), index)) {
-      layers.emplace_back(isSQIndex(static_cast<int64_t>(layers.size())) ? Layer::Kind::SQ : Layer::Kind::ZZ);
-    }
-    return layers[static_cast<size_t>(index)];
-  };
 
   auto takePending = [&](Ion ion) -> std::optional<double> {
     auto it = pending.find(ion);
@@ -171,18 +202,18 @@ static Schedule layerGates(ArrayRef<Gate> gates) {
     }
 
     int64_t index = lastLayer(ion);
-    if (index >= 0 && isSQIndex(index)) {
-      ZXZAngles& existing = layers[static_cast<size_t>(index)].sq.at(ion);
+    if (index >= 0 && Layers::isSQIndex(index)) {
+      ZXZAngles& existing = layers.sq(index).at(ion);
       existing = fuseZXZ(existing, zxz);
     } else {
       index += 1;
-      layerAt(index).sq.emplace(ion, zxz);
+      layers.sq(index).emplace(ion, zxz);
     }
     last[ion] = index;
     lastSQ[ion] = index;
   };
 
-  auto addZZ = [&](const ZZGate& gate) {
+  auto addZZ = [&](const ZZGate& gate, size_t pos) {
     const auto [ionA, ionB] = gate.ions;
     const int64_t latest = std::max(lastLayer(ionA), lastLayer(ionB));
 
@@ -191,17 +222,26 @@ static Schedule layerGates(ArrayRef<Gate> gates) {
     int64_t index = latest + 1;
     if (latest < 0) {
       index = 1;
-    } else if (!isSQIndex(latest)) {
+    } else if (!Layers::isSQIndex(latest)) {
       index = latest;
     }
-    layerAt(index).zz[gate.ions] += gate.angle;
+    layers.zz(index)[gate.ions] += gate.angle;
+    couplings[{index, gate.ions}].push_back(pos);
     last[ionA] = index;
     last[ionB] = index;
   };
 
-  const auto addGate = llvm::makeVisitor(addRZ, addZXZ, addZZ);
-  for (const Gate& gate : gates) {
-    std::visit(addGate, gate);
+  for (size_t pos = 0; pos < gates.size(); ++pos) {
+    std::visit(llvm::makeVisitor(addRZ, addZXZ, [&](const ZZGate& gate) { addZZ(gate, pos); }), gates[pos]);
+  }
+
+  for (const auto& [key, positions] : couplings) {
+    const auto& [index, ions] = key;
+    if (layers.zz(index).at(ions) == 0.0) {
+      for (const size_t pos : positions) {
+        cancelled.set(pos);
+      }
+    }
   }
 
   for (const auto& [ion, angle] : pending) {
@@ -210,11 +250,37 @@ static Schedule layerGates(ArrayRef<Gate> gates) {
       schedule.residualRZ[ion] = angle;
       continue;
     }
-    ZXZAngles& existing = layers[static_cast<size_t>(it->second)].sq.at(ion);
+    ZXZAngles& existing = layers.sq(it->second).at(ion);
     existing = fuseZXZ(existing, angle);
   }
 
   return schedule;
+}
+
+/// Schedules `gates` (in program order) into alternating layers by greedy passes, see `layerGatesOnce`. The couplings
+/// that cancel out in a pass are the identity together, so they are dropped and the rest is scheduled again, until
+/// nothing cancels. Otherwise they would emit nothing, but still keep the gates around them apart.
+///
+/// Measurements do not take part: `mzd` consumes its chain, so nothing follows it on its ions, and all of them go after
+/// the last layer.
+static Schedule layerGates(ArrayRef<Gate> gates) {
+  SmallVector<Gate> kept = llvm::to_vector(gates);
+  while (true) {
+    llvm::BitVector cancelled(kept.size());
+    Schedule schedule = layerGatesOnce(kept, cancelled);
+    if (cancelled.none()) {
+      assert(schedule.layers.isCompact() && "an empty layer between two others, or a coupling with a zero angle");
+      return schedule;
+    }
+    // Every pass that does not return drops at least two gates, so this terminates.
+    SmallVector<Gate> next;
+    for (auto [pos, gate] : llvm::enumerate(kept)) {
+      if (!cancelled.test(pos)) {
+        next.push_back(gate);
+      }
+    }
+    kept = std::move(next);
+  }
 }
 
 //===----------------------------------------------------------------------===//
@@ -356,15 +422,67 @@ public:
     }
   }
 
-  void emitLayer(const Layer& layer) {
-    if (layer.kind == Layer::Kind::SQ) {
-      assert(layer.zz.empty() && "an SQ layer holds rotations only");
-      emitSQLayer(layer.sq);
-      return;
+  /// One `zxz` per trap.
+  void emitSQLayer(const SQLayer& zxzs) {
+    for (auto& [trap, chain] : chains) {
+      SmallVector<Ion> ions;
+      SmallVector<double> z1;
+      SmallVector<double> x;
+      SmallVector<double> z2;
+      for (const auto& [ion, zxz] : zxzs) {
+        if (trapOf.at(ion) == trap) {
+          ions.push_back(ion);
+          z1.push_back(zxz.z1);
+          x.push_back(zxz.x);
+          z2.push_back(zxz.z2);
+        }
+      }
+      if (!ions.empty()) {
+        chain = ZXZOp::create(builder, loc, chain, ions, z1, x, z2);
+      }
     }
-    // FIXME: should we be explicit about the cases SQ vs ZZ?
-    assert(layer.sq.empty() && "a ZZ layer holds couplings only");
-    emitZZLayer(layer.zz);
+  }
+
+  /// One `active_zz` per trap over its active ions, then one `inter_trap_zz` per coupling across traps.
+  void emitZZLayer(const ZZLayer& couplings) {
+    for (auto& [trap, chain] : chains) {
+      const SmallVector<Ion> active = chain.getType().getActiveIons();
+      const int64_t n = std::ssize(active);
+      auto position = [&](Ion ion) { return llvm::find(active, ion) - active.begin(); };
+      SmallVector<double> matrix(n * n, 0.0);
+      bool nonzero = false;
+      for (const auto& [pair, angle] : couplings) {
+        if (trapOf.at(pair.first) != trap || trapOf.at(pair.second) != trap) {
+          continue;
+        }
+        const int64_t i = position(pair.first);
+        const int64_t j = position(pair.second);
+        matrix[(i * n) + j] = angle;
+        matrix[(j * n) + i] = angle;
+        nonzero = true;
+      }
+      if (nonzero) {
+        auto type = RankedTensorType::get({n, n}, Float64Type::get(builder.getContext()));
+        chain =
+            ActiveZZOp::create(builder, loc, chain.getType(), chain, DenseElementsAttr::get(type, ArrayRef(matrix)));
+      }
+    }
+
+    // Every `pair` is already sorted (see `ZZLayer`), as `inter_trap_zz` requires.
+    for (const auto& [pair, angle] : couplings) {
+      const auto [ionA, ionB] = pair;
+      const int64_t trapA = trapOf.at(ionA);
+      const int64_t trapB = trapOf.at(ionB);
+      if (trapA == trapB) {
+        continue;
+      }
+      TypedValue<IonChainType>& chainA = chains.at(trapA);
+      TypedValue<IonChainType>& chainB = chains.at(trapB);
+      auto zz = InterTrapZZOp::create(builder, loc, chainA.getType(), chainB.getType(), chainA, chainB,
+                                      builder.getDenseI64ArrayAttr({ionA, ionB}), builder.getF64FloatAttr(angle));
+      chainA = zz.getAOut();
+      chainB = zz.getBOut();
+    }
   }
 
   /// One `rz` per trap.
@@ -394,70 +512,6 @@ public:
   }
 
 private:
-  /// One `zxz` per trap.
-  void emitSQLayer(const std::map<Ion, ZXZAngles>& zxzs) {
-    for (auto& [trap, chain] : chains) {
-      SmallVector<Ion> ions;
-      SmallVector<double> z1;
-      SmallVector<double> x;
-      SmallVector<double> z2;
-      for (const auto& [ion, zxz] : zxzs) {
-        if (trapOf.at(ion) == trap) {
-          ions.push_back(ion);
-          z1.push_back(zxz.z1);
-          x.push_back(zxz.x);
-          z2.push_back(zxz.z2);
-        }
-      }
-      if (!ions.empty()) {
-        chain = ZXZOp::create(builder, loc, chain, ions, z1, x, z2);
-      }
-    }
-  }
-
-  /// One `active_zz` per trap over its active ions, then one `inter_trap_zz` per coupling across traps. Pairs whose
-  /// angles cancelled out are left out.
-  void emitZZLayer(const std::map<std::pair<Ion, Ion>, double>& couplings) {
-    for (auto& [trap, chain] : chains) {
-      const SmallVector<Ion> active = chain.getType().getActiveIons();
-      const int64_t n = std::ssize(active);
-      auto position = [&](Ion ion) { return llvm::find(active, ion) - active.begin(); };
-      SmallVector<double> matrix(n * n, 0.0);
-      bool nonzero = false;
-      for (const auto& [pair, angle] : couplings) {
-        if (angle == 0.0 || trapOf.at(pair.first) != trap || trapOf.at(pair.second) != trap) {
-          continue;
-        }
-        const int64_t i = position(pair.first);
-        const int64_t j = position(pair.second);
-        matrix[(i * n) + j] = angle;
-        matrix[(j * n) + i] = angle;
-        nonzero = true;
-      }
-      if (nonzero) {
-        auto type = RankedTensorType::get({n, n}, Float64Type::get(builder.getContext()));
-        chain =
-            ActiveZZOp::create(builder, loc, chain.getType(), chain, DenseElementsAttr::get(type, ArrayRef(matrix)));
-      }
-    }
-
-    // Every `pair` is already sorted (see `Layer::zz`), as `inter_trap_zz` requires.
-    for (const auto& [pair, angle] : couplings) {
-      const auto [ionA, ionB] = pair;
-      const int64_t trapA = trapOf.at(ionA);
-      const int64_t trapB = trapOf.at(ionB);
-      if (angle == 0.0 || trapA == trapB) {
-        continue;
-      }
-      TypedValue<IonChainType>& chainA = chains.at(trapA);
-      TypedValue<IonChainType>& chainB = chains.at(trapB);
-      auto zz = InterTrapZZOp::create(builder, loc, chainA.getType(), chainB.getType(), chainA, chainB,
-                                      builder.getDenseI64ArrayAttr({ionA, ionB}), builder.getF64FloatAttr(angle));
-      chainA = zz.getAOut();
-      chainB = zz.getBOut();
-    }
-  }
-
   OpBuilder builder;
   Location loc;
   /// The current chain value per trap, by trap id.
@@ -472,10 +526,9 @@ private:
 /// stays where it is (meaning: it comes after the measurements).
 static void rebuild(const Program& program, const Schedule& schedule, Location loc) {
   LayerEmitter emitter(program.init, loc);
-  for (const Layer& layer : schedule.layers) {
-    if (!layer.empty()) {
-      emitter.emitLayer(layer);
-    }
+  for (const Round& round : schedule.layers.getRounds()) {
+    emitter.emitSQLayer(round.sq);
+    emitter.emitZZLayer(round.zz);
   }
   emitter.emitResidualRZ(schedule.residualRZ);
   for (MZDOp mzd : program.measurements) {
