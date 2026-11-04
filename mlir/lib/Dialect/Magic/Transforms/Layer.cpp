@@ -31,7 +31,6 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/Sequence.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/SmallVectorExtras.h"
 #include "llvm/ADT/TypeSwitch.h"
@@ -44,6 +43,7 @@
 #include <map>
 #include <optional>
 #include <utility>
+#include <variant>
 
 using namespace mlir;
 
@@ -61,20 +61,31 @@ namespace {
 /// An ion, by id.
 using Ion = int64_t;
 
-/// One gate of the input program, in the gate set the pass understands.
-struct Gate { // FIXME: poor design?
-  enum class Kind : uint8_t {
-    ZXZ, ///< `zxz` on one ion: `ions[0]`, `zxz`.
-    RZ,  ///< `rz` on one ion: `ions[0]`, `angle`.
-    ZZ,  ///< `active_zz` or `inter_trap_zz`: the row-major `matrix` over `ions`.
-  };
-
-  Kind kind;
-  SmallVector<Ion> ions;
+/// `zxz` on one ion.
+struct ZXZGate {
+  Ion ion;
   ZXZAngles zxz;
-  double angle = 0.0;
-  SmallVector<double> matrix;
 };
+
+/// `rz` on one ion.
+struct RZGate {
+  Ion ion;
+  double angle;
+};
+
+/// `rzz(angle)` between the ions of `ions`, a pair `(i, j)` with `i < j`.
+struct Coupling {
+  std::pair<Ion, Ion> ions;
+  double angle;
+};
+
+/// One `active_zz` or `inter_trap_zz`, by its couplings: never empty, and no angle is zero.
+struct ZZGate {
+  SmallVector<Coupling> couplings;
+};
+
+/// One gate of the input program, in the gate set the pass understands.
+using Gate = std::variant<ZXZGate, RZGate, ZZGate>;
 
 /// One layer of the schedule. Layers strictly alternate between the two kinds, starting with `SQ` (which may be
 /// empty if the program opens with a coupling).
@@ -156,74 +167,53 @@ static Schedule layerGates(ArrayRef<Gate> gates) {
     return angle;
   };
 
+  auto addRZ = [&](const RZGate& gate) { pending[gate.ion] += gate.angle; };
+
+  auto addZXZ = [&](const ZXZGate& gate) {
+    const Ion ion = gate.ion;
+    ZXZAngles zxz = gate.zxz;
+    if (std::optional<double> angle = takePending(ion)) {
+      zxz = fuseZXZ(*angle, zxz);
+    }
+
+    int64_t index = lastLayer(ion);
+    if (index >= 0 && isSQIndex(index)) {
+      ZXZAngles& existing = layers[static_cast<size_t>(index)].sq.at(ion);
+      existing = fuseZXZ(existing, zxz);
+    } else {
+      index += 1;
+      layerAt(index).sq.emplace(ion, zxz);
+    }
+    last[ion] = index;
+    lastSQ[ion] = index;
+  };
+
+  auto addZZ = [&](const ZZGate& gate) {
+    assert(!gate.couplings.empty() && "a ZZ gate couples at least one pair");
+    int64_t latest = -1;
+    for (const Coupling& coupling : gate.couplings) {
+      latest = std::max({latest, lastLayer(coupling.ions.first), lastLayer(coupling.ions.second)});
+    }
+
+    // The latest ZZ layer touching a coupled ion, or the ZZ layer right after the latest SQ layer touching one
+    // (layer 1 if no layer touches any of them yet).
+    int64_t index = latest + 1;
+    if (latest < 0) {
+      index = 1;
+    } else if (!isSQIndex(latest)) {
+      index = latest;
+    }
+    Layer& layer = layerAt(index);
+    for (const auto& [ions, angle] : gate.couplings) {
+      layer.zz[ions] += angle;
+      last[ions.first] = index;
+      last[ions.second] = index;
+    }
+  };
+
+  const auto addGate = llvm::makeVisitor(addRZ, addZXZ, addZZ);
   for (const Gate& gate : gates) {
-    switch (gate.kind) {
-    case Gate::Kind::RZ:
-      pending[gate.ions.front()] += gate.angle;
-      break;
-
-    case Gate::Kind::ZXZ: {
-      const Ion ion = gate.ions.front();
-      ZXZAngles zxz = gate.zxz;
-      if (std::optional<double> angle = takePending(ion)) {
-        zxz = fuseZXZ(*angle, zxz);
-      }
-
-      int64_t index = lastLayer(ion);
-      if (index >= 0 && isSQIndex(index)) {
-        ZXZAngles& existing = layers[static_cast<size_t>(index)].sq.at(ion);
-        existing = fuseZXZ(existing, zxz);
-      } else {
-        index += 1;
-        layerAt(index).sq.emplace(ion, zxz);
-      }
-      last[ion] = index;
-      lastSQ[ion] = index;
-      break;
-    }
-
-    case Gate::Kind::ZZ: {
-      const size_t n = gate.ions.size();
-      auto at = [&](size_t i, size_t j) { return gate.matrix[(i * n) + j]; }; // FIXME: method at Gate?
-
-      // FIXME: do we need to do this *here* - can this be a canonicalization of ZZ?
-      // Only ions that are actually coupled take part; a zero row is no gate on that ion.
-      SmallVector<Ion> coupled;
-      int64_t latest = -1;
-      for (size_t i = 0; i < n; ++i) {
-        const bool isCoupled = llvm::any_of(llvm::seq<size_t>(0, n), [&](size_t j) { return at(i, j) != 0.0; });
-        if (isCoupled) {
-          coupled.push_back(gate.ions[i]);
-          latest = std::max(latest, lastLayer(gate.ions[i]));
-        }
-      }
-      if (coupled.empty()) {
-        break;
-      }
-
-      // The latest ZZ layer touching a coupled ion, or the ZZ layer right after the latest SQ layer touching one
-      // (layer 1 if no layer touches any of them yet).
-      int64_t index = latest + 1;
-      if (latest < 0) {
-        index = 1;
-      } else if (!isSQIndex(latest)) {
-        index = latest;
-      }
-      Layer& layer = layerAt(index);
-      for (size_t i = 0; i < n; ++i) {
-        for (size_t j = i + 1; j < n; ++j) {
-          if (at(i, j) != 0.0) {
-            const auto key = std::minmax(gate.ions[i], gate.ions[j]);
-            layer.zz[key] += at(i, j);
-          }
-        }
-      }
-      for (Ion ion : coupled) {
-        last[ion] = index;
-      }
-      break;
-    }
-    }
+    std::visit(addGate, gate);
   }
 
   for (const auto& [ion, angle] : pending) {
@@ -264,33 +254,48 @@ struct Program {
 
 } // namespace
 
-/// Appends the gates `op` denotes to `gates`, one per ion for single qubit gates.
+/// Appends the gates `op` denotes to `gates`, one per ion for single qubit gates. Couplings with a zero angle are left
+/// out, so that they do not constrain the schedule; a ZZ op without any other coupling denotes no gate.
 static void collectGates(Operation* op, SmallVectorImpl<Gate>& gates) {
   llvm::TypeSwitch<Operation*>(op)
       .Case([&](ZXZOp zxz) {
         for (auto [ion, z1, x, z2] :
              llvm::zip_equal(zxz.getIons(), toDoubles(zxz.getZ1()), toDoubles(zxz.getX()), toDoubles(zxz.getZ2()))) {
-          gates.push_back(Gate{.kind = Gate::Kind::ZXZ, .ions = {ion}, .zxz = ZXZAngles{.z1 = z1, .x = x, .z2 = z2}});
+          gates.push_back(ZXZGate{.ion = ion, .zxz = ZXZAngles{.z1 = z1, .x = x, .z2 = z2}});
         }
       })
       .Case([&](RZOp rz) {
         for (auto [ion, angle] : llvm::zip_equal(rz.getIons(), toDoubles(rz.getAngles()))) {
-          gates.push_back(Gate{.kind = Gate::Kind::RZ, .ions = {ion}, .angle = angle});
+          gates.push_back(RZGate{.ion = ion, .angle = angle});
         }
       })
       // FIXME: what value does it add to have activeZZ and intertrap here? Why not using gateOps for that and focussing
       // gates to single qubit stuff?
       .Case([&](ActiveZZOp zz) {
-        gates.push_back(Gate{
-            .kind = Gate::Kind::ZZ,
-            .ions = zz.getChainIn().getType().getActiveIons(),
-            .matrix = llvm::to_vector(zz.getAngles().getValues<double>()),
-        });
+        // The matrix is symmetric with a zero diagonal, so the upper triangle holds every coupling. The active ions
+        // are in position order, not sorted by id.
+        const SmallVector<Ion> ions = zz.getChainIn().getType().getActiveIons();
+        const SmallVector<double> matrix = llvm::to_vector(zz.getAngles().getValues<double>());
+        const size_t n = ions.size();
+        ZZGate gate;
+        for (size_t i = 0; i < n; ++i) {
+          for (size_t j = i + 1; j < n; ++j) {
+            const double angle = matrix[(i * n) + j];
+            if (angle != 0.0) {
+              gate.couplings.push_back(Coupling{.ions = std::minmax(ions[i], ions[j]), .angle = angle});
+            }
+          }
+        }
+        if (!gate.couplings.empty()) {
+          gates.push_back(std::move(gate));
+        }
       })
       .Case([&](InterTrapZZOp zz) {
         const double angle = zz.getAngle().convertToDouble();
-        gates.push_back(
-            Gate{.kind = Gate::Kind::ZZ, .ions = llvm::to_vector(zz.getIons()), .matrix = {0.0, angle, angle, 0.0}});
+        if (angle != 0.0) {
+          const ArrayRef<Ion> ions = zz.getIons();
+          gates.push_back(ZZGate{.couplings = {Coupling{.ions = std::minmax(ions[0], ions[1]), .angle = angle}}});
+        }
       });
 }
 
