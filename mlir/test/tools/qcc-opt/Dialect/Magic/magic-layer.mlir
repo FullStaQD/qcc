@@ -120,6 +120,29 @@ func.func @couplings_cancel() {
 
 // -----
 
+!c = !magic.ion_chain<0, [0:1, 1:1, 2:1]>
+
+// The couplings of one op are scheduled one by one, in row-major order: (0, 1) joins the first ZZ layer, while (1, 2)
+// waits for the zxz on ion 2.
+// CHECK-LABEL: func.func @couplings_split
+func.func @couplings_split() {
+  %c0 = magic.init : !c
+  %c1 = magic.active_zz %c0 {angles = dense<[[0.0, 0.0, 0.0], [0.0, 0.0, 0.25], [0.0, 0.25, 0.0]]> : tensor<3x3xf64>} : !c
+  %c2 = magic.zxz %c1 ions [2] {z1 = [0.125], x = [0.25], z2 = [0.375]} : !c
+  %c3 = magic.active_zz %c2 {angles = dense<[[0.0, 0.5, 0.0], [0.5, 0.0, 0.75], [0.0, 0.75, 0.0]]> : tensor<3x3xf64>} : !c
+  %c4 = magic.zxz %c3 ions [0] {z1 = [0.5], x = [0.625], z2 = [0.75]} : !c
+  return
+}
+
+// Three layers instead of four: the zxz on ion 0 joins the one on ion 2.
+// CHECK:      %[[C0:.*]] = magic.init : !chain
+// CHECK-NEXT: %[[C1:.*]] = magic.active_zz %[[C0]] {angles = dense<{{\[\[}}0.000000e+00, 5.000000e-01, 0.000000e+00], [5.000000e-01, 0.000000e+00, 2.500000e-01], [0.000000e+00, 2.500000e-01, 0.000000e+00]]> : tensor<3x3xf64>} : !chain
+// CHECK-NEXT: %[[C2:.*]] = magic.zxz %[[C1]] ions [0, 2] {x = [6.250000e-01, 2.500000e-01], z1 = [5.000000e-01, 1.250000e-01], z2 = [7.500000e-01, 3.750000e-01]} : !chain
+// CHECK-NEXT: magic.active_zz %[[C2]] {angles = dense<{{\[\[}}0.000000e+00, 0.000000e+00, 0.000000e+00], [0.000000e+00, 0.000000e+00, 7.500000e-01], [0.000000e+00, 7.500000e-01, 0.000000e+00]]> : tensor<3x3xf64>} : !chain
+// CHECK-NEXT: return
+
+// -----
+
 !c = !magic.ion_chain<0, [0:1, 1:1]>
 
 // CHECK-LABEL: func.func @residual_rz

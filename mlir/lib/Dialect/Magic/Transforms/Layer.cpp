@@ -73,15 +73,10 @@ struct RZGate {
   double angle;
 };
 
-/// `rzz(angle)` between the ions of `ions`, a pair `(i, j)` with `i < j`.
-struct Coupling {
+/// `rzz(angle)` between the ions of `ions`, a pair `(i, j)` with `i < j`; `angle` is never zero.
+struct ZZGate {
   std::pair<Ion, Ion> ions;
   double angle;
-};
-
-/// One `active_zz` or `inter_trap_zz`, by its couplings: never empty, and no angle is zero.
-struct ZZGate {
-  SmallVector<Coupling> couplings;
 };
 
 /// One gate of the input program, in the gate set the pass understands.
@@ -131,9 +126,8 @@ struct Schedule {
 ///   `zxz` on its ion absorbs it, or the end is reached.
 /// - `zxz`: first absorbs `pending`. If the latest layer on `i` is an `SQ` layer the two rotations fuse (nothing
 ///   touches `i` in between); otherwise it goes into the first `SQ` layer after `last[i]`.
-/// - `zz`: goes into the earliest ZZ layer after the latest layer on any of its ions, which is the latest ZZ layer such
-///   that only diagonal gates touch the layer's ions between it and the gate. Angles of a pair already coupled in that
-///   layer add up.
+/// - `zz`: goes into the latest layer on either of its two ions if that is a ZZ layer, else into the ZZ layer right
+///   after it. Angles of a pair already coupled in that layer add up.
 /// - At the end, every `pending` rotation is folded into `lastSQ[i]` if there is one (only diagonal gates on `i` follow
 ///   it, so it commutes back); the rest becomes `residualRZ`.
 ///
@@ -189,26 +183,20 @@ static Schedule layerGates(ArrayRef<Gate> gates) {
   };
 
   auto addZZ = [&](const ZZGate& gate) {
-    assert(!gate.couplings.empty() && "a ZZ gate couples at least one pair");
-    int64_t latest = -1;
-    for (const Coupling& coupling : gate.couplings) {
-      latest = std::max({latest, lastLayer(coupling.ions.first), lastLayer(coupling.ions.second)});
-    }
+    const auto [ionA, ionB] = gate.ions;
+    const int64_t latest = std::max(lastLayer(ionA), lastLayer(ionB));
 
-    // The latest ZZ layer touching a coupled ion, or the ZZ layer right after the latest SQ layer touching one
-    // (layer 1 if no layer touches any of them yet).
+    // The latest layer touching either ion if it is a ZZ layer, else the ZZ layer right after it (layer 1 if no layer
+    // touches them yet).
     int64_t index = latest + 1;
     if (latest < 0) {
       index = 1;
     } else if (!isSQIndex(latest)) {
       index = latest;
     }
-    Layer& layer = layerAt(index);
-    for (const auto& [ions, angle] : gate.couplings) {
-      layer.zz[ions] += angle;
-      last[ions.first] = index;
-      last[ions.second] = index;
-    }
+    layerAt(index).zz[gate.ions] += gate.angle;
+    last[ionA] = index;
+    last[ionB] = index;
   };
 
   const auto addGate = llvm::makeVisitor(addRZ, addZXZ, addZZ);
@@ -244,7 +232,7 @@ namespace {
 struct Program {
   /// The one `magic.init` of the function, null if there is none.
   InitOp init;
-  // On a per ion basis for single qubit gates.
+  /// The gates in program order, see `collectGates`.
   SmallVector<Gate> gates;
   /// The ops the gates were read from, in program order. The layers replace them.
   SmallVector<Operation*> gateOps;
@@ -254,8 +242,8 @@ struct Program {
 
 } // namespace
 
-/// Appends the gates `op` denotes to `gates`, one per ion for single qubit gates. Couplings with a zero angle are left
-/// out, so that they do not constrain the schedule; a ZZ op without any other coupling denotes no gate.
+/// Appends the gates `op` denotes to `gates`: one per ion for single-qubit gates, one per coupled pair for ZZ gates.
+/// Couplings with a zero angle are left out, so that they do not constrain the schedule.
 static void collectGates(Operation* op, SmallVectorImpl<Gate>& gates) {
   llvm::TypeSwitch<Operation*>(op)
       .Case([&](ZXZOp zxz) {
@@ -269,32 +257,26 @@ static void collectGates(Operation* op, SmallVectorImpl<Gate>& gates) {
           gates.push_back(RZGate{.ion = ion, .angle = angle});
         }
       })
-      // FIXME: what value does it add to have activeZZ and intertrap here? Why not using gateOps for that and focussing
-      // gates to single qubit stuff?
       .Case([&](ActiveZZOp zz) {
         // The matrix is symmetric with a zero diagonal, so the upper triangle holds every coupling. The active ions
         // are in position order, not sorted by id.
         const SmallVector<Ion> ions = zz.getChainIn().getType().getActiveIons();
         const SmallVector<double> matrix = llvm::to_vector(zz.getAngles().getValues<double>());
         const size_t n = ions.size();
-        ZZGate gate;
         for (size_t i = 0; i < n; ++i) {
           for (size_t j = i + 1; j < n; ++j) {
             const double angle = matrix[(i * n) + j];
             if (angle != 0.0) {
-              gate.couplings.push_back(Coupling{.ions = std::minmax(ions[i], ions[j]), .angle = angle});
+              gates.push_back(ZZGate{.ions = std::minmax(ions[i], ions[j]), .angle = angle});
             }
           }
-        }
-        if (!gate.couplings.empty()) {
-          gates.push_back(std::move(gate));
         }
       })
       .Case([&](InterTrapZZOp zz) {
         const double angle = zz.getAngle().convertToDouble();
         if (angle != 0.0) {
           const ArrayRef<Ion> ions = zz.getIons();
-          gates.push_back(ZZGate{.couplings = {Coupling{.ions = std::minmax(ions[0], ions[1]), .angle = angle}}});
+          gates.push_back(ZZGate{.ions = std::minmax(ions[0], ions[1]), .angle = angle});
         }
       });
 }
