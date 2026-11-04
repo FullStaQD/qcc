@@ -34,7 +34,6 @@
 #include "llvm/ADT/Sequence.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/SmallVectorExtras.h"
-#include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/TypeSwitch.h"
 
 #include <algorithm>
@@ -63,7 +62,7 @@ namespace {
 using Ion = int64_t;
 
 /// One gate of the input program, in the gate set the pass understands.
-struct Gate {
+struct Gate { // FIXME: poor design?
   enum class Kind : uint8_t {
     ZXZ, ///< `zxz` on one ion: `ions[0]`, `zxz`.
     RZ,  ///< `rz` on one ion: `ions[0]`, `angle`.
@@ -89,6 +88,8 @@ struct Layer {
 
   [[nodiscard]] bool empty() const { return sq.empty() && zz.empty(); }
 
+  // FIXME: poor design? whether sq vs zz is valid depends on kind.
+
   /// kind determines which of the two maps `sq` vs `zz` is non-empty (the other one must be empty).
   Kind kind;
   /// `SQ`: the rotation each ion receives.
@@ -97,7 +98,7 @@ struct Layer {
   std::map<std::pair<Ion, Ion>, double> zz;
 };
 
-/// What the core hands to the emitter.
+/// Used by the emitter to generate the final IR.
 struct Schedule {
   SmallVector<Layer> layers;
   /// Diagonal rotations that never met a `zxz` on their ion; emitted as one `rz` per trap after the layers.
@@ -112,8 +113,8 @@ struct Schedule {
 
 /// Greedily schedules `gates` (in program order) into alternating layers.
 ///
-/// Per ion the core tracks `last[i]`, the index of the latest layer with a gate on `i`, `lastSQ[i]`, the latest `SQ`
-/// layer with a rotation on `i`, and `pending[i]`, an `rz` angle seen but not yet placed. Rules:
+/// The core tracks `last[i]`, the index of the latest layer with a gate on (ion) `i`, `lastSQ[i]`, the latest SQ layer
+/// with a gate on `i`, and `pending[i]`, an `rz` angle seen but not yet placed. Rules:
 ///
 /// - `rz`: only accumulates in `pending`. Being diagonal it commutes with every ZZ layer, so it floats until the next
 ///   `zxz` on its ion absorbs it, or the end is reached.
@@ -122,11 +123,11 @@ struct Schedule {
 /// - `zz`: goes into the earliest ZZ layer after the latest layer on any of its ions, which is the latest ZZ layer such
 ///   that only diagonal gates touch the layer's ions between it and the gate. Angles of a pair already coupled in that
 ///   layer add up.
-/// - At the end, every `pending` rotation is folded into `lastSQ[i]` if there is one (only diagonal gates on `i`
-///   follow it, so it commutes back); the rest becomes `residualRZ`.
+/// - At the end, every `pending` rotation is folded into `lastSQ[i]` if there is one (only diagonal gates on `i` follow
+///   it, so it commutes back); the rest becomes `residualRZ`.
 ///
-/// Measurements do not take part: `mzd` consumes its chain, so nothing follows it on its ions, and all of them go
-/// after the last layer.
+/// Measurements do not take part: `mzd` consumes its chain, so nothing follows it on its ions, and all of them go after
+/// the last layer.
 static Schedule layerGates(ArrayRef<Gate> gates) {
   Schedule schedule;
   SmallVector<Layer>& layers = schedule.layers;
@@ -156,7 +157,7 @@ static Schedule layerGates(ArrayRef<Gate> gates) {
   };
 
   for (const Gate& gate : gates) {
-    switch (gate.kind) {
+    switch (gate.kind) { // FIXME: add default case (clarifying invariants)?
     case Gate::Kind::RZ:
       pending[gate.ions.front()] += gate.angle;
       break;
@@ -183,8 +184,9 @@ static Schedule layerGates(ArrayRef<Gate> gates) {
 
     case Gate::Kind::ZZ: {
       const size_t n = gate.ions.size();
-      auto at = [&](size_t i, size_t j) { return gate.matrix[(i * n) + j]; };
+      auto at = [&](size_t i, size_t j) { return gate.matrix[(i * n) + j]; }; // FIXME: method at Gate?
 
+      // FIXME: do we need to do this *here* - can this be a canonicalization of ZZ?
       // Only ions that are actually coupled take part; a zero row is no gate on that ion.
       SmallVector<Ion> coupled;
       int64_t latest = -1;
@@ -252,6 +254,7 @@ namespace {
 struct Program {
   /// The one `magic.init` of the function, null if there is none.
   InitOp init;
+  // On a per ion basis for single qubit gates.
   SmallVector<Gate> gates;
   /// The ops the gates were read from, in program order. The layers replace them.
   SmallVector<Operation*> gateOps;
@@ -261,7 +264,7 @@ struct Program {
 
 } // namespace
 
-/// Appends the gates `op` denotes to `gates`, one per ion for `zxz` / `rz`.
+/// Appends the gates `op` denotes to `gates`, one per ion for single qubit gates.
 static void collectGates(Operation* op, SmallVectorImpl<Gate>& gates) {
   llvm::TypeSwitch<Operation*>(op)
       .Case([&](ZXZOp zxz) {
@@ -275,6 +278,8 @@ static void collectGates(Operation* op, SmallVectorImpl<Gate>& gates) {
           gates.push_back(Gate{.kind = Gate::Kind::RZ, .ions = {ion}, .angle = angle});
         }
       })
+      // FIXME: what value does it add to have activeZZ and intertrap here? Why not using gateOps for that and focussing
+      // gates to single qubit stuff?
       .Case([&](ActiveZZOp zz) {
         gates.push_back(Gate{
             .kind = Gate::Kind::ZZ,
@@ -310,7 +315,7 @@ static FailureOr<Program> analyzeBlock(Block& block, StringRef passName) {
               return success();
             })
             .Case<ZXZOp, RZOp, ActiveZZOp, InterTrapZZOp>([&](Operation* gate) {
-              collectGates(gate, program.gates);
+              collectGates(gate, program.gates); // FIXME: should be a method on Program (including next line)?
               program.gateOps.push_back(gate);
               return success();
             })
@@ -370,6 +375,7 @@ public:
       emitRotations(layer.sq);
       return;
     }
+    // FIXME: should we be explicit about the cases SQ vs ZZ?
     assert(layer.sq.empty() && "a ZZ layer holds couplings only");
     emitCouplings(layer.zz);
   }
@@ -402,7 +408,7 @@ public:
 
 private:
   /// One `zxz` per trap.
-  void emitRotations(const std::map<Ion, ZXZAngles>& rotations) {
+  void emitRotations(const std::map<Ion, ZXZAngles>& rotations) { // FIXME: better name (same for arg "rotations")?
     for (auto& [trap, chain] : chains) {
       SmallVector<Ion> ions;
       SmallVector<double> z1;
@@ -476,7 +482,7 @@ private:
 } // namespace
 
 /// Replaces the gates of `program` by the layers of `schedule` and moves the measurements behind them. Everything else
-/// stays where it is.
+/// stays where it is (meaning: it comes after the measurements).
 static void rebuild(const Program& program, const Schedule& schedule, Location loc) {
   LayerEmitter emitter(program.init, loc);
   for (const Layer& layer : schedule.layers) {
