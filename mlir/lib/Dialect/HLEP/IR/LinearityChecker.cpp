@@ -9,7 +9,7 @@
 
 #include "LinearityChecker.h"
 
-#include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEP.h"
+#include "qcc/Dialect/HLEP/IR/HLEP.h"
 
 #include <llvm/ADT/TypeSwitch.h>
 #include <mlir/IR/DialectImplementation.h>
@@ -17,7 +17,7 @@
 #include <mlir/Interfaces/FunctionInterfaces.h>
 
 using namespace mlir;
-using namespace qcc::prelimhlep;
+using namespace qcc::hlep;
 
 static Location getRegionLoc(Region* region);
 static void attachUseNotes(InFlightDiagnostic& diag, ArrayRef<OpOperand*> uses);
@@ -356,7 +356,7 @@ static LogicalResult checkUsesCoverRegion(const Twine& description, Region* regi
   return checkBranchCoverage(description, branchOp, branchUses);
 }
 
-namespace qcc::prelimhlep {
+namespace qcc::hlep {
 
 /// Tries to prove that `value` is used exactly once on every control-flow
 /// path. Fails if it cannot be proven.
@@ -401,11 +401,11 @@ LogicalResult checkLinearUse(Value value, const Twine& description) {
 }
 
 /// Returns true if `type` is subject to
-/// linearity checking. For now this only recognizes `!prelim_hlep.lin<...>`
+/// linearity checking. For now this only recognizes `!hlep.lin<...>`
 /// itself.
 bool isNotPurelyClassical(Type type) { return isa<LinType>(type); }
 
-} // namespace qcc::prelimhlep
+} // namespace qcc::hlep
 
 /// Returns true if `region` directly contains (not nested) a linear value.
 static bool regionHasLinearValue(Region& region) {
@@ -440,7 +440,7 @@ static bool touchesLinearValue(Operation* op) {
   return false;
 }
 
-namespace qcc::prelimhlep {
+namespace qcc::hlep {
 
 /// Verifies that every region (transitively) nested inside `op` that
 /// contains a value subject to linearity checking (see
@@ -490,9 +490,9 @@ LogicalResult checkOnlyLinearityAwareOps(Operation* op, const Twine& haloAttrNam
   return result;
 }
 
-} // namespace qcc::prelimhlep
+} // namespace qcc::hlep
 
-namespace qcc::prelimhlep {
+namespace qcc::hlep {
 
 /// Builds a human-readable description of `value` (a linearity-checked
 /// function argument, block argument, or op result) for use in diagnostics.
@@ -508,7 +508,7 @@ std::string describeLinearValue(FunctionOpInterface funcOp, Value value) {
       .str();
 }
 
-} // namespace qcc::prelimhlep
+} // namespace qcc::hlep
 
 static Location getRegionLoc(Region* region) {
   if (!region->empty() && !region->front().empty()) {

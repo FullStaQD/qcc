@@ -7,24 +7,24 @@
 //
 // ===----------------------------------------------------------------------===//
 
-#ifndef INCLUDE_QCC_DIALECT_PRELIMHLEP_IR_PRELIMHLEPATTRS_TD_
-#define INCLUDE_QCC_DIALECT_PRELIMHLEP_IR_PRELIMHLEPATTRS_TD_
+#ifndef INCLUDE_QCC_DIALECT_HLEP_IR_HLEPATTRS_TD_
+#define INCLUDE_QCC_DIALECT_HLEP_IR_HLEPATTRS_TD_
 
 include "mlir/IR/AttrTypeBase.td"
 include "mlir/IR/BuiltinAttributeInterfaces.td"
-include "PrelimHLEPDialect.td"
+include "HLEPDialect.td"
 
 
 //===----------------------------------------------------------------------===//
-// PrelimHLEP attributes
+// HLEP attributes
 //===----------------------------------------------------------------------===//
 
-class PrelimHLEPAttr<string name, string attrMnemonic, list<Trait> traits = []>
-    : AttrDef<PrelimHLEPDialect, name, traits> {
+class HLEPAttr<string name, string attrMnemonic, list<Trait> traits = []>
+    : AttrDef<HLEPDialect, name, traits> {
     let mnemonic = attrMnemonic;
 }
 
-def HaloAttr : PrelimHLEPAttr<"Halo", "halo"> {
+def HaloAttr : HLEPAttr<"Halo", "halo"> {
     let summary = "Marks a function as operating in a linear (haloed) context.";
     let description = [{
         Decorates a `func.func` to indicate that, within the function body,
@@ -33,34 +33,34 @@ def HaloAttr : PrelimHLEPAttr<"Halo", "halo"> {
 
         Example:
         ```
-        func.func @my_func() -> ... attributes { prelimhlep.halo }
+        func.func @my_func() -> ... attributes { hlep.halo }
         ```
 
-        TODO: `prelimhlep.halo` could be printed as a bare marker in the
+        TODO: `hlep.halo` could be printed as a bare marker in the
         attribute dictionary, which is the builtin pretty-printing shorthand
         for `UnitAttr`. Decide whether `HaloAttr` should stay a distinct
         (empty) attribute for future extension/verification, or whether
         usages should just be a builtin `UnitAttr` under the
-        `prelimhlep.halo` key.
+        `hlep.halo` key.
 
-        `PrelimHLEPDialect::verifyOperationAttribute` (see
-        PrelimHLEPDialect.cpp) hooks into the verifier of *any* operation
+        `HLEPDialect::verifyOperationAttribute` (see
+        HLEPDialect.cpp) hooks into the verifier of *any* operation
         this attribute is attached to and currently only checks that the
         op is function-like (`FunctionOpInterface`) with a non-empty
         argument and result list.
     }];
 }
 
-def HamiltonianAttr : PrelimHLEPAttr<"Hamiltonian", "hamiltonian"> {
+def HamiltonianAttr : HLEPAttr<"Hamiltonian", "hamiltonian"> {
     let summary = "A Lie algebra element of u(2^n) in the Pauli-product basis.";
     let description = [{
         Represents an element of the Lie algebra u(2^n) of skew-hermitian matrices,
         given in the basis of n-fold Pauli products, for use as the generator
-        argument of `prelimhlep.exp`.
+        argument of `hlep.exp`.
 
         Example:
         ```mlir
-        #operator = prelimhlep.hamiltonian<3, X[0] * Y[2] + 1.5 * Z[1]>
+        #operator = hlep.hamiltonian<3, X[0] * Y[2] + 1.5 * Z[1]>
         ```
 
         A term with a coefficient of 1 may omit the `coefficient *` prefix, as
@@ -82,8 +82,8 @@ def HamiltonianAttr : PrelimHLEPAttr<"Hamiltonian", "hamiltonian"> {
 
     let parameters = (ins
         "int64_t":$qubitCount,
-        ArrayRefParameter<"::qcc::prelimhlep::HamiltonianTermHeader", "coefficient and factor count of each term">:$termHeaders,
-        ArrayRefParameter<"::qcc::prelimhlep::PauliFactor", "Pauli factors of all terms, flattened and grouped by $termHeaders">:$factors
+        ArrayRefParameter<"::qcc::hlep::HamiltonianTermHeader", "coefficient and factor count of each term">:$termHeaders,
+        ArrayRefParameter<"::qcc::hlep::PauliFactor", "Pauli factors of all terms, flattened and grouped by $termHeaders">:$factors
     );
 
     let extraClassDeclaration = [{
@@ -91,7 +91,7 @@ def HamiltonianAttr : PrelimHLEPAttr<"Hamiltonian", "hamiltonian"> {
       /// `HamiltonianAttr`.
       struct Term {
         double coefficient;
-        ::llvm::ArrayRef<::qcc::prelimhlep::PauliFactor> factors;
+        ::llvm::ArrayRef<::qcc::hlep::PauliFactor> factors;
       };
 
       /// Reconstructs the structured list of terms from the flattened
@@ -103,4 +103,4 @@ def HamiltonianAttr : PrelimHLEPAttr<"Hamiltonian", "hamiltonian"> {
     let genVerifyDecl = 1;
 }
 
-#endif // INCLUDE_QCC_DIALECT_PRELIMHLEP_IR_PRELIMHLEPATTRS_TD_
+#endif // INCLUDE_QCC_DIALECT_HLEP_IR_HLEPATTRS_TD_

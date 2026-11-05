@@ -25,7 +25,7 @@ target_link_libraries(
           QCCQccDialect
           QCCQCircDialect
           QCCQVecDialect
-          QCCPrelimHLEPDialect
+          QCCHLEPDialect
           # Passes
           MLIRMemRefTransforms
           MLIRArithTransforms

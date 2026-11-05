@@ -11,11 +11,11 @@
 
 #include <mlir/IR/DialectRegistry.h>
 
-namespace qcc::prelimhlep {
+namespace qcc::hlep {
 
 /// Attaches `LinearityAwareOpInterface` to the ops of other dialects (`scf`,
 /// `func`) that may handle values subject to linearity inside a
-/// `prelimhlep.halo` function.
+/// `hlep.halo` function.
 void registerLinearityAwareOpInterfaceExternalModels(mlir::DialectRegistry& registry);
 
-} // namespace qcc::prelimhlep
+} // namespace qcc::hlep

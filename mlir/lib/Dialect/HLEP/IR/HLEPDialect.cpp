@@ -7,7 +7,7 @@
 //
 // ===----------------------------------------------------------------------===//
 
-#include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEP.h"
+#include "qcc/Dialect/HLEP/IR/HLEP.h"
 
 #include "LinearityChecker.h"
 
@@ -20,19 +20,19 @@
 #include <utility>
 
 using namespace mlir;
-using namespace qcc::prelimhlep;
+using namespace qcc::hlep;
 
-#include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEPDialect.cpp.inc"
+#include "qcc/Dialect/HLEP/IR/HLEPDialect.cpp.inc"
 
 #define GET_TYPEDEF_CLASSES
-#include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEPTypes.cpp.inc"
+#include "qcc/Dialect/HLEP/IR/HLEPTypes.cpp.inc"
 
 #define GET_ATTRDEF_CLASSES
-#include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEPAttrs.cpp.inc"
-#include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEPInterfaces.cpp.inc"
+#include "qcc/Dialect/HLEP/IR/HLEPAttrs.cpp.inc"
+#include "qcc/Dialect/HLEP/IR/HLEPInterfaces.cpp.inc"
 
 #define GET_OP_CLASSES
-#include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEPOps.cpp.inc"
+#include "qcc/Dialect/HLEP/IR/HLEPOps.cpp.inc"
 
 static StringRef mnemonicFor(PauliKind kind) {
   switch (kind) {
@@ -215,8 +215,8 @@ LogicalResult HamiltonianAttr::verify(function_ref<InFlightDiagnostic()> emitErr
   return success();
 }
 
-LogicalResult qcc::prelimhlep::verifyInHaloedFunction(Operation* op) {
-  std::string haloAttrName = (PrelimHLEPDialect::getDialectNamespace() + "." + HaloAttr::getMnemonic()).str();
+LogicalResult qcc::hlep::verifyInHaloedFunction(Operation* op) {
+  std::string haloAttrName = (HLEPDialect::getDialectNamespace() + "." + HaloAttr::getMnemonic()).str();
 
   auto funcOp = op->getParentOfType<FunctionOpInterface>();
   if (funcOp == nullptr || !funcOp->hasAttr(haloAttrName)) {
@@ -237,7 +237,7 @@ LogicalResult AddPhaseOp::verify() {
   return verifyInputResultTypesMatch(getOperation(), getInput().getType(), getResult().getType());
 }
 
-/// Returns `N` for `iN`, `!prelim_hlep.x<N>`, or `!prelim_hlep.y<N>`.
+/// Returns `N` for `iN`, `!hlep.x<N>`, or `!hlep.y<N>`.
 static std::optional<int64_t> getBasisSize(Type type) {
   if (auto intType = dyn_cast<IntegerType>(type)) {
     return intType.getWidth();
@@ -454,7 +454,7 @@ LogicalResult LinOp::verify() {
   auto output = dyn_cast<OutputOp>(body.getTerminator());
   if (!output) {
     return emitOpError("expected the body to be terminated with "
-                       "'prelim_hlep.output'");
+                       "'hlep.output'");
   }
 
   ValueRange delinearizedResults = output.getDelinearizedResults();
@@ -462,7 +462,7 @@ LogicalResult LinOp::verify() {
   ResultRange results = getResults();
   if (results.size() != delinearizedResults.size() + auxiliaryResults.size()) {
     return emitOpError("expected ") << (delinearizedResults.size() + auxiliaryResults.size())
-                                    << " results to match the number of 'prelim_hlep.output' "
+                                    << " results to match the number of 'hlep.output' "
                                        "operands, got "
                                     << results.size();
   }
@@ -472,7 +472,7 @@ LogicalResult LinOp::verify() {
     Type delinearizedType = delinearizedResults[i].getType();
     if (!resultType || resultType.getElementType() != delinearizedType) {
       return emitOpError("result #") << i << " has type " << results[i].getType()
-                                     << ", expected the linearization of 'prelim_hlep.output' "
+                                     << ", expected the linearization of 'hlep.output' "
                                         "operand type "
                                      << delinearizedType;
     }
@@ -483,7 +483,7 @@ LogicalResult LinOp::verify() {
     Type auxType = auxiliaryResults[i].getType();
     if (results[resultIdx].getType() != auxType) {
       return emitOpError("result #") << resultIdx << " has type " << results[resultIdx].getType()
-                                     << ", expected 'prelim_hlep.output' auxiliary operand type " << auxType;
+                                     << ", expected 'hlep.output' auxiliary operand type " << auxType;
     }
   }
 
@@ -573,7 +573,7 @@ void LinOp::getEffects(SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects
   }
 }
 
-Operation* PrelimHLEPDialect::materializeConstant(OpBuilder& builder, Attribute value, Type type, Location loc) {
+Operation* HLEPDialect::materializeConstant(OpBuilder& builder, Attribute value, Type type, Location loc) {
   auto stringValue = dyn_cast<StringAttr>(value);
   if (!stringValue || !isa<XType, YType>(type)) {
     return nullptr;
@@ -581,10 +581,10 @@ Operation* PrelimHLEPDialect::materializeConstant(OpBuilder& builder, Attribute 
   return ConstantOp::create(builder, loc, type, stringValue);
 }
 
-/// Verifier for function-like operations latched on via `prelim_hlep.halo` attribute.
+/// Verifier for function-like operations latched on via `hlep.halo` attribute.
 /// Checks that the function has at least one argument and one result,
 /// and that all values subject to linearity within the function are provably used exactly once.
-LogicalResult PrelimHLEPDialect::verifyOperationAttribute(Operation* op, NamedAttribute attribute) {
+LogicalResult HLEPDialect::verifyOperationAttribute(Operation* op, NamedAttribute attribute) {
   std::string haloAttrName = (getNamespace() + "." + HaloAttr::getMnemonic()).str();
   if (attribute.getName() != haloAttrName) {
     return success();
@@ -598,12 +598,12 @@ LogicalResult PrelimHLEPDialect::verifyOperationAttribute(Operation* op, NamedAt
   if (funcOp.getNumArguments() == 0) {
     return op->emitError("'") << haloAttrName
                               << "' function must not have zero arguments; use "
-                                 "'!prelim_hlep.unit' instead";
+                                 "'!hlep.unit' instead";
   }
   if (funcOp.getNumResults() == 0) {
     return op->emitError("'") << haloAttrName
                               << "' function must not have zero results; use "
-                                 "'!prelim_hlep.unit' instead";
+                                 "'!hlep.unit' instead";
   }
 
   if (!funcOp.isExternal()) {
@@ -642,14 +642,14 @@ LogicalResult PrelimHLEPDialect::verifyOperationAttribute(Operation* op, NamedAt
 }
 
 namespace {
-/// Inliner interface for the PrelimHLEP dialect. All PrelimHLEP ops are
+/// Inliner interface for the HLEP dialect. All HLEP ops are
 /// cloneable and may be inlined into any haloed context (in particular into
-/// `prelim_hlep.lin` bodies), but not into non-haloed functions: that would
+/// `hlep.lin` bodies), but not into non-haloed functions: that would
 /// strip the linear context the ops' verifiers and the linearity checker
 /// rely on. Since the inliner only inlines a call if every op of the
 /// callee may move, this also keeps haloed callees out of non-haloed
 /// callers.
-struct PrelimHLEPInlinerInterface final : DialectInlinerInterface {
+struct HLEPInlinerInterface final : DialectInlinerInterface {
   using DialectInlinerInterface::DialectInlinerInterface;
 
   bool isLegalToInline(Region* /*dest*/, Region* /*src*/, bool /*wouldBeCloned*/,
@@ -660,7 +660,7 @@ struct PrelimHLEPInlinerInterface final : DialectInlinerInterface {
 
   bool isLegalToInline(Operation* /*op*/, Region* dest, bool /*wouldBeCloned*/,
                        IRMapping& /*valueMapping*/) const override {
-    std::string haloAttrName = (PrelimHLEPDialect::getDialectNamespace() + "." + HaloAttr::getMnemonic()).str();
+    std::string haloAttrName = (HLEPDialect::getDialectNamespace() + "." + HaloAttr::getMnemonic()).str();
     Operation* parent = dest->getParentOp();
     while (parent != nullptr && !isa<FunctionOpInterface>(parent)) {
       parent = parent->getParentOp();
@@ -670,21 +670,21 @@ struct PrelimHLEPInlinerInterface final : DialectInlinerInterface {
 };
 } // namespace
 
-void PrelimHLEPDialect::initialize() {
-  addInterfaces<PrelimHLEPInlinerInterface>();
+void HLEPDialect::initialize() {
+  addInterfaces<HLEPInlinerInterface>();
 
   addTypes<
 #define GET_TYPEDEF_LIST
-#include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEPTypes.cpp.inc"
+#include "qcc/Dialect/HLEP/IR/HLEPTypes.cpp.inc"
       >();
 
   addAttributes<
 #define GET_ATTRDEF_LIST
-#include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEPAttrs.cpp.inc"
+#include "qcc/Dialect/HLEP/IR/HLEPAttrs.cpp.inc"
       >();
 
   addOperations<
 #define GET_OP_LIST
-#include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEPOps.cpp.inc"
+#include "qcc/Dialect/HLEP/IR/HLEPOps.cpp.inc"
       >();
 }

@@ -9,13 +9,13 @@
 
 #pragma once
 
-#include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEP.h"
+#include "qcc/Dialect/HLEP/IR/HLEP.h"
 
 #include <mlir/Interfaces/FunctionInterfaces.h>
 #include <string>
 
 /// Linearity checks for `lin`-typed values, used by the dialect's verifiers.
-namespace qcc::prelimhlep {
+namespace qcc::hlep {
 
 /// Returns true if `type` is subject to linearity checking.
 bool isNotPurelyClassical(mlir::Type type);
@@ -37,4 +37,4 @@ mlir::LogicalResult checkSingleBlockRegions(mlir::Operation* op, const mlir::Twi
 /// `LinearityAwareOpInterface` and passes its `verifyLinearValueHandling`.
 mlir::LogicalResult checkOnlyLinearityAwareOps(mlir::Operation* op, const mlir::Twine& haloAttrName);
 
-} // namespace qcc::prelimhlep
+} // namespace qcc::hlep

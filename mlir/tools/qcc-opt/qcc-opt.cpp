@@ -16,11 +16,11 @@
 #include "qcc/Conversion/ToHiSEPQ/ToHiSEPQ.h"
 #include "qcc/Conversion/ToQIR/ToQIR.h"
 #include "qcc/Dialect/Aux_/IR/Aux_.h"
+#include "qcc/Dialect/HLEP/IR/HLEP.h"
+#include "qcc/Dialect/HLEP/IR/LinearityAwareOpInterfaceImpl.h"
 #include "qcc/Dialect/Jasp/IR/Jasp.h"
 #include "qcc/Dialect/Magic/IR/Magic.h"
 #include "qcc/Dialect/Magic/Transforms/Passes.h"
-#include "qcc/Dialect/PrelimHLEP/IR/LinearityAwareOpInterfaceImpl.h"
-#include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEP.h"
 #include "qcc/Dialect/QCirc/IR/QCirc.h"
 #include "qcc/Dialect/QVec/IR/QVec.h"
 #include "qcc/Dialect/QVec/Transforms/Passes.h"
@@ -90,10 +90,10 @@ int main(int argc, char** argv) {
     qcc::QccDialect,
     qcc::qcirc::QCircDialect,
     qcc::qvec::QVecDialect,
-    qcc::prelimhlep::PrelimHLEPDialect
+    qcc::hlep::HLEPDialect
       // clang-format on
       >();
-  qcc::prelimhlep::registerLinearityAwareOpInterfaceExternalModels(registry);
+  qcc::hlep::registerLinearityAwareOpInterfaceExternalModels(registry);
 
   // Builtin passes:
   mlir::registerCanonicalizerPass();

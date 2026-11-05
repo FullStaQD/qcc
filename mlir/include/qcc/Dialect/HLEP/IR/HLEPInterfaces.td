@@ -7,8 +7,8 @@
 //
 // ===----------------------------------------------------------------------===//
 
-#ifndef INCLUDE_QCC_DIALECT_PRELIMHLEP_IR_PRELIMHLEPINTERFACES_TD_
-#define INCLUDE_QCC_DIALECT_PRELIMHLEP_IR_PRELIMHLEPINTERFACES_TD_
+#ifndef INCLUDE_QCC_DIALECT_HLEP_IR_HLEPINTERFACES_TD_
+#define INCLUDE_QCC_DIALECT_HLEP_IR_HLEPINTERFACES_TD_
 
 include "mlir/IR/OpBase.td"
 
@@ -16,14 +16,14 @@ include "mlir/IR/OpBase.td"
 // LinearityAwareOpInterface
 //===----------------------------------------------------------------------===//
 
-def PrelimHLEP_LinearityAwareOpInterface : OpInterface<"LinearityAwareOpInterface"> {
+def HLEP_LinearityAwareOpInterface : OpInterface<"LinearityAwareOpInterface"> {
   let description = [{
     Marks an operation as allowed to handle values subject to linearity (e.g.
-    `!prelimhlep.lin<...>`) inside a `prelimhlep.halo` function, as an
+    `!hlep.lin<...>`) inside a `hlep.halo` function, as an
     operand, result, or region argument, or by containing a use of such a
     value in one of its regions.
   }];
-  let cppNamespace = "::qcc::prelimhlep";
+  let cppNamespace = "::qcc::hlep";
 
   let methods = [
     InterfaceMethod<
@@ -39,4 +39,4 @@ def PrelimHLEP_LinearityAwareOpInterface : OpInterface<"LinearityAwareOpInterfac
   ];
 }
 
-#endif // INCLUDE_QCC_DIALECT_PRELIMHLEP_IR_PRELIMHLEPINTERFACES_TD_
+#endif // INCLUDE_QCC_DIALECT_HLEP_IR_HLEPINTERFACES_TD_

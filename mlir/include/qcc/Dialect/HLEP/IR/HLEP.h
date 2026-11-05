@@ -17,10 +17,10 @@
 #include <mlir/IR/Visitors.h>
 #include <mlir/Interfaces/SideEffectInterfaces.h>
 
-namespace qcc::prelimhlep {
+namespace qcc::hlep {
 
 /// A single-qubit Pauli operator, used as a factor of a `HamiltonianAttr`
-/// term (see PrelimHLEPAttrs.td).
+/// term (see HLEPAttrs.td).
 enum class PauliKind { X, Y, Z };
 
 /// A Pauli operator acting on a specific qubit, e.g. `X[0]`. One of the
@@ -57,9 +57,9 @@ inline llvm::hash_code hash_value(const HamiltonianTermHeader& header) {
 /// The hidden world that the partial linearization of a program is a
 /// family over. A measurement reads it (its outcome is the world's value) and
 /// writes it (the next measurement is a fresh draw), so that two measurements
-/// are never merged, hoisted, or erased. See PrelimHLEPEffects.td.
+/// are never merged, hoisted, or erased. See HLEPEffects.td.
 struct WorldResource : mlir::SideEffects::Resource::Base<WorldResource> {
-  [[nodiscard]] llvm::StringRef getName() const final { return "prelimhlep::World"; }
+  [[nodiscard]] llvm::StringRef getName() const final { return "hlep::World"; }
   [[nodiscard]] bool isAddressable() const override { return false; }
 };
 
@@ -69,41 +69,41 @@ struct WorldResource : mlir::SideEffects::Resource::Base<WorldResource> {
 ///
 /// TODO: Understand the side-effect implications of this better.
 struct QuantumStateResource : mlir::SideEffects::Resource::Base<QuantumStateResource> {
-  [[nodiscard]] llvm::StringRef getName() const final { return "prelimhlep::QuantumState"; }
+  [[nodiscard]] llvm::StringRef getName() const final { return "hlep::QuantumState"; }
 };
 
-} // namespace qcc::prelimhlep
+} // namespace qcc::hlep
 
 //===----------------------------------------------------------------------===//
-// PrelimHLEP Dialect
+// HLEP Dialect
 //===----------------------------------------------------------------------===//
 
-#include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEPDialect.h.inc"
+#include "qcc/Dialect/HLEP/IR/HLEPDialect.h.inc"
 
 //===----------------------------------------------------------------------===//
-// PrelimHLEP Types
+// HLEP Types
 //===----------------------------------------------------------------------===//
 
 #define GET_TYPEDEF_CLASSES
-#include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEPTypes.h.inc"
+#include "qcc/Dialect/HLEP/IR/HLEPTypes.h.inc"
 
 //===----------------------------------------------------------------------===//
-// PrelimHLEP Attributes
+// HLEP Attributes
 //===----------------------------------------------------------------------===//
 
 #define GET_ATTRDEF_CLASSES
-#include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEPAttrs.h.inc"
+#include "qcc/Dialect/HLEP/IR/HLEPAttrs.h.inc"
 
 //===----------------------------------------------------------------------===//
-// PrelimHLEP Traits
+// HLEP Traits
 //===----------------------------------------------------------------------===//
 
-namespace qcc::prelimhlep {
+namespace qcc::hlep {
 
-/// Verifies that `op` is nested (directly or indirectly) within a `prelimhlep.halo`-attributed function.
+/// Verifies that `op` is nested (directly or indirectly) within a `hlep.halo`-attributed function.
 llvm::LogicalResult verifyInHaloedFunction(mlir::Operation* op);
 
-/// Corresponds to `PrelimHLEP_InHaloedFunction` in tablegen.
+/// Corresponds to `HLEP_InHaloedFunction` in tablegen.
 template <typename ConcreteType>
 class InHaloedFunction // NOLINT(bugprone-crtp-constructor-accessibility)
     : public mlir::OpTrait::TraitBase<ConcreteType, InHaloedFunction> {
@@ -111,17 +111,17 @@ public:
   static llvm::LogicalResult verifyTrait(mlir::Operation* op) { return verifyInHaloedFunction(op); }
 };
 
-} // namespace qcc::prelimhlep
+} // namespace qcc::hlep
 
 //===----------------------------------------------------------------------===//
-// PrelimHLEP Interfaces
+// HLEP Interfaces
 //===----------------------------------------------------------------------===//
 
-#include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEPInterfaces.h.inc"
+#include "qcc/Dialect/HLEP/IR/HLEPInterfaces.h.inc"
 
 //===----------------------------------------------------------------------===//
-// PrelimHLEP Operations
+// HLEP Operations
 //===----------------------------------------------------------------------===//
 
 #define GET_OP_CLASSES
-#include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEPOps.h.inc"
+#include "qcc/Dialect/HLEP/IR/HLEPOps.h.inc"

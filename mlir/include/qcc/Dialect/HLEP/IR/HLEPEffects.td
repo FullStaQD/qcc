@@ -7,8 +7,8 @@
 //
 // ===----------------------------------------------------------------------===//
 
-#ifndef INCLUDE_QCC_DIALECT_PRELIMHLEP_IR_PRELIMHLEPEFFECTS_TD_
-#define INCLUDE_QCC_DIALECT_PRELIMHLEP_IR_PRELIMHLEPEFFECTS_TD_
+#ifndef INCLUDE_QCC_DIALECT_HLEP_IR_HLEPEFFECTS_TD_
+#define INCLUDE_QCC_DIALECT_HLEP_IR_HLEPEFFECTS_TD_
 
 include "mlir/Interfaces/SideEffectInterfaces.td"
 
@@ -19,11 +19,11 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 // that neither create nor destroy linear values are `Pure`: linearity alone
 // keeps them from being duplicated or hoisted. Everything else is modeled on
 // a resource: the quantum state below, or the hidden world index
-// (`::qcc::prelimhlep::WorldResource`), which only `lin` attaches from C++.
+// (`::qcc::hlep::WorldResource`), which only `lin` attaches from C++.
 //===----------------------------------------------------------------------===//
 // TODO: Develop a principled theory of these side-effect resources.
 
 // The quantum state that linear values are allocated in and freed from.
-def PrelimHLEP_QuantumStateResource : Resource<"::qcc::prelimhlep::QuantumStateResource">;
+def HLEP_QuantumStateResource : Resource<"::qcc::hlep::QuantumStateResource">;
 
-#endif // INCLUDE_QCC_DIALECT_PRELIMHLEP_IR_PRELIMHLEPEFFECTS_TD_
+#endif // INCLUDE_QCC_DIALECT_HLEP_IR_HLEPEFFECTS_TD_

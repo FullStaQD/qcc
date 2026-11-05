@@ -7,31 +7,31 @@
 //
 // ===----------------------------------------------------------------------===//
 
-#ifndef INCLUDE_QCC_DIALECT_PRELIMHLEP_IR_PRELIMHLEPDIALECT_TD_
-#define INCLUDE_QCC_DIALECT_PRELIMHLEP_IR_PRELIMHLEPDIALECT_TD_
+#ifndef INCLUDE_QCC_DIALECT_HLEP_IR_HLEPDIALECT_TD_
+#define INCLUDE_QCC_DIALECT_HLEP_IR_HLEPDIALECT_TD_
 
 include "mlir/IR/DialectBase.td"
 include "mlir/IR/AttrTypeBase.td"
 
 //===----------------------------------------------------------------------===//
-// PrelimHLEP dialect
+// HLEP dialect
 //===----------------------------------------------------------------------===//
 
-def PrelimHLEPDialect : Dialect {
-    let summary = "PRELIMINARY High-level entry point dialect.";
+def HLEPDialect : Dialect {
+    let summary = "High-level entry point dialect.";
     let description = [{
         Hybrid quantum-classical IR meant to serve as an
         entry point to the compilation pipeline.
 
-        Ops of this dialect are legal in `func.func`s marked with the `prelimhlep.halo` attribute.
+        Ops of this dialect are legal in `func.func`s marked with the `hlep.halo` attribute.
         Quantum types are synthesized from classical types:
-        If `T` is a classical type, then `!prelimhlep.lin<T>` is the linear type with distinguished basis
-        given by the values of `T`. For instance, the qubit type is `!prelimhlep.lin<i1>`.
+        If `T` is a classical type, then `!hlep.lin<T>` is the linear type with distinguished basis
+        given by the values of `T`. For instance, the qubit type is `!hlep.lin<i1>`.
 
         Linear values are subject to linearity: They must be used exactly once on every control flow path.
         This is ensured by verifiers using control flow analysis.
 
-        The distinguishing feature is the *partial linearization* op `prelimhlep.lin`,
+        The distinguishing feature is the *partial linearization* op `hlep.lin`,
         which transforms a body of with mixed linear and non-linear values into a an operation
         of the same signature, but with *some* of the values linearized.
         This enables classical reasoning about hybrid programs.
@@ -42,15 +42,15 @@ def PrelimHLEPDialect : Dialect {
         a calculus of base changes (relevant for the Hadmard gate).
     }];
 
-    let name = "prelimhlep";
-    let cppNamespace = "::qcc::prelimhlep";
+    let name = "hlep";
+    let cppNamespace = "::qcc::hlep";
     let useDefaultTypePrinterParser = 1;
     let useDefaultAttributePrinterParser = 1;
     let hasConstantMaterializer = 1;
 
     let extraClassDeclaration = [{
-        /// Verifies dialect attributes (e.g. `prelimhlep.halo`) attached to
-        /// arbitrary operations, such as `func.func`. See PrelimHLEPDialect.cpp.
+        /// Verifies dialect attributes (e.g. `hlep.halo`) attached to
+        /// arbitrary operations, such as `func.func`. See HLEPDialect.cpp.
         ::mlir::LogicalResult
         verifyOperationAttribute(::mlir::Operation *op,
                                   ::mlir::NamedAttribute attribute) override;
@@ -58,4 +58,4 @@ def PrelimHLEPDialect : Dialect {
 }
 
 
-#endif // INCLUDE_QCC_DIALECT_PRELIMHLEP_IR_PRELIMHLEPDIALECT_TD_
+#endif // INCLUDE_QCC_DIALECT_HLEP_IR_HLEPDIALECT_TD_

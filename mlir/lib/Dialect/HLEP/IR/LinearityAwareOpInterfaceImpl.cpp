@@ -7,9 +7,9 @@
 //
 // ===----------------------------------------------------------------------===//
 
-#include "qcc/Dialect/PrelimHLEP/IR/LinearityAwareOpInterfaceImpl.h"
+#include "qcc/Dialect/HLEP/IR/LinearityAwareOpInterfaceImpl.h"
 
-#include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEP.h"
+#include "qcc/Dialect/HLEP/IR/HLEP.h"
 
 #include "LinearityChecker.h"
 
@@ -19,7 +19,7 @@
 #include <mlir/Interfaces/ControlFlowInterfaces.h>
 
 using namespace mlir;
-using namespace qcc::prelimhlep;
+using namespace qcc::hlep;
 
 static LogicalResult verifyLinearOperandsForwarded(Operation* op, const llvm::SmallBitVector& forwarded) {
   for (OpOperand& operand : op->getOpOperands()) {
@@ -88,7 +88,7 @@ struct DefaultModel final : LinearityAwareOpInterface::ExternalModel<DefaultMode
 
 } // namespace
 
-void qcc::prelimhlep::registerLinearityAwareOpInterfaceExternalModels(DialectRegistry& registry) {
+void qcc::hlep::registerLinearityAwareOpInterfaceExternalModels(DialectRegistry& registry) {
   registry.addExtension(+[](MLIRContext* ctx, scf::SCFDialect* /*dialect*/) {
     scf::ForOp::attachInterface<RegionBranchModel<scf::ForOp>>(*ctx);
     scf::IfOp::attachInterface<RegionBranchModel<scf::IfOp>>(*ctx);
@@ -100,7 +100,7 @@ void qcc::prelimhlep::registerLinearityAwareOpInterfaceExternalModels(DialectReg
   });
   registry.addExtension(+[](MLIRContext* ctx, func::FuncDialect* /*dialect*/) {
     func::ReturnOp::attachInterface<DefaultModel<func::ReturnOp>>(*ctx);
-    // TODO: Only allow calls to `prelimhlep.halo` callees; a non-haloed callee
+    // TODO: Only allow calls to `hlep.halo` callees; a non-haloed callee
     // is outside the linearity check, so nothing proves that it uses its
     // linear arguments exactly once.
     func::CallOp::attachInterface<DefaultModel<func::CallOp>>(*ctx);
