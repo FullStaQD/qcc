@@ -20,7 +20,7 @@ include "mlir/IR/AttrTypeBase.td"
 def PrelimHLEPDialect : Dialect {
     let summary = "PRELIMINARY High-level entry point dialect.";
     let description = [{
-        Hybrid quantum-classical IR meant to serve as the
+        Hybrid quantum-classical IR meant to serve as an
         entry point to the compilation pipeline.
     }];
 
@@ -32,8 +32,7 @@ def PrelimHLEPDialect : Dialect {
 
     let extraClassDeclaration = [{
         /// Verifies dialect attributes (e.g. `prelimhlep.halo`) attached to
-        /// arbitrary operations, such as `func.func`. See
-        /// PrelimHLEPDialect.cpp.
+        /// arbitrary operations, such as `func.func`. See PrelimHLEPDialect.cpp.
         ::mlir::LogicalResult
         verifyOperationAttribute(::mlir::Operation *op,
                                   ::mlir::NamedAttribute attribute) override;

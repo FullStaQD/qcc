@@ -17,6 +17,5 @@ add_mlir_dialect_library(
   MLIRControlFlowInterfaces
   PUBLIC
   MLIRArithDialect
-  MLIRComplexDialect
   MLIRFuncDialect
   MLIRSCFDialect)

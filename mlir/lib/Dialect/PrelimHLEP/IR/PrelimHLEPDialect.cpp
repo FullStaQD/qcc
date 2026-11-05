@@ -234,13 +234,6 @@ static LogicalResult verifyInputResultTypesMatch(Operation* op, Type inputType, 
   return success();
 }
 
-LogicalResult ScaleOp::verify() {
-  if (failed(verifyWithinHaloedFunction(getOperation()))) {
-    return failure();
-  }
-  return verifyInputResultTypesMatch(getOperation(), getInput().getType(), getResult().getType());
-}
-
 LogicalResult AddPhaseOp::verify() {
   if (failed(verifyWithinHaloedFunction(getOperation()))) {
     return failure();

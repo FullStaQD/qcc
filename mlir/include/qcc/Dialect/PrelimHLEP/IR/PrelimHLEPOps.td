@@ -29,38 +29,16 @@ include "PrelimHLEPEffects.td"
 class PrelimHLEPOp<string mnemonic, list<Trait> traits = []> :
         Op<PrelimHLEPDialect, mnemonic, traits>;
 
-def ScaleOp : PrelimHLEPOp<"scale", [Pure]> {
-    let summary = "Scales the linear fibres of a value by a complex factor.";
-    let description = [{
-        Within `LinearHalo`-attributed functions, homogeneously scales every
-        fibre of a value by a complex factor.
-
-        Example:
-        `prelimhlep.scale %factor, %t : (complex<f64>, T) -> T`
-
-        The verifier checks that the op is nested (directly or indirectly)
-        within a `prelimhlep.halo`-attributed function, and that the
-        operand and result types match.
-
-        TODO: consider canonicalizing into `prelimhlep.add_phase`.
-        TODO: consider deprecating this in favor of `prelimhlep.add_phase`.
-    }];
-
-    let arguments = (ins Complex<F64>:$factor, AnyType:$input);
-    let results = (outs AnyType:$result);
-
-    let assemblyFormat = "$factor `,` $input attr-dict `:` `(` type($factor) `,` type($input) `)` `->` type($result)";
-    let hasVerifier = 1;
-}
-
 def AddPhaseOp : PrelimHLEPOp<"add_phase", [Pure]> {
     let summary = "Scales the linear fibres of a value by exp(i*alpha), a purely imaginary exponent.";
     let description = [{
-        Shorthand for `prelimhlep.scale` by `exp(i * alpha)` for real
-        `alpha`.
+        Within `LinearHalo`-attributed functions, homogeneously multiplies
+        every fibre of a value by `exp(i * alpha)` for real `alpha`.
 
         Example:
-        `prelimhlep.add_phase %alpha, %t : (f64, T) -> T`
+        ```
+        prelimhlep.add_phase %alpha, %t : (f64, T) -> T
+        ```
 
         The verifier checks that the op is nested (directly or indirectly)
         within a `prelimhlep.halo`-attributed function, and that the
@@ -89,7 +67,7 @@ def LinOp : PrelimHLEPOp<"lin", [SingleBlock, RecursiveMemoryEffects, Recursivel
         are `prelimhlep.output`-ed and re-linearized on exit.
 
         Example:
-        ```mlir
+        ```
         %out_lin, %out_auxiliary = prelimhlep.lin (
             %in_delinearized : i1 from %in_lin : !prelimhlep.lin<i1>, ...
         ) -> (!prelimhlep.lin<i1>, i1, ...) {
@@ -145,7 +123,9 @@ def OutputOp : PrelimHLEPOp<"output", [Pure, Terminator, AttrSizedOperandSegment
         linearized.
 
         Example:
-        `prelimhlep.output (%out_delinearized : T, ...) carrying (%out_aux : T, ...)`
+        ```
+        prelimhlep.output (%out_delinearized : T, ...) carrying (%out_aux : T, ...)
+        ```
 
         The verifier checks that the op is nested (directly or indirectly)
         within a `prelimhlep.halo`-attributed function. (Operand
@@ -171,7 +151,7 @@ def ExpOp : PrelimHLEPOp<"exp", [Pure]> {
         quantum types (i.e. `!prelimhlep.lin<i<n>>`).
 
         Example:
-        ```mlir
+        ```
         %out_state = prelimhlep.exp %param hamiltonian<1, X[0] + Y[0]> %in_state :
             (f64, !prelimhlep.lin<i1>) -> !prelimhlep.lin<i1>
         ```
@@ -200,7 +180,7 @@ def BaseChangeOp : PrelimHLEPOp<"base_change", [Pure]> {
         space equipped with different distinguished bases.
 
         Example:
-        ```mlir
+        ```
         %qubit_in_x_basis = prelimhlep.base_change %qubit_in_z_basis :
             !prelimhlep.lin<i1> -> !prelimhlep.lin<!prelimhlep.x<1>>
         ```
@@ -228,7 +208,7 @@ def ConstantOp : PrelimHLEPOp<"constant", [Pure, ConstantLike]> {
         obtained by linearizing the constant with `prelimhlep.lin`.
 
         Example:
-        ```mlir
+        ```
         %xxx = prelimhlep.constant "++-" : !prelimhlep.x<3>
         %yyy = prelimhlep.constant "-><-->" : !prelimhlep.y<3>
         %plus = prelimhlep.lin () -> (!prelimhlep.lin<!prelimhlep.x<1>>) {
@@ -261,7 +241,9 @@ def UnitValueOp : PrelimHLEPOp<"unit_value", [Pure]> {
         Creates a `!prelimhlep.unit` value.
 
         Example:
-        `%phase = prelimhlep.unit_value : !prelimhlep.unit`
+        ```
+        %phase = prelimhlep.unit_value : !prelimhlep.unit
+        ```
     }];
 
     let arguments = (ins);

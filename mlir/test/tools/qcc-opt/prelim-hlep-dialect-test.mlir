@@ -2,13 +2,6 @@
 
 // Round-trip smoke test for the PrelimHLEP dialect ops/types/attrs.
 
-func.func @scale(%factor: complex<f64>, %t: !prelimhlep.lin<i1>) -> !prelimhlep.lin<i1> attributes { prelimhlep.halo = #prelimhlep.halo } {
-    %0 = prelimhlep.scale %factor, %t : (complex<f64>, !prelimhlep.lin<i1>) -> !prelimhlep.lin<i1>
-    return %0 : !prelimhlep.lin<i1>
-}
-// CHECK-LABEL: func.func @scale
-// CHECK: prelimhlep.scale
-
 func.func @add_phase(%alpha: f64, %t: !prelimhlep.lin<i1>) -> !prelimhlep.lin<i1> attributes { prelimhlep.halo = #prelimhlep.halo } {
     %0 = prelimhlep.add_phase %alpha, %t : (f64, !prelimhlep.lin<i1>) -> !prelimhlep.lin<i1>
     return %0 : !prelimhlep.lin<i1>

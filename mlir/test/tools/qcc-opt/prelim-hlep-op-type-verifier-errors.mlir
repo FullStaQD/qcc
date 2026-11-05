@@ -1,14 +1,5 @@
 // RUN: qcc-opt %s --split-input-file --verify-diagnostics
 
-func.func private @scale_mismatched_types(%factor: complex<f64>, %t: !prelimhlep.lin<i1>) -> !prelimhlep.lin<i2>
-    attributes { prelimhlep.halo = #prelimhlep.halo } {
-    // expected-error @below {{expected result type ('!prelimhlep.lin<i2>') to match input type ('!prelimhlep.lin<i1>')}}
-    %0 = "prelimhlep.scale"(%factor, %t) : (complex<f64>, !prelimhlep.lin<i1>) -> !prelimhlep.lin<i2>
-    return %0 : !prelimhlep.lin<i2>
-}
-
-// -----
-
 func.func private @add_phase_mismatched_types(%alpha: f64, %t: !prelimhlep.lin<i1>) -> !prelimhlep.lin<i2>
     attributes { prelimhlep.halo = #prelimhlep.halo } {
     // expected-error @below {{expected result type ('!prelimhlep.lin<i2>') to match input type ('!prelimhlep.lin<i1>')}}

@@ -17,8 +17,6 @@ include "PrelimHLEPDialect.td"
 
 //===----------------------------------------------------------------------===//
 // PrelimHLEP attributes
-//
-// See mlir/docs/Dialects/PrelimHLEP.md, section "Core Attributes and Ops".
 //===----------------------------------------------------------------------===//
 
 class PrelimHLEPAttr<string name, string attrMnemonic, list<Trait> traits = []>
@@ -34,7 +32,9 @@ def HaloAttr : PrelimHLEPAttr<"Halo", "halo"> {
         non-purely-classical value must have exactly one use.
 
         Example:
-        `func.func @my_func() -> ... attributes { prelimhlep.halo }`
+        ```
+        func.func @my_func() -> ... attributes { prelimhlep.halo }
+        ```
 
         TODO: `prelimhlep.halo` could be printed as a bare marker in the
         attribute dictionary, which is the builtin pretty-printing shorthand
@@ -54,8 +54,9 @@ def HaloAttr : PrelimHLEPAttr<"Halo", "halo"> {
 def HamiltonianAttr : PrelimHLEPAttr<"Hamiltonian", "hamiltonian"> {
     let summary = "A Lie algebra element of u(2^n) in the Pauli-product basis.";
     let description = [{
-        Represents an element of u(2^n), given in the basis of n-fold Pauli
-        products, for use as the generator argument of `prelimhlep.exp`.
+        Represents an element of the Lie algebra u(2^n) of skew-hermitian matrices,
+        given in the basis of n-fold Pauli products, for use as the generator
+        argument of `prelimhlep.exp`.
 
         Example:
         ```mlir

@@ -138,8 +138,8 @@ func.func @phase_tag_4(%state : !prelimhlep.lin<i4>, %oracle: (i4) -> i1) -> !pr
     ) -> (!prelimhlep.lin<i4>) {
         %phase_bit = func.call_indirect %oracle(%bits) : (i4) -> i1
         %phase_tagged_bits = scf.if %phase_bit -> i4 {
-            %neg_one = complex.constant [-1.0, 0.0] : complex<f64>
-            %inverted_bits = prelimhlep.scale %neg_one, %bits : (complex<f64>, i4) -> i4
+            %pi = arith.constant 3.141592653589793 : f64
+            %inverted_bits = prelimhlep.add_phase %pi, %bits : (f64, i4) -> i4
             scf.yield %inverted_bits : i4
         } else {
             scf.yield %bits : i4
@@ -177,8 +177,8 @@ func.func @diffusion_4(%state : !prelimhlep.lin<i4>) -> !prelimhlep.lin<i4> attr
         %zero = arith.constant 0 : i4
         %is_zero = arith.cmpi eq, %bits, %zero : i4
         %tagged_bits = scf.if %is_zero -> i4 {
-            %neg_one = complex.constant [-1.0, 0.0] : complex<f64>
-            %inverted_bits = prelimhlep.scale %neg_one, %bits : (complex<f64>, i4) -> i4
+            %pi = arith.constant 3.141592653589793 : f64
+            %inverted_bits = prelimhlep.add_phase %pi, %bits : (f64, i4) -> i4
             scf.yield %inverted_bits : i4
         } else {
             scf.yield %bits : i4
