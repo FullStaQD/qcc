@@ -44,28 +44,28 @@ static testing::Matcher<ZXZAngles> zxzNear(const ZXZAngles& expected, double max
                         testing::Field("z2", &ZXZAngles::z2, testing::DoubleNear(expected.z2, maxError)));
 }
 
-/// An arbitrary global phase.
-static const Complex globalPhase = std::polar(1.0, 0.7);
+static const Complex arbitraryGlobalPhase = std::polar(1.0, 0.7);
 
-/// The global phase that brings `rhs` closest to `lhs` in the Frobenius norm.
+/// The global phase that brings `rhs` closest to `lhs` in the Hilbert-Schmidt (Frobenius) norm: the phase of the
+/// Hilbert-Schmidt inner product tr(rhs^dagger lhs).
 static Complex bestGlobalPhase(const Matrix2x2& lhs, const Matrix2x2& rhs) {
   const Complex overlap = (rhs.adjoint() * lhs).trace();
-  return overlap / std::abs(overlap);
+  return overlap / std::abs(overlap); // NaN if overlap == 0, so matrixNearUpToGlobalPhase fails
 }
 
-/// Matches a matrix that is elementwise within `maxError` of `expected`.
+/// Matches a matrix within Hilbert-Schmidt distance `maxError` of `expected`.
 static testing::Matcher<Matrix2x2> matrixNear(const Matrix2x2& expected, double maxError) {
   return testing::ResultOf(
-      "max deviation", [expected](const Matrix2x2& matrix) { return (matrix - expected).infinityNorm(); },
-      testing::Le(maxError));
+      "Hilbert-Schmidt distance",
+      [expected](const Matrix2x2& matrix) { return (matrix - expected).hilbertSchmidtNorm(); }, testing::Le(maxError));
 }
 
 /// Like `matrixNear`, but up to a global phase.
 static testing::Matcher<Matrix2x2> matrixNearUpToGlobalPhase(const Matrix2x2& expected, double maxError) {
   return testing::ResultOf(
-      "max deviation after aligning the global phase",
+      "Hilbert-Schmidt distance after aligning the global phase",
       [expected](const Matrix2x2& matrix) {
-        return (matrix - (bestGlobalPhase(matrix, expected) * expected)).infinityNorm();
+        return (matrix - (bestGlobalPhase(matrix, expected) * expected)).hilbertSchmidtNorm();
       },
       testing::Le(maxError));
 }
@@ -108,14 +108,14 @@ TEST(RotationUtilsTest, MatrixOperations) {
   EXPECT_EQ(matrix.trace(), Complex(8, 10));
 
   // The tolerance checks work with any norm.
-  EXPECT_DOUBLE_EQ(matrix.infinityNorm(), std::sqrt(113.0)); // |7 + 8i|
+  EXPECT_DOUBLE_EQ(matrix.hilbertSchmidtNorm(), std::sqrt(204.0)); // sqrt(5 + 25 + 61 + 113)
 }
 
 TEST(RotationUtilsTest, Matchers) {
   // The other tests rely on the matchers, so make sure they can fail.
   const Matrix2x2 matrix = rxMatrix(0.5);
-  EXPECT_THAT(globalPhase * matrix, matrixNearUpToGlobalPhase(matrix, tolerance));
-  EXPECT_THAT(globalPhase * matrix, testing::Not(matrixNear(matrix, tolerance)));
+  EXPECT_THAT(arbitraryGlobalPhase * matrix, matrixNearUpToGlobalPhase(matrix, tolerance));
+  EXPECT_THAT(arbitraryGlobalPhase * matrix, testing::Not(matrixNear(matrix, tolerance)));
 
   // A relative phase is not a global phase.
   EXPECT_THAT(rzMatrix(0.5), testing::Not(matrixNearUpToGlobalPhase(rzMatrix(-0.5), tolerance)));
@@ -151,16 +151,16 @@ TEST(RotationUtilsTest, DecomposeZXZRoundTrip) {
   for (const auto& [name, unitary] : cases) {
     SCOPED_TRACE(name);
     // The global phase makes det != 1.
-    const Matrix2x2 input = globalPhase * unitary;
+    const Matrix2x2 input = arbitraryGlobalPhase * unitary;
     EXPECT_THAT(zxzMatrix(decomposeZXZ(input)), matrixNearUpToGlobalPhase(input, tolerance));
   }
 }
 
 TEST(RotationUtilsTest, DecomposeZXZDegenerate) {
   // x = 0 only defines z1 + z2, and x = pi only z1 - z2. Both are resolved by z2 = 0.
-  EXPECT_THAT(decomposeZXZ(globalPhase * zxzMatrix({.z1 = 0.5, .x = 0.0, .z2 = 0.3})),
+  EXPECT_THAT(decomposeZXZ(arbitraryGlobalPhase * zxzMatrix({.z1 = 0.5, .x = 0.0, .z2 = 0.3})),
               zxzNear({.z1 = 0.8, .x = 0.0, .z2 = 0.0}, tolerance));
-  EXPECT_THAT(decomposeZXZ(globalPhase * zxzMatrix({.z1 = 0.5, .x = pi, .z2 = 0.3})),
+  EXPECT_THAT(decomposeZXZ(arbitraryGlobalPhase * zxzMatrix({.z1 = 0.5, .x = pi, .z2 = 0.3})),
               zxzNear({.z1 = 0.2, .x = pi, .z2 = 0.0}, tolerance));
 }
 

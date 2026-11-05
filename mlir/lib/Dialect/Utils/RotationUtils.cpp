@@ -12,7 +12,6 @@
 #include "llvm/Support/Format.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include <algorithm>
 #include <cmath>
 #include <complex>
 #include <cstddef>
@@ -34,6 +33,13 @@ Matrix2x2& Matrix2x2::operator-=(const Matrix2x2& rhs) {
   return *this;
 }
 
+Matrix2x2& Matrix2x2::operator*=(Complex scalar) {
+  for (Complex& element : elements) {
+    element *= scalar;
+  }
+  return *this;
+}
+
 Matrix2x2 Matrix2x2::adjoint() const {
   const Matrix2x2& m = *this;
   return {
@@ -44,12 +50,12 @@ Matrix2x2 Matrix2x2::adjoint() const {
 
 Complex Matrix2x2::trace() const { return (*this)(0, 0) + (*this)(1, 1); }
 
-double Matrix2x2::infinityNorm() const {
-  double norm = 0.0;
+double Matrix2x2::hilbertSchmidtNorm() const {
+  double normSquared = 0.0;
   for (const Complex& element : elements) {
-    norm = std::max(norm, std::abs(element));
+    normSquared += std::norm(element);
   }
-  return norm;
+  return std::sqrt(normSquared);
 }
 
 double qcc::normalizeAngle(double angle) {
@@ -86,11 +92,9 @@ Matrix2x2 qcc::operator*(const Matrix2x2& lhs, const Matrix2x2& rhs) {
   };
 }
 
-Matrix2x2 qcc::operator*(Complex scalar, const Matrix2x2& matrix) {
-  return {
-      scalar * matrix(0, 0), scalar * matrix(0, 1), //
-      scalar * matrix(1, 0), scalar * matrix(1, 1)  //
-  };
+Matrix2x2 qcc::operator*(Complex scalar, Matrix2x2 matrix) {
+  matrix *= scalar;
+  return matrix;
 }
 
 Matrix2x2 qcc::operator+(Matrix2x2 lhs, const Matrix2x2& rhs) {

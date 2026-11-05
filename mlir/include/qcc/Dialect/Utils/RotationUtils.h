@@ -48,15 +48,17 @@ public:
   /// Elementwise subtraction.
   Matrix2x2& operator-=(const Matrix2x2& rhs);
 
+  /// Scalar multiplication.
+  Matrix2x2& operator*=(Complex scalar);
+
   /// The conjugate transpose.
   [[nodiscard]] Matrix2x2 adjoint() const;
 
   /// The sum of the diagonal elements.
   [[nodiscard]] Complex trace() const;
 
-  /// The largest magnitude of the elements, i.e. the infinity norm of the elements as a vector (not the induced matrix
-  /// norm, which is the largest row sum).
-  [[nodiscard]] double infinityNorm() const;
+  /// The Hilbert-Schmidt (Frobenius) norm, i.e. the l2 norm of the elements as a vector.
+  [[nodiscard]] double hilbertSchmidtNorm() const;
 
 private:
   std::array<Complex, 4> elements;
@@ -79,7 +81,7 @@ Matrix2x2 zxzMatrix(const ZXZAngles& angles);
 Matrix2x2 operator*(const Matrix2x2& lhs, const Matrix2x2& rhs);
 
 /// `scalar` times `matrix`.
-Matrix2x2 operator*(Complex scalar, const Matrix2x2& matrix);
+Matrix2x2 operator*(Complex scalar, Matrix2x2 matrix);
 
 /// The elementwise sum `lhs + rhs`.
 Matrix2x2 operator+(Matrix2x2 lhs, const Matrix2x2& rhs);
