@@ -57,19 +57,19 @@ func.func @reset_x() {
 
 // -----
 
-// The target qubit of the CX gate is chosen dynamically, we cannot handle this situation at the moment.
+// The pass relies on tracing every qubit back to a `qcc.static`. An `if` that selects the qubit at runtime breaks this:
+// its two branches lead to different qubits.
 
-func.func @pair_target_chosen_at_runtime(%pick: i1) {
-  %q0, %q1, %q2 = qcc.static [0, 1, 2] : !qcc.qubit
-  %t = scf.if %pick -> (!qcc.qubit) {
-    scf.yield %q1 : !qcc.qubit
+func.func @qubit_selected_at_runtime(%pick: i1) {
+  %q0, %q1 = qcc.static [0, 1] : !qcc.qubit
+  %q = scf.if %pick -> (!qcc.qubit) {
+    scf.yield %q0 : !qcc.qubit
   } else {
-    scf.yield %q2 : !qcc.qubit
+    scf.yield %q1 : !qcc.qubit
   }
-  %ctrls = vector.from_elements %q0 : vector<1x!qcc.qubit>
-  %tgts = vector.from_elements %t : vector<1x!qcc.qubit>
-  // expected-error @+1 {{'qvec.pair' op expects every qubit vector element to trace back to a 'qcc.static' operation}}
-  %ctrls_out, %tgts_out = qvec.pair cx %ctrls, %tgts : vector<1x!qcc.qubit>
+  %qs = vector.from_elements %q : vector<1x!qcc.qubit>
+  // expected-error @+1 {{'qvec.single' op expects every qubit vector element to trace back to a 'qcc.static' operation}}
+  %h = qvec.single h %qs : vector<1x!qcc.qubit>
   func.return
 }
 

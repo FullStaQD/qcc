@@ -356,6 +356,8 @@ struct ResetOpLowering : public OpRewritePattern<ResetOp> {
 /// The instructions act on the qubits in place, so once the `qvec` ops are lowered, the qubit values only remain to be
 /// yielded through `scf.if`. Dropping these results lets them die, the `qcc.static` that creates them included: it may
 /// hand out each qubit only once and must not outlive the pass, as `convert-scf-to-cf` splits its function into blocks.
+///
+/// TODO: Temporary. Remove once `qvec` uses `qcf.if`, as then no `scf.if` yields qubits anymore.
 struct IfOpQubitResultsErasure : public OpRewritePattern<scf::IfOp> {
   using OpRewritePattern::OpRewritePattern;
 
