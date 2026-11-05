@@ -66,6 +66,10 @@ public:
   /// The highest qubit index the machine accepts.
   [[nodiscard]] uint64_t maxQubitIndex() const { return numQubitControlLines - 1; }
 
+  /// The most qubits one measurement can measure: its outcomes are read back from CSR `qv.mres`, one bit per qubit in a
+  /// single XLEN-bit word (QV 0.1 on RV32).
+  static constexpr unsigned maxMeasuredQubits() { return 32; }
+
   /// The narrowest scalable vector type that carries `numQubits` qubit indices. Or nullopt if capacity is exceeded.
   [[nodiscard]] std::optional<mlir::VectorType> qubitVectorType(mlir::MLIRContext* ctx, unsigned numQubits) const;
 

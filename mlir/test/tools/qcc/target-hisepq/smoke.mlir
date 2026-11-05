@@ -47,6 +47,10 @@ func.func @main() attributes { qcc.entry_point } {
 // CHECK:         qv.mz    {{v[0-9]+}}, zero, 0
 // CHECK:         ret
 
+// The entry point is called as an ordinary call, which follows the calling convention.
+// CHECK:      __qcc_call_entry_point:
+// CHECK:         call    main
+
 // Two preconditions that the linker script hisepq.ld depends on silently.
 // CHECK:      .section .text._start,"ax",@progbits
 // CHECK:      .globl  _start
@@ -54,8 +58,8 @@ func.func @main() attributes { qcc.entry_point } {
 // CHECK:      _start:
 // CHECK-NEXT:    lui     [[R1:a[0-9]+]], %hi(__stack_top)
 // CHECK-NEXT:    addi    [[R1]], [[R1]], %lo(__stack_top)
-// CHECK-NEXT:    lui     [[R2:a[0-9]+]], %hi(main)
-// CHECK-NEXT:    addi    [[R2]], [[R2]], %lo(main)
+// CHECK-NEXT:    lui     [[R2:a[0-9]+]], %hi(__qcc_call_entry_point)
+// CHECK-NEXT:    addi    [[R2]], [[R2]], %lo(__qcc_call_entry_point)
 // CHECK:         mv      sp, [[R1]]
 // CHECK:         jalr    [[R2]]
 // Infinite loop:
