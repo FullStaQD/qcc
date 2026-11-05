@@ -282,7 +282,7 @@ namespace {
 template <typename SourceOp> struct EraseLowering final : public OpConversionPattern<SourceOp> {
   using OpConversionPattern<SourceOp>::OpConversionPattern;
 
-  LogicalResult matchAndRewrite(SourceOp op, typename SourceOp::Adaptor /*adaptor*/,
+  LogicalResult matchAndRewrite(SourceOp op, SourceOp::Adaptor /*adaptor*/,
                                 ConversionPatternRewriter& rewriter) const override {
     rewriter.eraseOp(op);
     return success();
@@ -706,6 +706,7 @@ namespace {
 struct ConvertOQ3ToQRef final : qcc::impl::ConvertOQ3ToQRefBase<ConvertOQ3ToQRef> {
   using ConvertOQ3ToQRefBase::ConvertOQ3ToQRefBase;
 
+protected:
   void runOnOperation() override {
     ModuleOp module = getOperation();
     MLIRContext* context = &getContext();

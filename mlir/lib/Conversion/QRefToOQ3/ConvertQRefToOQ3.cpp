@@ -640,6 +640,7 @@ namespace {
 struct ConvertQRefToOQ3 final : qcc::impl::ConvertQRefToOQ3Base<ConvertQRefToOQ3> {
   using ConvertQRefToOQ3Base::ConvertQRefToOQ3Base;
 
+protected:
   void runOnOperation() override {
     ModuleOp module = getOperation();
     MLIRContext* context = &getContext();
