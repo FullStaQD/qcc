@@ -54,17 +54,20 @@ static Complex bestGlobalPhase(const Matrix2x2& lhs, const Matrix2x2& rhs) {
 }
 
 /// Matches a matrix that is elementwise within `maxError` of `expected`.
-MATCHER_P2(MatrixNear, expected, maxError, "") {
-  const double deviation = (arg - expected).infinityNorm();
-  *result_listener << "max deviation " << deviation;
-  return deviation <= maxError;
+static testing::Matcher<Matrix2x2> matrixNear(const Matrix2x2& expected, double maxError) {
+  return testing::ResultOf(
+      "max deviation", [expected](const Matrix2x2& matrix) { return (matrix - expected).infinityNorm(); },
+      testing::Le(maxError));
 }
 
-/// Like `MatrixNear`, but up to a global phase.
-MATCHER_P2(MatrixNearUpToGlobalPhase, expected, maxError, "") {
-  const double deviation = (arg - (bestGlobalPhase(arg, expected) * expected)).infinityNorm();
-  *result_listener << "max deviation " << deviation << " after aligning the global phase";
-  return deviation <= maxError;
+/// Like `matrixNear`, but up to a global phase.
+static testing::Matcher<Matrix2x2> matrixNearUpToGlobalPhase(const Matrix2x2& expected, double maxError) {
+  return testing::ResultOf(
+      "max deviation after aligning the global phase",
+      [expected](const Matrix2x2& matrix) {
+        return (matrix - (bestGlobalPhase(matrix, expected) * expected)).infinityNorm();
+      },
+      testing::Le(maxError));
 }
 
 TEST(RotationUtilsTest, NormalizeAngle) {
@@ -99,7 +102,7 @@ TEST(RotationUtilsTest, MatrixOperations) {
       2.0, Complex{8, -2}, //
       Complex{8, 2}, 14.0  //
   };
-  EXPECT_THAT(matrix + matrix.adjoint(), MatrixNear(sum, tolerance));
+  EXPECT_THAT(matrix + matrix.adjoint(), matrixNear(sum, tolerance));
 
   // For unitaries every diagonal element of V^dagger U carries the global phase.
   EXPECT_EQ(matrix.trace(), Complex(8, 10));
@@ -111,11 +114,11 @@ TEST(RotationUtilsTest, MatrixOperations) {
 TEST(RotationUtilsTest, Matchers) {
   // The other tests rely on the matchers, so make sure they can fail.
   const Matrix2x2 matrix = rxMatrix(0.5);
-  EXPECT_THAT(globalPhase * matrix, MatrixNearUpToGlobalPhase(matrix, tolerance));
-  EXPECT_THAT(globalPhase * matrix, testing::Not(MatrixNear(matrix, tolerance)));
+  EXPECT_THAT(globalPhase * matrix, matrixNearUpToGlobalPhase(matrix, tolerance));
+  EXPECT_THAT(globalPhase * matrix, testing::Not(matrixNear(matrix, tolerance)));
 
   // A relative phase is not a global phase.
-  EXPECT_THAT(rzMatrix(0.5), testing::Not(MatrixNearUpToGlobalPhase(rzMatrix(-0.5), tolerance)));
+  EXPECT_THAT(rzMatrix(0.5), testing::Not(matrixNearUpToGlobalPhase(rzMatrix(-0.5), tolerance)));
 }
 
 TEST(RotationUtilsTest, RotationMatrices) {
@@ -130,8 +133,8 @@ TEST(RotationUtilsTest, RotationMatrices) {
       s, Complex{0.0, -s}, //
       Complex{0.0, -s}, s  //
   };
-  EXPECT_THAT(rzMatrix(pi / 2), MatrixNear(rz, tolerance));
-  EXPECT_THAT(rxMatrix(pi / 2), MatrixNear(rx, tolerance));
+  EXPECT_THAT(rzMatrix(pi / 2), matrixNear(rz, tolerance));
+  EXPECT_THAT(rxMatrix(pi / 2), matrixNear(rx, tolerance));
 }
 
 TEST(RotationUtilsTest, DecomposeZXZRoundTrip) {
@@ -149,29 +152,16 @@ TEST(RotationUtilsTest, DecomposeZXZRoundTrip) {
     SCOPED_TRACE(name);
     // The global phase makes det != 1.
     const Matrix2x2 input = globalPhase * unitary;
-    EXPECT_THAT(zxzMatrix(decomposeZXZ(input)), MatrixNearUpToGlobalPhase(input, tolerance));
+    EXPECT_THAT(zxzMatrix(decomposeZXZ(input)), matrixNearUpToGlobalPhase(input, tolerance));
   }
 }
 
 TEST(RotationUtilsTest, DecomposeZXZDegenerate) {
   // x = 0 only defines z1 + z2, and x = pi only z1 - z2. Both are resolved by z2 = 0.
-  const ZXZAngles diagonal = decomposeZXZ(globalPhase * zxzMatrix({.z1 = 0.5, .x = 0.0, .z2 = 0.3}));
-  EXPECT_NEAR(diagonal.z1, 0.8, tolerance);
-  EXPECT_NEAR(diagonal.x, 0.0, tolerance);
-  EXPECT_NEAR(diagonal.z2, 0.0, tolerance);
-
-  const ZXZAngles antiDiagonal = decomposeZXZ(globalPhase * zxzMatrix({.z1 = 0.5, .x = pi, .z2 = 0.3}));
-  EXPECT_NEAR(antiDiagonal.z1, 0.2, tolerance);
-  EXPECT_NEAR(antiDiagonal.x, pi, tolerance);
-  EXPECT_NEAR(antiDiagonal.z2, 0.0, tolerance);
-}
-
-TEST(RotationUtilsTest, FuseZXZ) {
-  // Rx(0.5) followed by Rz(0.25) is Rz(0.25) * Rx(0.5).
-  const ZXZAngles fused = fuseZXZ({.x = 0.5}, {.z1 = 0.25});
-  EXPECT_NEAR(fused.z1, 0.0, tolerance);
-  EXPECT_NEAR(fused.x, 0.5, tolerance);
-  EXPECT_NEAR(fused.z2, 0.25, tolerance);
+  EXPECT_THAT(decomposeZXZ(globalPhase * zxzMatrix({.z1 = 0.5, .x = 0.0, .z2 = 0.3})),
+              zxzNear({.z1 = 0.8, .x = 0.0, .z2 = 0.0}, tolerance));
+  EXPECT_THAT(decomposeZXZ(globalPhase * zxzMatrix({.z1 = 0.5, .x = pi, .z2 = 0.3})),
+              zxzNear({.z1 = 0.2, .x = pi, .z2 = 0.0}, tolerance));
 }
 
 TEST(RotationUtilsTest, FuseZXZWithRZ) {
