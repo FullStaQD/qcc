@@ -107,9 +107,9 @@ def ConvertQVecToHiSEPQIntrinsics : Pass<"convert-qvec-to-hisepq-intrinsics", "m
       - Qubit indices are below `num-qubit-control-lines` and encoded in an unsigned `i{QEW}`, and there are no more
         qubits than LMUL 8 holds at the minimum VLEN.
 
-      Gates without an intrinsic and measurements or resets in basis `x` are rejected (error). There is no reset
-      instruction either, so `qvec.reset z` becomes a measurement followed by an `llvm.riscv.qv.x` on each qubit
-      measured in |1⟩.
+      Operations without an intrinsic are typically rejected (error). In rare cases operations are decomposed. For
+      example `qvec.reset z` becomes a measurement followed by an `llvm.riscv.qv.x` on each qubit measured in |1⟩. This
+      is because HiSEP-Q has no reset operation.
 
       The instructions act on the qubits in place, so no qubit value outlives the pass: the `scf.if` results that
       carried qubits are dropped, and the `qcc.static` goes with the rest of the qubit values.
