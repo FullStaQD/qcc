@@ -19,6 +19,15 @@ include "PrelimHLEPEffects.td"
 
 
 //===----------------------------------------------------------------------===//
+// PrelimHLEP traits
+//===----------------------------------------------------------------------===//
+
+// The op must be nested (directly or indirectly) within a `prelimhlep.halo`-attributed function.
+def PrelimHLEP_InHaloedFunction : NativeOpTrait<"InHaloedFunction"> {
+  let cppNamespace = "::qcc::prelimhlep";
+}
+
+//===----------------------------------------------------------------------===//
 // PrelimHLEP operations
 //
 // Side effects follow PrelimHLEPEffects.td: ops with a single world that
@@ -29,7 +38,7 @@ include "PrelimHLEPEffects.td"
 class PrelimHLEPOp<string mnemonic, list<Trait> traits = []> :
         Op<PrelimHLEPDialect, mnemonic, traits>;
 
-def AddPhaseOp : PrelimHLEPOp<"add_phase", [Pure]> {
+def AddPhaseOp : PrelimHLEPOp<"add_phase", [Pure, PrelimHLEP_InHaloedFunction]> {
     let summary = "Scales the linear fibres of a value by exp(i*alpha), a purely imaginary exponent.";
     let description = [{
         Within `LinearHalo`-attributed functions, homogeneously multiplies
@@ -55,7 +64,8 @@ def AddPhaseOp : PrelimHLEPOp<"add_phase", [Pure]> {
 }
 
 def LinOp : PrelimHLEPOp<"lin", [SingleBlock, RecursiveMemoryEffects, RecursivelySpeculatable,
-                                  DeclareOpInterfaceMethods<MemoryEffectsOpInterface>]> {
+                                  DeclareOpInterfaceMethods<MemoryEffectsOpInterface>,
+                                  PrelimHLEP_InHaloedFunction]> {
     let summary = "Partial linearization of a function between product types.";
     let description = [{
         Implements partial linearization: the `delinearizedOperands`
@@ -114,7 +124,8 @@ def LinOp : PrelimHLEPOp<"lin", [SingleBlock, RecursiveMemoryEffects, Recursivel
     let hasCustomAssemblyFormat = 1;
 }
 
-def OutputOp : PrelimHLEPOp<"output", [Pure, Terminator, AttrSizedOperandSegments, HasParent<"LinOp">]> {
+def OutputOp : PrelimHLEPOp<"output", [Pure, Terminator, AttrSizedOperandSegments, HasParent<"LinOp">,
+                                        PrelimHLEP_InHaloedFunction]> {
     let summary = "Terminates the body region of a `prelimhlep.lin` op.";
     let description = [{
         Yields the (still delinearized) results of a `prelimhlep.lin`
@@ -139,10 +150,9 @@ def OutputOp : PrelimHLEPOp<"output", [Pure, Terminator, AttrSizedOperandSegment
     let arguments = (ins Variadic<AnyType>:$delinearizedResults,
                           Variadic<AnyType>:$auxiliaryResults);
     let hasCustomAssemblyFormat = 1;
-    let hasVerifier = 1;
 }
 
-def ExpOp : PrelimHLEPOp<"exp", [Pure]> {
+def ExpOp : PrelimHLEPOp<"exp", [Pure, PrelimHLEP_InHaloedFunction]> {
     let summary = "Exponential map: applies exp(-i * angle * hamiltonian) to a purely quantum value.";
     let description = [{
         Obtains a unitary operator from a Lie algebra element (given as a
@@ -172,7 +182,7 @@ def ExpOp : PrelimHLEPOp<"exp", [Pure]> {
     let hasVerifier = 1;
 }
 
-def BaseChangeOp : PrelimHLEPOp<"base_change", [Pure]> {
+def BaseChangeOp : PrelimHLEPOp<"base_change", [Pure, PrelimHLEP_InHaloedFunction]> {
     let summary = "Distinguished isomorphism between the Z-, X-, and Y-basis linearizations of the same space.";
     let description = [{
         Converts between `!prelimhlep.lin<i<n>>`, `!prelimhlep.lin<!prelimhlep.x<n>>`,

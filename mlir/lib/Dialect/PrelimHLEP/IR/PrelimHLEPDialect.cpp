@@ -214,13 +214,11 @@ LogicalResult HamiltonianAttr::verify(function_ref<InFlightDiagnostic()> emitErr
   return success();
 }
 
-/// Checks that `op` is nested (directly or indirectly) within a
-/// `prelim_hlep.halo`-attributed function.
-static LogicalResult verifyWithinHaloedFunction(Operation* op) {
+LogicalResult qcc::prelimhlep::verifyInHaloedFunction(Operation* op) {
   std::string haloAttrName = (PrelimHLEPDialect::getDialectNamespace() + "." + HaloAttr::getMnemonic()).str();
 
   auto funcOp = op->getParentOfType<FunctionOpInterface>();
-  if (!funcOp || !funcOp->hasAttr(haloAttrName)) {
+  if (funcOp == nullptr || !funcOp->hasAttr(haloAttrName)) {
     return op->emitOpError("expected to be nested within a '") << haloAttrName << "'-attributed function";
   }
 
@@ -235,9 +233,6 @@ static LogicalResult verifyInputResultTypesMatch(Operation* op, Type inputType, 
 }
 
 LogicalResult AddPhaseOp::verify() {
-  if (failed(verifyWithinHaloedFunction(getOperation()))) {
-    return failure();
-  }
   return verifyInputResultTypesMatch(getOperation(), getInput().getType(), getResult().getType());
 }
 
@@ -256,10 +251,6 @@ static std::optional<int64_t> getBasisSize(Type type) {
 }
 
 LogicalResult BaseChangeOp::verify() {
-  if (failed(verifyWithinHaloedFunction(getOperation()))) {
-    return failure();
-  }
-
   auto inputType = dyn_cast<LinType>(getInput().getType());
   auto resultType = dyn_cast<LinType>(getResult().getType());
   if (!inputType || !resultType) {
@@ -333,8 +324,6 @@ void OutputOp::print(OpAsmPrinter& p) {
   p.printOptionalAttrDict((*this)->getAttrs(), {OutputOp::getOperandSegmentSizesAttrName((*this)->getName())});
 }
 
-LogicalResult OutputOp::verify() { return verifyWithinHaloedFunction(getOperation()); }
-
 OpFoldResult ConstantOp::fold(FoldAdaptor /*adaptor*/) { return getValueAttr(); }
 
 LogicalResult ConstantOp::verify() {
@@ -372,10 +361,6 @@ LogicalResult ConstantOp::verify() {
 }
 
 LogicalResult ExpOp::verify() {
-  if (failed(verifyWithinHaloedFunction(getOperation()))) {
-    return failure();
-  }
-
   if (failed(verifyInputResultTypesMatch(getOperation(), getInput().getType(), getResult().getType()))) {
     return failure();
   }
@@ -452,10 +437,6 @@ void LinOp::print(OpAsmPrinter& p) {
 }
 
 LogicalResult LinOp::verify() {
-  if (failed(verifyWithinHaloedFunction(getOperation()))) {
-    return failure();
-  }
-
   Block& body = getBody().front();
 
   if (body.getNumArguments() != getDelinearizedOperands().size()) {

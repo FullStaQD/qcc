@@ -93,6 +93,25 @@ struct QuantumStateResource : mlir::SideEffects::Resource::Base<QuantumStateReso
 #include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEPAttrs.h.inc"
 
 //===----------------------------------------------------------------------===//
+// PrelimHLEP Traits
+//===----------------------------------------------------------------------===//
+
+namespace qcc::prelimhlep {
+
+/// Verifies that `op` is nested (directly or indirectly) within a `prelimhlep.halo`-attributed function.
+llvm::LogicalResult verifyInHaloedFunction(mlir::Operation* op);
+
+/// Corresponds to `PrelimHLEP_InHaloedFunction` in tablegen.
+template <typename ConcreteType>
+class InHaloedFunction // NOLINT(bugprone-crtp-constructor-accessibility)
+    : public mlir::OpTrait::TraitBase<ConcreteType, InHaloedFunction> {
+public:
+  static llvm::LogicalResult verifyTrait(mlir::Operation* op) { return verifyInHaloedFunction(op); }
+};
+
+} // namespace qcc::prelimhlep
+
+//===----------------------------------------------------------------------===//
 // PrelimHLEP Operations
 //===----------------------------------------------------------------------===//
 
