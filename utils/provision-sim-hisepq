@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-TAG=sim-hisepq-20260619-g817e42e-r1
+TAG=sim-hisepq-20261006-g59f5696-r1
 ASSET_REPO=FullStaQD/prebuilt-artifacts
 
 PREFIX_DEFAULT=$HOME/.local
@@ -10,7 +10,7 @@ PREFIX_DEFAULT=$HOME/.local
 # SHA256 of the `sim_hisepq` executable itself, one variable per published
 # platform. Add a line here when the asset repo starts shipping another
 # platform.
-SHA256_linux_x86_64=791722ec760418b806f941b536c88095499fe2452e3283742d316decf9cd324f
+SHA256_linux_x86_64=1b70d6f61f4297da08ef5c68a7f6b5208fda2cf0eb33d774ebcf41580ebbc9a6
 
 usage() {
   cat <<EOF
