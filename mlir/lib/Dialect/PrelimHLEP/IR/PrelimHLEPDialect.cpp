@@ -622,7 +622,7 @@ LogicalResult PrelimHLEPDialect::verifyOperationAttribute(Operation* op, NamedAt
         for (Block& block : region) {
           for (BlockArgument arg : block.getArguments()) {
             if (isNotPurelyClassical(arg.getType()) &&
-                failed(checkPreciselyOneUse(arg, "'" + haloAttrName + "' " + describeLinearValue(funcOp, arg)))) {
+                failed(checkLinearOneUse(arg, "'" + haloAttrName + "' " + describeLinearValue(funcOp, arg)))) {
               result = failure();
             }
           }
@@ -630,7 +630,7 @@ LogicalResult PrelimHLEPDialect::verifyOperationAttribute(Operation* op, NamedAt
       }
       for (OpResult opResult : nestedOp->getResults()) {
         if (isNotPurelyClassical(opResult.getType()) &&
-            failed(checkPreciselyOneUse(opResult, "'" + haloAttrName + "' " + describeLinearValue(funcOp, opResult)))) {
+            failed(checkLinearOneUse(opResult, "'" + haloAttrName + "' " + describeLinearValue(funcOp, opResult)))) {
           result = failure();
         }
       }

@@ -49,8 +49,7 @@ def AddPhaseOp : PrelimHLEPOp<"add_phase", [Pure, PrelimHLEP_InHaloedFunction]> 
         prelimhlep.add_phase %alpha, %t : (f64, T) -> T
         ```
 
-        The verifier checks that the op is nested (directly or indirectly)
-        within a `prelimhlep.halo`-attributed function, and that the
+        The verifier checks that the
         operand and result types match.
 
         TODO: consider allowing other types for angles.
@@ -90,8 +89,7 @@ def LinOp : PrelimHLEPOp<"lin", [SingleBlock, RecursiveMemoryEffects, Recursivel
         source operand's `!prelimhlep.lin<...>` type are independently
         parsed and are related by `LinOp`'s verifier.
 
-        The verifier checks that the op is nested (directly or indirectly)
-        within a `prelimhlep.halo`-attributed function, that the
+        The verifier checks that the
         block's argument types match the `delinearizedOperands` base
         types, and that the op's result types are the re-linearization of
         the `prelimhlep.output` terminator's delinearized results, followed
@@ -124,8 +122,7 @@ def LinOp : PrelimHLEPOp<"lin", [SingleBlock, RecursiveMemoryEffects, Recursivel
     let hasCustomAssemblyFormat = 1;
 }
 
-def OutputOp : PrelimHLEPOp<"output", [Pure, Terminator, AttrSizedOperandSegments, HasParent<"LinOp">,
-                                        PrelimHLEP_InHaloedFunction]> {
+def OutputOp : PrelimHLEPOp<"output", [Pure, Terminator, AttrSizedOperandSegments, HasParent<"LinOp">]> {
     let summary = "Terminates the body region of a `prelimhlep.lin` op.";
     let description = [{
         Yields the (still delinearized) results of a `prelimhlep.lin`
@@ -137,14 +134,6 @@ def OutputOp : PrelimHLEPOp<"output", [Pure, Terminator, AttrSizedOperandSegment
         ```
         prelimhlep.output (%out_delinearized : T, ...) carrying (%out_aux : T, ...)
         ```
-
-        The verifier checks that the op is nested (directly or indirectly)
-        within a `prelimhlep.halo`-attributed function. (Operand
-        types/count are checked against the enclosing `prelimhlep.lin`'s
-        results by `LinOp`'s verifier.)
-
-        FIXME: verifier should only check nesting within a `prelimhlep.lin` op, not within a `prelimhlep.halo`-attributed function.
-        This should be done by a `HasParent<"LinOp">` trait. Double-check and remove verifier.
     }];
 
     let arguments = (ins Variadic<AnyType>:$delinearizedResults,
@@ -195,9 +184,7 @@ def BaseChangeOp : PrelimHLEPOp<"base_change", [Pure, PrelimHLEP_InHaloedFunctio
             !prelimhlep.lin<i1> -> !prelimhlep.lin<!prelimhlep.x<1>>
         ```
 
-        The verifier checks that the op is nested (directly or indirectly)
-        within a `prelimhlep.halo`-attributed function, and that operand
-        and result types are `!prelimhlep.lin<...>` over `i<n>`/`x<n>`/
+        The verifier checks that operand and result types are `!prelimhlep.lin<...>` over `i<n>`/`x<n>`/
         `y<n>` of matching `n`.
     }];
 

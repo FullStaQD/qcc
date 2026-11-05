@@ -349,7 +349,7 @@ namespace qcc::prelimhlep {
 
 /// Tries to prove that `value` is used exactly once on every control-flow
 /// path. Fails if it cannot be proven.
-LogicalResult checkPreciselyOneUse(Value value, const Twine& description) {
+LogicalResult checkLinearUse(Value value, const Twine& description) {
   SmallVector<OpOperand*> uses;
   for (OpOperand& use : value.getUses()) {
     uses.push_back(&use);

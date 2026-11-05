@@ -26,7 +26,7 @@ std::string describeLinearValue(mlir::FunctionOpInterface funcOp, mlir::Value va
 
 /// Tries to prove that `value` is used exactly once on every control-flow
 /// path. Fails if it cannot be proven.
-mlir::LogicalResult checkPreciselyOneUse(mlir::Value value, const mlir::Twine& description);
+mlir::LogicalResult checkLinearOneUse(mlir::Value value, const mlir::Twine& description);
 
 /// Verifies that every region nested in `op` that contains a value subject to
 /// linearity checking has exactly one block.
