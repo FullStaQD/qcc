@@ -8,6 +8,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "qcc/Dialect/Aux_/IR/Aux_.h"
+#include "qcc/Dialect/HLEP/IR/HLEP.h"
+#include "qcc/Dialect/HLEP/IR/LinearityAwareOpInterfaceImpl.h"
 #include "qcc/Dialect/Jasp/IR/Jasp.h"
 #include "qcc/Dialect/Magic/IR/Magic.h"
 #include "qcc/Dialect/OQ3/IR/OQ3.h"
@@ -32,7 +34,8 @@ int main(int argc, char** argv) {
   // Register our custom project dialects.
   registry.insert<jasp::JaspDialect, mlir::qc::QCDialect, mlir::qco::QCODialect, qcc::aux::AuxDialect,
                   qcc::magic::MagicDialect, qcc::oq3::OQ3Dialect, qcc::QccDialect, qcc::qcf::QCFDialect,
-                  qcc::qcirc::QCircDialect, qcc::qref::QRefDialect, qcc::qvec::QVecDialect>();
+                  qcc::qcirc::QCircDialect, qcc::qref::QRefDialect, qcc::qvec::QVecDialect, qcc::hlep::HLEPDialect>();
+  qcc::hlep::registerLinearityAwareOpInterfaceExternalModels(registry);
 
   return mlir::succeeded(mlir::MlirLspServerMain(argc, argv, registry)) ? 0 : 1;
 }

@@ -1,0 +1,23 @@
+add_mlir_dialect_library(
+  QCCHLEPDialect
+  HLEPDialect.cpp
+  LinearityChecker.cpp
+  LinearityAwareOpInterfaceImpl.cpp
+  DEPENDS
+  QCCHLEPDialectIncGen
+  QCCHLEPTypesIncGen
+  QCCHLEPAttrsIncGen
+  QCCHLEPInterfacesIncGen
+  QCCHLEPOpsIncGen
+  LINK_LIBS
+  PRIVATE
+  MLIRIR
+  MLIRSupport
+  MLIRInferTypeOpInterface
+  MLIRSideEffectInterfaces
+  MLIRFunctionInterfaces
+  MLIRControlFlowInterfaces
+  PUBLIC
+  MLIRArithDialect
+  MLIRFuncDialect
+  MLIRSCFDialect)

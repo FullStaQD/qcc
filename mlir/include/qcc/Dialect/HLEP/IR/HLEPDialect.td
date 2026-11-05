@@ -1,0 +1,64 @@
+// ===----------------------------------------------------------------------===//
+//
+// Part of the FullStaQD Project, under the Apache License v2.0 with LLVM
+// Exceptions.
+// See <repo-root>/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+// ===----------------------------------------------------------------------===//
+
+#ifndef INCLUDE_QCC_DIALECT_HLEP_IR_HLEPDIALECT_TD_
+#define INCLUDE_QCC_DIALECT_HLEP_IR_HLEPDIALECT_TD_
+
+include "mlir/IR/DialectBase.td"
+include "mlir/IR/AttrTypeBase.td"
+
+//===----------------------------------------------------------------------===//
+// HLEP dialect
+//===----------------------------------------------------------------------===//
+
+def HLEPDialect : Dialect {
+    let summary = "High-level entry point dialect.";
+    let description = [{
+        Hybrid quantum-classical IR meant to serve as an
+        entry point to the compilation pipeline.
+
+        Ops of this dialect are legal in `func.func`s marked with the
+        `hlep.halo` attribute. Quantum types are synthesized from classical
+        types: If `T` is a classical type, then `!hlep.lin<T>` is the linear
+        type with distinguished basis given by the values of `T`. For
+        instance, the qubit type is `!hlep.lin<i1>`.
+
+        Linear values are subject to linearity: They must be used exactly once
+        on every control flow path. This is ensured by verifiers using control
+        flow analysis.
+
+        The distinguishing feature is the *partial linearization* op
+        `hlep.lin`, which transforms a body with mixed linear and non-linear
+        values into an operation of the same signature, but with *some* of the
+        values linearized. This enables classical reasoning about hybrid
+        programs. Partial linearization can be used to implement classical and
+        quantum control flow, state preparation, and measurement.
+
+        For quantum operations that cannot be expressed in terms of partial
+        linearization, the dialect provides exponentiation of Pauli
+        polynomials, an `add_phase` primitive, and a calculus of base changes
+        (relevant for the Hadamard gate).
+    }];
+
+    let name = "hlep";
+    let cppNamespace = "::qcc::hlep";
+    let useDefaultTypePrinterParser = 1;
+    let useDefaultAttributePrinterParser = 1;
+    let hasConstantMaterializer = 1;
+
+    let extraClassDeclaration = [{
+        /// Verifies dialect attributes (e.g. `hlep.halo`) attached to
+        /// arbitrary operations, such as `func.func`. See HLEPDialect.cpp.
+        ::mlir::LogicalResult
+        verifyOperationAttribute(::mlir::Operation *op,
+                                 ::mlir::NamedAttribute attribute) override;
+    }];
+}
+
+#endif // INCLUDE_QCC_DIALECT_HLEP_IR_HLEPDIALECT_TD_

@@ -3,6 +3,17 @@ add_mlir_conversion_library(
   ConvertQCircToQRef.cpp
   DEPENDS
   QCCQCircToQRefIncGen
+  QCCQccDialectIncGen
+  QCCQccInterfacesIncGen
+  QCCQccTypesIncGen
+  QCCQccAttrsIncGen
+  QCCQccOpsIncGen
+  QCCQCFDialectIncGen
+  QCCQCFOpsIncGen
+  QCCQCircDialectIncGen
+  QCCQCircOpsIncGen
+  QCCQRefDialectIncGen
+  QCCQRefOpsIncGen
   LINK_LIBS
   PRIVATE
   # Dialects
