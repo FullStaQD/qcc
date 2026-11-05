@@ -19,9 +19,9 @@ include "mlir/IR/OpBase.td"
 def HLEP_LinearityAwareOpInterface : OpInterface<"LinearityAwareOpInterface"> {
   let description = [{
     Marks an operation as allowed to handle values subject to linearity (e.g.
-    `!hlep.lin<...>`) inside a `hlep.halo` function, as an
-    operand, result, or region argument, or by containing a use of such a
-    value in one of its regions.
+    `!hlep.lin<...>`) inside a `hlep.halo` function, as an operand, result,
+    or region argument, or by containing a use of such a value in one of its
+    regions.
   }];
   let cppNamespace = "::qcc::hlep";
 

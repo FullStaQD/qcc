@@ -14,7 +14,6 @@ include "mlir/IR/AttrTypeBase.td"
 include "mlir/IR/BuiltinAttributeInterfaces.td"
 include "HLEPDialect.td"
 
-
 //===----------------------------------------------------------------------===//
 // HLEP attributes
 //===----------------------------------------------------------------------===//
@@ -28,35 +27,33 @@ def HaloAttr : HLEPAttr<"Halo", "halo"> {
     let summary = "Marks a function as operating in a linear (haloed) context.";
     let description = [{
         Decorates a `func.func` to indicate that, within the function body,
-        classical types are implicitly treated as carrying a linear halo and every
-        non-purely-classical value must have exactly one use.
+        classical types are implicitly treated as carrying a linear halo and
+        every non-purely-classical value must have exactly one use.
 
         Example:
         ```
         func.func @my_func() -> ... attributes { hlep.halo }
         ```
 
-        TODO: `hlep.halo` could be printed as a bare marker in the
-        attribute dictionary, which is the builtin pretty-printing shorthand
-        for `UnitAttr`. Decide whether `HaloAttr` should stay a distinct
-        (empty) attribute for future extension/verification, or whether
-        usages should just be a builtin `UnitAttr` under the
-        `hlep.halo` key.
+        TODO: `hlep.halo` could be printed as a bare marker in the attribute
+        dictionary, which is the builtin pretty-printing shorthand for
+        `UnitAttr`. Decide whether `HaloAttr` should stay a distinct (empty)
+        attribute for future extension/verification, or whether usages should
+        just be a builtin `UnitAttr` under the `hlep.halo` key.
 
-        `HLEPDialect::verifyOperationAttribute` (see
-        HLEPDialect.cpp) hooks into the verifier of *any* operation
-        this attribute is attached to and currently only checks that the
-        op is function-like (`FunctionOpInterface`) with a non-empty
-        argument and result list.
+        `HLEPDialect::verifyOperationAttribute` (see HLEPDialect.cpp) hooks
+        into the verifier of *any* operation this attribute is attached to and
+        currently only checks that the op is function-like
+        (`FunctionOpInterface`) with a non-empty argument and result list.
     }];
 }
 
 def HamiltonianAttr : HLEPAttr<"Hamiltonian", "hamiltonian"> {
     let summary = "A Lie algebra element of u(2^n) in the Pauli-product basis.";
     let description = [{
-        Represents an element of the Lie algebra u(2^n) of skew-hermitian matrices,
-        given in the basis of n-fold Pauli products, for use as the generator
-        argument of `hlep.exp`.
+        Represents an element of the Lie algebra u(2^n) of skew-hermitian
+        matrices, given in the basis of n-fold Pauli products, for use as the
+        generator argument of `hlep.exp`.
 
         Example:
         ```mlir
@@ -73,8 +70,8 @@ def HamiltonianAttr : HLEPAttr<"Hamiltonian", "hamiltonian"> {
         term has a zero coefficient, and that no two terms are identical up
         to reordering of factors.
 
-        TODO: consider canonicalization to merge terms that differ only by
-        the order qubits were declared once operator-level canonicalization
+        TODO: consider canonicalization to merge terms that differ only by the
+        order qubits were declared once operator-level canonicalization
         exists.
 
         TODO: Perhaps allow zero-qubit terms. (Global Phase.)
@@ -82,21 +79,25 @@ def HamiltonianAttr : HLEPAttr<"Hamiltonian", "hamiltonian"> {
 
     let parameters = (ins
         "int64_t":$qubitCount,
-        ArrayRefParameter<"::qcc::hlep::HamiltonianTermHeader", "coefficient and factor count of each term">:$termHeaders,
-        ArrayRefParameter<"::qcc::hlep::PauliFactor", "Pauli factors of all terms, flattened and grouped by $termHeaders">:$factors
+        ArrayRefParameter<"::qcc::hlep::HamiltonianTermHeader",
+                          "coefficient and factor count of each term">
+            :$termHeaders,
+        ArrayRefParameter<"::qcc::hlep::PauliFactor",
+                          "Pauli factors of all terms, flattened and grouped "
+                          "by $termHeaders">:$factors
     );
 
     let extraClassDeclaration = [{
-      /// A single summand `coefficient * factors[0] * factors[1] * ...` of a
-      /// `HamiltonianAttr`.
-      struct Term {
-        double coefficient;
-        ::llvm::ArrayRef<::qcc::hlep::PauliFactor> factors;
-      };
+        /// A single summand `coefficient * factors[0] * factors[1] * ...` of a
+        /// `HamiltonianAttr`.
+        struct Term {
+            double coefficient;
+            ::llvm::ArrayRef<::qcc::hlep::PauliFactor> factors;
+        };
 
-      /// Reconstructs the structured list of terms from the flattened
-      /// `coefficients`/`termSizes`/`factors` parameters.
-      ::llvm::SmallVector<Term> getTerms() const;
+        /// Reconstructs the structured list of terms from the flattened
+        /// `coefficients`/`termSizes`/`factors` parameters.
+        ::llvm::SmallVector<Term> getTerms() const;
     }];
 
     let hasCustomAssemblyFormat = 1;

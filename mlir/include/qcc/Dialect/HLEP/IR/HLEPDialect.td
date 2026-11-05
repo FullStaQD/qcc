@@ -23,23 +23,27 @@ def HLEPDialect : Dialect {
         Hybrid quantum-classical IR meant to serve as an
         entry point to the compilation pipeline.
 
-        Ops of this dialect are legal in `func.func`s marked with the `hlep.halo` attribute.
-        Quantum types are synthesized from classical types:
-        If `T` is a classical type, then `!hlep.lin<T>` is the linear type with distinguished basis
-        given by the values of `T`. For instance, the qubit type is `!hlep.lin<i1>`.
+        Ops of this dialect are legal in `func.func`s marked with the
+        `hlep.halo` attribute. Quantum types are synthesized from classical
+        types: If `T` is a classical type, then `!hlep.lin<T>` is the linear
+        type with distinguished basis given by the values of `T`. For
+        instance, the qubit type is `!hlep.lin<i1>`.
 
-        Linear values are subject to linearity: They must be used exactly once on every control flow path.
-        This is ensured by verifiers using control flow analysis.
+        Linear values are subject to linearity: They must be used exactly once
+        on every control flow path. This is ensured by verifiers using control
+        flow analysis.
 
-        The distinguishing feature is the *partial linearization* op `hlep.lin`,
-        which transforms a body of with mixed linear and non-linear values into a an operation
-        of the same signature, but with *some* of the values linearized.
-        This enables classical reasoning about hybrid programs.
-        Partial linearization can be used to implement classical and quantum control flow, state preparation, and measurement.
+        The distinguishing feature is the *partial linearization* op
+        `hlep.lin`, which transforms a body with mixed linear and non-linear
+        values into an operation of the same signature, but with *some* of the
+        values linearized. This enables classical reasoning about hybrid
+        programs. Partial linearization can be used to implement classical and
+        quantum control flow, state preparation, and measurement.
 
-        For quantum operations that cannot be expressed in terms of partial linearization,
-        the dialect provides exponentiation of Pauli polynomials, an `add_phase` primitive, and
-        a calculus of base changes (relevant for the Hadmard gate).
+        For quantum operations that cannot be expressed in terms of partial
+        linearization, the dialect provides exponentiation of Pauli
+        polynomials, an `add_phase` primitive, and a calculus of base changes
+        (relevant for the Hadamard gate).
     }];
 
     let name = "hlep";
@@ -53,9 +57,8 @@ def HLEPDialect : Dialect {
         /// arbitrary operations, such as `func.func`. See HLEPDialect.cpp.
         ::mlir::LogicalResult
         verifyOperationAttribute(::mlir::Operation *op,
-                                  ::mlir::NamedAttribute attribute) override;
+                                 ::mlir::NamedAttribute attribute) override;
     }];
 }
-
 
 #endif // INCLUDE_QCC_DIALECT_HLEP_IR_HLEPDIALECT_TD_

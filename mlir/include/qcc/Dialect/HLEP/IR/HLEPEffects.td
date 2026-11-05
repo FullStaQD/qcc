@@ -20,8 +20,9 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 // keeps them from being duplicated or hoisted. Everything else is modeled on
 // a resource: the quantum state below, or the hidden world index
 // (`::qcc::hlep::WorldResource`), which only `lin` attaches from C++.
-//===----------------------------------------------------------------------===//
+//
 // TODO: Develop a principled theory of these side-effect resources.
+//===----------------------------------------------------------------------===//
 
 // The quantum state that linear values are allocated in and freed from.
 def HLEP_QuantumStateResource : Resource<"::qcc::hlep::QuantumStateResource">;
