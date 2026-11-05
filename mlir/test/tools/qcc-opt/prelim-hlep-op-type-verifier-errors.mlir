@@ -53,23 +53,23 @@ func.func private @constant_x_bad_symbol() -> !prelimhlep.x<3> {
 // -----
 
 func.func private @constant_y_wrong_length() -> !prelimhlep.y<3> {
-    // expected-error @below {{expected a length-6 string (3 '->'/'<-' symbols) for result type '!prelimhlep.y<3>', got length 2}}
-    %0 = prelimhlep.constant "->" : !prelimhlep.y<3>
+    // expected-error @below {{expected a length-3 string for result type '!prelimhlep.y<3>', got length 1}}
+    %0 = prelimhlep.constant ">" : !prelimhlep.y<3>
     return %0 : !prelimhlep.y<3>
 }
 
 // -----
 
 func.func private @constant_y_bad_symbol() -> !prelimhlep.y<2> {
-    // expected-error @below {{expected only '->'/'<-' symbols for result type '!prelimhlep.y<2>', got 'XY'}}
-    %0 = prelimhlep.constant "->XY" : !prelimhlep.y<2>
+    // expected-error @below {{expected only '>'/'<' symbols for result type '!prelimhlep.y<2>', got '-'}}
+    %0 = prelimhlep.constant "->" : !prelimhlep.y<2>
     return %0 : !prelimhlep.y<2>
 }
 
 // -----
 
 func.func private @constant_linear_result_type() -> !prelimhlep.lin<!prelimhlep.x<2>> {
-    // expected-error @below {{result #0 must be Classical type for length-n strings over the X-basis symbols {+, -}. or Classical type for length-n strings over the Y-basis symbols {->, <-}., but got '!prelimhlep.lin<!prelimhlep.x<2>>'}}
+    // expected-error @below {{result #0 must be Classical type for length-n strings over the X-basis symbols {+, -}. or Classical type for length-n strings over the Y-basis symbols {>, <}., but got '!prelimhlep.lin<!prelimhlep.x<2>>'}}
     %0 = prelimhlep.constant "++" : !prelimhlep.lin<!prelimhlep.x<2>>
     return %0 : !prelimhlep.lin<!prelimhlep.x<2>>
 }

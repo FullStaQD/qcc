@@ -31,11 +31,11 @@ func.func @constant_x() -> !prelimhlep.x<3> {
 // CHECK: prelimhlep.constant "++-"
 
 func.func @constant_y() -> !prelimhlep.y<3> {
-    %0 = prelimhlep.constant "-><-->" : !prelimhlep.y<3>
+    %0 = prelimhlep.constant "><>" : !prelimhlep.y<3>
     return %0 : !prelimhlep.y<3>
 }
 // CHECK-LABEL: func.func @constant_y
-// CHECK: prelimhlep.constant "-><-->"
+// CHECK: prelimhlep.constant "><>"
 
 func.func @exp(%theta: f64, %q: !prelimhlep.lin<i1>) -> !prelimhlep.lin<i1> attributes { prelimhlep.halo = #prelimhlep.halo } {
     %0 = prelimhlep.exp %theta hamiltonian<1, Z[0]> %q : (f64, !prelimhlep.lin<i1>) -> !prelimhlep.lin<i1>

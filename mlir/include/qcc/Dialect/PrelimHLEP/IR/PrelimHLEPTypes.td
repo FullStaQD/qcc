@@ -70,10 +70,11 @@ def XType : PrelimHLEPType<"X", "x"> {
 }
 
 def YType : PrelimHLEPType<"Y", "y"> {
-    let summary = "Classical type for length-n strings over the Y-basis symbols {->, <-}.";
+    let summary = "Classical type for length-n strings over the Y-basis symbols {>, <}.";
     let description = [{
         `!prelim_hlep.y<n>` is a purely classical type whose terms are
-        length-`n` strings of the symbols `->` and `<-`. Analogous to
+        length-`n` strings of the symbols `>` and `<` (the tips of the arrows
+        `->` and `<-`). Analogous to
         `!prelim_hlep.x<n>`, but for the Y-basis. See `XType` above.
 
         TODO: decide representation/verification for `n` (e.g. non-negative).

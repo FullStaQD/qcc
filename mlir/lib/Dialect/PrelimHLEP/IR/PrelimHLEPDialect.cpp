@@ -346,16 +346,13 @@ LogicalResult ConstantOp::verify() {
 
   // From ODS we already know that the result type is either `XType` or `YType`, so the cast is safe.
   auto yType = cast<YType>(resultType);
-  if (static_cast<int64_t>(value.size()) != 2 * yType.getSize()) {
+  if (static_cast<int64_t>(value.size()) != yType.getSize()) {
     return emitOpError("expected a length-")
-           << (2 * yType.getSize()) << " string (" << yType.getSize() << " '->'/'<-' symbols) for result type "
-           << resultType << ", got length " << value.size();
+           << yType.getSize() << " string for result type " << resultType << ", got length " << value.size();
   }
-  for (size_t i = 0, e = value.size(); i < e; i += 2) {
-    StringRef symbol = value.substr(i, 2);
-    if (symbol != "->" && symbol != "<-") {
-      return emitOpError("expected only '->'/'<-' symbols for result type ")
-             << resultType << ", got '" << symbol << "'";
+  for (char c : value) {
+    if (c != '>' && c != '<') {
+      return emitOpError("expected only '>'/'<' symbols for result type ") << resultType << ", got '" << c << "'";
     }
   }
   return success();
