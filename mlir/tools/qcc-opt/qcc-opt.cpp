@@ -19,6 +19,7 @@
 #include "qcc/Dialect/Jasp/IR/Jasp.h"
 #include "qcc/Dialect/Magic/IR/Magic.h"
 #include "qcc/Dialect/Magic/Transforms/Passes.h"
+#include "qcc/Dialect/PrelimHLEP/IR/LinearityAwareOpInterfaceImpl.h"
 #include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEP.h"
 #include "qcc/Dialect/QCirc/IR/QCirc.h"
 #include "qcc/Dialect/QVec/IR/QVec.h"
@@ -92,6 +93,7 @@ int main(int argc, char** argv) {
     qcc::prelimhlep::PrelimHLEPDialect
       // clang-format on
       >();
+  qcc::prelimhlep::registerLinearityAwareOpInterfaceExternalModels(registry);
 
   // Builtin passes:
   mlir::registerCanonicalizerPass();

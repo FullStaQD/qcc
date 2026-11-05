@@ -29,6 +29,7 @@ using namespace qcc::prelimhlep;
 
 #define GET_ATTRDEF_CLASSES
 #include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEPAttrs.cpp.inc"
+#include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEPInterfaces.cpp.inc"
 
 #define GET_OP_CLASSES
 #include "qcc/Dialect/PrelimHLEP/IR/PrelimHLEPOps.cpp.inc"
@@ -612,7 +613,7 @@ LogicalResult PrelimHLEPDialect::verifyOperationAttribute(Operation* op, NamedAt
     if (failed(checkSingleBlockRegions(op, haloAttrName))) {
       return failure();
     }
-    if (failed(checkNoSelectOfLinearValues(op, haloAttrName))) {
+    if (failed(checkOnlyLinearityAwareOps(op, haloAttrName))) {
       return failure();
     }
 
@@ -622,7 +623,7 @@ LogicalResult PrelimHLEPDialect::verifyOperationAttribute(Operation* op, NamedAt
         for (Block& block : region) {
           for (BlockArgument arg : block.getArguments()) {
             if (isNotPurelyClassical(arg.getType()) &&
-                failed(checkLinearOneUse(arg, "'" + haloAttrName + "' " + describeLinearValue(funcOp, arg)))) {
+                failed(checkLinearUse(arg, "'" + haloAttrName + "' " + describeLinearValue(funcOp, arg)))) {
               result = failure();
             }
           }
@@ -630,7 +631,7 @@ LogicalResult PrelimHLEPDialect::verifyOperationAttribute(Operation* op, NamedAt
       }
       for (OpResult opResult : nestedOp->getResults()) {
         if (isNotPurelyClassical(opResult.getType()) &&
-            failed(checkLinearOneUse(opResult, "'" + haloAttrName + "' " + describeLinearValue(funcOp, opResult)))) {
+            failed(checkLinearUse(opResult, "'" + haloAttrName + "' " + describeLinearValue(funcOp, opResult)))) {
           result = failure();
         }
       }

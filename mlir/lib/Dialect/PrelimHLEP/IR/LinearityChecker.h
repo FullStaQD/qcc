@@ -26,14 +26,15 @@ std::string describeLinearValue(mlir::FunctionOpInterface funcOp, mlir::Value va
 
 /// Tries to prove that `value` is used exactly once on every control-flow
 /// path. Fails if it cannot be proven.
-mlir::LogicalResult checkLinearOneUse(mlir::Value value, const mlir::Twine& description);
+mlir::LogicalResult checkLinearUse(mlir::Value value, const mlir::Twine& description);
 
 /// Verifies that every region nested in `op` that contains a value subject to
 /// linearity checking has exactly one block.
 mlir::LogicalResult checkSingleBlockRegions(mlir::Operation* op, const mlir::Twine& haloAttrName);
 
-/// Verifies that no `SelectLikeOpInterface` op anywhere inside `op` has an
-/// operand or result of a type subject to linearity checking.
-mlir::LogicalResult checkNoSelectOfLinearValues(mlir::Operation* op, const mlir::Twine& haloAttrName);
+/// Verifies that every op nested in `op` that has an operand, result, or region
+/// argument subject to linearity checking implements
+/// `LinearityAwareOpInterface` and passes its `verifyLinearValueHandling`.
+mlir::LogicalResult checkOnlyLinearityAwareOps(mlir::Operation* op, const mlir::Twine& haloAttrName);
 
 } // namespace qcc::prelimhlep

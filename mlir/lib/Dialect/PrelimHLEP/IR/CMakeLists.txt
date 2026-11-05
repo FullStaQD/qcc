@@ -2,10 +2,12 @@ add_mlir_dialect_library(
   QCCPrelimHLEPDialect
   PrelimHLEPDialect.cpp
   LinearityChecker.cpp
+  LinearityAwareOpInterfaceImpl.cpp
   DEPENDS
   QCCPrelimHLEPDialectIncGen
   QCCPrelimHLEPTypesIncGen
   QCCPrelimHLEPAttrsIncGen
+  QCCPrelimHLEPInterfacesIncGen
   QCCPrelimHLEPOpsIncGen
   LINK_LIBS
   PRIVATE

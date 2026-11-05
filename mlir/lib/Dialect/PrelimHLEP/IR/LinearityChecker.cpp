@@ -36,6 +36,17 @@ static Operation* getDefiningAnchorOp(Value value) {
   return value.getDefiningOp();
 }
 
+static Operation* findLinearityUnawareAncestor(Operation* user, Region* scopeRegion) {
+  Operation* found = nullptr;
+  for (Region* region = user->getParentRegion(); (region != nullptr) && region != scopeRegion;
+       region = region->getParentOp()->getParentRegion()) {
+    if (!isa<LinearityAwareOpInterface>(region->getParentOp())) {
+      found = region->getParentOp();
+    }
+  }
+  return found;
+}
+
 static bool mayExecuteRepeatedly(Operation* user, Region* scopeRegion) {
   for (Region* region = user->getParentRegion(); (region != nullptr) && region != scopeRegion;
        region = region->getParentOp()->getParentRegion()) {
@@ -359,15 +370,24 @@ LogicalResult checkLinearUse(Value value, const Twine& description) {
     return getDefiningAnchorOp(value)->emitError() << description << " is subject to linearity, but is never used";
   }
 
-  // TODO: Uses nested in a region of an op that does not implement
-  // `RegionBranchOpInterface` (e.g. `affine.parallel`, `linalg.generic`) are
-  // invisible to both checks below and are counted as plain direct uses, even
-  // though such a region may execute any number of times. Reject them (or
-  // otherwise handle them) instead.
+  // A use nested in a region of an op the checks below know nothing about
+  // (e.g. `tensor.generate`, `linalg.generic`) could execute any number of
+  // times, so every op between the use and the definition must be
+  // linearity-aware.
+  Region* defRegion = getDefiningRegion(value);
+  for (OpOperand* use : uses) {
+    Operation* unaware = findLinearityUnawareAncestor(use->getOwner(), defRegion);
+    if (unaware != nullptr) {
+      auto diag = use->getOwner()->emitError()
+                  << description << " is subject to linearity, but is used inside a region of '" << unaware->getName()
+                  << "', which is not linearity-aware (does not implement 'LinearityAwareOpInterface')";
+      diag.attachNote(unaware->getLoc()) << "enclosing operation";
+      return diag;
+    }
+  }
 
   /// We check for loops first because it's cheap and gives a clear diagnostic.
   /// The general check below would also reject loops.
-  Region* defRegion = getDefiningRegion(value);
   for (OpOperand* use : uses) {
     if (mayExecuteRepeatedly(use->getOwner(), defRegion)) {
       return use->getOwner()->emitError()
@@ -403,6 +423,23 @@ static bool regionHasLinearValue(Region& region) {
   return false;
 }
 
+/// Whether `op` has an operand, result, or region argument subject to
+/// linearity.
+static bool touchesLinearValue(Operation* op) {
+  if (llvm::any_of(op->getOperandTypes(), isNotPurelyClassical) ||
+      llvm::any_of(op->getResultTypes(), isNotPurelyClassical)) {
+    return true;
+  }
+  for (Region& region : op->getRegions()) {
+    for (Block& block : region) {
+      if (llvm::any_of(block.getArgumentTypes(), isNotPurelyClassical)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 namespace qcc::prelimhlep {
 
 /// Verifies that every region (transitively) nested inside `op` that
@@ -426,19 +463,27 @@ LogicalResult checkSingleBlockRegions(Operation* op, const Twine& haloAttrName) 
   return result;
 }
 
-/// Verifies that no `SelectLikeOpInterface` op (e.g. `arith.select`)
-/// anywhere (transitively) inside `op` has an operand or result of a type
-/// subject to linearity checking.
-LogicalResult checkNoSelectOfLinearValues(Operation* op, const Twine& haloAttrName) {
+/// Verifies that every op (transitively) inside `op` that has an operand,
+/// result, or region argument subject to linearity implements
+/// `LinearityAwareOpInterface`, and that its `verifyLinearValueHandling`
+/// succeeds. `op` itself, the haloed function, is exempt.
+LogicalResult checkOnlyLinearityAwareOps(Operation* op, const Twine& haloAttrName) {
   LogicalResult result = success();
-  op->walk([&](SelectLikeOpInterface selectOp) {
-    if (llvm::any_of(selectOp->getOperandTypes(), isNotPurelyClassical) ||
-        llvm::any_of(selectOp->getResultTypes(), isNotPurelyClassical)) {
-      selectOp->emitError() << "'" << haloAttrName
-                            << "' function uses a value subject to linearity as an operand or result of a "
-                               "select-like op; only one of a select's operands is ever actually produced, but "
-                               "both must exist unconditionally, so this analysis cannot prove the other one isn't "
-                               "silently discarded";
+  op->walk([&](Operation* nestedOp) {
+    if (nestedOp == op || !touchesLinearValue(nestedOp)) {
+      return;
+    }
+    auto awareOp = dyn_cast<LinearityAwareOpInterface>(nestedOp);
+    if (!awareOp) {
+      nestedOp->emitError() << "'" << haloAttrName
+                            << "' function uses a value subject to linearity as an operand, result, or region "
+                               "argument of '"
+                            << nestedOp->getName()
+                            << "', which is not linearity-aware (does not implement 'LinearityAwareOpInterface')";
+      result = failure();
+      return;
+    }
+    if (failed(awareOp.verifyLinearValueHandling())) {
       result = failure();
     }
   });

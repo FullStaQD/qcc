@@ -184,16 +184,49 @@ func.func private @cf_branch_containing_scf_if(%cond: i1, %v: !prelimhlep.lin<i1
 
 // -----
 
-// Rejection of select-like ops that use values subject to linearity.
+// Rejection of ops that are not linearity-aware but have operands, results, or
+// region arguments subject to linearity.
 
 func.func private @make_qubit() -> !prelimhlep.lin<i1>
 
+// Only one of the select's operands is ever produced, the other one is silently
+// discarded.
 func.func private @select_between_linear_values(%cond: i1, %v: !prelimhlep.lin<i1>) -> !prelimhlep.lin<i1>
     attributes { prelimhlep.halo = #prelimhlep.halo } {
     %u = func.call @make_qubit() : () -> !prelimhlep.lin<i1>
-    // expected-error @below {{'prelimhlep.halo' function uses a value subject to linearity as an operand or result of a select-like op; only one of a select's operands is ever actually produced, but both must exist unconditionally, so this analysis cannot prove the other one isn't silently discarded}}
+    // expected-error @below {{'prelimhlep.halo' function uses a value subject to linearity as an operand, result, or region argument of 'arith.select', which is not linearity-aware (does not implement 'LinearityAwareOpInterface')}}
     %r = arith.select %cond, %v, %u : !prelimhlep.lin<i1>
     return %r : !prelimhlep.lin<i1>
+}
+
+// -----
+
+// An op that is not linearity-aware producing a value subject to linearity.
+func.func private @linear_result_of_unaware_op(%b: i1) -> !prelimhlep.lin<i1>
+    attributes { prelimhlep.halo = #prelimhlep.halo } {
+    // expected-error @below {{'prelimhlep.halo' function uses a value subject to linearity as an operand, result, or region argument of 'builtin.unrealized_conversion_cast', which is not linearity-aware (does not implement 'LinearityAwareOpInterface')}}
+    %v = builtin.unrealized_conversion_cast %b : i1 to !prelimhlep.lin<i1>
+    return %v : !prelimhlep.lin<i1>
+}
+
+// -----
+
+func.func private @sink(!prelimhlep.lin<i1>) -> ()
+
+// The use itself is by a linearity-aware op, but it is nested in the body of
+// `tensor.generate`, which runs once per tensor element.
+func.func private @used_inside_unaware_region(%v: !prelimhlep.lin<i1>) -> (tensor<4xi1>, !prelimhlep.unit)
+    attributes { prelimhlep.halo = #prelimhlep.halo } {
+    %false = arith.constant false
+    // expected-note @below {{enclosing operation}}
+    %t = tensor.generate {
+    ^bb0(%j : index):
+        // expected-error @below {{'prelimhlep.halo' function argument #0 is subject to linearity, but is used inside a region of 'tensor.generate', which is not linearity-aware (does not implement 'LinearityAwareOpInterface')}}
+        func.call @sink(%v) : (!prelimhlep.lin<i1>) -> ()
+        tensor.yield %false : i1
+    } : tensor<4xi1>
+    %unit = prelimhlep.unit_value : !prelimhlep.unit
+    return %t, %unit : tensor<4xi1>, !prelimhlep.unit
 }
 
 // -----

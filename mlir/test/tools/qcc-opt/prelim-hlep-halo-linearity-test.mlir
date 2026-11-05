@@ -118,8 +118,9 @@ func.func @cf_branching_in_subregion_on_classical_value_ok(%cond: i1, %v: !preli
 }
 // CHECK-LABEL: func.func @cf_branching_in_subregion_on_classical_value_ok
 
-// Select-like ops are rejected if their arguments are subject to linearity.
-// Here, `arith.select` is used on a classical value, so the program is legal.
+// Ops that are not linearity-aware (e.g. `arith.select`) are rejected only if
+// they handle values subject to linearity. Here, `arith.select` is used on a
+// classical value, so the program is legal.
 func.func @select_on_classical_value_ok(%cond: i1, %v: !prelimhlep.lin<i1>) -> (i1, !prelimhlep.lin<i1>)
     attributes { prelimhlep.halo = #prelimhlep.halo } {
     %true = arith.constant true
@@ -217,3 +218,50 @@ func.func private @gate_on_every_tensor_element(%state : !prelimhlep.lin<tensor<
     return %out : !prelimhlep.lin<tensor<4xi1>>
 }
 // CHECK-LABEL: func.func private @gate_on_every_tensor_element
+
+// Other structured control flow may forward values subject to linearity, too.
+
+// A linear value carried through an `scf.while`, through both its `before`
+// region (via `scf.condition`) and its `after` region (via `scf.yield`).
+func.func private @while_carries_value(%v : !prelimhlep.lin<i1>, %n : index) -> !prelimhlep.lin<i1>
+    attributes { prelimhlep.halo } {
+    %c0 = arith.constant 0 : index
+    %c1 = arith.constant 1 : index
+    %out:2 = scf.while (%i = %c0, %x = %v) : (index, !prelimhlep.lin<i1>) -> (index, !prelimhlep.lin<i1>) {
+        %continue = arith.cmpi ult, %i, %n : index
+        scf.condition(%continue) %i, %x : index, !prelimhlep.lin<i1>
+    } do {
+    ^bb0(%i : index, %x : !prelimhlep.lin<i1>):
+        %gated = func.call @gate(%x) : (!prelimhlep.lin<i1>) -> !prelimhlep.lin<i1>
+        %i_next = arith.addi %i, %c1 : index
+        scf.yield %i_next, %gated : index, !prelimhlep.lin<i1>
+    }
+    return %out#1 : !prelimhlep.lin<i1>
+}
+// CHECK-LABEL: func.func private @while_carries_value
+
+// A linear value used exactly once in every case of an `scf.index_switch`.
+func.func private @index_switch_uses_value_in_every_case(%v : !prelimhlep.lin<i1>, %k : index) -> !prelimhlep.lin<i1>
+    attributes { prelimhlep.halo } {
+    %r = scf.index_switch %k -> !prelimhlep.lin<i1>
+    case 0 {
+        %gated = func.call @gate(%v) : (!prelimhlep.lin<i1>) -> !prelimhlep.lin<i1>
+        scf.yield %gated : !prelimhlep.lin<i1>
+    }
+    default {
+        scf.yield %v : !prelimhlep.lin<i1>
+    }
+    return %r : !prelimhlep.lin<i1>
+}
+// CHECK-LABEL: func.func private @index_switch_uses_value_in_every_case
+
+// A linear value passed through an `scf.execute_region`.
+func.func private @execute_region_forwards_value(%v : !prelimhlep.lin<i1>) -> !prelimhlep.lin<i1>
+    attributes { prelimhlep.halo } {
+    %r = scf.execute_region -> !prelimhlep.lin<i1> {
+        %gated = func.call @gate(%v) : (!prelimhlep.lin<i1>) -> !prelimhlep.lin<i1>
+        scf.yield %gated : !prelimhlep.lin<i1>
+    }
+    return %r : !prelimhlep.lin<i1>
+}
+// CHECK-LABEL: func.func private @execute_region_forwards_value

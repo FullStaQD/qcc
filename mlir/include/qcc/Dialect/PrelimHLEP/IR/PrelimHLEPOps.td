@@ -16,6 +16,7 @@ include "PrelimHLEPDialect.td"
 include "PrelimHLEPTypes.td"
 include "PrelimHLEPAttrs.td"
 include "PrelimHLEPEffects.td"
+include "PrelimHLEPInterfaces.td"
 
 
 //===----------------------------------------------------------------------===//
@@ -35,8 +36,10 @@ def PrelimHLEP_InHaloedFunction : NativeOpTrait<"InHaloedFunction"> {
 // effects from its body.
 //===----------------------------------------------------------------------===//
 
+// Every op of this dialect is linearity-aware: its own verifier is responsible
+// for how it handles values subject to linearity.
 class PrelimHLEPOp<string mnemonic, list<Trait> traits = []> :
-        Op<PrelimHLEPDialect, mnemonic, traits>;
+        Op<PrelimHLEPDialect, mnemonic, !listconcat(traits, [PrelimHLEP_LinearityAwareOpInterface])>;
 
 def AddPhaseOp : PrelimHLEPOp<"add_phase", [Pure, PrelimHLEP_InHaloedFunction]> {
     let summary = "Scales the linear fibres of a value by exp(i*alpha), a purely imaginary exponent.";
