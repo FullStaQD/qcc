@@ -13,7 +13,7 @@
 #include "qcc/Dialect/Aux_/IR/Aux_.h"
 #include "qcc/Dialect/Magic/Device/MagicDevice.h"
 #include "qcc/Dialect/Magic/IR/Magic.h"
-#include "qcc/Dialect/QVec/Transforms/ZXZ.h"
+#include "qcc/Dialect/Utils/RotationUtils.h"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/Block.h"
@@ -41,7 +41,6 @@
 #include <system_error>
 
 using namespace mlir;
-using qcc::qvec::normalizeAngle;
 
 namespace qcc::magic {
 

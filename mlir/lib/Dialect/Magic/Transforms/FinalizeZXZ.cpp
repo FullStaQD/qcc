@@ -9,7 +9,7 @@
 
 #include "qcc/Dialect/Magic/IR/Magic.h"
 #include "qcc/Dialect/Magic/Transforms/Passes.h" // IWYU pragma: keep
-#include "qcc/Dialect/QVec/Transforms/ZXZ.h"
+#include "qcc/Dialect/Utils/RotationUtils.h"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/Block.h"
@@ -29,7 +29,6 @@
 #include <utility>
 
 using namespace mlir;
-using qcc::qvec::normalizeAngle;
 
 namespace qcc::magic {
 

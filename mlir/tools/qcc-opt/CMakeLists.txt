@@ -22,8 +22,11 @@ target_link_libraries(
           QCCJaspDialect
           QCCAuxDialect
           QCCMagicDialect
+          QCCOQ3Dialect
           QCCQccDialect
+          QCCQCFDialect
           QCCQCircDialect
+          QCCQRefDialect
           QCCQVecDialect
           QCCHLEPDialect
           # Passes
@@ -40,6 +43,9 @@ target_link_libraries(
           QCCQVecTransforms
           QCCQccTransforms
           QCCQCOToQVec
+          QCCQCToQRef
+          QCCQRefToQCirc
+          QCCQCircToQRef
           QCCQVecToMagic
           QCCToHiSEPQ
           QCCToQIR

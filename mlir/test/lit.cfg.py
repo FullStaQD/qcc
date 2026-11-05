@@ -16,7 +16,7 @@ config.name = "QCC_MLIR_COMPILER"
 config.test_format = lit.formats.ShTest(execute_external=False)
 
 # suffixes: A list of file extensions to treat as test files.
-config.suffixes = [".mlir", ".test"]
+config.suffixes = [".mlir", ".qasm", ".test"]
 
 # test_source_root: The root path where tests are located.
 config.test_source_root = Path(__file__).parent
@@ -68,7 +68,7 @@ for cfg in ["Debug", "Release", "RelWithDebInfo", "MinSizeRel"]:
 found = False
 for candidate_dir in candidate_dirs:
     if (candidate_dir / f"qcc{exe_suffix}").exists() and (candidate_dir / f"qcc-opt{exe_suffix}").exists():
-        llvm_config.add_tool_substitutions(["qcc", "qcc-opt"], [str(candidate_dir)])
+        llvm_config.add_tool_substitutions(["qcc", "qcc-opt", "qcc-translate"], [str(candidate_dir)])
         found = True
         break
 

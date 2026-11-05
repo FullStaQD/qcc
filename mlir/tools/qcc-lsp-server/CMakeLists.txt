@@ -10,8 +10,11 @@ target_link_libraries(
           QCCJaspDialect
           QCCAuxDialect
           QCCMagicDialect
+          QCCOQ3Dialect
           QCCQccDialect
+          QCCQCFDialect
           QCCQCircDialect
+          QCCQRefDialect
           QCCQVecDialect
           QCCHLEPDialect
           MLIRQCDialect

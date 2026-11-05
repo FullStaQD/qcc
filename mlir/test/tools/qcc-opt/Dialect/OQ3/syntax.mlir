@@ -1,0 +1,113 @@
+// RUN: qcc-opt %s --split-input-file | FileCheck %s
+// RUN: qcc-opt %s --split-input-file --mlir-print-op-generic | qcc-opt --split-input-file | FileCheck %s
+// RUN: qcc-opt %s --split-input-file --canonicalize | FileCheck %s --check-prefix=CHECK-CANON
+
+// CHECK-LABEL: module attributes {oq3.version = #oq3.version<3, 1>}
+module attributes {oq3.version = #oq3.version<3, 1>} {
+  func.func @main() attributes {qcc.entry_point} {
+    // CHECK: oq3.pragma "ns.name text"
+    oq3.pragma "ns.name text"
+    // CHECK: oq3.include "stdgates.inc" id 0
+    oq3.include "stdgates.inc" id 0
+    // CHECK: oq3.include "other.inc" id 1
+    oq3.include "other.inc" id 1
+    // CHECK: oq3.qubit_decl "o" {oq3.from_include = 1 : i64} : !qcc.qubit_ref
+    %o = oq3.qubit_decl "o" {oq3.from_include = 1 : i64} : !qcc.qubit_ref
+
+    // CHECK: %[[TWO:.*]] = oq3.constant #oq3.int<2> : !oq3.int
+    %two = oq3.constant #oq3.int<2> : !oq3.int
+    // CHECK: %[[Q:.*]] = oq3.qubit_decl "q" [%[[TWO]] : !oq3.int] : !oq3.qreg<2>
+    %q = oq3.qubit_decl "q" [%two : !oq3.int] : !oq3.qreg<2>
+    // CHECK: %[[R:.*]] = oq3.qubit_decl "r" : !qcc.qubit_ref
+    %r = oq3.qubit_decl "r" : !qcc.qubit_ref
+    // CHECK: %[[P:.*]] = oq3.physical_qubit 3 : !qcc.qubit_ref
+    %p = oq3.physical_qubit 3 : !qcc.qubit_ref
+
+    // CHECK: %[[C:.*]] = oq3.declare "c" [%[[TWO]] : !oq3.int] : !qcc.ref<!oq3.bits<2>>
+    %c = oq3.declare "c" [%two : !oq3.int] : !qcc.ref<!oq3.bits<2>>
+    // CHECK: %[[BITS:.*]] = oq3.constant #oq3.bitstring<"01"> : !oq3.bits<2>
+    %bits = oq3.constant #oq3.bitstring<"01"> : !oq3.bits<2>
+    // CHECK: oq3.declare "d" [%[[TWO]] : !oq3.int] = %[[BITS]] : !oq3.bits<2> : !qcc.ref<!oq3.bits<2>>
+    %d = oq3.declare "d" [%two : !oq3.int] = %bits : !oq3.bits<2> : !qcc.ref<!oq3.bits<2>>
+
+    // CHECK: %[[HEX:.*]] = oq3.constant #oq3.int<31> : !oq3.int
+    %hex = oq3.constant #oq3.int<31> : !oq3.int
+    // CHECK: %[[F:.*]] = oq3.constant #oq3.float<"1.5e3"> : !oq3.float
+    %f = oq3.constant #oq3.float<"1.5e3"> : !oq3.float
+    // CHECK: %[[PI:.*]] = oq3.math_constant pi : !oq3.float
+    %pi = oq3.math_constant pi : !oq3.float
+    // CHECK: %[[NEG:.*]] = oq3.unary neg %[[PI]] : !oq3.float
+    %neg = oq3.unary neg %pi : !oq3.float
+    // CHECK: %[[HEX_F:.*]] = oq3.cast %[[HEX]] implicit : !oq3.int -> !oq3.float
+    %hex_f = oq3.cast %hex implicit : !oq3.int -> !oq3.float
+    // CHECK: %[[SUM:.*]] = oq3.binary add %[[HEX_F]], %[[NEG]] : !oq3.float
+    %sum = oq3.binary add %hex_f, %neg : !oq3.float
+    // CHECK: %[[THETA:.*]] = oq3.cast %[[SUM]] implicit : !oq3.float -> !qcc.angle
+    %theta = oq3.cast %sum implicit : !oq3.float -> !qcc.angle
+    // CHECK: oq3.binary div %[[THETA]], %[[TWO]] : (!qcc.angle, !oq3.int) -> !qcc.angle
+    %half = oq3.binary div %theta, %two : (!qcc.angle, !oq3.int) -> !qcc.angle
+
+    // Negative indices count from the end.
+    // CHECK: %[[NEG_TWO:.*]] = oq3.unary neg %[[TWO]] : !oq3.int
+    %neg_two = oq3.unary neg %two : !oq3.int
+    // CHECK: %[[Q1:.*]] = oq3.qubit_index %[[Q]][%[[NEG_TWO]]] : !oq3.qreg<2>, !oq3.int
+    %q1 = oq3.qubit_index %q[%neg_two] : !oq3.qreg<2>, !oq3.int
+    // CHECK: oq3.gate_call @rx(%[[THETA]] : !qcc.angle) [%[[Q]] : !oq3.qreg<2>] {oq3.annotations = [#oq3.annotation<"ns.a", "">, #oq3.annotation<"ns.b", "x y">]}
+    oq3.gate_call @rx(%theta : !qcc.angle) [%q : !oq3.qreg<2>] {oq3.annotations = [#oq3.annotation<"ns.a", "">, #oq3.annotation<"ns.b", "x y">]}
+    // CHECK: oq3.gate_call @cx [%[[R]], %[[P]] : !qcc.qubit_ref, !qcc.qubit_ref]
+    oq3.gate_call @cx [%r, %p : !qcc.qubit_ref, !qcc.qubit_ref]
+    // CHECK: oq3.gate_call @gphase(%[[THETA]] : !qcc.angle){{$}}
+    oq3.gate_call @gphase(%theta : !qcc.angle)
+    // CHECK: oq3.reset %[[Q]] : !oq3.qreg<2>
+    oq3.reset %q : !oq3.qreg<2>
+    // CHECK: oq3.barrier [%[[Q]], %[[R]] : !oq3.qreg<2>, !qcc.qubit_ref]
+    oq3.barrier [%q, %r : !oq3.qreg<2>, !qcc.qubit_ref]
+    // CHECK: oq3.barrier{{$}}
+    oq3.barrier
+
+    // CHECK: %[[M:.*]] = oq3.measure %[[Q]] : !oq3.qreg<2> -> !oq3.bits<2>
+    %m = oq3.measure %q : !oq3.qreg<2> -> !oq3.bits<2>
+    // CHECK: qcc.ref.store %[[M]], %[[C]] : !qcc.ref<!oq3.bits<2>>
+    qcc.ref.store %m, %c : !qcc.ref<!oq3.bits<2>>
+    // CHECK: %[[C0:.*]] = oq3.subref %[[C]][%[[NEG_TWO]]] : !qcc.ref<!oq3.bits<2>>, !oq3.int -> !qcc.ref<!oq3.bit>
+    %c0 = oq3.subref %c[%neg_two] : !qcc.ref<!oq3.bits<2>>, !oq3.int -> !qcc.ref<!oq3.bit>
+    // CHECK: %[[M1:.*]] = oq3.measure %[[Q1]] : !qcc.qubit_ref -> !oq3.bit
+    %m1 = oq3.measure %q1 : !qcc.qubit_ref -> !oq3.bit
+    // CHECK: qcc.ref.store %[[M1]], %[[C0]] : !qcc.ref<!oq3.bit>
+    qcc.ref.store %m1, %c0 : !qcc.ref<!oq3.bit>
+    // CHECK: qcc.ref.load %[[D:.*]] : !qcc.ref<!oq3.bits<2>>
+    %loaded = qcc.ref.load %d : !qcc.ref<!oq3.bits<2>>
+    qcc.ref.store %loaded, %c : !qcc.ref<!oq3.bits<2>>
+    // CHECK: oq3.barrier [%[[O:.*]] : !qcc.qubit_ref]
+    oq3.barrier [%o : !qcc.qubit_ref]
+    return
+  }
+}
+
+// Statements survive, and so do the expressions they use. Unused expressions may go.
+// CHECK-CANON-LABEL: module attributes {oq3.version = #oq3.version<3, 1>}
+// CHECK-CANON:       oq3.pragma
+// CHECK-CANON-NEXT:  oq3.include "stdgates.inc"
+// CHECK-CANON-NEXT:  oq3.include "other.inc"
+// CHECK-CANON-NEXT:  oq3.qubit_decl "o"
+// CHECK-CANON:       oq3.qubit_decl "q"
+// CHECK-CANON:       oq3.qubit_decl "r"
+// CHECK-CANON:       oq3.declare "c"
+// CHECK-CANON:       oq3.declare "d"
+// CHECK-CANON-NOT:   oq3.binary div
+// CHECK-CANON:       oq3.gate_call @rx
+// CHECK-CANON:       oq3.barrier [%{{.*}} : !qcc.qubit_ref]
+
+// -----
+
+// A global definition is any symbol of the module but the entry function, with its marker in the entry body.
+// CHECK-LABEL: module attributes {oq3.version = #oq3.version<3, 0>}
+module attributes {oq3.version = #oq3.version<3, 0>} {
+  func.func private @f()
+  func.func @main() attributes {qcc.entry_point} {
+    // CHECK: oq3.defined @f
+    oq3.defined @f
+    func.call @f() : () -> ()
+    return
+  }
+}

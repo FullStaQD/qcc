@@ -13,7 +13,7 @@
 #include <cassert>
 #include <complex>
 
-namespace qcc::qvec {
+namespace qcc {
 
 //===----------------------------------------------------------------------===//
 // Single-qubit rotations in ZXZ form
@@ -44,7 +44,8 @@ private:
   std::array<Complex, 4> elements;
 };
 
-/// Wraps `angle` into (-pi, pi].
+/// Wraps `angle` into (-pi, pi]. Note Rz(theta + 2 pi) = -Rz(theta) (likewise Rx), so this flips the global phase,
+/// which becomes observable once the rotation is controlled.
 double normalizeAngle(double angle);
 
 /// Rz(theta).
@@ -68,4 +69,4 @@ ZXZAngles decomposeZXZ(const Matrix2x2& unitary);
 /// The ZXZ angles of the gate that applies `first` and then `second`.
 ZXZAngles fuseZXZ(const ZXZAngles& first, const ZXZAngles& second);
 
-} // namespace qcc::qvec
+} // namespace qcc

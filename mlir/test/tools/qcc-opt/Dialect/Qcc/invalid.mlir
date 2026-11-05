@@ -60,8 +60,16 @@ func.func @static_negative_index() {
 // -----
 
 func.func @static_duplicate_index() {
-  // expected-error @+1 {{'qcc.static' op index 2 appears more than once}}
+  // expected-error @+1 {{'qcc.static' op indices must be strictly increasing, got 2 after 2}}
   %q0, %q1 = qcc.static [2, 2] : !qcc.qubit
+  return
+}
+
+// -----
+
+func.func @static_unsorted_indices() {
+  // expected-error @+1 {{'qcc.static' op indices must be strictly increasing, got 0 after 3}}
+  %q3, %q0 = qcc.static [3, 0] : !qcc.qubit
   return
 }
 
@@ -75,11 +83,167 @@ llvm.func @static_outside_func() {
 
 // -----
 
+// A qubit scope may hold ops with `NoMultiUseQubits`, but not the qubit source.
+func.func @static_in_qubit_scope(%cond: i1) {
+  qcf.if %cond {
+    // expected-error @+1 {{'qcc.static' op must be directly inside a 'func.func'}}
+    %q = qcc.static [0] : !qcc.qubit
+    qcf.yield
+  }
+  return
+}
+
+// -----
+
 func.func @static_twice() {
   // expected-note @+1 {{the earlier 'qcc.static' is here}}
   %q0 = qcc.static [0] : !qcc.qubit
   %c = arith.constant 1 : i32
   // expected-error @+1 {{'qcc.static' op a function has at most one 'qcc.static': one op creates all of its qubits}}
   %q1 = qcc.static [1] : !qcc.qubit
+  return
+}
+
+// -----
+
+// A reference holds classical values only.
+// expected-error @below {{'!qcc.ref' holds classical values only, got '!qcc.qubit'}}
+func.func @ref_of_qubit(%r: !qcc.ref<!qcc.qubit>) {
+  return
+}
+
+// -----
+
+// expected-error @below {{'!qcc.ref' holds classical values only, got '!qcc.qubit_ref'}}
+func.func @ref_of_qubit_ref(%r: !qcc.ref<!qcc.qubit_ref>) {
+  return
+}
+
+// -----
+
+// expected-error @below {{'!qcc.ref' holds classical values only, got '!oq3.qreg<2>'}}
+func.func @ref_of_qubit_register(%r: !qcc.ref<!oq3.qreg<2>>) {
+  return
+}
+
+// -----
+
+// The element type of a tensor is checked too.
+// expected-error @below {{'!qcc.ref' holds classical values only, got 'tensor<2x!qcc.qubit>'}}
+func.func @ref_of_qubit_tensor(%r: !qcc.ref<tensor<2x!qcc.qubit>>) {
+  return
+}
+
+// -----
+
+func.func @store_mismatch(%r: !qcc.ref<i1>, %v: i32) {
+  // expected-error @below {{'qcc.ref.store' op cannot store a value of type 'i32' in a reference to 'i1'}}
+  "qcc.ref.store"(%v, %r) : (i32, !qcc.ref<i1>) -> ()
+  return
+}
+
+// -----
+
+func.func @load_mismatch(%r: !qcc.ref<i1>) {
+  // expected-error @below {{'qcc.ref.load' op cannot load a value of type 'i32' from a reference to 'i1'}}
+  %v = "qcc.ref.load"(%r) : (!qcc.ref<i1>) -> i32
+  return
+}
+
+// -----
+
+func.func @static_ref_wrong_type() {
+  // expected-error @+1 {{'qcc.static_ref' op result #0 must be variadic of reference to a qubit, but got '!qcc.qubit'}}
+  %q = qcc.static_ref [0] : !qcc.qubit
+  return
+}
+
+// -----
+
+func.func @static_ref_result_count() {
+  // expected-error @+1 {{'qcc.static_ref' op expected one qubit per index, got 1 qubit(s) for 2 indices}}
+  %q = "qcc.static_ref"() <{indices = array<i64: 0, 1>}> : () -> (!qcc.qubit_ref)
+  return
+}
+
+// -----
+
+func.func @static_ref_negative_index() {
+  // expected-error @+1 {{'qcc.static_ref' op index must be non-negative, got -1}}
+  %q = qcc.static_ref [-1] : !qcc.qubit_ref
+  return
+}
+
+// -----
+
+func.func @static_ref_duplicate_index() {
+  // expected-error @+1 {{'qcc.static_ref' op indices must be strictly increasing, got 2 after 2}}
+  %q0, %q1 = qcc.static_ref [2, 2] : !qcc.qubit_ref
+  return
+}
+
+// -----
+
+func.func @static_ref_unsorted_indices() {
+  // expected-error @+1 {{'qcc.static_ref' op indices must be strictly increasing, got 0 after 3}}
+  %q3, %q0 = qcc.static_ref [3, 0] : !qcc.qubit_ref
+  return
+}
+
+// -----
+
+// Value-semantics qubits are not allocated: `qcc.static` creates all of them.
+func.func @alloc_qubit() {
+  // expected-error @+1 {{'qcc.alloc' op result #0 must be qubit reference or 1D tensor of qubit references, but got '!qcc.qubit'}}
+  %q = qcc.alloc : !qcc.qubit
+  return
+}
+
+// -----
+
+func.func @alloc_2d_array() {
+  // expected-error @+1 {{'qcc.alloc' op result #0 must be qubit reference or 1D tensor of qubit references, but got 'tensor<2x2x!qcc.qubit_ref>'}}
+  %r = qcc.alloc : tensor<2x2x!qcc.qubit_ref>
+  return
+}
+
+// -----
+
+func.func @alloc_missing_size() {
+  // expected-error @+1 {{'qcc.alloc' op requires a size operand for an array of dynamic size}}
+  %r = qcc.alloc : tensor<?x!qcc.qubit_ref>
+  return
+}
+
+// -----
+
+func.func @alloc_size_of_static_array(%n: index) {
+  // expected-error @+1 {{'qcc.alloc' op has a size operand, but 'tensor<3x!qcc.qubit_ref>' has no dynamic size}}
+  %r = qcc.alloc %n : tensor<3x!qcc.qubit_ref>
+  return
+}
+
+// -----
+
+func.func @alloc_size_of_qubit(%n: index) {
+  // expected-error @+1 {{'qcc.alloc' op has a size operand, but '!qcc.qubit_ref' has no dynamic size}}
+  %q = qcc.alloc %n : !qcc.qubit_ref
+  return
+}
+
+// -----
+
+func.func @dealloc_wrong_type(%q: !qcc.qubit) {
+  // expected-error @+1 {{'qcc.dealloc' op operand #0 must be qubit reference or 1D tensor of qubit references, but got '!qcc.qubit'}}
+  qcc.dealloc %q : !qcc.qubit
+  return
+}
+
+// -----
+
+func.func @dealloc_static_qubit() {
+  %q = qcc.static_ref [3] : !qcc.qubit_ref
+  // expected-error @+1 {{'qcc.dealloc' op cannot free static qubit 3: only qubits from 'qcc.alloc' can be freed}}
+  qcc.dealloc %q : !qcc.qubit_ref
   return
 }

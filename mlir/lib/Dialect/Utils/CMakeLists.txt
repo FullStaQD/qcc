@@ -1,0 +1,1 @@
+add_mlir_library(QCCDialectUtils RotationUtils.cpp)

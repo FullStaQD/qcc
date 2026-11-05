@@ -18,4 +18,5 @@ add_mlir_dialect_library(
   MLIRSideEffectInterfaces
   MLIRFuncDialect
   QCCAuxDialect
-  QCCQccDialect)
+  QCCQccDialect
+  QCCDialectUtils)

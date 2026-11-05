@@ -1,0 +1,11 @@
+add_mlir_library(
+  QCCOQ3Export
+  Export.cpp
+  LINK_LIBS
+  PRIVATE
+  MLIRIR
+  MLIRSupport
+  MLIRFuncDialect
+  MLIRTranslateLib
+  QCCOQ3Dialect
+  QCCQccDialect)

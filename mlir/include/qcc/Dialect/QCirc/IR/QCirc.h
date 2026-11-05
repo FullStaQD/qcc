@@ -23,15 +23,6 @@
 #include "qcc/Dialect/QCirc/IR/QCircDialect.h.inc"
 
 //===----------------------------------------------------------------------===//
-// QCirc Attributes
-//===----------------------------------------------------------------------===//
-
-#include "qcc/Dialect/QCirc/IR/QCircEnums.h.inc"
-
-#define GET_ATTRDEF_CLASSES
-#include "qcc/Dialect/QCirc/IR/QCircAttrs.h.inc"
-
-//===----------------------------------------------------------------------===//
 // QCirc Operations
 //===----------------------------------------------------------------------===//
 

@@ -7,16 +7,16 @@
 //
 // ===----------------------------------------------------------------------===//
 
-#include "qcc/Dialect/QVec/Transforms/ZXZ.h"
+#include "qcc/Dialect/Utils/RotationUtils.h"
 
 #include "gtest/gtest.h"
 
 #include <cmath>
 #include <numbers>
 
-using namespace qcc::qvec;
+using namespace qcc;
 
-TEST(ZXZTest, NormalizeAngle) {
+TEST(RotationUtilsTest, NormalizeAngle) {
   constexpr double pi = std::numbers::pi;
 
   // The range is (-pi, pi]: values inside are unchanged, pi stays, -pi becomes pi.

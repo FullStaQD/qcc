@@ -8,12 +8,23 @@ mlir_tablegen(QccAttrInterfaces.h.inc -gen-attr-interface-decls)
 mlir_tablegen(QccAttrInterfaces.cpp.inc -gen-attr-interface-defs)
 mlir_tablegen(QccOpInterfaces.h.inc -gen-op-interface-decls)
 mlir_tablegen(QccOpInterfaces.cpp.inc -gen-op-interface-defs)
+mlir_tablegen(QccTypeInterfaces.h.inc -gen-type-interface-decls)
+mlir_tablegen(QccTypeInterfaces.cpp.inc -gen-type-interface-defs)
 add_public_tablegen_target(QCCQccInterfacesIncGen)
 
 set(LLVM_TARGET_DEFINITIONS QccTypes.td)
 mlir_tablegen(QccTypes.h.inc -gen-typedef-decls -typedefs-dialect=qcc)
 mlir_tablegen(QccTypes.cpp.inc -gen-typedef-defs -typedefs-dialect=qcc)
 add_public_tablegen_target(QCCQccTypesIncGen)
+
+set(LLVM_TARGET_DEFINITIONS QccEnums.td)
+mlir_tablegen(QccEnums.h.inc -gen-enum-decls)
+mlir_tablegen(QccEnums.cpp.inc -gen-enum-defs)
+
+set(LLVM_TARGET_DEFINITIONS QccAttrs.td)
+mlir_tablegen(QccAttrs.h.inc -gen-attrdef-decls -attrdefs-dialect=qcc)
+mlir_tablegen(QccAttrs.cpp.inc -gen-attrdef-defs -attrdefs-dialect=qcc)
+add_public_tablegen_target(QCCQccAttrsIncGen)
 
 set(LLVM_TARGET_DEFINITIONS QccOps.td)
 mlir_tablegen(QccOps.h.inc -gen-op-decls)

@@ -10,21 +10,14 @@
 #ifndef INCLUDE_QCC_DIALECT_QCIRC_IR_QCIRCOPS_TD_
 #define INCLUDE_QCC_DIALECT_QCIRC_IR_QCIRCOPS_TD_
 
-include "qcc/Dialect/QCirc/IR/QCircAttrs.td"
 include "qcc/Dialect/QCirc/IR/QCircDialect.td"
+include "qcc/Dialect/Qcc/IR/QccAttrs.td"
 include "qcc/Dialect/Qcc/IR/QccInterfaces.td"
 include "qcc/Dialect/Qcc/IR/QccTypes.td"
 
 include "mlir/IR/CommonTypeConstraints.td"
 include "mlir/IR/OpBase.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
-
-//===----------------------------------------------------------------------===//
-// QCirc type constraints
-//===----------------------------------------------------------------------===//
-
-// An angle in radians.
-def QCirc_Angle : AnyTypeOf<[F64], "64-bit float angle">;
 
 //===----------------------------------------------------------------------===//
 // QCirc operations
@@ -51,9 +44,9 @@ def QCirc_SingleOp : QCirc_Op<"single", [AllTypesMatch<["qubit_in", "qubit_out"]
         ```
     }];
 
-  let arguments = (ins QCirc_SingleGateKindAttr:$gate_kind,
+  let arguments = (ins Qcc_SingleGateKindAttr:$gate_kind,
                        Qcc_QubitType:$qubit_in,
-                       Variadic<QCirc_Angle>:$params);
+                       Variadic<Qcc_GateParam>:$params);
   let results = (outs Qcc_QubitType:$qubit_out);
 
   let assemblyFormat = [{
@@ -62,7 +55,7 @@ def QCirc_SingleOp : QCirc_Op<"single", [AllTypesMatch<["qubit_in", "qubit_out"]
     }];
 
   let builders = [
-    OpBuilder<(ins "::qcc::qcirc::SingleGateKind":$gateKind, "::mlir::Value":$qubitIn,
+    OpBuilder<(ins "::qcc::SingleGateKind":$gateKind, "::mlir::Value":$qubitIn,
                    CArg<"::mlir::ValueRange", "{}">:$params), [{
       build($_builder, $_state, qubitIn.getType(), gateKind, qubitIn, params);
     }]>
@@ -85,10 +78,10 @@ def QCirc_PairOp : QCirc_Op<"pair", [AllTypesMatch<["lhs_in", "rhs_in", "lhs_out
         ```
     }];
 
-  let arguments = (ins QCirc_PairGateKindAttr:$gate_kind,
+  let arguments = (ins Qcc_PairGateKindAttr:$gate_kind,
                        Qcc_QubitType:$lhs_in,
                        Qcc_QubitType:$rhs_in,
-                       Variadic<QCirc_Angle>:$params);
+                       Variadic<Qcc_GateParam>:$params);
   let results = (outs Qcc_QubitType:$lhs_out,
                       Qcc_QubitType:$rhs_out);
 
@@ -98,7 +91,7 @@ def QCirc_PairOp : QCirc_Op<"pair", [AllTypesMatch<["lhs_in", "rhs_in", "lhs_out
     }];
 
   let builders = [
-    OpBuilder<(ins "::qcc::qcirc::PairGateKind":$gateKind, "::mlir::Value":$lhsIn, "::mlir::Value":$rhsIn,
+    OpBuilder<(ins "::qcc::PairGateKind":$gateKind, "::mlir::Value":$lhsIn, "::mlir::Value":$rhsIn,
                    CArg<"::mlir::ValueRange", "{}">:$params), [{
       build($_builder, $_state, lhsIn.getType(), rhsIn.getType(), gateKind, lhsIn, rhsIn, params);
     }]>
@@ -120,7 +113,7 @@ def QCirc_MeasureOp : QCirc_Op<"measure", [AllTypesMatch<["qubit_in", "qubit_out
         ```
     }];
 
-  let arguments = (ins QCirc_BasisAttr:$basis,
+  let arguments = (ins Qcc_BasisAttr:$basis,
                        Qcc_QubitType:$qubit_in);
   let results = (outs Qcc_QubitType:$qubit_out,
                       I1:$bit);
@@ -130,7 +123,7 @@ def QCirc_MeasureOp : QCirc_Op<"measure", [AllTypesMatch<["qubit_in", "qubit_out
     }];
 
   let builders = [
-    OpBuilder<(ins "::qcc::qcirc::Basis":$basis, "::mlir::Value":$qubitIn), [{
+    OpBuilder<(ins "::qcc::Basis":$basis, "::mlir::Value":$qubitIn), [{
       build($_builder, $_state, qubitIn.getType(), $_builder.getI1Type(), basis, qubitIn);
     }]>
   ];
@@ -147,7 +140,7 @@ def QCirc_ResetOp : QCirc_Op<"reset", [AllTypesMatch<["qubit_in", "qubit_out"]>]
         ```
     }];
 
-  let arguments = (ins QCirc_BasisAttr:$basis,
+  let arguments = (ins Qcc_BasisAttr:$basis,
                        Qcc_QubitType:$qubit_in);
   let results = (outs Qcc_QubitType:$qubit_out);
 
@@ -156,7 +149,7 @@ def QCirc_ResetOp : QCirc_Op<"reset", [AllTypesMatch<["qubit_in", "qubit_out"]>]
     }];
 
   let builders = [
-    OpBuilder<(ins "::qcc::qcirc::Basis":$basis, "::mlir::Value":$qubitIn), [{
+    OpBuilder<(ins "::qcc::Basis":$basis, "::mlir::Value":$qubitIn), [{
       build($_builder, $_state, qubitIn.getType(), basis, qubitIn);
     }]>
   ];

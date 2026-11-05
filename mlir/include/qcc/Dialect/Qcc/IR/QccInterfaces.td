@@ -12,6 +12,7 @@
 
 include "mlir/IR/Interfaces.td"
 include "mlir/IR/OpBase.td"
+include "mlir/Interfaces/SideEffectInterfaceBase.td"
 
 //===----------------------------------------------------------------------===//
 // DeviceAttrInterface
@@ -35,6 +36,21 @@ def QCC_DeviceAttrInterface : AttrInterface<"DeviceAttrInterface"> {
       /*methodName=*/"getName"
     >
   ];
+}
+
+//===----------------------------------------------------------------------===//
+// ClassicalTypeInterface
+//===----------------------------------------------------------------------===//
+
+def Qcc_ClassicalTypeInterface : TypeInterface<"ClassicalTypeInterface"> {
+  let description = [{
+        A marker for dialect types of classical values, such as `!qcc.angle`. Only classical values can be stored in a
+        `!qcc.ref`.
+
+        The builtin integer, floating-point, `index`, and `complex` types are classical as well, and so are tensors
+        and vectors of classical elements (see `qcc::isClassicalType`).
+    }];
+  let cppNamespace = "::qcc";
 }
 
 //===----------------------------------------------------------------------===//
@@ -126,6 +142,13 @@ def Qcc_QubitLaneOpInterface : OpInterface<"QubitLaneOpInterface"> {
 }
 
 //===----------------------------------------------------------------------===//
+// QubitResource
+//===----------------------------------------------------------------------===//
+
+// Side-effect resource for qubits that operations access by reference (see `qcc::QubitResource`).
+def Qcc_QubitResource : Resource<"::qcc::QubitResource">;
+
+//===----------------------------------------------------------------------===//
 // Traits
 //===----------------------------------------------------------------------===//
 
@@ -133,5 +156,15 @@ def Qcc_QubitLaneOpInterface : OpInterface<"QubitLaneOpInterface"> {
 def Qcc_NoMultiUseQubits : NativeOpTrait<"NoMultiUseQubits"> {
   let cppNamespace = "::qcc";
 }
+
+// The native part of `Qcc_QubitScope`; use the trait list instead. `NoMultiUseQubits` looks for this trait.
+def Qcc_QubitScopeImpl : NativeOpTrait<"QubitScope", [SingleBlock]> {
+  let cppNamespace = "::qcc";
+}
+
+// An op whose regions may hold ops with `NoMultiUseQubits`. Qubits enter its regions only as arguments of their entry
+// blocks, the *bindings*, never by capture. Each region has at most one block. The op has `NoMultiUseQubits` itself:
+// the ops in its regions leave the checks of the enclosing function to it.
+def Qcc_QubitScope : TraitList<[SingleBlock, Qcc_QubitScopeImpl, Qcc_NoMultiUseQubits]>;
 
 #endif // INCLUDE_QCC_DIALECT_QCC_IR_QCCINTERFACES_TD_

@@ -12,6 +12,9 @@
 #include "qcc/Conversion/Aux_/AuxUnpackRecordInt.h"
 #include "qcc/Conversion/JaspToQC/JaspToQC.h"
 #include "qcc/Conversion/QCOToQVec/QCOToQVec.h"
+#include "qcc/Conversion/QCToQRef/QCToQRef.h"
+#include "qcc/Conversion/QCircToQRef/QCircToQRef.h"
+#include "qcc/Conversion/QRefToQCirc/QRefToQCirc.h"
 #include "qcc/Conversion/QVecToMagic/QVecToMagic.h"
 #include "qcc/Conversion/ToHiSEPQ/ToHiSEPQ.h"
 #include "qcc/Conversion/ToQIR/ToQIR.h"
@@ -21,7 +24,10 @@
 #include "qcc/Dialect/Jasp/IR/Jasp.h"
 #include "qcc/Dialect/Magic/IR/Magic.h"
 #include "qcc/Dialect/Magic/Transforms/Passes.h"
+#include "qcc/Dialect/OQ3/IR/OQ3.h"
+#include "qcc/Dialect/QCF/IR/QCF.h"
 #include "qcc/Dialect/QCirc/IR/QCirc.h"
+#include "qcc/Dialect/QRef/IR/QRef.h"
 #include "qcc/Dialect/QVec/IR/QVec.h"
 #include "qcc/Dialect/QVec/Transforms/Passes.h"
 #include "qcc/Dialect/Qcc/IR/Qcc.h"
@@ -87,8 +93,11 @@ int main(int argc, char** argv) {
     mlir::qco::QCODialect,
     qcc::aux::AuxDialect,
     qcc::magic::MagicDialect,
+    qcc::oq3::OQ3Dialect,
     qcc::QccDialect,
+    qcc::qcf::QCFDialect,
     qcc::qcirc::QCircDialect,
+    qcc::qref::QRefDialect,
     qcc::qvec::QVecDialect,
     qcc::hlep::HLEPDialect
       // clang-format on
@@ -128,6 +137,9 @@ int main(int argc, char** argv) {
   qcc::registerConvertQIRToHiSEPQIntrinsics();
   qcc::registerEmitHiSEPQStart();
   qcc::registerConvertQCOToQVec();
+  qcc::registerConvertQCToQRef();
+  qcc::registerConvertQRefToQCirc();
+  qcc::registerConvertQCircToQRef();
   qcc::registerConvertQVecToMagic();
   qcc::registerConvertQVecToHiSEPQIntrinsics();
   qcc::registerQVecMerge();

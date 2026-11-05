@@ -6,6 +6,7 @@ add_mlir_dialect_library(
   QCCQccDialectIncGen
   QCCQccInterfacesIncGen
   QCCQccTypesIncGen
+  QCCQccAttrsIncGen
   QCCQccOpsIncGen
   LINK_LIBS
   PRIVATE

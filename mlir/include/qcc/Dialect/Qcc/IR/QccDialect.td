@@ -27,7 +27,15 @@ def Qcc_Dialect : Dialect {
         `!qcc.qubit` is the qubit type for a value-semantics context. It follows an affine type discipline: A qubit
         value may be consumed at most once on any execution path (no-cloning). It may also be left unused, which traces
         the qubit out. *A* way to enforce this is the `NoMultiUseQubits` trait which is designed for use with IR
-        centered around the `qcirc` dialect.
+        centered around the `qcirc` dialect. Its companion for ops with regions (e.g. `qcf.if`) is the `QubitScope`
+        trait: qubits enter such a region only as arguments of its entry block (bindings), never by capture.
+
+        `!qcc.qubit_ref` is the qubit type for a memory-semantics context, such as the `qref` dialect: a reference names
+        a qubit, and operations act on that qubit in place. References come from `qcc.static_ref` and `qcc.alloc`, and
+        an array of qubits is a 1D tensor of references. Operations on qubits through references should have memory
+        effects on the `QubitResource`.
+
+        The gate kinds and bases (`SingleGateKind`, `PairGateKind`, `Basis`) are shared by `qcirc` and `qref`.
 
         The following IR snippet shows a module with an attached MAGIC (Ions) device and a function marked as the entry
         point.
@@ -48,7 +56,7 @@ def Qcc_Dialect : Dialect {
     let cppNamespace = "::qcc";
 
     let useDefaultTypePrinterParser = 1;
-    let useDefaultAttributePrinterParser = 0; // set to 1 once we define attributes of our own.
+    let useDefaultAttributePrinterParser = 1;
 
     let discardableAttrs = (ins "::mlir::Attribute":$device,
                                 "::mlir::UnitAttr":$entry_point);
