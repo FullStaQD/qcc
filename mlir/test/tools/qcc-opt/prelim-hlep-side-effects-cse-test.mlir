@@ -77,3 +77,20 @@ func.func @pure_lin(%u : !prelimhlep.unit, %a : i1) -> (i1, i1) attributes { pre
     }
     return %r0, %r1 : i1, i1
 }
+
+// Two phases on the same delinearized value add up; they must not be merged.
+
+// CHECK-LABEL: func.func @two_phases
+// CHECK-COUNT-2: prelimhlep.add_phase
+// CHECK-NOT:     prelimhlep.add_phase
+func.func @two_phases(%s : !prelimhlep.lin<i1>) -> !prelimhlep.lin<i1> attributes { prelimhlep.halo } {
+    %o = prelimhlep.lin (%b : i1 from %s : !prelimhlep.lin<i1>) -> (!prelimhlep.lin<i1>) {
+        %pi = arith.constant 3.141592653589793 : f64
+        %p0 = prelimhlep.add_phase %pi, %b : (f64, i1) -> i1
+        %p1 = prelimhlep.add_phase %pi, %b : (f64, i1) -> i1
+        %x = arith.xori %p0, %p1 : i1
+        %r = arith.xori %x, %b : i1
+        prelimhlep.output (%r : i1)
+    }
+    return %o : !prelimhlep.lin<i1>
+}

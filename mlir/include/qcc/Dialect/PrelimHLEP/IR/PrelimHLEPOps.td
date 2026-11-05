@@ -32,8 +32,8 @@ def PrelimHLEP_InHaloedFunction : NativeOpTrait<"InHaloedFunction"> {
 // PrelimHLEP operations
 //
 // Side effects follow PrelimHLEPEffects.td: ops with a single world that
-// neither create nor destroy linear values are `Pure`; `lin` computes its
-// effects from its body.
+// neither create nor destroy linear values are `Pure`, except `add_phase`,
+// which writes the quantum state; `lin` computes its effects from its body.
 //===----------------------------------------------------------------------===//
 
 // Every op of this dialect is linearity-aware: its own verifier is responsible
@@ -41,7 +41,8 @@ def PrelimHLEP_InHaloedFunction : NativeOpTrait<"InHaloedFunction"> {
 class PrelimHLEPOp<string mnemonic, list<Trait> traits = []> :
         Op<PrelimHLEPDialect, mnemonic, !listconcat(traits, [PrelimHLEP_LinearityAwareOpInterface])>;
 
-def AddPhaseOp : PrelimHLEPOp<"add_phase", [Pure, PrelimHLEP_InHaloedFunction]> {
+def AddPhaseOp : PrelimHLEPOp<"add_phase", [MemoryEffects<[MemWrite<PrelimHLEP_QuantumStateResource>]>,
+                                              PrelimHLEP_InHaloedFunction]> {
     let summary = "Scales the linear fibres of a value by exp(i*alpha), a purely imaginary exponent.";
     let description = [{
         Within `LinearHalo`-attributed functions, homogeneously multiplies
@@ -54,6 +55,12 @@ def AddPhaseOp : PrelimHLEPOp<"add_phase", [Pure, PrelimHLEP_InHaloedFunction]> 
 
         The verifier checks that the
         operand and result types match.
+
+        The op is not `Pure`: its result carries the same value as its
+        input, and the phase lives in the quantum state, which the op writes.
+        Otherwise two phases on the same (delinearized, hence non-linear)
+        value would be merged by CSE, and a phase whose result is unused
+        would be erased as dead.
 
         TODO: consider allowing other types for angles.
     }];

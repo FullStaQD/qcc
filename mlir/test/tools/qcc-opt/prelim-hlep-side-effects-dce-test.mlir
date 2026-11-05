@@ -30,3 +30,17 @@ func.func @unused_pure_lin(%u : !prelimhlep.unit, %a : i1) -> !prelimhlep.unit a
     }
     return %u : !prelimhlep.unit
 }
+
+// A phase acts on the quantum state, not on the value: it is not dead even
+// if its result is unused.
+
+// CHECK-LABEL: func.func @unused_phase
+// CHECK:         prelimhlep.add_phase
+func.func @unused_phase(%s : !prelimhlep.lin<i1>) -> !prelimhlep.lin<i1> attributes { prelimhlep.halo } {
+    %o = prelimhlep.lin (%b : i1 from %s : !prelimhlep.lin<i1>) -> (!prelimhlep.lin<i1>) {
+        %pi = arith.constant 3.141592653589793 : f64
+        %p = prelimhlep.add_phase %pi, %b : (f64, i1) -> i1
+        prelimhlep.output (%b : i1)
+    }
+    return %o : !prelimhlep.lin<i1>
+}

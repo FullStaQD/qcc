@@ -55,7 +55,9 @@ inline llvm::hash_code hash_value(const HamiltonianTermHeader& header) {
 }
 
 /// The hidden world that the partial linearization of a program is a
-/// family over. Measurements read and write it (see PrelimHLEPEffects.td).
+/// family over. A measurement reads it (its outcome is the world's value) and
+/// writes it (the next measurement is a fresh draw), so that two measurements
+/// are never merged, hoisted, or erased. See PrelimHLEPEffects.td.
 struct WorldResource : mlir::SideEffects::Resource::Base<WorldResource> {
   [[nodiscard]] llvm::StringRef getName() const final { return "prelimhlep::World"; }
   [[nodiscard]] bool isAddressable() const override { return false; }
