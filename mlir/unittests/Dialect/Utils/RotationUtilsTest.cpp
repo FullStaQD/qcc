@@ -21,6 +21,10 @@
 
 using namespace qcc;
 
+//===----------------------------------------------------------------------===//
+// Test helpers
+//===----------------------------------------------------------------------===//
+
 constexpr double pi = std::numbers::pi;
 
 /// The absolute tolerance of the numerical checks.
@@ -70,6 +74,20 @@ static testing::Matcher<Matrix2x2> matrixNearUpToGlobalPhase(const Matrix2x2& ex
       testing::Le(maxError));
 }
 
+TEST(RotationUtilsTestHelpers, Matchers) {
+  // The other tests rely on the matchers, so make sure they can fail.
+  const Matrix2x2 matrix = rxMatrix(0.5);
+  EXPECT_THAT(arbitraryGlobalPhase * matrix, matrixNearUpToGlobalPhase(matrix, tolerance));
+  EXPECT_THAT(arbitraryGlobalPhase * matrix, testing::Not(matrixNear(matrix, tolerance)));
+
+  // A relative phase is not a global phase.
+  EXPECT_THAT(rzMatrix(0.5), testing::Not(matrixNearUpToGlobalPhase(rzMatrix(-0.5), tolerance)));
+}
+
+//===----------------------------------------------------------------------===//
+// RotationUtils
+//===----------------------------------------------------------------------===//
+
 TEST(RotationUtilsTest, NormalizeAngle) {
   // The range is (-pi, pi]: values inside are unchanged, pi stays, -pi becomes pi.
   EXPECT_DOUBLE_EQ(normalizeAngle(1.0), 1.0);
@@ -91,7 +109,7 @@ TEST(RotationUtilsTest, NormalizeAngle) {
 }
 
 TEST(RotationUtilsTest, MatrixOperations) {
-  // Unlike for the other matrix operations, the tests below would not notice errors in these.
+  // Only these matrix operations need a direct check; errors in the others would show up elsewhere.
   const Matrix2x2 matrix{
       Complex{1, 2}, Complex{3, 4}, //
       Complex{5, 6}, Complex{7, 8}  //
@@ -104,21 +122,8 @@ TEST(RotationUtilsTest, MatrixOperations) {
   };
   EXPECT_THAT(matrix + matrix.adjoint(), matrixNear(sum, tolerance));
 
-  // For unitaries every diagonal element of V^dagger U carries the global phase.
   EXPECT_EQ(matrix.trace(), Complex(8, 10));
-
-  // The tolerance checks work with any norm.
   EXPECT_DOUBLE_EQ(matrix.hilbertSchmidtNorm(), std::sqrt(204.0)); // sqrt(5 + 25 + 61 + 113)
-}
-
-TEST(RotationUtilsTest, Matchers) {
-  // The other tests rely on the matchers, so make sure they can fail.
-  const Matrix2x2 matrix = rxMatrix(0.5);
-  EXPECT_THAT(arbitraryGlobalPhase * matrix, matrixNearUpToGlobalPhase(matrix, tolerance));
-  EXPECT_THAT(arbitraryGlobalPhase * matrix, testing::Not(matrixNear(matrix, tolerance)));
-
-  // A relative phase is not a global phase.
-  EXPECT_THAT(rzMatrix(0.5), testing::Not(matrixNearUpToGlobalPhase(rzMatrix(-0.5), tolerance)));
 }
 
 TEST(RotationUtilsTest, RotationMatrices) {
