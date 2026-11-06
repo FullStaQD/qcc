@@ -9,14 +9,14 @@
 
 #pragma once
 
-#include <mlir/Pass/Pass.h>
+#include "mlir/Pass/Pass.h" // IWYU pragma: keep
 
 namespace qcc {
 
 #define GEN_PASS_DECL
-#include "qcc/Conversion/QCOToQVec/QCOToQVec.h.inc"
+#include "qcc/Conversion/QCircToQVec/QCircToQVec.h.inc"
 
 #define GEN_PASS_REGISTRATION
-#include "qcc/Conversion/QCOToQVec/QCOToQVec.h.inc"
+#include "qcc/Conversion/QCircToQVec/QCircToQVec.h.inc"
 
 } // namespace qcc
