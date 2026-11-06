@@ -15,7 +15,9 @@
 
 #include "qcc/Target/HiSEPQ/HiSEPQTarget.h"
 
-#include "qcc/Conversion/QCOToQVec/QCOToQVec.h"
+#include "qcc/Conversion/QCToQRef/QCToQRef.h"
+#include "qcc/Conversion/QCircToQVec/QCircToQVec.h"
+#include "qcc/Conversion/QRefToQCirc/QRefToQCirc.h"
 #include "qcc/Conversion/ToHiSEPQ/HiSEPQMachine.h"
 #include "qcc/Conversion/ToHiSEPQ/ToHiSEPQ.h"
 #include "qcc/Dialect/QVec/Transforms/Passes.h"
@@ -23,7 +25,7 @@
 #include "qcc/Target/TargetRegistry.h"
 
 #include "mlir/Conversion/Passes.h" // IWYU pragma: keep
-#include "mlir/Conversion/QCToQCO/QCToQCO.h"
+#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/Passes.h"
 
@@ -160,9 +162,11 @@ mlir::LogicalResult addLoweringPassesHiSEPQ(mlir::PassManager& pm, llvm::ArrayRe
     return mlir::failure();
   }
 
-  // qc -> qco -> qvec -> QV intrinsics
-  pm.addPass(mlir::createQCToQCO());
-  pm.addPass(qcc::createConvertQCOToQVec());
+  // qc -> qref -> qcirc -> qvec -> QV intrinsics
+  mlir::OpPassManager& toQVec = pm.nest<mlir::func::FuncOp>();
+  toQVec.addPass(qcc::createConvertQCToQRef());
+  toQVec.addPass(qcc::createConvertQRefToQCirc());
+  toQVec.addPass(qcc::createConvertQCircToQVec());
 
   QVecMergeOptions mergeOptions;
   mergeOptions.maxVF = machine->maxQubits();

@@ -5,7 +5,9 @@ add_mlir_library(
   AuxOutputRecordingIncGen
   AuxUnpackRecordIntIncGen
   QCCMagicTransformsIncGen
-  QCCQCOToQVecIncGen
+  QCCQCToQRefIncGen
+  QCCQCircToQVecIncGen
+  QCCQRefToQCircIncGen
   QCCQVecToMagicIncGen
   QCCQVecTransformsIncGen
   LINK_LIBS
@@ -14,9 +16,10 @@ add_mlir_library(
   # Dialects
   MLIRFuncDialect
   # Passes
-  MLIRQCToQCO
   QCCAuxOutputRecording
   QCCMagicTransforms
-  QCCQCOToQVec
+  QCCQCToQRef
+  QCCQCircToQVec
+  QCCQRefToQCirc
   QCCQVecToMagic
   QCCQVecTransforms)

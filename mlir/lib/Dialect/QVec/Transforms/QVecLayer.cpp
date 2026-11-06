@@ -252,8 +252,7 @@ static bool carriesQubits(Type type) {
 
 /// Whether `op` only moves qubits around between vectors. The rebuild regenerates all of that.
 static bool isQubitPlumbing(Operation* op) {
-  return isa<qcc::StaticOp, vector::FromElementsOp, vector::ExtractOp, vector::ExtractStridedSliceOp,
-             vector::BroadcastOp>(op) &&
+  return isa<vector::FromElementsOp, vector::ExtractOp, vector::ExtractStridedSliceOp, vector::BroadcastOp>(op) &&
          llvm::any_of(op->getResultTypes(), carriesQubits);
 }
 
@@ -264,8 +263,8 @@ struct Program {
   SmallVector<Gate> gates;
   /// The classical operations (including the terminator) in program order; cloned behind the measurements.
   SmallVector<Operation*> tail;
-  /// All qubits the program touches, ascending.
-  SmallVector<Qubit> qubits;
+  /// The one `qcc.static` of the function, where every gate's qubits come from.
+  qcc::StaticOp staticOp;
 };
 
 } // namespace
@@ -392,6 +391,10 @@ static FailureOr<Program> analyzeFunction(func::FuncOp func) {
 
   Program program;
   for (Operation& op : block) {
+    if (auto staticOp = dyn_cast<qcc::StaticOp>(&op)) {
+      program.staticOp = staticOp;
+      continue;
+    }
     if (auto laneOp = dyn_cast<qcc::QubitLaneOpInterface>(&op)) {
       if (failed(collectGates(laneOp, program.gates))) {
         return failure();
@@ -423,7 +426,6 @@ static FailureOr<Program> analyzeFunction(func::FuncOp func) {
 
   // A qubit is at most measured once and never used afterwards; each gate acts on distinct qubits.
   DenseSet<Qubit> measured;
-  DenseSet<Qubit> seen;
   for (const Gate& gate : program.gates) {
     DenseSet<Qubit> own;
     for (Qubit qubit : gate.qubits) {
@@ -433,15 +435,14 @@ static FailureOr<Program> analyzeFunction(func::FuncOp func) {
       if (measured.contains(qubit)) {
         return gate.op->emitOpError() << "uses qubit " << qubit << " after its measurement";
       }
-      seen.insert(qubit);
     }
     if (gate.kind == Gate::Kind::MZ) {
       measured.insert_range(gate.qubits);
     }
   }
 
-  program.qubits = llvm::to_vector(seen);
-  llvm::sort(program.qubits);
+  // Every gate traced its qubits back to the `qcc.static`, so there is one.
+  assert(program.staticOp && "a function with gates has a `qcc.static`");
   return program;
 }
 
@@ -458,13 +459,10 @@ class BodyBuilder {
 public:
   BodyBuilder(const OpBuilder& builder, Location loc) : builder(builder), loc(loc) {}
 
-  /// Creates the one `qcc.static` of the function, for `qubits` in ascending order.
-  void declareQubits(ArrayRef<Qubit> qubits) {
-    if (qubits.empty()) {
-      return;
-    }
-    auto staticOp = qcc::StaticOp::create(builder, loc, qubits);
-    for (auto [qubit, value] : llvm::zip_equal(qubits, staticOp.getQubits())) {
+  /// Re-emits `staticOp`, the one `qcc.static` of the function.
+  void declareQubits(qcc::StaticOp staticOp) {
+    auto clone = cast<qcc::StaticOp>(builder.clone(*staticOp));
+    for (auto [qubit, value] : llvm::zip_equal(clone.getIndices(), clone.getQubits())) {
       current[qubit] = value;
     }
   }
@@ -581,7 +579,7 @@ static void rebuildFunction(func::FuncOp func, const Program& program, const Sch
   mapping.map(oldBlock.getArguments(), newBlock->getArguments());
 
   BodyBuilder body(builder, func.getLoc());
-  body.declareQubits(program.qubits);
+  body.declareQubits(program.staticOp);
   for (const Layer& layer : schedule.layers) {
     if (!layer.empty()) {
       body.emitLayer(layer);

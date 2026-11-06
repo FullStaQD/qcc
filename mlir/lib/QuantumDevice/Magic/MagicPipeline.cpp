@@ -11,12 +11,13 @@
 
 #include "qcc/Conversion/Aux_/AuxOutputRecording.h"
 #include "qcc/Conversion/Aux_/AuxUnpackRecordInt.h"
-#include "qcc/Conversion/QCOToQVec/QCOToQVec.h"
+#include "qcc/Conversion/QCToQRef/QCToQRef.h"
+#include "qcc/Conversion/QCircToQVec/QCircToQVec.h"
+#include "qcc/Conversion/QRefToQCirc/QRefToQCirc.h"
 #include "qcc/Conversion/QVecToMagic/QVecToMagic.h"
 #include "qcc/Dialect/Magic/Transforms/Passes.h"
 #include "qcc/Dialect/QVec/Transforms/Passes.h"
 
-#include "mlir/Conversion/QCToQCO/QCToQCO.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/Passes.h"
@@ -28,9 +29,11 @@ void addLoweringPassesMagic(mlir::PassManager& pm) {
   pm.addPass(qcc::createAuxOutputRecording());
   pm.addPass(qcc::createAuxUnpackRecordInt());
 
-  // qc -> qvec
-  pm.addPass(mlir::createQCToQCO());
-  pm.addPass(qcc::createConvertQCOToQVec());
+  // qc -> qref -> qcirc -> qvec
+  mlir::OpPassManager& toQVec = pm.nest<mlir::func::FuncOp>();
+  toQVec.addPass(qcc::createConvertQCToQRef());
+  toQVec.addPass(qcc::createConvertQRefToQCirc());
+  toQVec.addPass(qcc::createConvertQCircToQVec());
 
   // The gates of the architecture: ZZ couplings and single-qubit rotations in ZXZ form, in alternating layers.
   pm.addPass(qcc::createQVecToRZZ());

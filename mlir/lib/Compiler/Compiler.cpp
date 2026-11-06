@@ -27,7 +27,7 @@
 #include <llvm/ADT/StringRef.h>
 #include <llvm/Support/ErrorHandling.h>
 
-/// Lower Qrisp to QC, QCO and standard MLIR dialects.
+/// Lower Qrisp to QC and standard MLIR dialects.
 static void addLoweringQrisp(mlir::PassManager& pm);
 
 namespace qcc {

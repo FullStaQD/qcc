@@ -23,7 +23,7 @@ func.func @bell() {
     func.return
 }
 
-// Fresh static qubits, one u_zxz layer over both (q0's trailing rz is folded back into it), one zz block, one u_zxz
+// The static qubits, one u_zxz layer over both (q0's trailing rz is folded back into it), one zz block, one u_zxz
 // layer on q1 alone (rz folded in), then the measurements and the records.
 // CHECK:         %[[Q:.*]]:2 = qcc.static [0, 1] : !qcc.qubit
 // CHECK:         %[[V0:.*]] = vector.from_elements %[[Q]]#0, %[[Q]]#1 : vector<2x!qcc.qubit>
@@ -172,3 +172,23 @@ func.func @classical_tail(%flag: i1) -> i1 {
 // CHECK:         %[[BIT:.*]] = vector.extract %[[BITS]][0] : i1 from vector<1xi1>
 // CHECK:         %[[R:.*]] = arith.xori %[[BIT]], %arg0 : i1
 // CHECK:         return %[[R]]
+
+// -----
+
+// The rebuilt body keeps the `qcc.static` of the function, also a qubit that nothing acts on.
+// CHECK-LABEL: func.func @untouched_qubit
+func.func @untouched_qubit() {
+    %q0, %q1 = qcc.static [0, 1] : !qcc.qubit
+    %pi = arith.constant dense<3.1415926535897931> : vector<1xf64>
+    %zero = arith.constant dense<0.0> : vector<1xf64>
+    %v0 = vector.from_elements %q1 : vector<1x!qcc.qubit>
+    %v1 = qvec.single u_zxz(%zero, %pi, %zero) %v0 : vector<1xf64>, vector<1x!qcc.qubit>
+    %v2, %bits = qvec.measure z %v1 : vector<1x!qcc.qubit> -> vector<1xi1>
+    %bit = vector.extract %bits[0] : i1 from vector<1xi1>
+    aux.record_int %bit : i1
+    func.return
+}
+
+// CHECK:         %[[Q:.*]]:2 = qcc.static [0, 1] : !qcc.qubit
+// CHECK:         %[[V:.*]] = vector.from_elements %[[Q]]#1 : vector<1x!qcc.qubit>
+// CHECK:         qvec.single u_zxz(%{{.*}}, %{{.*}}, %{{.*}}) %[[V]] : vector<1xf64>, vector<1x!qcc.qubit>
