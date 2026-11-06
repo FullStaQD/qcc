@@ -528,6 +528,10 @@ LogicalResult InterTrapZZOp::verify() {
   if (!b.contains(getIons()[1])) {
     return emitOpError() << "ion " << getIons()[1] << " is not in the second chain " << b;
   }
+  if (getIons()[1] < getIons()[0]) {
+    return emitOpError() << "ions must be listed in increasing order, got ion " << getIons()[1] << " after ion "
+                         << getIons()[0];
+  }
   return success();
 }
 

@@ -66,7 +66,14 @@ Matrix2x2 operator*(const Matrix2x2& lhs, const Matrix2x2& rhs);
 /// resolved by setting z2 = 0.
 ZXZAngles decomposeZXZ(const Matrix2x2& unitary);
 
-/// The ZXZ angles of the gate that applies `first` and then `second`.
+/// The ZXZ angles of the gate that applies `first` and then `second`. If one of the two is an Rz, use the overloads
+/// below instead: they are exact.
 ZXZAngles fuseZXZ(const ZXZAngles& first, const ZXZAngles& second);
+
+/// The ZXZ angles of the gate that applies Rz(`zAngle`) and then `zxz`. Each angle is wrapped into (-pi, pi].
+ZXZAngles fuseZXZ(double zAngle, const ZXZAngles& zxz);
+
+/// The ZXZ angles of the gate that applies `zxz` and then Rz(`zAngle`). Each angle is wrapped into (-pi, pi].
+ZXZAngles fuseZXZ(const ZXZAngles& zxz, double zAngle);
 
 } // namespace qcc

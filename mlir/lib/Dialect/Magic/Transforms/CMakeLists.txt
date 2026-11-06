@@ -4,6 +4,7 @@ add_mlir_dialect_library(
   CompactIonIds.cpp
   CompileSwap.cpp
   FinalizeZXZ.cpp
+  Layer.cpp
   MeasureAndRecordGarbage.cpp
   PadTiming.cpp
   ShuttleInterTrapZZ.cpp
