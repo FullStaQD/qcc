@@ -33,17 +33,17 @@ def QVecMerge : Pass<"qvec-merge", "mlir::ModuleOp"> {
 
       ```mlir
       // Assuming %v0, %v1, %v2 are known to refer to disjoint sets of qubits.
-      %h0 = qvec.single h %v0 : vector<4x!qco.qubit>
-      %x1 = qvec.single x %v1 : vector<3x!qco.qubit> // despite obstacle we can still merge the hadamards
-      %h2 = qvec.single h %v2 : vector<2x!qco.qubit>
+      %h0 = qvec.single h %v0 : vector<4x!qcc.qubit>
+      %x1 = qvec.single x %v1 : vector<3x!qcc.qubit> // despite obstacle we can still merge the hadamards
+      %h2 = qvec.single h %v2 : vector<2x!qcc.qubit>
       ```
 
       turns into
 
       ```mlir
       // %4 represents the union of %v0 and %v1 in that order.
-      %5 = qvec.single h %4 : vector<6x!qco.qubit>
-      %6 = qvec.single x %3 : vector<3x!qco.qubit>
+      %5 = qvec.single h %4 : vector<6x!qcc.qubit>
+      %6 = qvec.single x %3 : vector<3x!qcc.qubit>
       ```
   }];
 
@@ -67,7 +67,7 @@ def QVecToRZZ : Pass<"qvec-to-rzz", "mlir::ModuleOp"> {
       Example:
 
       ```mlir
-      %c1, %t1 = qvec.pair cz %c0, %t0 : vector<2x!qco.qubit>
+      %c1, %t1 = qvec.pair cz %c0, %t0 : vector<2x!qcc.qubit>
       ```
 
       turns into
@@ -75,9 +75,9 @@ def QVecToRZZ : Pass<"qvec-to-rzz", "mlir::ModuleOp"> {
       ```mlir
       %pi_2 = arith.constant dense<1.5707963267948966> : vector<2xf64>
       %mpi_2 = arith.constant dense<-1.5707963267948966> : vector<2xf64>
-      %c1, %t1 = qvec.pair rzz(%pi_2) %c0, %t0 : vector<2x!qco.qubit>, vector<2xf64>
-      %c2 = qvec.single rz(%mpi_2) %c1 : vector<2x!qco.qubit>, vector<2xf64>
-      %t2 = qvec.single rz(%mpi_2) %t1 : vector<2x!qco.qubit>, vector<2xf64>
+      %c1, %t1 = qvec.pair rzz(%pi_2) %c0, %t0 : vector<2xf64>, vector<2x!qcc.qubit>
+      %c2 = qvec.single rz(%mpi_2) %c1 : vector<2xf64>, vector<2x!qcc.qubit>
+      %t2 = qvec.single rz(%mpi_2) %t1 : vector<2xf64>, vector<2x!qcc.qubit>
       ```
   }];
 
@@ -98,14 +98,14 @@ def QVecToUZXZ : Pass<"qvec-to-u-zxz", "mlir::ModuleOp"> {
       Example:
 
       ```mlir
-      %h = qvec.single h %qs : vector<2x!qco.qubit>
+      %h = qvec.single h %qs : vector<2x!qcc.qubit>
       ```
 
       turns into
 
       ```mlir
       %pi_2 = arith.constant dense<1.5707963267948966> : vector<2xf64>
-      %h = qvec.single u_zxz(%pi_2, %pi_2, %pi_2) %qs : vector<2x!qco.qubit>, vector<2xf64>
+      %h = qvec.single u_zxz(%pi_2, %pi_2, %pi_2) %qs : vector<2xf64>, vector<2x!qcc.qubit>
       ```
   }];
 
@@ -127,14 +127,14 @@ def QVecFuseZXZ : Pass<"qvec-fuse-zxz", "mlir::ModuleOp"> {
       Example:
 
       ```mlir
-      %a = qvec.single u_zxz(%z1, %x, %z2) %qs : vector<1x!qco.qubit>, vector<1xf64>
-      %b = qvec.single rz(%t) %a : vector<1x!qco.qubit>, vector<1xf64>
+      %a = qvec.single u_zxz(%z1, %x, %z2) %qs : vector<1xf64>, vector<1x!qcc.qubit>
+      %b = qvec.single rz(%t) %a : vector<1xf64>, vector<1x!qcc.qubit>
       ```
 
       turns into
 
       ```mlir
-      %b = qvec.single u_zxz(%z1, %x, %z2_plus_t) %qs : vector<1x!qco.qubit>, vector<1xf64>
+      %b = qvec.single u_zxz(%z1, %x, %z2_plus_t) %qs : vector<1xf64>, vector<1x!qcc.qubit>
       ```
   }];
 
@@ -148,17 +148,18 @@ def QVecLayer : Pass<"qvec-layer", "mlir::ModuleOp"> {
   let summary = "Rebuilds straight-line `qvec` functions as alternating `u_zxz` layers and `global zz` blocks.";
 
   let description = [{
-      A scheduler for the gate set `single u_zxz` / `single rz` / `pair rzz` / `global zz` / `mz` (run
-      `qvec-to-rzz` and `qvec-to-u-zxz` first) over static qubits (`qco.static`) with constant angles. Every
+      A scheduler for the gate set `single u_zxz` / `single rz` / `pair rzz` / `global zz` / `measure z` (run
+      `qvec-to-rzz` and `qvec-to-u-zxz` first) over static qubits (`qcc.static`) with constant angles. Every
       `func.func` containing `qvec` operations gets its body rebuilt from scratch as a sequence of *layers*:
 
       - one wide `single u_zxz` over all qubits that have a rotation ready, or
       - one `global zz` block with a constant symmetric matrix over all qubits it couples,
 
       strictly alternating, followed by at most one wide `single rz` (diagonal rotations that never met a `u_zxz`),
-      then one `mz` per measured vector of the input and finally the classical operations of the input (e.g.
+      then one `measure z` per measured vector of the input and finally the classical operations of the input (e.g.
       `aux.record_int`) in their original order. Qubit vectors are rebuilt with `vector.from_elements` /
-      `vector.extract` from fresh `qco.static` ops, so the static provenance of every lane is kept.
+      `vector.extract` from one fresh `qcc.static` of the qubits the function uses, so the static provenance of every
+      lane is kept.
 
       The schedule is greedy and commutation-aware: diagonal gates (`rz`, `rzz`, `zz`) commute with each other and
       gates on distinct qubits commute; nothing else does. An `rzz` / `zz` joins the latest block such that only
@@ -167,15 +168,15 @@ def QVecLayer : Pass<"qvec-layer", "mlir::ModuleOp"> {
       `u_zxz` on one qubit are fused.
 
       Rejected with a diagnostic: functions with more than one block or control flow, qubits not traceable to a
-      `qco.static`, non-constant angles, gate kinds other than the ones above, and gates on a qubit after its
+      `qcc.static`, non-constant angles, gate kinds other than the ones above, and gates on a qubit after its
       measurement.
 
       Example (a Bell pair after `qvec-to-rzz` and `qvec-to-u-zxz`, sketched):
 
       ```mlir
-      %h = qvec.single u_zxz(...) %q0 : vector<1x!qco.qubit>, vector<1xf64>
-      %t = qvec.single u_zxz(...) %q1 : vector<1x!qco.qubit>, vector<1xf64>   // the h of the cx = h cz h
-      %a, %b = qvec.pair rzz(%pi_2) %h, %t : vector<1x!qco.qubit>, vector<1xf64>
+      %h = qvec.single u_zxz(...) %q0 : vector<1xf64>, vector<1x!qcc.qubit>
+      %t = qvec.single u_zxz(...) %q1 : vector<1xf64>, vector<1x!qcc.qubit>   // the h of the cx = h cz h
+      %a, %b = qvec.pair rzz(%pi_2) %h, %t : vector<1xf64>, vector<1x!qcc.qubit>
       %a1 = qvec.single rz(%mpi_2) %a : ...
       %b1 = qvec.single rz(%mpi_2) %b : ...
       %b2 = qvec.single u_zxz(...) %b1 : ...
@@ -184,16 +185,16 @@ def QVecLayer : Pass<"qvec-layer", "mlir::ModuleOp"> {
       turns into
 
       ```mlir
-      %l0 = qvec.single u_zxz(%z1, %x, %z2) %qs : vector<2x!qco.qubit>, vector<2xf64>   // h on both
-      %l1 = qvec.global zz(%A) %l0 : vector<2x!qco.qubit>, vector<2x2xf64>              // A = [[0, pi/2], [pi/2, 0]]
-      %l2 = qvec.single u_zxz(%z1', %x', %z2') %l1 : vector<2x!qco.qubit>, vector<2xf64> // rz folded into the h
+      %l0 = qvec.single u_zxz(%z1, %x, %z2) %qs : vector<2xf64>, vector<2x!qcc.qubit>   // h on both
+      %l1 = qvec.global zz(%A) %l0 : vector<2x!qcc.qubit>, vector<2x2xf64>              // A = [[0, pi/2], [pi/2, 0]]
+      %l2 = qvec.single u_zxz(%z1', %x', %z2') %l1 : vector<2xf64>, vector<2x!qcc.qubit> // rz folded into the h
       ```
   }];
 
   let dependentDialects = [
     "mlir::arith::ArithDialect",
-    "mlir::qco::QCODialect",
     "mlir::vector::VectorDialect",
+    "qcc::QccDialect",
     "qcc::qvec::QVecDialect"
   ];
 }

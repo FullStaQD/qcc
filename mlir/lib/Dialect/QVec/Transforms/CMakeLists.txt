@@ -18,7 +18,6 @@ add_mlir_dialect_library(
   MLIRArithDialect
   MLIRFuncDialect
   MLIRVectorDialect
-  MLIRQCODialect
-  MLIRQTensorDialect
+  QCCQccDialect
   QCCQVecDialect
   QCCDialectUtils)

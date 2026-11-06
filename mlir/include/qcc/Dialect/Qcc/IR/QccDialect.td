@@ -35,7 +35,7 @@ def Qcc_Dialect : Dialect {
         an array of qubits is a 1D tensor of references. Operations on qubits through references should have memory
         effects on the `QubitResource`.
 
-        The gate kinds and bases (`SingleGateKind`, `PairGateKind`, `Basis`) are shared by `qcirc` and `qref`.
+        The gate kinds and bases (`SingleGateKind`, `PairGateKind`, `Basis`) are shared by `qcirc`, `qref` and `qvec`.
 
         The following IR snippet shows a module with an attached MAGIC (Ions) device and a function marked as the entry
         point.

@@ -25,22 +25,25 @@ def ConvertQCOToQVec : Pass<"convert-qco-to-qvec", "mlir::ModuleOp"> {
       becomes
 
       ```mlir
-      %qs = vector.from_elements %q0 : vector<1x!qco.qubit>
+      %qs = vector.from_elements %q0 : vector<1x!qcc.qubit>
       %ts = vector.from_elements %theta : vector<1xf64>
-      %rs = qvec.single rz(%ts) %qs : vector<1x!qco.qubit>, vector<1xf64>
-      %q1 = vector.extract %rs[0] : !qco.qubit from vector<1x!qco.qubit>
+      %rs = qvec.single rz(%ts) %qs : vector<1xf64>, vector<1x!qcc.qubit>
+      %q1 = vector.extract %rs[0] : !qcc.qubit from vector<1x!qcc.qubit>
       ```
 
-      Similar for pairs and measurements.
+      Similar for pairs, measurements and resets. The qubits become `!qcc.qubit`: the `qco.static` ops of a function
+      turn into one `qcc.static` at its start, which takes each index once.
 
-      Gates which cannot be translated 1:1 are decomposed if possible. Gates that cannot be legalized make the pass
-      fail. `qco.static` is kept as the source of qubits, and `qco.sink` is erased.
+      Gates that cannot be legalized make the pass fail; `qco.id` is dropped and `qco.sink` is erased. Not supported:
+      functions that take or return qubits, and a `qco.if` that binds a qubit straight from its `qco.static`, as the
+      `scf.if` would use it in both branches.
    }];
 
   let dependentDialects = [
     "mlir::qco::QCODialect",
     "mlir::scf::SCFDialect",
     "mlir::vector::VectorDialect",
+    "qcc::QccDialect",
     "qcc::qvec::QVecDialect"
   ];
 }

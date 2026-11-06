@@ -19,7 +19,6 @@
 #include "qcc/Dialect/Utils/RotationUtils.h"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/Dialect/QCO/IR/QCOOps.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/Block.h"
 #include "mlir/IR/Builders.h"
@@ -58,7 +57,7 @@ using namespace qcc::qvec;
 
 namespace {
 
-/// A static qubit, identified by the index of its `qco.static`.
+/// A static qubit, identified by its `qcc.static` index.
 using Qubit = int64_t;
 
 /// One gate of the input program on static qubits, in the gate set the pass understands.
@@ -67,7 +66,7 @@ struct Gate {
     ZXZ, ///< `single u_zxz` on one lane: `qubits[0]`, `zxz`.
     RZ,  ///< `single rz` on one lane: `qubits[0]`, `angle`.
     ZZ,  ///< `pair rzz` on one lane or `global zz`: the row-major `matrix` over `qubits`.
-    MZ,  ///< `mz`: measures `qubits` (lane order), `op` is the `qvec.mz` whose bits the rebuild has to replace.
+    MZ,  ///< `measure z`: measures `qubits` (lane order), `op` is the `qvec.measure` whose bits the rebuild replaces.
   };
 
   Kind kind;
@@ -248,12 +247,12 @@ static Schedule layerGates(ArrayRef<Gate> gates) {
 /// Whether `type` carries qubits, one or a whole vector of them.
 static bool carriesQubits(Type type) {
   auto shapedType = dyn_cast<ShapedType>(type);
-  return isa<qco::QubitType>(shapedType ? shapedType.getElementType() : type);
+  return isa<qcc::QubitType>(shapedType ? shapedType.getElementType() : type);
 }
 
 /// Whether `op` only moves qubits around between vectors. The rebuild regenerates all of that.
 static bool isQubitPlumbing(Operation* op) {
-  return isa<qco::StaticOp, vector::FromElementsOp, vector::ExtractOp, vector::ExtractStridedSliceOp,
+  return isa<qcc::StaticOp, vector::FromElementsOp, vector::ExtractOp, vector::ExtractStridedSliceOp,
              vector::BroadcastOp>(op) &&
          llvm::any_of(op->getResultTypes(), carriesQubits);
 }
@@ -274,11 +273,11 @@ struct Program {
 /// Resolves every lane of `qubits` to its static qubit, or fails with a diagnostic at `op`.
 static LogicalResult resolveQubits(Operation* op, TypedValue<VectorType> qubits, SmallVectorImpl<Qubit>& result) {
   for (int64_t lane = 0, width = qubits.getType().getNumElements(); lane < width; ++lane) {
-    qco::StaticOp staticOp = getStaticOpAncestor(qubits, lane);
-    if (!staticOp) {
-      return op->emitOpError() << "lane " << lane << " cannot be traced back to a `qco.static` qubit";
+    std::optional<Qubit> qubit = getStaticQubitIndex(qubits, lane);
+    if (!qubit) {
+      return op->emitOpError() << "lane " << lane << " cannot be traced back to a `qcc.static` qubit";
     }
-    result.push_back(static_cast<Qubit>(staticOp.getIndex()));
+    result.push_back(*qubit);
   }
   return success();
 }
@@ -293,7 +292,7 @@ static FailureOr<SmallVector<double>> resolveAngles(Operation* op, Value angles)
 }
 
 /// Appends the gates `op` denotes to `gates`, one per lane for `single` / `pair`.
-static LogicalResult collectGates(QubitLaneOpInterface op, SmallVectorImpl<Gate>& gates) {
+static LogicalResult collectGates(qcc::QubitLaneOpInterface op, SmallVectorImpl<Gate>& gates) {
   return TypeSwitch<Operation*, LogicalResult>(op)
       .Case([&](SingleOp singleOp) -> LogicalResult {
         SmallVector<Qubit> qubits;
@@ -301,7 +300,7 @@ static LogicalResult collectGates(QubitLaneOpInterface op, SmallVectorImpl<Gate>
           return failure();
         }
         switch (singleOp.getGateKind()) {
-        case SingleGateKind::RZ: {
+        case qcc::SingleGateKind::RZ: {
           FailureOr<SmallVector<double>> theta = resolveAngles(singleOp, singleOp.getParams().front());
           if (failed(theta)) {
             return failure();
@@ -311,7 +310,7 @@ static LogicalResult collectGates(QubitLaneOpInterface op, SmallVectorImpl<Gate>
           }
           return success();
         }
-        case SingleGateKind::UZXZ: {
+        case qcc::SingleGateKind::UZXZ: {
           FailureOr<SmallVector<double>> z1 = resolveAngles(singleOp, singleOp.getParams()[zxz::z1]);
           FailureOr<SmallVector<double>> x = resolveAngles(singleOp, singleOp.getParams()[zxz::x]);
           FailureOr<SmallVector<double>> z2 = resolveAngles(singleOp, singleOp.getParams()[zxz::z2]);
@@ -334,7 +333,7 @@ static LogicalResult collectGates(QubitLaneOpInterface op, SmallVectorImpl<Gate>
         }
       })
       .Case([&](PairOp pairOp) -> LogicalResult {
-        if (pairOp.getGateKind() != PairGateKind::RZZ) {
+        if (pairOp.getGateKind() != qcc::PairGateKind::RZZ) {
           return pairOp.emitOpError() << "gate '" << stringifyPairGateKind(pairOp.getGateKind())
                                       << "' is not in the layered gate set (rzz); run qvec-to-rzz first";
         }
@@ -366,12 +365,16 @@ static LogicalResult collectGates(QubitLaneOpInterface op, SmallVectorImpl<Gate>
         gates.push_back(Gate{.kind = Gate::Kind::ZZ, .qubits = qubits, .matrix = *matrix, .op = globalOp});
         return success();
       })
-      .Case([&](MZOp mzOp) -> LogicalResult {
+      .Case([&](MeasureOp measureOp) -> LogicalResult {
+        if (measureOp.getBasis() != qcc::Basis::Z) {
+          return measureOp.emitOpError() << "measures in basis '" << stringifyBasis(measureOp.getBasis())
+                                         << "', which qvec-layer does not support";
+        }
         SmallVector<Qubit> qubits;
-        if (failed(resolveQubits(mzOp, mzOp.getQubitsIn(), qubits))) {
+        if (failed(resolveQubits(measureOp, measureOp.getQubitsIn(), qubits))) {
           return failure();
         }
-        gates.push_back(Gate{.kind = Gate::Kind::MZ, .qubits = qubits, .op = mzOp});
+        gates.push_back(Gate{.kind = Gate::Kind::MZ, .qubits = qubits, .op = measureOp});
         return success();
       })
       .Default([](Operation* other) { return other->emitOpError() << "is not supported by qvec-layer"; });
@@ -384,12 +387,12 @@ static FailureOr<Program> analyzeFunction(func::FuncOp func) {
   }
   Block& block = func.getBody().front();
   if (llvm::any_of(block.getArgumentTypes(), carriesQubits)) {
-    return func.emitOpError() << "qvec-layer expects qubits to come from `qco.static`, not from arguments";
+    return func.emitOpError() << "qvec-layer expects qubits to come from `qcc.static`, not from arguments";
   }
 
   Program program;
   for (Operation& op : block) {
-    if (auto laneOp = dyn_cast<QubitLaneOpInterface>(&op)) {
+    if (auto laneOp = dyn_cast<qcc::QubitLaneOpInterface>(&op)) {
       if (failed(collectGates(laneOp, program.gates))) {
         return failure();
       }
@@ -412,7 +415,7 @@ static FailureOr<Program> analyzeFunction(func::FuncOp func) {
   for (Operation* op : program.tail) {
     for (Value operand : op->getOperands()) {
       Operation* producer = operand.getDefiningOp();
-      if (producer != nullptr && !tail.contains(producer) && !isa<MZOp>(producer)) {
+      if (producer != nullptr && !tail.contains(producer) && !isa<MeasureOp>(producer)) {
         return op->emitOpError() << "depends on a value that qvec-layer does not preserve";
       }
     }
@@ -448,17 +451,21 @@ static FailureOr<Program> analyzeFunction(func::FuncOp func) {
 
 namespace {
 
-/// Emits the rebuilt body. Every qubit lives in a scalar `!qco.qubit` value between layers; a layer gathers its
+/// Emits the rebuilt body. Every qubit lives in a scalar `!qcc.qubit` value between layers; a layer gathers its
 /// lanes with `vector.from_elements` and scatters the result back with `vector.extract`, which keeps the provenance
 /// traceable for everything downstream.
 class BodyBuilder {
 public:
   BodyBuilder(const OpBuilder& builder, Location loc) : builder(builder), loc(loc) {}
 
+  /// Creates the one `qcc.static` of the function, for `qubits` in ascending order.
   void declareQubits(ArrayRef<Qubit> qubits) {
-    for (Qubit qubit : qubits) {
-      current[qubit] =
-          qco::StaticOp::create(builder, loc, qco::QubitType::get(builder.getContext()), static_cast<uint64_t>(qubit));
+    if (qubits.empty()) {
+      return;
+    }
+    auto staticOp = qcc::StaticOp::create(builder, loc, qubits);
+    for (auto [qubit, value] : llvm::zip_equal(qubits, staticOp.getQubits())) {
+      current[qubit] = value;
     }
   }
 
@@ -476,7 +483,7 @@ public:
         z2.push_back(rotation.z2);
       }
       Value qs = gather(qubits);
-      auto op = SingleOp::create(builder, loc, SingleGateKind::UZXZ, qs,
+      auto op = SingleOp::create(builder, loc, qcc::SingleGateKind::UZXZ, qs,
                                  ValueRange{
                                      buildAngleVector(builder, loc, z1),
                                      buildAngleVector(builder, loc, x),
@@ -521,17 +528,17 @@ public:
       theta.push_back(qcc::normalizeAngle(angle));
     }
     Value qs = gather(qubits);
-    auto op = SingleOp::create(builder, loc, SingleGateKind::RZ, qs, ValueRange{buildAngleVector(builder, loc, theta)});
+    auto op =
+        SingleOp::create(builder, loc, qcc::SingleGateKind::RZ, qs, ValueRange{buildAngleVector(builder, loc, theta)});
     scatter(op.getQubitsOut(), qubits);
   }
 
-  /// Measures `gate.qubits` and maps the bits of the original `mz` to the new ones in `mapping`.
+  /// Measures `gate.qubits` and maps the bits of the original measurement to the new ones in `mapping`.
   void emitMeasurement(const Gate& gate, IRMapping& mapping) {
-    auto mzOp = cast<MZOp>(gate.op);
+    auto measureOp = cast<MeasureOp>(gate.op);
     Value qs = gather(gate.qubits);
-    auto bitsType = VectorType::get({static_cast<int64_t>(gate.qubits.size())}, builder.getI1Type());
-    auto op = MZOp::create(builder, mzOp.getLoc(), qs.getType(), bitsType, qs);
-    mapping.map(mzOp.getBits(), op.getBits());
+    auto op = MeasureOp::create(builder, measureOp.getLoc(), qcc::Basis::Z, qs);
+    mapping.map(measureOp.getBits(), op.getBits());
     for (Qubit qubit : gate.qubits) {
       current.erase(qubit); // Measured: nothing may use it anymore (the analysis checked).
     }
@@ -618,7 +625,7 @@ protected:
   void runOnOperation() override {
     ModuleOp moduleOp = getOperation();
     for (func::FuncOp func : llvm::make_early_inc_range(moduleOp.getOps<func::FuncOp>())) {
-      if (func.isExternal() || func.getBody().getOps<QubitLaneOpInterface>().empty()) {
+      if (func.isExternal() || func.getBody().getOps<qcc::QubitLaneOpInterface>().empty()) {
         continue; // Nothing quantum to schedule here.
       }
       FailureOr<Program> program = analyzeFunction(func);

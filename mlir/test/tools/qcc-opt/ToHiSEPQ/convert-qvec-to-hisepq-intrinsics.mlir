@@ -1,23 +1,21 @@
 // RUN: qcc-opt %s -convert-qvec-to-hisepq-intrinsics="min-vlen=128 num-qubit-control-lines=256" --split-input-file \
 // RUN:   | FileCheck %s
 
-// The two qubits have to occupy the two front entries of an otherwise poison
+// The three qubits have to occupy the three front entries of an otherwise poison
 // `vector<[N]xi8>`. Poison means "we don't care".
 
 // CHECK-LABEL: func.func @single_gates
 func.func @single_gates() {
-    %q0 = qco.static 0 : !qco.qubit
-    %q1 = qco.static 1 : !qco.qubit
-    %q2 = qco.static 2 : !qco.qubit
-    %qs = vector.from_elements %q0, %q1, %q2 : vector<3x!qco.qubit>
+    %q0, %q1, %q2 = qcc.static [0, 1, 2] : !qcc.qubit
+    %qs = vector.from_elements %q0, %q1, %q2 : vector<3x!qcc.qubit>
 
-    %h = qvec.single h %qs : vector<3x!qco.qubit>
-    %x = qvec.single x %h : vector<3x!qco.qubit>
+    %h = qvec.single h %qs : vector<3x!qcc.qubit>
+    %x = qvec.single x %h : vector<3x!qcc.qubit>
 
     func.return
 }
 
-// CHECK-NOT:     qco.static
+// CHECK-NOT:     qcc.static
 // CHECK-NOT:     vector.from_elements
 // CHECK-DAG:     %[[VL:.*]] = llvm.mlir.constant(3 : i32) : i32
 // CHECK-DAG:     %[[ZERO:.*]] = llvm.mlir.constant(0 : i32) : i32
@@ -42,15 +40,12 @@ func.func @single_gates() {
 
 // CHECK-LABEL: func.func @pair_gates
 func.func @pair_gates() {
-    %c0 = qco.static 0 : !qco.qubit
-    %c1 = qco.static 1 : !qco.qubit
-    %ctrls = vector.from_elements %c0, %c1 : vector<2x!qco.qubit>
+    %c0, %c1, %t0, %t1 = qcc.static [0, 1, 2, 3] : !qcc.qubit
+    %ctrls = vector.from_elements %c0, %c1 : vector<2x!qcc.qubit>
 
-    %t0 = qco.static 2 : !qco.qubit
-    %t1 = qco.static 3 : !qco.qubit
-    %tgts = vector.from_elements %t0, %t1 : vector<2x!qco.qubit>
+    %tgts = vector.from_elements %t0, %t1 : vector<2x!qcc.qubit>
 
-    %ctrls_out, %tgts_out = qvec.pair cx %ctrls, %tgts : vector<2x!qco.qubit>
+    %ctrls_out, %tgts_out = qvec.pair cx %ctrls, %tgts : vector<2x!qcc.qubit>
 
     func.return
 }
@@ -69,36 +64,69 @@ func.func @pair_gates() {
 
 // CHECK-LABEL: func.func @measurement
 func.func @measurement() -> vector<2xi1> {
-    %q0 = qco.static 0 : !qco.qubit
-    %q1 = qco.static 1 : !qco.qubit
-    %qs = vector.from_elements %q0, %q1 : vector<2x!qco.qubit>
+    %q0, %q1 = qcc.static [0, 1] : !qcc.qubit
+    %qs = vector.from_elements %q0, %q1 : vector<2x!qcc.qubit>
 
-    %qs_out, %result = qvec.mz %qs : vector<2x!qco.qubit> -> vector<2xi1>
+    %qs_out, %result = qvec.measure z %qs : vector<2x!qcc.qubit> -> vector<2xi1>
 
     func.return %result : vector<2xi1>
 }
 
-// CHECK-NOT:     qvec.mz
+// CHECK-NOT:     qvec.measure
 // CHECK:         %[[RES:.*]] = llvm.mlir.poison : vector<2xi1>
 // CHECK:         llvm.call_intrinsic "llvm.riscv.qv.mz"(%{{.*}}, %{{.*}}, %{{.*}}, %{{.*}})
 // CHECK:         return %[[RES]] : vector<2xi1>
 
 // -----
 
+// There is no reset instruction: the qubits are measured, and each one is flipped on its own if it measured |1⟩.
+// The flips branch on poison as long as the measurement results are lost.
+
+// CHECK-LABEL: func.func @reset
+func.func @reset() {
+    %q0, %q1 = qcc.static [0, 1] : !qcc.qubit
+    %qs = vector.from_elements %q0, %q1 : vector<2x!qcc.qubit>
+
+    %r = qvec.reset z %qs : vector<2x!qcc.qubit>
+    %h = qvec.single h %r : vector<2x!qcc.qubit>
+
+    func.return
+}
+
+// CHECK-NOT:     qvec.
+// CHECK-DAG:     %[[IDX:.*]] = llvm.mlir.constant(dense<[0, 1]> : vector<2xi8>) : vector<2xi8>
+// CHECK-DAG:     %[[IDX0:.*]] = llvm.mlir.constant(dense<0> : vector<1xi8>) : vector<1xi8>
+// CHECK-DAG:     %[[IDX1:.*]] = llvm.mlir.constant(dense<1> : vector<1xi8>) : vector<1xi8>
+// CHECK-DAG:     %[[BITS:.*]] = llvm.mlir.poison : vector<2xi1>
+// CHECK:         %[[V:.*]] = llvm.intr.vector.insert %[[IDX]]
+// CHECK:         llvm.call_intrinsic "llvm.riscv.qv.mz"(%[[V]], %{{.*}}, %{{.*}}, %{{.*}})
+// CHECK:         %[[BIT0:.*]] = vector.extract %[[BITS]][0] : i1 from vector<2xi1>
+// CHECK:         scf.if %[[BIT0]] {
+// CHECK:           %[[V0:.*]] = llvm.intr.vector.insert %[[IDX0]]
+// CHECK:           llvm.call_intrinsic "llvm.riscv.qv.x"(%[[V0]], %{{.*}}, %{{.*}}, %{{.*}})
+// CHECK:         }
+// CHECK:         %[[BIT1:.*]] = vector.extract %[[BITS]][1] : i1 from vector<2xi1>
+// CHECK:         scf.if %[[BIT1]] {
+// CHECK:           %[[V1:.*]] = llvm.intr.vector.insert %[[IDX1]]
+// CHECK:           llvm.call_intrinsic "llvm.riscv.qv.x"(%[[V1]], %{{.*}}, %{{.*}}, %{{.*}})
+// CHECK:         }
+// The qubits after the reset are the ones before.
+// CHECK:         %[[W:.*]] = llvm.intr.vector.insert %[[IDX]]
+// CHECK:         llvm.call_intrinsic "llvm.riscv.qv.h"(%[[W]], %{{.*}}, %{{.*}}, %{{.*}})
+
+// -----
+
 // CHECK-LABEL: func.func @threaded
 func.func @threaded() -> vector<2xi1> {
-    %c0 = qco.static 0 : !qco.qubit
-    %c1 = qco.static 1 : !qco.qubit
-    %ctrls = vector.from_elements %c0, %c1 : vector<2x!qco.qubit>
+    %c0, %c1, %t0, %t1 = qcc.static [0, 1, 2, 3] : !qcc.qubit
+    %ctrls = vector.from_elements %c0, %c1 : vector<2x!qcc.qubit>
 
-    %t0 = qco.static 2 : !qco.qubit
-    %t1 = qco.static 3 : !qco.qubit
-    %tgts = vector.from_elements %t0, %t1 : vector<2x!qco.qubit>
+    %tgts = vector.from_elements %t0, %t1 : vector<2x!qcc.qubit>
 
-    %h = qvec.single h %ctrls : vector<2x!qco.qubit>
-    %ctrls_out, %tgts_out = qvec.pair cx %h, %tgts : vector<2x!qco.qubit>
-    %mq, %bits = qvec.mz %ctrls_out : vector<2x!qco.qubit> -> vector<2xi1>
-    %x = qvec.single x %mq : vector<2x!qco.qubit>
+    %h = qvec.single h %ctrls : vector<2x!qcc.qubit>
+    %ctrls_out, %tgts_out = qvec.pair cx %h, %tgts : vector<2x!qcc.qubit>
+    %mq, %bits = qvec.measure z %ctrls_out : vector<2x!qcc.qubit> -> vector<2xi1>
+    %x = qvec.single x %mq : vector<2x!qcc.qubit>
 
     func.return %bits : vector<2xi1>
 }
@@ -122,12 +150,10 @@ func.func @threaded() -> vector<2xi1> {
 
 // CHECK-LABEL: func.func @sparse_qubit_indices
 func.func @sparse_qubit_indices() {
-    %q0 = qco.static 7 : !qco.qubit
-    %q1 = qco.static 3 : !qco.qubit
-    %q2 = qco.static 255 : !qco.qubit
-    %qs = vector.from_elements %q0, %q1, %q2 : vector<3x!qco.qubit>
+    %q1, %q0, %q2 = qcc.static [3, 7, 255] : !qcc.qubit
+    %qs = vector.from_elements %q0, %q1, %q2 : vector<3x!qcc.qubit>
 
-    %h = qvec.single h %qs : vector<3x!qco.qubit>
+    %h = qvec.single h %qs : vector<3x!qcc.qubit>
 
     func.return
 }
@@ -142,9 +168,9 @@ func.func @sparse_qubit_indices() {
 
 // CHECK-LABEL: func.func @output_recording
 func.func @output_recording(%value: i64, %buffer: memref<4xi1>) {
-    %q0 = qco.static 0 : !qco.qubit
-    %qs = vector.from_elements %q0 : vector<1x!qco.qubit>
-    %mz, %bits = qvec.mz %qs : vector<1x!qco.qubit> -> vector<1xi1>
+    %q0 = qcc.static [0] : !qcc.qubit
+    %qs = vector.from_elements %q0 : vector<1x!qcc.qubit>
+    %mz, %bits = qvec.measure z %qs : vector<1x!qcc.qubit> -> vector<1xi1>
 
     aux.record_int %value : i64
     aux.record_memref %buffer : memref<4xi1>
@@ -161,15 +187,15 @@ func.func @output_recording(%value: i64, %buffer: memref<4xi1>) {
 
 // CHECK-LABEL: func.func @qubit_through_if
 func.func @qubit_through_if(%cond: i1) {
-    %q0 = qco.static 5 : !qco.qubit
-    %v0 = vector.from_elements %q0 : vector<1x!qco.qubit>
-    %x0 = scf.if %cond -> (vector<1x!qco.qubit>) {
-      %x = qvec.single x %v0 : vector<1x!qco.qubit>
-      scf.yield %x : vector<1x!qco.qubit>
+    %q0 = qcc.static [5] : !qcc.qubit
+    %v0 = vector.from_elements %q0 : vector<1x!qcc.qubit>
+    %x0 = scf.if %cond -> (vector<1x!qcc.qubit>) {
+      %x = qvec.single x %v0 : vector<1x!qcc.qubit>
+      scf.yield %x : vector<1x!qcc.qubit>
     } else {
-      scf.yield %v0 : vector<1x!qco.qubit>
+      scf.yield %v0 : vector<1x!qcc.qubit>
     }
-    %h = qvec.single h %x0 : vector<1x!qco.qubit>
+    %h = qvec.single h %x0 : vector<1x!qcc.qubit>
     func.return
 }
 
@@ -179,3 +205,36 @@ func.func @qubit_through_if(%cond: i1) {
 // CHECK:         }
 // CHECK:         %[[Q:.*]] = llvm.intr.vector.insert %[[IDX]]
 // CHECK:         llvm.call_intrinsic "llvm.riscv.qv.h"(%[[Q]]
+
+// -----
+
+// The instructions act on the qubits in place, so the qubits an `scf.if` yields are dropped. The `qcc.static` goes with
+// them: it hands out each qubit only once and must not outlive the pass, as `convert-scf-to-cf` splits its function into
+// blocks. Classical results stay.
+
+// CHECK-LABEL: func.func @if_yields_qubits
+func.func @if_yields_qubits(%cond: i1) -> i64 {
+    %q0 = qcc.static [0] : !qcc.qubit
+    %qs = vector.from_elements %q0 : vector<1x!qcc.qubit>
+    %c1 = arith.constant 1 : i64
+    %c2 = arith.constant 2 : i64
+    %pick, %out = scf.if %cond -> (i64, vector<1x!qcc.qubit>) {
+      %x = qvec.single x %qs : vector<1x!qcc.qubit>
+      scf.yield %c1, %x : i64, vector<1x!qcc.qubit>
+    } else {
+      scf.yield %c2, %qs : i64, vector<1x!qcc.qubit>
+    }
+    %h = qvec.single h %out : vector<1x!qcc.qubit>
+    func.return %pick : i64
+}
+
+// CHECK-NOT:     qcc.static
+// CHECK-NOT:     vector.from_elements
+// CHECK:         %[[PICK:.*]] = scf.if %{{.*}} -> (i64) {
+// CHECK:           llvm.call_intrinsic "llvm.riscv.qv.x"
+// CHECK:           scf.yield %{{.*}} : i64
+// CHECK:         } else {
+// CHECK:           scf.yield %{{.*}} : i64
+// CHECK:         }
+// CHECK:         llvm.call_intrinsic "llvm.riscv.qv.h"
+// CHECK:         return %[[PICK]] : i64

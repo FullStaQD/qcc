@@ -42,4 +42,7 @@ mlir::Value buildAngleMatrix(mlir::OpBuilder& builder, mlir::Location loc, int64
 /// Returns `factor * angles`: a fresh constant if `angles` is one, an `arith.mulf` by a splat constant otherwise.
 mlir::Value scaleAngles(mlir::OpBuilder& builder, mlir::Location loc, mlir::Value angles, double factor);
 
+/// Returns `angles + offset`: a fresh constant if `angles` is one, an `arith.addf` of a splat constant otherwise.
+mlir::Value offsetAngles(mlir::OpBuilder& builder, mlir::Location loc, mlir::Value angles, double offset);
+
 } // namespace qcc::qvec

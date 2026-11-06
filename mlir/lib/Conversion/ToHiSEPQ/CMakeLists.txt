@@ -12,12 +12,12 @@ add_mlir_conversion_library(
   QCCQVecOpsIncGen
   LINK_LIBS
   # Dialects
-  MLIRQCODialect
-  MLIRQTensorDialect
   MLIRFuncDialect
   MLIRLLVMDialect
+  MLIRSCFDialect
   MLIRVectorDialect
   QCCAuxDialect
+  QCCQccDialect
   QCCQVecDialect
   # Conversion infra
   MLIRLLVMCommonConversion

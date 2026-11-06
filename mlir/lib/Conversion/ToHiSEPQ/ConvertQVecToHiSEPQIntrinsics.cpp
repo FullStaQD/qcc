@@ -11,9 +11,10 @@
 #include "qcc/Conversion/ToHiSEPQ/ToHiSEPQ.h" // IWYU pragma: keep
 #include "qcc/Dialect/Aux_/IR/Aux_.h"
 #include "qcc/Dialect/QVec/IR/QVec.h"
+#include "qcc/Dialect/Qcc/IR/Qcc.h"
 
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
-#include "mlir/Dialect/QCO/IR/QCOOps.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinAttributes.h"
@@ -26,7 +27,9 @@
 #include "mlir/Support/LogicalResult.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/SmallVectorExtras.h"
 #include "llvm/ADT/StringRef.h"
 
 #include <cstdint>
@@ -35,6 +38,8 @@
 
 using namespace mlir;
 using namespace qcc::qvec;
+using qcc::PairGateKind;
+using qcc::SingleGateKind;
 using qcc::hisepq::HiSEPQMachine;
 
 namespace {
@@ -61,15 +66,15 @@ struct Diagnostics {
 
 } // namespace
 
-/// Reads the qubit indices out of a vector by tracing every element to a `qco.static`.
+/// Reads the qubit indices out of a vector by tracing every element to its `qcc.static`.
 static std::optional<SmallVector<int64_t>> getQubitIndices(TypedValue<VectorType> qubitVector) {
   SmallVector<int64_t> indices;
   for (int64_t index = 0; index < qubitVector.getType().getNumElements(); ++index) {
-    qco::StaticOp staticOp = getStaticOpAncestor(qubitVector, index);
-    if (!staticOp) {
+    std::optional<int64_t> qubit = getStaticQubitIndex(qubitVector, index);
+    if (!qubit) {
       return std::nullopt;
     }
-    indices.push_back(static_cast<int64_t>(staticOp.getIndex()));
+    indices.push_back(*qubit);
   }
 
   return indices;
@@ -111,7 +116,7 @@ static std::optional<ResolvedQubits> resolveQubitVector(Operation* op, TypedValu
                                                         const HiSEPQMachine& machine, Diagnostics& diags) {
   auto indices = getQubitIndices(qubits);
   if (!indices) {
-    (void)diags.report(op, "expects every qubit vector element to trace back to a 'qco.static' operation");
+    (void)diags.report(op, "expects every qubit vector element to trace back to a 'qcc.static' operation");
     return std::nullopt;
   }
 
@@ -144,17 +149,19 @@ static StringRef getSingleGateIntrinsic(SingleGateKind gate) {
     return "llvm.riscv.qv.h";
   case SingleGateKind::X:
     return "llvm.riscv.qv.x";
-  case SingleGateKind::I:
   case SingleGateKind::Y:
   case SingleGateKind::Z:
   case SingleGateKind::S:
   case SingleGateKind::Sdg:
   case SingleGateKind::T:
   case SingleGateKind::Tdg:
+  case SingleGateKind::SX:
+  case SingleGateKind::SXdg:
   case SingleGateKind::RX:
   case SingleGateKind::RY:
   case SingleGateKind::RZ:
   case SingleGateKind::UZXZ:
+  case SingleGateKind::UZYZ:
     return {};
   }
   return {};
@@ -167,9 +174,13 @@ static StringRef getPairGateIntrinsic(PairGateKind gate) {
     return "llvm.riscv.qv.cx";
   case PairGateKind::CY:
   case PairGateKind::CZ:
+  case PairGateKind::SWAP:
   case PairGateKind::iSWAP:
-  case PairGateKind::RZZ:
   case PairGateKind::CP:
+  case PairGateKind::CRZ:
+  case PairGateKind::RXX:
+  case PairGateKind::RYY:
+  case PairGateKind::RZZ:
     return {};
   }
   return {};
@@ -194,6 +205,14 @@ static SmallVector<Value> buildScalarOperands(OpBuilder& builder, Location loc, 
   return operands;
 }
 
+/// Calls the QV `intrinsic` on `qubits`, for the intrinsics with one qubit vector and a tag (single-qubit gates, `mz`).
+static void createQubitsIntrinsic(OpBuilder& builder, Location loc, StringRef intrinsic, const ResolvedQubits& qubits) {
+  SmallVector<Value> args{buildQubitVector(builder, loc, qubits)};
+  llvm::append_range(args, buildScalarOperands(builder, loc, static_cast<unsigned>(qubits.indices.size()),
+                                               /*withTag=*/true));
+  LLVM::CallIntrinsicOp::create(builder, loc, builder.getStringAttr(intrinsic), args);
+}
+
 namespace {
 
 /// Rewrites `qvec.single` into `llvm.call_intrinsic "llvm.riscv.qv.{h,x,...}"`.
@@ -212,11 +231,7 @@ struct SingleOpLowering : public OpRewritePattern<SingleOp> {
       return failure();
     }
 
-    SmallVector<Value> args{buildQubitVector(rewriter, op.getLoc(), *qubits)};
-    llvm::append_range(args, buildScalarOperands(rewriter, op.getLoc(), static_cast<unsigned>(qubits->indices.size()),
-                                                 /*withTag=*/true));
-
-    LLVM::CallIntrinsicOp::create(rewriter, op.getLoc(), rewriter.getStringAttr(intrinsic), args);
+    createQubitsIntrinsic(rewriter, op.getLoc(), intrinsic, *qubits);
 
     // The instruction acts in place, so what comes out is what went in.
     rewriter.replaceOp(op, ValueRange{op.getQubitsIn()});
@@ -263,26 +278,26 @@ struct PairOpLowering : public OpRewritePattern<PairOp> {
   HiSEPQMachine machine;
 };
 
-/// Rewrites `qvec.mz` into `llvm.call_intrinsic "llvm.riscv.qv.mz"` plus a poison result.
+/// Rewrites `qvec.measure z` into `llvm.call_intrinsic "llvm.riscv.qv.mz"` plus a poison result.
 ///
 /// TODO: The QISA specifies no way to read a measurement back, so the classical bits are lost
 /// here. Replace the poison with a real read once `IntrinsicsRISCVXQV.td` gains an intrinsic for
 /// it. Until then a program that branches on a measurement silently gets garbage.
-struct MZOpLowering : public OpRewritePattern<MZOp> {
-  MZOpLowering(MLIRContext* ctx, Diagnostics* diags, HiSEPQMachine machine)
+struct MeasureOpLowering : public OpRewritePattern<MeasureOp> {
+  MeasureOpLowering(MLIRContext* ctx, Diagnostics* diags, HiSEPQMachine machine)
       : OpRewritePattern(ctx), diags(diags), machine(machine) {}
 
-  LogicalResult matchAndRewrite(MZOp op, PatternRewriter& rewriter) const override {
+  LogicalResult matchAndRewrite(MeasureOp op, PatternRewriter& rewriter) const override {
+    if (op.getBasis() != qcc::Basis::Z) {
+      return diags->report(op, "basis '" + stringifyBasis(op.getBasis()) + "' has no HiSEP-Q intrinsic");
+    }
+
     auto qubits = resolveQubitVector(op, op.getQubitsIn(), machine, *diags);
     if (!qubits) {
       return failure();
     }
 
-    SmallVector<Value> args{buildQubitVector(rewriter, op.getLoc(), *qubits)};
-    llvm::append_range(args, buildScalarOperands(rewriter, op.getLoc(), static_cast<unsigned>(qubits->indices.size()),
-                                                 /*withTag=*/true));
-
-    LLVM::CallIntrinsicOp::create(rewriter, op.getLoc(), rewriter.getStringAttr("llvm.riscv.qv.mz"), args);
+    createQubitsIntrinsic(rewriter, op.getLoc(), "llvm.riscv.qv.mz", *qubits);
 
     Value bits = LLVM::PoisonOp::create(rewriter, op.getLoc(), op.getBits().getType()); // Workaround
     rewriter.replaceOp(op, ValueRange{op.getQubitsIn(), bits});
@@ -291,6 +306,96 @@ struct MZOpLowering : public OpRewritePattern<MZOp> {
 
   Diagnostics* diags;
   HiSEPQMachine machine;
+};
+
+/// Rewrites `qvec.reset z`, which has no instruction of its own, into `llvm.call_intrinsic "llvm.riscv.qv.mz"`
+/// followed by an `llvm.riscv.qv.x` on each qubit measured in |1⟩.
+///
+/// TODO: The flips branch on poison, as the measured bits are lost (see `MeasureOpLowering`).
+struct ResetOpLowering : public OpRewritePattern<ResetOp> {
+  ResetOpLowering(MLIRContext* ctx, Diagnostics* diags, HiSEPQMachine machine)
+      : OpRewritePattern(ctx), diags(diags), machine(machine) {}
+
+  LogicalResult matchAndRewrite(ResetOp op, PatternRewriter& rewriter) const override {
+    if (op.getBasis() != qcc::Basis::Z) {
+      return diags->report(op, "basis '" + stringifyBasis(op.getBasis()) + "' has no HiSEP-Q lowering");
+    }
+
+    auto qubits = resolveQubitVector(op, op.getQubitsIn(), machine, *diags);
+    if (!qubits) {
+      return failure();
+    }
+
+    Location loc = op.getLoc();
+    createQubitsIntrinsic(rewriter, loc, "llvm.riscv.qv.mz", *qubits);
+    auto bitsType = VectorType::get({static_cast<int64_t>(qubits->indices.size())}, rewriter.getI1Type());
+    Value bits = LLVM::PoisonOp::create(rewriter, loc, bitsType); // Workaround, see `MeasureOpLowering`
+
+    // Each qubit has a bit of its own, hence a flip of its own.
+    const VectorType singleType = *machine.qubitVectorType(rewriter.getContext(), 1);
+    for (auto [position, index] : llvm::enumerate(qubits->indices)) {
+      Value bit = vector::ExtractOp::create(rewriter, loc, bits, static_cast<int64_t>(position));
+      scf::IfOp::create(rewriter, loc, bit, [&](OpBuilder& builder, Location thenLoc) {
+        createQubitsIntrinsic(builder, thenLoc, "llvm.riscv.qv.x",
+                              ResolvedQubits{.indices = {index}, .qvType = singleType});
+        scf::YieldOp::create(builder, thenLoc);
+      });
+    }
+
+    // The instructions act in place, so what comes out is what went in.
+    rewriter.replaceOp(op, ValueRange{op.getQubitsIn()});
+    return success();
+  }
+
+  Diagnostics* diags;
+  HiSEPQMachine machine;
+};
+
+/// Drops the `scf.if` results that carry qubits nobody uses anymore.
+///
+/// The instructions act on the qubits in place, so once the `qvec` ops are lowered, the qubit values only remain to be
+/// yielded through `scf.if`. Dropping these results lets them die, the `qcc.static` that creates them included: it may
+/// hand out each qubit only once and must not outlive the pass, as `convert-scf-to-cf` splits its function into blocks.
+///
+/// TODO: Temporary. Remove once `qvec` uses `qcf.if`, as then no `scf.if` yields qubits anymore.
+struct IfOpQubitResultsErasure : public OpRewritePattern<scf::IfOp> {
+  using OpRewritePattern::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(scf::IfOp op, PatternRewriter& rewriter) const override {
+    auto isDroppable = [](OpResult result) {
+      return result.use_empty() && qcc::isQubitOrQubitVector(result.getType());
+    };
+    if (llvm::none_of(op.getResults(), isDroppable)) {
+      return failure();
+    }
+
+    SmallVector<unsigned> kept;
+    SmallVector<Type> keptTypes;
+    for (OpResult result : op.getResults()) {
+      if (!isDroppable(result)) {
+        kept.push_back(result.getResultNumber());
+        keptTypes.push_back(result.getType());
+      }
+    }
+
+    // An `scf.if` with results has both branches.
+    auto newOp = scf::IfOp::create(rewriter, op.getLoc(), keptTypes, op.getCondition());
+    rewriter.inlineRegionBefore(op.getThenRegion(), newOp.getThenRegion(), newOp.getThenRegion().end());
+    rewriter.inlineRegionBefore(op.getElseRegion(), newOp.getElseRegion(), newOp.getElseRegion().end());
+    for (scf::YieldOp yield : {newOp.thenYield(), newOp.elseYield()}) {
+      SmallVector<Value> operands =
+          llvm::map_to_vector(kept, [&](unsigned number) { return yield.getOperand(number); });
+      rewriter.modifyOpInPlace(yield, [&] { yield->setOperands(operands); });
+    }
+
+    // The dropped results have no uses, so they need no replacement.
+    SmallVector<Value> replacements(op.getNumResults());
+    for (auto [number, result] : llvm::zip_equal(kept, newOp.getResults())) {
+      replacements[number] = result;
+    }
+    rewriter.replaceOp(op, replacements);
+    return success();
+  }
 };
 
 /// Erases an `aux` output recording op.
@@ -338,8 +443,8 @@ protected:
 
     Diagnostics diags;
     RewritePatternSet patterns(ctx);
-    patterns.add<SingleOpLowering, PairOpLowering, MZOpLowering>(ctx, &diags, machine);
-    patterns.add<RecordOpErasure<aux::RecordIntOp>, RecordOpErasure<aux::RecordMemRefOp>>(ctx);
+    patterns.add<SingleOpLowering, PairOpLowering, MeasureOpLowering, ResetOpLowering>(ctx, &diags, machine);
+    patterns.add<IfOpQubitResultsErasure, RecordOpErasure<aux::RecordIntOp>, RecordOpErasure<aux::RecordMemRefOp>>(ctx);
 
     if (failed(applyPatternsGreedily(moduleOp, std::move(patterns))) || diags.hadError) {
       signalPassFailure();

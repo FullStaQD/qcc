@@ -29,6 +29,8 @@
 
 using namespace mlir;
 using namespace qcc::qvec;
+using qcc::PairGateKind;
+using qcc::SingleGateKind;
 
 namespace {
 
@@ -93,14 +95,46 @@ struct PairToRZZ final : OpRewritePattern<PairOp> {
       applySingle(SingleGateKind::RZ, rhs, half);
       break;
     }
-    case PairGateKind::iSWAP: {
-      // iswap = swap * cz * (s (x) s), with swap = cx(a, b) * cx(b, a) * cx(a, b)
-      applySingle(SingleGateKind::S, lhs);
-      applySingle(SingleGateKind::S, rhs);
-      applyPair(PairGateKind::CZ, lhs, rhs);
+    case PairGateKind::CRZ: {
+      // crz(t) = (1 (x) rz(t/2)) * rzz(-t/2)
+      Value theta = op.getParams().front();
+      applyPair(PairGateKind::RZZ, lhs, rhs, scaleAngles(rewriter, loc, theta, -0.5));
+      applySingle(SingleGateKind::RZ, rhs, scaleAngles(rewriter, loc, theta, 0.5));
+      break;
+    }
+    case PairGateKind::RXX: {
+      // rxx(t) = (h (x) h) * rzz(t) * (h (x) h)
+      applySingle(SingleGateKind::H, lhs);
+      applySingle(SingleGateKind::H, rhs);
+      applyPair(PairGateKind::RZZ, lhs, rhs, op.getParams().front());
+      applySingle(SingleGateKind::H, lhs);
+      applySingle(SingleGateKind::H, rhs);
+      break;
+    }
+    case PairGateKind::RYY: {
+      // ryy(t) = (rx(-pi/2) (x) rx(-pi/2)) * rzz(t) * (rx(pi/2) (x) rx(pi/2))
+      Value quarter = splat(pi / 2);
+      applySingle(SingleGateKind::RX, lhs, quarter);
+      applySingle(SingleGateKind::RX, rhs, quarter);
+      applyPair(PairGateKind::RZZ, lhs, rhs, op.getParams().front());
+      Value minusQuarter = splat(-pi / 2);
+      applySingle(SingleGateKind::RX, lhs, minusQuarter);
+      applySingle(SingleGateKind::RX, rhs, minusQuarter);
+      break;
+    }
+    case PairGateKind::SWAP: {
+      // swap = cx(a, b) * cx(b, a) * cx(a, b); it does not exchange the lanes, only the states.
       applyPair(PairGateKind::CX, lhs, rhs);
       applyPair(PairGateKind::CX, rhs, lhs); // NOLINT(readability-suspicious-call-argument)
       applyPair(PairGateKind::CX, lhs, rhs);
+      break;
+    }
+    case PairGateKind::iSWAP: {
+      // iswap = swap * cz * (s (x) s)
+      applySingle(SingleGateKind::S, lhs);
+      applySingle(SingleGateKind::S, rhs);
+      applyPair(PairGateKind::CZ, lhs, rhs);
+      applyPair(PairGateKind::SWAP, lhs, rhs);
       break;
     }
     }

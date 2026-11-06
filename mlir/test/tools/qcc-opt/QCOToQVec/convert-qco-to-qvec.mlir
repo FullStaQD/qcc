@@ -1,6 +1,6 @@
 // RUN: qcc-opt %s -convert-qco-to-qvec --split-input-file | FileCheck %s
 
-// The pass is a 1:1 translation using vector<1x!qco.qubit> to represent each qubit. Hence it is expected that the IR
+// The pass is a 1:1 translation using vector<1x!qcc.qubit> to represent each qubit. Hence it is expected that the IR
 // looks bloated. Vectorization happens in another pass and is beneficial only if program allows parallelism (the
 // test cases in this file tend not to).
 
@@ -20,13 +20,13 @@ func.func @single_gates() {
 }
 
 // CHECK-NOT:     qco.h
-// CHECK:         %[[Q0:.*]] = qco.static 0
+// CHECK:         %[[Q0:.*]] = qcc.static [0] : !qcc.qubit
 
-// CHECK:         %[[A0:.*]] = vector.from_elements %[[Q0]] : vector<1x!qco.qubit>
-// CHECK:         %[[A1:.*]] = qvec.single h %[[A0]] : vector<1x!qco.qubit>
-// CHECK:         %[[A2:.*]] = vector.extract %[[A1]][0] : !qco.qubit from vector<1x!qco.qubit>
+// CHECK:         %[[A0:.*]] = vector.from_elements %[[Q0]] : vector<1x!qcc.qubit>
+// CHECK:         %[[A1:.*]] = qvec.single h %[[A0]] : vector<1x!qcc.qubit>
+// CHECK:         %[[A2:.*]] = vector.extract %[[A1]][0] : !qcc.qubit from vector<1x!qcc.qubit>
 
-// CHECK:         %[[A3:.*]] = vector.from_elements %[[A2]] : vector<1x!qco.qubit>
+// CHECK:         %[[A3:.*]] = vector.from_elements %[[A2]] : vector<1x!qcc.qubit>
 // CHECK:         qvec.single x %[[A3]]
 // CHECK:         vector.extract
 
@@ -36,7 +36,9 @@ func.func @single_gates() {
 // CHECK:         qvec.single sdg
 // CHECK:         qvec.single t
 // CHECK:         qvec.single tdg
-// CHECK:         qvec.single i
+// `qvec` has no identity gate, so `qco.id` is dropped.
+// CHECK-NOT:     qvec.single
+// CHECK:         return
 
 // -----
 
@@ -67,13 +69,12 @@ func.func @controlled_gates() {
 // CHECK-NOT:     qco.ctrl
 // CHECK-NOT:     qco.yield
 
-// CHECK:         %[[C:.*]] = qco.static 0
-// CHECK:         %[[T:.*]] = qco.static 1
-// CHECK-DAG:     %[[C0:.*]] = vector.from_elements %[[C]] : vector<1x!qco.qubit>
-// CHECK-DAG:     %[[T0:.*]] = vector.from_elements %[[T]] : vector<1x!qco.qubit>
-// CHECK:         %[[C1:.*]], %[[T1:.*]] = qvec.pair cx %[[C0]], %[[T0]] : vector<1x!qco.qubit>
-// CHECK-DAG:     %[[C2:.*]] = vector.extract %[[C1]][0] : !qco.qubit from vector<1x!qco.qubit>
-// CHECK-DAG:     %[[T2:.*]] = vector.extract %[[T1]][0] : !qco.qubit from vector<1x!qco.qubit>
+// CHECK:         %[[Q:.*]]:2 = qcc.static [0, 1] : !qcc.qubit
+// CHECK-DAG:     %[[C0:.*]] = vector.from_elements %[[Q]]#0 : vector<1x!qcc.qubit>
+// CHECK-DAG:     %[[T0:.*]] = vector.from_elements %[[Q]]#1 : vector<1x!qcc.qubit>
+// CHECK:         %[[C1:.*]], %[[T1:.*]] = qvec.pair cx %[[C0]], %[[T0]] : vector<1x!qcc.qubit>
+// CHECK-DAG:     %[[C2:.*]] = vector.extract %[[C1]][0] : !qcc.qubit from vector<1x!qcc.qubit>
+// CHECK-DAG:     %[[T2:.*]] = vector.extract %[[T1]][0] : !qcc.qubit from vector<1x!qcc.qubit>
 
 // CHECK:         qvec.pair cy
 // CHECK:         qvec.pair cz
@@ -88,13 +89,12 @@ func.func @two_qubit_gates() {
     func.return
 }
 
-// CHECK-DAG:     %[[Q0:.*]] = qco.static 0
-// CHECK-DAG:     %[[Q1:.*]] = qco.static 1
-// CHECK-DAG:     %[[A0:.*]] = vector.from_elements %[[Q0]] : vector<1x!qco.qubit>
-// CHECK-DAG:     %[[B0:.*]] = vector.from_elements %[[Q1]] : vector<1x!qco.qubit>
-// CHECK:         %[[A1:.*]], %[[B1:.*]] = qvec.pair iswap %[[A0]], %[[B0]] : vector<1x!qco.qubit>
-// CHECK-DAG:     %[[A2:.*]] = vector.extract %[[A1]][0] : !qco.qubit from vector<1x!qco.qubit>
-// CHECK-DAG:     %[[B2:.*]] = vector.extract %[[B1]][0] : !qco.qubit from vector<1x!qco.qubit>
+// CHECK:         %[[Q:.*]]:2 = qcc.static [0, 1] : !qcc.qubit
+// CHECK-DAG:     %[[A0:.*]] = vector.from_elements %[[Q]]#0 : vector<1x!qcc.qubit>
+// CHECK-DAG:     %[[B0:.*]] = vector.from_elements %[[Q]]#1 : vector<1x!qcc.qubit>
+// CHECK:         %[[A1:.*]], %[[B1:.*]] = qvec.pair iswap %[[A0]], %[[B0]] : vector<1x!qcc.qubit>
+// CHECK-DAG:     %[[A2:.*]] = vector.extract %[[A1]][0] : !qcc.qubit from vector<1x!qcc.qubit>
+// CHECK-DAG:     %[[B2:.*]] = vector.extract %[[B1]][0] : !qcc.qubit from vector<1x!qcc.qubit>
 
 // -----
 
@@ -105,22 +105,32 @@ func.func @measurement() -> i1 {
     func.return %bit : i1
 }
 
-// CHECK:         %[[A0:.*]] = vector.from_elements %{{.*}} : vector<1x!qco.qubit>
-// CHECK:         %[[A1:.*]], %[[BITS:.*]] = qvec.mz %[[A0]] : vector<1x!qco.qubit> -> vector<1xi1>
-// CHECK-DAG:     %[[A2:.*]] = vector.extract %[[A1]][0] : !qco.qubit from vector<1x!qco.qubit>
+// CHECK:         %[[A0:.*]] = vector.from_elements %{{.*}} : vector<1x!qcc.qubit>
+// CHECK:         %[[A1:.*]], %[[BITS:.*]] = qvec.measure z %[[A0]] : vector<1x!qcc.qubit> -> vector<1xi1>
+// CHECK-DAG:     %[[A2:.*]] = vector.extract %[[A1]][0] : !qcc.qubit from vector<1x!qcc.qubit>
 // CHECK-DAG:     %[[BIT:.*]] = vector.extract %[[BITS]][0] : i1 from vector<1xi1>
 // CHECK:         return %[[BIT]] : i1
 
 // -----
 
-// CHECK-LABEL: func.func @static_qubits_survive
-func.func @static_qubits_survive() {
-    %q0 = qco.static 7 : !qco.qubit
-    %h = qco.h %q0 : !qco.qubit -> !qco.qubit
+// The `qco.static` ops of a function become one `qcc.static` at its start, by ascending index, wherever they were.
+
+// CHECK-LABEL: func.func @statics_merge
+func.func @statics_merge() {
+    %q7 = qco.static 7 : !qco.qubit
+    %h = qco.h %q7 : !qco.qubit -> !qco.qubit
+    %q2 = qco.static 2 : !qco.qubit
+    %x = qco.x %q2 : !qco.qubit -> !qco.qubit
     func.return
 }
 
-// CHECK:         qco.static 7 : !qco.qubit
+// CHECK-NOT:     qco.static
+// CHECK:         %[[Q:.*]]:2 = qcc.static [2, 7] : !qcc.qubit
+// CHECK:         %[[A:.*]] = vector.from_elements %[[Q]]#1 : vector<1x!qcc.qubit>
+// CHECK:         qvec.single h %[[A]]
+// CHECK:         %[[B:.*]] = vector.from_elements %[[Q]]#0 : vector<1x!qcc.qubit>
+// CHECK:         qvec.single x %[[B]]
+// CHECK-NOT:     qco.static
 
 // -----
 
@@ -153,15 +163,15 @@ func.func @rotations() {
 
 // The angle is lifted to a one-element vector like the qubit. `p` is `rz` up to a global phase.
 // CHECK:         %[[T:.*]] = arith.constant 5.000000e-01 : f64
-// CHECK:         %[[A0:.*]] = vector.from_elements %{{.*}} : vector<1x!qco.qubit>
+// CHECK:         %[[A0:.*]] = vector.from_elements %{{.*}} : vector<1x!qcc.qubit>
 // CHECK:         %[[T0:.*]] = vector.from_elements %[[T]] : vector<1xf64>
-// CHECK:         %[[A1:.*]] = qvec.single rx(%[[T0]]) %[[A0]] : vector<1x!qco.qubit>, vector<1xf64>
+// CHECK:         %[[A1:.*]] = qvec.single rx(%[[T0]]) %[[A0]] : vector<1xf64>, vector<1x!qcc.qubit>
 // CHECK:         vector.extract %[[A1]][0]
-// CHECK:         qvec.single ry(%{{.*}}) %{{.*}} : vector<1x!qco.qubit>, vector<1xf64>
-// CHECK:         qvec.single rz(%{{.*}}) %{{.*}} : vector<1x!qco.qubit>, vector<1xf64>
-// CHECK:         qvec.single rz(%{{.*}}) %{{.*}} : vector<1x!qco.qubit>, vector<1xf64>
+// CHECK:         qvec.single ry(%{{.*}}) %{{.*}} : vector<1xf64>, vector<1x!qcc.qubit>
+// CHECK:         qvec.single rz(%{{.*}}) %{{.*}} : vector<1xf64>, vector<1x!qcc.qubit>
+// CHECK:         qvec.single rz(%{{.*}}) %{{.*}} : vector<1xf64>, vector<1x!qcc.qubit>
 // CHECK:         %[[T1:.*]] = vector.from_elements %[[T]] : vector<1xf64>
-// CHECK:         qvec.pair rzz(%[[T1]]) %{{.*}}, %{{.*}} : vector<1x!qco.qubit>, vector<1xf64>
+// CHECK:         qvec.pair rzz(%[[T1]]) %{{.*}}, %{{.*}} : vector<1xf64>, vector<1x!qcc.qubit>
 
 // -----
 
@@ -186,17 +196,16 @@ func.func @controlled_phase() {
 }
 
 // CHECK-NOT:     qco.ctrl
+// CHECK:         %[[Q:.*]]:2 = qcc.static [0, 1] : !qcc.qubit
 // CHECK:         %[[T:.*]] = arith.constant 5.000000e-01 : f64
-// CHECK:         %[[C:.*]] = qco.static 0
-// CHECK:         %[[TG:.*]] = qco.static 1
-// CHECK-DAG:     %[[C0:.*]] = vector.from_elements %[[C]] : vector<1x!qco.qubit>
-// CHECK-DAG:     %[[T0:.*]] = vector.from_elements %[[TG]] : vector<1x!qco.qubit>
+// CHECK-DAG:     %[[C0:.*]] = vector.from_elements %[[Q]]#0 : vector<1x!qcc.qubit>
+// CHECK-DAG:     %[[T0:.*]] = vector.from_elements %[[Q]]#1 : vector<1x!qcc.qubit>
 // CHECK-DAG:     %[[P0:.*]] = vector.from_elements %[[T]] : vector<1xf64>
-// CHECK:         %[[C1:.*]], %[[T1:.*]] = qvec.pair cp(%[[P0]]) %[[C0]], %[[T0]] : vector<1x!qco.qubit>, vector<1xf64>
+// CHECK:         %[[C1:.*]], %[[T1:.*]] = qvec.pair cp(%[[P0]]) %[[C0]], %[[T0]] : vector<1xf64>, vector<1x!qcc.qubit>
 // CHECK:         %[[C2:.*]] = vector.extract %[[C1]][0]
-// CHECK:         %[[C3:.*]] = vector.from_elements %[[C2]] : vector<1x!qco.qubit>
+// CHECK:         %[[C3:.*]] = vector.from_elements %[[C2]] : vector<1x!qcc.qubit>
 // CHECK:         %[[P1:.*]] = vector.from_elements %[[T]] : vector<1xf64>
-// CHECK:         qvec.single rz(%[[P1]]) %[[C3]] : vector<1x!qco.qubit>, vector<1xf64>
+// CHECK:         qvec.single rz(%[[P1]]) %[[C3]] : vector<1xf64>, vector<1x!qcc.qubit>
 
 // -----
 
@@ -217,10 +226,11 @@ func.func @global_phase_dropped() {
 // CHECK-LABEL: func.func @conditional
 func.func @conditional(%cond: i1) {
     %q0 = qco.static 0 : !qco.qubit
-    %q1 = qco.if %cond args(%a0 = %q0) -> (!qco.qubit) {
+    %h0 = qco.h %q0 : !qco.qubit -> !qco.qubit
+    %q1 = qco.if %cond args(%a0 = %h0) -> (!qco.qubit) {
       %x = qco.x %a0 : !qco.qubit -> !qco.qubit
       qco.yield %x : !qco.qubit
-    } else args(%a0 = %q0) {
+    } else args(%a0 = %h0) {
       qco.yield %a0 : !qco.qubit
     }
     %h = qco.h %q1 : !qco.qubit -> !qco.qubit
@@ -228,16 +238,17 @@ func.func @conditional(%cond: i1) {
 }
 
 // CHECK-NOT:     qco.if
-// CHECK:         %[[Q0:.*]] = qco.static 0
-// CHECK:         %[[Q1:.*]] = scf.if %{{.*}} -> (!qco.qubit) {
-// CHECK:           %[[V:.*]] = vector.from_elements %[[Q0]] : vector<1x!qco.qubit>
-// CHECK:           %[[X:.*]] = qvec.single x %[[V]] : vector<1x!qco.qubit>
+// CHECK:         qvec.single h
+// CHECK:         %[[H0:.*]] = vector.extract
+// CHECK:         %[[Q1:.*]] = scf.if %{{.*}} -> (!qcc.qubit) {
+// CHECK:           %[[V:.*]] = vector.from_elements %[[H0]] : vector<1x!qcc.qubit>
+// CHECK:           %[[X:.*]] = qvec.single x %[[V]] : vector<1x!qcc.qubit>
 // CHECK:           %[[X0:.*]] = vector.extract %[[X]][0]
-// CHECK:           scf.yield %[[X0]] : !qco.qubit
+// CHECK:           scf.yield %[[X0]] : !qcc.qubit
 // CHECK:         } else {
-// CHECK:           scf.yield %[[Q0]] : !qco.qubit
+// CHECK:           scf.yield %[[H0]] : !qcc.qubit
 // CHECK:         }
-// CHECK:         vector.from_elements %[[Q1]] : vector<1x!qco.qubit>
+// CHECK:         vector.from_elements %[[Q1]] : vector<1x!qcc.qubit>
 // CHECK:         qvec.single h
 
 // -----
@@ -245,27 +256,26 @@ func.func @conditional(%cond: i1) {
 // CHECK-LABEL: func.func @conditional_with_classical_result
 func.func @conditional_with_classical_result(%cond: i1, %lhs: i64, %rhs: i64) -> i64 {
     %q0 = qco.static 0 : !qco.qubit
-    %pick, %q1 = qco.if %cond args(%a0 = %q0) -> (i64, !qco.qubit) {
+    %h0 = qco.h %q0 : !qco.qubit -> !qco.qubit
+    %pick, %q1 = qco.if %cond args(%a0 = %h0) -> (i64, !qco.qubit) {
       %x = qco.x %a0 : !qco.qubit -> !qco.qubit
       qco.yield %lhs, %x : i64, !qco.qubit
-    } else args(%a0 = %q0) {
+    } else args(%a0 = %h0) {
       qco.yield %rhs, %a0 : i64, !qco.qubit
     }
     qco.sink %q1 : !qco.qubit
     func.return %pick : i64
 }
 
-// CHECK:         %[[RES:.*]]:2 = scf.if %{{.*}} -> (i64, !qco.qubit) {
+// CHECK:         %[[RES:.*]]:2 = scf.if %{{.*}} -> (i64, !qcc.qubit) {
 // CHECK:           qvec.single x
-// CHECK:           scf.yield %{{.*}}, %{{.*}} : i64, !qco.qubit
+// CHECK:           scf.yield %{{.*}}, %{{.*}} : i64, !qcc.qubit
 // CHECK:         } else {
-// CHECK:           scf.yield %{{.*}}, %{{.*}} : i64, !qco.qubit
+// CHECK:           scf.yield %{{.*}}, %{{.*}} : i64, !qcc.qubit
 // CHECK:         }
 // CHECK:         return %[[RES]]#0 : i64
 
 // -----
-
-// Until QVec and HiSEP-Q have a reset, it is emulated by flipping the qubit if it measures |1>.
 
 // CHECK-LABEL: func.func @reset
 func.func @reset() {
@@ -275,14 +285,8 @@ func.func @reset() {
     func.return
 }
 
-// CHECK:         %[[V:.*]] = vector.from_elements %{{.*}} : vector<1x!qco.qubit>
-// CHECK:         %[[M:.*]], %[[BITS:.*]] = qvec.mz %[[V]] : vector<1x!qco.qubit> -> vector<1xi1>
-// CHECK:         %[[ONE:.*]] = vector.extract %[[BITS]][0] : i1 from vector<1xi1>
-// CHECK:         %[[R:.*]] = scf.if %[[ONE]] -> (vector<1x!qco.qubit>) {
-// CHECK:           %[[F:.*]] = qvec.single x %[[M]] : vector<1x!qco.qubit>
-// CHECK:           scf.yield %[[F]] : vector<1x!qco.qubit>
-// CHECK:         } else {
-// CHECK:           scf.yield %[[M]] : vector<1x!qco.qubit>
-// CHECK:         }
-// CHECK:         vector.extract %[[R]][0]
-// CHECK:         qvec.single x
+// CHECK:         %[[V:.*]] = vector.from_elements %{{.*}} : vector<1x!qcc.qubit>
+// CHECK:         %[[R:.*]] = qvec.reset z %[[V]] : vector<1x!qcc.qubit>
+// CHECK:         %[[Q:.*]] = vector.extract %[[R]][0] : !qcc.qubit from vector<1x!qcc.qubit>
+// CHECK:         %[[W:.*]] = vector.from_elements %[[Q]] : vector<1x!qcc.qubit>
+// CHECK:         qvec.single x %[[W]]

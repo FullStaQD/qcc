@@ -8,11 +8,11 @@ add_mlir_conversion_library(
   # Dialects
   MLIRArithDialect
   MLIRFuncDialect
-  MLIRQCODialect
   MLIRVectorDialect
   QCCAuxDialect
   QCCMagicDevice
   QCCMagicDialect
+  QCCQccDialect
   QCCQVecDialect
   QCCQVecTransforms
   # Core MLIR

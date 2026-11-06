@@ -4,14 +4,12 @@ add_mlir_dialect_library(
   DEPENDS
   QCCQVecDialectIncGen
   QCCQVecAttrsIncGen
-  QCCQVecInterfacesIncGen
   QCCQVecOpsIncGen
   LINK_LIBS
   PRIVATE
   MLIRIR
   MLIRSupport
   MLIRSideEffectInterfaces
-  MLIRQCODialect
-  MLIRQTensorDialect
   MLIRSCFDialect
-  MLIRVectorDialect)
+  MLIRVectorDialect
+  QCCQccDialect)

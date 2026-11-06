@@ -22,7 +22,7 @@ def ConvertQVecToMagic : Pass<"convert-qvec-to-magic", "mlir::func::FuncOp"> {
 
       - `single u_zxz` / `single rz` become one `magic.zxz` / `magic.rz` per trap.
       - `global zz` becomes one `magic.active_zz` per trap and one `magic.inter_trap_zz` per coupling across traps.
-      - `mz` becomes one `magic.mzd` per trap.
+      - `measure z` becomes one `magic.mzd` per trap.
   }];
 
   let dependentDialects = [
