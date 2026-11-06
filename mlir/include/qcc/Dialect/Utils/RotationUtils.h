@@ -9,6 +9,8 @@
 
 #pragma once
 
+#include "llvm/Support/raw_ostream.h"
+
 #include <array>
 #include <cassert>
 #include <complex>
@@ -40,6 +42,24 @@ public:
     return elements[(2 * row) + col];
   }
 
+  /// Elementwise addition.
+  Matrix2x2& operator+=(const Matrix2x2& rhs);
+
+  /// Elementwise subtraction.
+  Matrix2x2& operator-=(const Matrix2x2& rhs);
+
+  /// Scalar multiplication.
+  Matrix2x2& operator*=(Complex scalar);
+
+  /// The conjugate transpose.
+  [[nodiscard]] Matrix2x2 adjoint() const;
+
+  /// The sum of the diagonal elements.
+  [[nodiscard]] Complex trace() const;
+
+  /// The Hilbert-Schmidt (Frobenius) norm, i.e. the l2 norm of the elements as a vector.
+  [[nodiscard]] double hilbertSchmidtNorm() const;
+
 private:
   std::array<Complex, 4> elements;
 };
@@ -59,6 +79,18 @@ Matrix2x2 zxzMatrix(const ZXZAngles& angles);
 
 /// The matrix product `lhs * rhs`, i.e. `rhs` is applied first.
 Matrix2x2 operator*(const Matrix2x2& lhs, const Matrix2x2& rhs);
+
+/// `scalar` times `matrix`.
+Matrix2x2 operator*(Complex scalar, Matrix2x2 matrix);
+
+/// The elementwise sum `lhs + rhs`.
+Matrix2x2 operator+(Matrix2x2 lhs, const Matrix2x2& rhs);
+
+/// The elementwise difference `lhs - rhs`.
+Matrix2x2 operator-(Matrix2x2 lhs, const Matrix2x2& rhs);
+
+/// Prints `matrix` as `[[m00, m01], [m10, m11]]` with elements `(re, im)`.
+llvm::raw_ostream& operator<<(llvm::raw_ostream& os, const Matrix2x2& matrix);
 
 /// The ZXZ angles of `unitary`, up to a global phase, each wrapped into (-pi, pi]. `unitary` must be unitary.
 ///
