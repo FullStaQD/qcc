@@ -11,9 +11,11 @@
 #include "qcc/Conversion/Aux_/AuxOutputRecording.h"
 #include "qcc/Conversion/Aux_/AuxUnpackRecordInt.h"
 #include "qcc/Conversion/JaspToQC/JaspToQC.h"
+#include "qcc/Conversion/OQ3ToQRef/OQ3ToQRef.h"
 #include "qcc/Conversion/QCOToQVec/QCOToQVec.h"
 #include "qcc/Conversion/QCToQRef/QCToQRef.h"
 #include "qcc/Conversion/QCircToQRef/QCircToQRef.h"
+#include "qcc/Conversion/QRefToOQ3/QRefToOQ3.h"
 #include "qcc/Conversion/QRefToQCirc/QRefToQCirc.h"
 #include "qcc/Conversion/QVecToMagic/QVecToMagic.h"
 #include "qcc/Conversion/ToHiSEPQ/ToHiSEPQ.h"
@@ -133,6 +135,8 @@ int main(int argc, char** argv) {
   qcc::registerConvertQCToQRef();
   qcc::registerConvertQRefToQCirc();
   qcc::registerConvertQCircToQRef();
+  qcc::registerConvertOQ3ToQRef();
+  qcc::registerConvertQRefToOQ3();
   qcc::registerConvertQVecToMagic();
   qcc::registerConvertQVecToHiSEPQIntrinsics();
   qcc::registerQVecMerge();

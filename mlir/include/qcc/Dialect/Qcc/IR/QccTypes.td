@@ -68,6 +68,7 @@ def Qcc_QubitRefType : TypeDef<Qcc_Dialect, "QubitRef"> {
     }];
 }
 
+// TODO: Move this to OQ3, qcc angle types should have specified precision.
 def Qcc_AngleType : TypeDef<Qcc_Dialect, "Angle", [Qcc_ClassicalTypeInterface]> {
   let mnemonic = "angle";
   let summary = "angle of unspecified precision";
