@@ -158,7 +158,8 @@ def QVecLayer : Pass<"qvec-layer", "mlir::ModuleOp"> {
       strictly alternating, followed by at most one wide `single rz` (diagonal rotations that never met a `u_zxz`),
       then one `measure z` per measured vector of the input and finally the classical operations of the input (e.g.
       `aux.record_int`) in their original order. Qubit vectors are rebuilt with `vector.from_elements` /
-      `vector.extract` from the `qcc.static` of the function, so the static provenance of every lane is kept.
+      `vector.extract` from one fresh `qcc.static` of the qubits the function uses, so the static provenance of every
+      lane is kept.
 
       The schedule is greedy and commutation-aware: diagonal gates (`rz`, `rzz`, `zz`) commute with each other and
       gates on distinct qubits commute; nothing else does. An `rzz` / `zz` joins the latest block such that only
