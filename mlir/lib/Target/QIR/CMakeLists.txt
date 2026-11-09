@@ -1,9 +1,6 @@
 add_mlir_library(
   QCCTargetQIR
   QIRTarget.cpp
-  DEPENDS
-  AuxOutputRecordingIncGen
-  QCCToQIRIncGen
   LINK_LIBS
   MLIRPass
   MLIRTransforms

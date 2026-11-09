@@ -1,10 +1,6 @@
 add_mlir_dialect_library(
   QCCJaspDialect
   JaspDialect.cpp
-  DEPENDS
-  QCCJaspDialectIncGen
-  QCCJaspTypesIncGen
-  QCCJaspOpsIncGen
   LINK_LIBS
   PRIVATE
   MLIRIR

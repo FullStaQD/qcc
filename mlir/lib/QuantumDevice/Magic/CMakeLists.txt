@@ -1,13 +1,6 @@
 add_mlir_library(
   QCCQuantumDeviceMagic
   MagicPipeline.cpp
-  DEPENDS
-  AuxOutputRecordingIncGen
-  AuxUnpackRecordIntIncGen
-  QCCMagicTransformsIncGen
-  QCCQCOToQVecIncGen
-  QCCQVecToMagicIncGen
-  QCCQVecTransformsIncGen
   LINK_LIBS
   MLIRPass
   MLIRTransforms
