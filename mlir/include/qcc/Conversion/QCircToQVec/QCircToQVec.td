@@ -21,6 +21,8 @@ def ConvertQCircToQVec : Pass<"convert-qcirc-to-qvec", "mlir::func::FuncOp"> {
       - `qcf.if` becomes `scf.if`, which captures the bound qubits. Its qubit results stay, so that later ops on these
         qubits stay ordered after it.
 
+      TODO: In the near future `qcf.if` stays and is not converted to `scf.if`.
+
       Precondition: only `qcc.static`, `qcirc` and `qcf` ops use qubits.
 
       Example:

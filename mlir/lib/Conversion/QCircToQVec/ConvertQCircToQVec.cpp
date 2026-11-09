@@ -188,7 +188,8 @@ protected:
     const WalkResult unsupported = getOperation()->walk<WalkOrder::PreOrder>([&](Operation* op) {
       if (!isa<StaticOp>(op) && !isa_and_present<qcirc::QCircDialect, qcf::QCFDialect>(op->getDialect()) &&
           holds(op, isQubitOrQubitVector)) {
-        op->emitOpError() << "is not supported by " << getArgument() << " on qubits";
+        op->emitOpError() << "uses qubits, but " << getArgument()
+                          << " expects only 'qcc.static', 'qcirc' and 'qcf' ops to use qubits";
         return WalkResult::interrupt();
       }
       return WalkResult::advance();
