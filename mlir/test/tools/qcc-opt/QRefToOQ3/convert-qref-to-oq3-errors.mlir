@@ -56,7 +56,7 @@ func.func @main() attributes {qcc.entry_point} {
 
 func.func @main() attributes {qcc.entry_point} {
   // expected-error @below {{non-finite constant cannot be converted to OpenQASM}}
-  %c = arith.constant 0x7FF0000000000000 : f64
+  %c = arith.constant 0x7FF0000000000000 : f64 // +inf
   return
 }
 

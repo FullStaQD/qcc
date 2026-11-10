@@ -35,7 +35,7 @@
 // CHECK-NEXT:    qref.single u_zyz(%[[B]], %[[HALF_PI]], %[[A]]) %[[Q]] : f64, !qcc.qubit_ref
 // CHECK-NEXT:    return
 module attributes {oq3.version = #oq3.version<3, 1>} {
-  func.func @main() attributes {qcc.entry_point} {
+  func.func @stdgates() attributes {qcc.entry_point} {
     oq3.include "stdgates.inc" id 0
     %0 = oq3.qubit_decl "q" : !qcc.qubit_ref
     %1 = oq3.qubit_decl "r" : !qcc.qubit_ref
