@@ -27,7 +27,7 @@ def ConvertQRefToOQ3 : Pass<"convert-qref-to-oq3", "mlir::ModuleOp"> {
       %q = qcc.alloc : !qcc.qubit_ref
       qref.single h %q : !qcc.qubit_ref
       %m = qref.measure z %q : !qcc.qubit_ref -> i1
-      
+
       oq3.include "stdgates.inc" id 0
       %q = oq3.qubit_decl "q0" : !qcc.qubit_ref
       oq3.gate_call @h [%q : !qcc.qubit_ref]

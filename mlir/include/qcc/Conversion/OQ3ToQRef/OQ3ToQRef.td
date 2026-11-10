@@ -36,7 +36,7 @@ def ConvertOQ3ToQRef : Pass<"convert-oq3-to-qref", "mlir::ModuleOp"> {
       %c = oq3.declare "c" : !qcc.ref<!oq3.bit>
       %m = oq3.measure %q : !qcc.qubit_ref -> !oq3.bit
       qcc.ref.store %m, %c : !qcc.ref<!oq3.bit>
-      
+
       %q = qcc.alloc : !qcc.qubit_ref
       qref.single h %q : !qcc.qubit_ref
       %alloca = memref.alloca() : memref<i1>
