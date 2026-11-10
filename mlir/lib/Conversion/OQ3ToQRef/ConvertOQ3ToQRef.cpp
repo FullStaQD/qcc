@@ -189,11 +189,11 @@ static void storeBits(OpBuilder& builder, Location loc, Value value, Value stora
     memref::StoreOp::create(builder, loc, value, storage, ValueRange());
     return;
   }
-  for (int64_t i = 0; i < storageType.getDimSize(0); ++i) {
-    Value position = createIndex(builder, loc, i);
-    Value bit = tensor::ExtractOp::create(builder, loc, value, position);
-    memref::StoreOp::create(builder, loc, bit, storage, position);
-  }
+  buildBroadcast(builder, loc, /*hasRegister=*/true, storageType.getDimSize(0),
+                 [&](OpBuilder& nested, Location nestedLoc, Value position) {
+                   Value bit = tensor::ExtractOp::create(nested, nestedLoc, value, position);
+                   memref::StoreOp::create(nested, nestedLoc, bit, storage, position);
+                 });
 }
 
 /// Reads `storage`, a 0-d or 1-d memref of `i1`, as an `i1` or a `tensor<nxi1>`.
@@ -573,26 +573,80 @@ struct CastLowering final : public OpConversionPattern<CastOp> {
   }
 };
 
+} // namespace
+
 //===----------------------------------------------------------------------===//
 // Patterns: quantum instructions
 //===----------------------------------------------------------------------===//
+
+/// Returns the store that is the only use of `op`'s result and immediately follows it, so that the measurements can
+/// write straight to its storage without being reordered with anything else.
+static RefStoreOp getFusableStore(MeasureOp op) {
+  if (!op->hasOneUse()) {
+    return {};
+  }
+  auto store = dyn_cast<RefStoreOp>(*op->user_begin());
+  if (store == nullptr || store.getValue() != op.getResult() || op->getNextNode() != store.getOperation()) {
+    return {};
+  }
+  return store;
+}
+
+namespace {
 
 struct MeasureLowering final : public OpConversionPattern<MeasureOp> {
   using OpConversionPattern::OpConversionPattern;
 
   LogicalResult matchAndRewrite(MeasureOp op, OpAdaptor adaptor, ConversionPatternRewriter& rewriter) const override {
-    Location loc = op.getLoc();
     Value qubits = adaptor.getQubits();
     if (isa<QubitRefType>(qubits.getType())) {
       rewriter.replaceOpWithNewOp<qref::MeasureOp>(op, Basis::Z, qubits);
       return success();
     }
-    SmallVector<Value> bits;
-    for (int64_t i = 0; i < getNumQubits(qubits); ++i) {
-      bits.push_back(qref::MeasureOp::create(rewriter, loc, Basis::Z, getQubitAt(rewriter, loc, qubits, i)));
+    if (RefStoreOp store = getFusableStore(op)) {
+      // The storage is defined before the measurement, so it has been converted already.
+      Value storage = rewriter.getRemappedValue(store.getRef());
+      if (storage != nullptr && isa<MemRefType>(storage.getType())) {
+        measureInto(rewriter, op.getLoc(), qubits, storage);
+        rewriter.eraseOp(store);
+        rewriter.eraseOp(op);
+        return success();
+      }
     }
-    rewriter.replaceOpWithNewOp<tensor::FromElementsOp>(op, getTypeConverter()->convertType(op.getType()), bits);
+    rewriter.replaceOp(op, measureToTensor(rewriter, op.getLoc(), qubits,
+                                           cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()))));
     return success();
+  }
+
+private:
+  /// Measures every qubit of the register `qubits` via `scf.parallel`, writing each bit straight to `storage`.
+  static void measureInto(OpBuilder& builder, Location loc, Value qubits, Value storage) {
+    buildBroadcast(builder, loc, /*hasRegister=*/true, getNumQubits(qubits),
+                   [&](OpBuilder& nested, Location nestedLoc, Value position) {
+                     Value qubit = getQubitAt(nested, nestedLoc, qubits, position);
+                     Value bit = qref::MeasureOp::create(nested, nestedLoc, Basis::Z, qubit);
+                     memref::StoreOp::create(nested, nestedLoc, bit, storage, position);
+                   });
+  }
+
+  /// Measures every qubit of the register `qubits` via `scf.forall`, collecting the bits in a tensor of type `type`.
+  static Value measureToTensor(OpBuilder& builder, Location loc, Value qubits, RankedTensorType type) {
+    Value init = tensor::EmptyOp::create(builder, loc, type.getShape(), type.getElementType());
+    auto forall = scf::ForallOp::create(builder, loc, ArrayRef<OpFoldResult>{builder.getIndexAttr(type.getDimSize(0))},
+                                        ValueRange{init}, /*mapping=*/std::nullopt);
+    Value position = forall.getInductionVar(0);
+    OpBuilder::InsertionGuard guard(builder);
+    builder.setInsertionPointToStart(forall.getBody());
+    Value qubit = getQubitAt(builder, loc, qubits, position);
+    Value bit = qref::MeasureOp::create(builder, loc, Basis::Z, qubit);
+    Value slice = tensor::FromElementsOp::create(builder, loc, RankedTensorType::get({1}, type.getElementType()),
+                                                 ValueRange{bit});
+    builder.setInsertionPointToStart(forall.getTerminator().getBody());
+    OpFoldResult one = builder.getIndexAttr(1);
+    tensor::ParallelInsertSliceOp::create(builder, loc, slice, forall.getRegionIterArgs().front(),
+                                          ArrayRef<OpFoldResult>{position}, ArrayRef<OpFoldResult>{one},
+                                          ArrayRef<OpFoldResult>{one});
+    return forall.getResult(0);
   }
 };
 

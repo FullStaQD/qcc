@@ -88,71 +88,144 @@ module attributes {oq3.version = #oq3.version<3, 1>} {
 
 // -----
 
-// Bits are memrefs. A `bit` has a dynamic offset, so that a bit of a register has the same type.
+// Bits are memrefs. A `bit` has a dynamic offset (`memref<i1, strided<[], offset: ?>>`) to match
+// the type of a bit extracted from a register.
 
-// CHECK-LABEL: func.func @main
-// CHECK:         %[[Q:.*]] = qcc.alloc : tensor<2x!qcc.qubit_ref>
-// CHECK-NEXT:    %[[ALLOCA:.*]] = memref.alloca() : memref<i1>
-// CHECK-NEXT:    %[[B:.*]] = memref.cast %[[ALLOCA]] : memref<i1> to memref<i1, strided<[], offset: ?>>
+// CHECK-LABEL: func.func @bit_storage
+// CHECK:         %[[B:.*]] = memref.alloca() : memref<i1>
+// CHECK-NEXT:    %{{.*}} = memref.cast %[[B]] : memref<i1> to memref<i1, strided<[], offset: ?>>
 // CHECK:         %[[C:.*]] = memref.alloca() : memref<2xi1>
-// CHECK:         %[[Q0:.*]] = tensor.extract %[[Q]]
-// CHECK-NEXT:    %[[M0:.*]] = qref.measure z %[[Q0]] : !qcc.qubit_ref -> i1
-// CHECK-NEXT:    memref.store %[[M0]], %[[B]][] : memref<i1, strided<[], offset: ?>>
-// The register measurement is unrolled, and the store, too.
-// CHECK-NEXT:    %[[I0:.*]] = arith.constant 0 : index
-// CHECK-NEXT:    %[[E0:.*]] = tensor.extract %[[Q]][%[[I0]]]
-// CHECK-NEXT:    %[[N0:.*]] = qref.measure z %[[E0]]
-// CHECK-NEXT:    %[[I1:.*]] = arith.constant 1 : index
-// CHECK-NEXT:    %[[E1:.*]] = tensor.extract %[[Q]][%[[I1]]]
-// CHECK-NEXT:    %[[N1:.*]] = qref.measure z %[[E1]]
-// CHECK-NEXT:    %[[MS:.*]] = tensor.from_elements %[[N0]], %[[N1]] : tensor<2xi1>
-// CHECK-NEXT:    %[[J0:.*]] = arith.constant 0 : index
-// CHECK-NEXT:    %[[X0:.*]] = tensor.extract %[[MS]][%[[J0]]] : tensor<2xi1>
-// CHECK-NEXT:    memref.store %[[X0]], %[[C]][%[[J0]]] : memref<2xi1>
-// CHECK-NEXT:    %[[J1:.*]] = arith.constant 1 : index
-// CHECK-NEXT:    %[[X1:.*]] = tensor.extract %[[MS]][%[[J1]]] : tensor<2xi1>
-// CHECK-NEXT:    memref.store %[[X1]], %[[C]][%[[J1]]] : memref<2xi1>
-// A bit of a register is a subview.
 // CHECK:         %[[I:.*]] = arith.constant 1 : index
-// CHECK-NEXT:    %[[BIT:.*]] = memref.subview %[[C]][%[[I]]] [1] [1] : memref<2xi1> to memref<i1, strided<[], offset: ?>>
-// CHECK:         %[[M1:.*]] = qref.measure z
-// CHECK-NEXT:    memref.store %[[M1]], %[[BIT]][] : memref<i1, strided<[], offset: ?>>
-// A bitstring is a constant tensor; bit 0 is the last character.
-// CHECK:         %[[BITS:.*]] = arith.constant dense<[true, false]> : tensor<2xi1>
-// CHECK-NEXT:    %[[D:.*]] = memref.alloca() : memref<2xi1>
-// CHECK:         memref.store %{{.*}}, %[[D]][%{{.*}}] : memref<2xi1>
-// CHECK:         memref.store %{{.*}}, %[[D]][%{{.*}}] : memref<2xi1>
-// The literals 0 and 1 are bits.
-// CHECK:         %[[ONE:.*]] = arith.constant 1 : i64
-// CHECK-NEXT:    %[[ZERO:.*]] = arith.constant 0 : i64
-// CHECK-NEXT:    %[[SET:.*]] = arith.cmpi ne, %[[ONE]], %[[ZERO]] : i64
-// CHECK-NEXT:    memref.store %[[SET]], %[[B]][] : memref<i1, strided<[], offset: ?>>
+// CHECK-NEXT:    %{{.*}} = memref.subview %[[C]][%[[I]]] [1] [1] : memref<2xi1> to memref<i1, strided<[], offset: ?>>
 module attributes {oq3.version = #oq3.version<3, 1>} {
-  func.func @main() attributes {qcc.entry_point} {
+  func.func @bit_storage() attributes {qcc.entry_point} {
+    // most specific converted type *would* be memref<i1> (offset 0):
+    %0 = oq3.declare "b" : !qcc.ref<!oq3.bit>
+    %1 = oq3.constant #oq3.int<2> : !oq3.int
+    %2 = oq3.declare "c" [%1 : !oq3.int] : !qcc.ref<!oq3.bits<2>>
+    %3 = oq3.constant #oq3.int<1> : !oq3.int
+    // most specific converted type *would* be memref<i1, strided<[], offset: 1>>:
+    %4 = oq3.subref %2[%3] : !qcc.ref<!oq3.bits<2>>, !oq3.int -> !qcc.ref<!oq3.bit>
+    // but %0 and %4 must have the same type (type converter is 1:1), hence memref<i1, strided<[], offset: ?>> for both.
+    return
+  }
+}
+
+// -----
+
+// CHECK-LABEL: func.func @measure_qubit
+// CHECK:         %[[Q:.*]] = qcc.alloc : !qcc.qubit_ref
+// CHECK-NEXT:    %[[ALLOCA:.*]] = memref.alloca() : memref<i1>
+// CHECK-NEXT:    %[[B:.*]] = memref.cast %[[ALLOCA]]
+// CHECK-NEXT:    %[[M:.*]] = qref.measure z %[[Q]] : !qcc.qubit_ref -> i1
+// CHECK-NEXT:    memref.store %[[M]], %[[B]][] : memref<i1, strided<[], offset: ?>>
+// CHECK-NEXT:    return
+module attributes {oq3.version = #oq3.version<3, 1>} {
+  func.func @measure_qubit() attributes {qcc.entry_point} {
+    %0 = oq3.qubit_decl "q" : !qcc.qubit_ref
+    %1 = oq3.declare "b" : !qcc.ref<!oq3.bit>
+    %2 = oq3.measure %0 : !qcc.qubit_ref -> !oq3.bit
+    qcc.ref.store %2, %1 : !qcc.ref<!oq3.bit>
+    return
+  }
+}
+
+// -----
+
+// Measuring a register into storage (`c = measure q;`) is one parallel loop that writes each bit straight to `c`.
+
+// CHECK-LABEL: func.func @measure_register
+// CHECK:         %[[Q:.*]] = qcc.alloc : tensor<2x!qcc.qubit_ref>
+// CHECK-NEXT:    %[[C:.*]] = memref.alloca() : memref<2xi1>
+// CHECK-NEXT:    %[[LB:.*]] = arith.constant 0 : index
+// CHECK-NEXT:    %[[UB:.*]] = arith.constant 2 : index
+// CHECK-NEXT:    %[[STEP:.*]] = arith.constant 1 : index
+// CHECK-NEXT:    scf.parallel (%[[I:.*]]) = (%[[LB]]) to (%[[UB]]) step (%[[STEP]]) {
+// CHECK-NEXT:      %[[QI:.*]] = tensor.extract %[[Q]][%[[I]]] : tensor<2x!qcc.qubit_ref>
+// CHECK-NEXT:      %[[M:.*]] = qref.measure z %[[QI]] : !qcc.qubit_ref -> i1
+// CHECK-NEXT:      memref.store %[[M]], %[[C]][%[[I]]] : memref<2xi1>
+// CHECK-NEXT:      scf.reduce
+// CHECK-NEXT:    }
+// CHECK-NEXT:    return
+module attributes {oq3.version = #oq3.version<3, 1>} {
+  func.func @measure_register() attributes {qcc.entry_point} {
     %0 = oq3.constant #oq3.int<2> : !oq3.int
     %1 = oq3.qubit_decl "q" [%0 : !oq3.int] : !oq3.qreg<2>
-    %2 = oq3.declare "b" : !qcc.ref<!oq3.bit>
-    %3 = oq3.constant #oq3.int<2> : !oq3.int
-    %4 = oq3.declare "c" [%3 : !oq3.int] : !qcc.ref<!oq3.bits<2>>
-    %5 = oq3.constant #oq3.int<0> : !oq3.int
-    %6 = oq3.qubit_index %1[%5] : !oq3.qreg<2>, !oq3.int
-    %7 = oq3.measure %6 : !qcc.qubit_ref -> !oq3.bit
-    qcc.ref.store %7, %2 : !qcc.ref<!oq3.bit>
-    %8 = oq3.measure %1 : !oq3.qreg<2> -> !oq3.bits<2>
-    qcc.ref.store %8, %4 : !qcc.ref<!oq3.bits<2>>
-    %9 = oq3.constant #oq3.int<1> : !oq3.int
-    %10 = oq3.unary neg %9 : !oq3.int
-    %11 = oq3.subref %4[%10] : !qcc.ref<!oq3.bits<2>>, !oq3.int -> !qcc.ref<!oq3.bit>
-    %12 = oq3.constant #oq3.int<1> : !oq3.int
-    %13 = oq3.qubit_index %1[%12] : !oq3.qreg<2>, !oq3.int
-    %14 = oq3.measure %13 : !qcc.qubit_ref -> !oq3.bit
-    qcc.ref.store %14, %11 : !qcc.ref<!oq3.bit>
-    %15 = oq3.constant #oq3.int<2> : !oq3.int
-    %16 = oq3.constant #oq3.bitstring<"01"> : !oq3.bits<2>
-    %17 = oq3.declare "d" [%15 : !oq3.int] = %16 : !oq3.bits<2> : !qcc.ref<!oq3.bits<2>>
-    %18 = oq3.constant #oq3.int<1> : !oq3.int
-    %19 = oq3.cast %18 implicit : !oq3.int -> !oq3.bit
-    qcc.ref.store %19, %2 : !qcc.ref<!oq3.bit>
+    %2 = oq3.declare "c" [%0 : !oq3.int] : !qcc.ref<!oq3.bits<2>>
+    %3 = oq3.measure %1 : !oq3.qreg<2> -> !oq3.bits<2>
+    qcc.ref.store %3, %2 : !qcc.ref<!oq3.bits<2>>
+    return
+  }
+}
+
+// -----
+
+// Measuring a register for anything but an immediately following store (here: an initializer, `bit[2] c = measure
+// q;`) collects the bits into a tensor in an `scf.forall`.
+
+// CHECK-LABEL: func.func @measure_register_initializer
+// CHECK:         %[[Q:.*]] = qcc.alloc : tensor<2x!qcc.qubit_ref>
+// CHECK-NEXT:    %[[EMPTY:.*]] = tensor.empty() : tensor<2xi1>
+// CHECK-NEXT:    %[[MS:.*]] = scf.forall (%[[I:.*]]) in (2) shared_outs(%[[ACC:.*]] = %[[EMPTY]]) -> (tensor<2xi1>) {
+// CHECK-NEXT:      %[[QI:.*]] = tensor.extract %[[Q]][%[[I]]] : tensor<2x!qcc.qubit_ref>
+// CHECK-NEXT:      %[[M:.*]] = qref.measure z %[[QI]] : !qcc.qubit_ref -> i1
+// CHECK-NEXT:      %[[SLICE:.*]] = tensor.from_elements %[[M]] : tensor<1xi1>
+// CHECK-NEXT:      scf.forall.in_parallel {
+// CHECK-NEXT:        tensor.parallel_insert_slice %[[SLICE]] into %[[ACC]][%[[I]]] [1] [1] : tensor<1xi1> into tensor<2xi1>
+// CHECK-NEXT:      }
+// CHECK-NEXT:    }
+// CHECK-NEXT:    %[[C:.*]] = memref.alloca() : memref<2xi1>
+// CHECK:         scf.parallel (%[[J:.*]]) =
+// CHECK-NEXT:      %[[X:.*]] = tensor.extract %[[MS]][%[[J]]] : tensor<2xi1>
+// CHECK-NEXT:      memref.store %[[X]], %[[C]][%[[J]]] : memref<2xi1>
+module attributes {oq3.version = #oq3.version<3, 1>} {
+  func.func @measure_register_initializer() attributes {qcc.entry_point} {
+    %0 = oq3.constant #oq3.int<2> : !oq3.int
+    %1 = oq3.qubit_decl "q" [%0 : !oq3.int] : !oq3.qreg<2>
+    %2 = oq3.measure %1 : !oq3.qreg<2> -> !oq3.bits<2>
+    %3 = oq3.declare "c" [%0 : !oq3.int] = %2 : !oq3.bits<2> : !qcc.ref<!oq3.bits<2>>
+    return
+  }
+}
+
+// -----
+
+// A bitstring initializer (`bit[2] d = "01";`) is a constant tensor, stored in parallel; bit 0 is the last character.
+
+// CHECK-LABEL: func.func @bitstring_initializer
+// CHECK:         %[[BITS:.*]] = arith.constant dense<[true, false]> : tensor<2xi1>
+// CHECK-NEXT:    %[[D:.*]] = memref.alloca() : memref<2xi1>
+// CHECK-NEXT:    %[[LB:.*]] = arith.constant 0 : index
+// CHECK-NEXT:    %[[UB:.*]] = arith.constant 2 : index
+// CHECK-NEXT:    %[[STEP:.*]] = arith.constant 1 : index
+// CHECK-NEXT:    scf.parallel (%[[I:.*]]) = (%[[LB]]) to (%[[UB]]) step (%[[STEP]]) {
+// CHECK-NEXT:      %[[X:.*]] = tensor.extract %[[BITS]][%[[I]]] : tensor<2xi1>
+// CHECK-NEXT:      memref.store %[[X]], %[[D]][%[[I]]] : memref<2xi1>
+// CHECK-NEXT:      scf.reduce
+// CHECK-NEXT:    }
+// CHECK-NEXT:    return
+module attributes {oq3.version = #oq3.version<3, 1>} {
+  func.func @bitstring_initializer() attributes {qcc.entry_point} {
+    %0 = oq3.constant #oq3.int<2> : !oq3.int
+    %1 = oq3.constant #oq3.bitstring<"01"> : !oq3.bits<2>
+    %2 = oq3.declare "d" [%0 : !oq3.int] = %1 : !oq3.bits<2> : !qcc.ref<!oq3.bits<2>>
+    return
+  }
+}
+
+// -----
+
+// An `int` casts to a `bit` by comparing with 0.
+
+// CHECK-LABEL: func.func @int_to_bit
+// CHECK:         %[[ONE:.*]] = arith.constant 1 : i64
+// CHECK-NEXT:    %[[ZERO:.*]] = arith.constant 0 : i64
+// CHECK-NEXT:    %{{.*}} = arith.cmpi ne, %[[ONE]], %[[ZERO]] : i64
+// CHECK-NEXT:    return
+module attributes {oq3.version = #oq3.version<3, 1>} {
+  func.func @int_to_bit() attributes {qcc.entry_point} {
+    %0 = oq3.constant #oq3.int<1> : !oq3.int
+    %1 = oq3.cast %0 implicit : !oq3.int -> !oq3.bit
     return
   }
 }
