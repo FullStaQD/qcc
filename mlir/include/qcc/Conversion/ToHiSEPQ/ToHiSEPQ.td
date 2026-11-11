@@ -100,17 +100,23 @@ def ConvertQVecToHiSEPQIntrinsics : Pass<"convert-qvec-to-hisepq-intrinsics", "m
       exceeded even at the highest LMUL.
 
       Assumptions:
-      - Every qubit vector traces back to a `vector.from_elements` whose elements are all `qco.static` ops, so that the
-        qubit indices are known at compile time.
+      - Every element of a qubit vector traces back to a `qcc.static`, so that the qubit indices are known at compile
+        time.
         TODO: Lift this once the dialect grows dynamic qubits. Then the qubit vector becomes a runtime value and the
         constant folding here turns into a type conversion.
       - Qubit indices are below `num-qubit-control-lines` and encoded in an unsigned `i{QEW}`, and there are no more
         qubits than LMUL 8 holds at the minimum VLEN.
 
-      Gates without an intrinsic are rejected (error).
+      Operations without an intrinsic are typically rejected (error). In selected cases operations are decomposed. For
+      example `qvec.reset z` becomes a measurement followed by an `llvm.riscv.qv.x` on each qubit measured in |1⟩. This
+      is because HiSEP-Q has no reset operation.
+
+      The instructions act on the qubits in place, so no qubit value outlives the pass: the `scf.if` results that
+      carried qubits are dropped, and the `qcc.static` goes with the rest of the qubit values.
 
       - `llvm.riscv.qv.mz` returns void and the QISA specifies no way to read a measurement back, so the classical
-        result of `qvec.mz` is replaced with `poison`, i.e. the measurement result is lost.
+        result of `qvec.measure` is replaced with `poison`, i.e. the measurement result is lost. The flips of a reset
+        depend on such a result too.
       - `aux.record_int` and `aux.record_memref` are erased, so the program produces no output.
 
       TODO: Support both once HiSEP-Q specifies the corresponding QISA operations.
@@ -124,6 +130,8 @@ def ConvertQVecToHiSEPQIntrinsics : Pass<"convert-qvec-to-hisepq-intrinsics", "m
   ];
 
   let dependentDialects = [
-    "mlir::LLVM::LLVMDialect"
+    "mlir::LLVM::LLVMDialect",
+    "mlir::scf::SCFDialect",
+    "mlir::vector::VectorDialect"
   ];
 }

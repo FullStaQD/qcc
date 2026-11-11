@@ -39,7 +39,7 @@ static std::optional<SmallVector<qcc::ZXZAngles>> getConstantZXZ(SingleOp op) {
   SmallVector<qcc::ZXZAngles> lanes(width);
 
   switch (op.getGateKind()) {
-  case SingleGateKind::RZ: {
+  case qcc::SingleGateKind::RZ: {
     std::optional<SmallVector<double>> theta = getConstantAngles(op.getParams().front());
     if (!theta) {
       return std::nullopt;
@@ -49,7 +49,7 @@ static std::optional<SmallVector<qcc::ZXZAngles>> getConstantZXZ(SingleOp op) {
     }
     return lanes;
   }
-  case SingleGateKind::UZXZ: {
+  case qcc::SingleGateKind::UZXZ: {
     std::optional<SmallVector<double>> z1 = getConstantAngles(op.getParams()[zxz::z1]);
     std::optional<SmallVector<double>> x = getConstantAngles(op.getParams()[zxz::x]);
     std::optional<SmallVector<double>> z2 = getConstantAngles(op.getParams()[zxz::z2]);
@@ -85,16 +85,16 @@ struct FuseZXZ final : OpRewritePattern<SingleOp> {
 
     Location loc = second.getLoc();
     const size_t width = firstLanes->size();
-    if (first.getGateKind() == SingleGateKind::RZ && second.getGateKind() == SingleGateKind::RZ) {
+    if (first.getGateKind() == qcc::SingleGateKind::RZ && second.getGateKind() == qcc::SingleGateKind::RZ) {
       SmallVector<double> theta(width);
       for (size_t lane = 0; lane < width; ++lane) {
         theta[lane] = qcc::normalizeAngle((*firstLanes)[lane].z1 + (*secondLanes)[lane].z1);
       }
-      rewriter.replaceOpWithNewOp<SingleOp>(second, SingleGateKind::RZ, first.getQubitsIn(),
+      rewriter.replaceOpWithNewOp<SingleOp>(second, qcc::SingleGateKind::RZ, first.getQubitsIn(),
                                             ValueRange{buildAngleVector(rewriter, loc, theta)});
     } else {
-      assert(first.getGateKind() == SingleGateKind::RZ || first.getGateKind() == SingleGateKind::UZXZ);
-      assert(second.getGateKind() == SingleGateKind::RZ || second.getGateKind() == SingleGateKind::UZXZ);
+      assert(first.getGateKind() == qcc::SingleGateKind::RZ || first.getGateKind() == qcc::SingleGateKind::UZXZ);
+      assert(second.getGateKind() == qcc::SingleGateKind::RZ || second.getGateKind() == qcc::SingleGateKind::UZXZ);
 
       SmallVector<double> z1(width);
       SmallVector<double> x(width);
@@ -105,7 +105,7 @@ struct FuseZXZ final : OpRewritePattern<SingleOp> {
         x[lane] = fused.x;
         z2[lane] = fused.z2;
       }
-      rewriter.replaceOpWithNewOp<SingleOp>(second, SingleGateKind::UZXZ, first.getQubitsIn(),
+      rewriter.replaceOpWithNewOp<SingleOp>(second, qcc::SingleGateKind::UZXZ, first.getQubitsIn(),
                                             ValueRange{
                                                 buildAngleVector(rewriter, loc, z1),
                                                 buildAngleVector(rewriter, loc, x),

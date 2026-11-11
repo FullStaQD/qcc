@@ -12,8 +12,9 @@
 
 include "qcc/Dialect/QVec/IR/QVecAttrs.td"
 include "qcc/Dialect/QVec/IR/QVecDialect.td"
-include "qcc/Dialect/QVec/IR/QVecInterfaces.td"
 include "qcc/Dialect/QVec/IR/QVecTypes.td"
+include "qcc/Dialect/Qcc/IR/QccAttrs.td"
+include "qcc/Dialect/Qcc/IR/QccInterfaces.td"
 
 include "mlir/IR/OpBase.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
@@ -24,11 +25,11 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 
 // TODO: The memory effects we use here are probably too conservative. We have them here to protect our ops against
 // quantum-unaware passes. Note that e.g. a `Pure` measurement would allow some passes to hoist them out of control-flow
-// or alternatively sink into control-flow (see code motion) under circumstances were this is not consistent with the
+// or alternatively sink into control-flow (see code motion) under circumstances where this is not consistent with the
 // intended semantics.
 class QVec_Op<string mnemonic, list<Trait> traits = []>
     : Op<QVec_Dialect, mnemonic,
-         !listconcat(traits, [MemoryEffects<[MemRead, MemWrite]>, QVec_QubitLaneOpInterface])>;
+         !listconcat(traits, [MemoryEffects<[MemRead, MemWrite]>, Qcc_QubitLaneOpInterface])>;
 
 def QVec_SingleOp : QVec_Op<"single", [AllTypesMatch<["qubits_in", "qubits_out"]>]> {
   let summary = "single-qubit gate across a vector of qubits";
@@ -42,45 +43,30 @@ def QVec_SingleOp : QVec_Op<"single", [AllTypesMatch<["qubits_in", "qubits_out"]
 
         Example:
         ```mlir
-        %qs_out = qvec.single h %qs : vector<4x!qco.qubit>
-        %qs_rz = qvec.single rz(%theta) %qs : vector<4x!qco.qubit>, vector<4xf64>
-        %qs_u = qvec.single u_zxz(%z1, %x, %z2) %qs : vector<4x!qco.qubit>, vector<4xf64>
+        %qs_out = qvec.single h %qs : vector<4x!qcc.qubit>
+        %qs_rz = qvec.single rz(%theta) %qs : vector<4xf64>, vector<4x!qcc.qubit>
+        %qs_u = qvec.single u_zxz(%z1, %x, %z2) %qs : vector<4xf64>, vector<4x!qcc.qubit>
         ```
     }];
 
-  let arguments = (ins QVec_SingleGateKindAttr:$gate_kind,
+  let arguments = (ins Qcc_SingleGateKindAttr:$gate_kind,
                        QVec_QubitVector:$qubits_in,
                        Variadic<QVec_AngleVector>:$params);
   let results = (outs QVec_QubitVector:$qubits_out);
 
   let assemblyFormat = [{
         $gate_kind (`(` $params^ `)`)? $qubits_in attr-dict `:`
-        custom<GateTypes>(type($qubits_in), type($params), ref($params))
+        custom<GateTypes>(type($params), ref($params), type($qubits_in))
     }];
 
   let builders = [
-    OpBuilder<(ins "::qcc::qvec::SingleGateKind":$gateKind, "::mlir::Value":$qubitsIn,
+    OpBuilder<(ins "::qcc::SingleGateKind":$gateKind, "::mlir::Value":$qubitsIn,
                    CArg<"::mlir::ValueRange", "{}">:$params), [{
       build($_builder, $_state, qubitsIn.getType(), gateKind, qubitsIn, params);
     }]>
   ];
 
   let hasVerifier = 1;
-
-  let extraClassDeclaration = [{
-        /// The gate acts on one qubit, hence one lane.
-        unsigned getNumQubitLanes() { return 1; }
-
-        ::mlir::TypedValue<::mlir::VectorType> getQubitOperand(unsigned lane) {
-          assert(lane == 0 && "no such qubit lane");
-          return getQubitsIn();
-        }
-
-        ::mlir::TypedValue<::mlir::VectorType> getQubitResult(unsigned lane) {
-          assert(lane == 0 && "no such qubit lane");
-          return getQubitsOut();
-        }
-    }];
 }
 
 def QVec_PairOp : QVec_Op<"pair", [AllTypesMatch<["lhs_in", "rhs_in", "lhs_out", "rhs_out"]>]> {
@@ -94,12 +80,12 @@ def QVec_PairOp : QVec_Op<"pair", [AllTypesMatch<["lhs_in", "rhs_in", "lhs_out",
 
         Example:
         ```mlir
-        %cs_out, %ts_out = qvec.pair cx %ctrls, %tgts : vector<4x!qco.qubit>
-        %as_out, %bs_out = qvec.pair rzz(%theta) %as, %bs : vector<4x!qco.qubit>, vector<4xf64>
+        %cs_out, %ts_out = qvec.pair cx %ctrls, %tgts : vector<4x!qcc.qubit>
+        %as_out, %bs_out = qvec.pair rzz(%theta) %as, %bs : vector<4xf64>, vector<4x!qcc.qubit>
         ```
     }];
 
-  let arguments = (ins QVec_PairGateKindAttr:$gate_kind,
+  let arguments = (ins Qcc_PairGateKindAttr:$gate_kind,
                        QVec_QubitVector:$lhs_in,
                        QVec_QubitVector:$rhs_in,
                        Variadic<QVec_AngleVector>:$params);
@@ -108,32 +94,17 @@ def QVec_PairOp : QVec_Op<"pair", [AllTypesMatch<["lhs_in", "rhs_in", "lhs_out",
 
   let assemblyFormat = [{
         $gate_kind (`(` $params^ `)`)? $lhs_in `,` $rhs_in attr-dict `:`
-        custom<GateTypes>(type($lhs_in), type($params), ref($params))
+        custom<GateTypes>(type($params), ref($params), type($lhs_in))
     }];
 
   let builders = [
-    OpBuilder<(ins "::qcc::qvec::PairGateKind":$gateKind, "::mlir::Value":$lhsIn, "::mlir::Value":$rhsIn,
+    OpBuilder<(ins "::qcc::PairGateKind":$gateKind, "::mlir::Value":$lhsIn, "::mlir::Value":$rhsIn,
                    CArg<"::mlir::ValueRange", "{}">:$params), [{
       build($_builder, $_state, lhsIn.getType(), rhsIn.getType(), gateKind, lhsIn, rhsIn, params);
     }]>
   ];
 
   let hasVerifier = 1;
-
-  let extraClassDeclaration = [{
-        /// The gate acts on two qubits: lane 0 is the left operand, lane 1 the right one.
-        unsigned getNumQubitLanes() { return 2; }
-
-        ::mlir::TypedValue<::mlir::VectorType> getQubitOperand(unsigned lane) {
-          assert(lane < 2 && "no such qubit lane");
-          return lane == 0 ? getLhsIn() : getRhsIn();
-        }
-
-        ::mlir::TypedValue<::mlir::VectorType> getQubitResult(unsigned lane) {
-          assert(lane < 2 && "no such qubit lane");
-          return lane == 0 ? getLhsOut() : getRhsOut();
-        }
-    }];
 }
 
 def QVec_GlobalOp : QVec_Op<"global", [AllTypesMatch<["qubits_in", "qubits_out"]>]> {
@@ -151,7 +122,7 @@ def QVec_GlobalOp : QVec_Op<"global", [AllTypesMatch<["qubits_in", "qubits_out"]
 
         Example:
         ```mlir
-        %qs_out = qvec.global zz(%A) %qs : vector<4x!qco.qubit>, vector<4x4xf64>
+        %qs_out = qvec.global zz(%A) %qs : vector<4x!qcc.qubit>, vector<4x4xf64>
         ```
     }];
 
@@ -171,58 +142,64 @@ def QVec_GlobalOp : QVec_Op<"global", [AllTypesMatch<["qubits_in", "qubits_out"]
   ];
 
   let hasVerifier = 1;
-
-  let extraClassDeclaration = [{
-        /// One lane: the gate maps the whole vector to the whole vector.
-        unsigned getNumQubitLanes() { return 1; }
-
-        ::mlir::TypedValue<::mlir::VectorType> getQubitOperand(unsigned lane) {
-          assert(lane == 0 && "no such qubit lane");
-          return getQubitsIn();
-        }
-
-        ::mlir::TypedValue<::mlir::VectorType> getQubitResult(unsigned lane) {
-          assert(lane == 0 && "no such qubit lane");
-          return getQubitsOut();
-        }
-    }];
 }
 
-def QVec_MZOp : QVec_Op<"mz", [AllTypesMatch<["qubits_in", "qubits_out"]>,
-                               AllShapesMatch<["qubits_in", "bits"]>]> {
-  let summary = "measures a vector of qubits in the computational basis";
+def QVec_MeasureOp : QVec_Op<"measure", [AllTypesMatch<["qubits_in", "qubits_out"]>,
+                                         AllShapesMatch<["qubits_in", "bits"]>]> {
+  let summary = "measures a vector of qubits";
   let description = [{
-        Measures every element of `qubits_in` in the computational (Z) basis, collapsing their state,
-        and yields the measured qubits plus one classical bit per element.
+        Measures every element of `qubits_in` in the given basis, which projects its state, and yields the measured
+        qubits plus one classical bit per element: `z` measures in the computational basis (|0⟩ gives 0, |1⟩ gives 1),
+        `x` in the basis |+⟩, |−⟩ (|+⟩ gives 0, |−⟩ gives 1).
 
         Example:
         ```mlir
-        %qs_out, %r = qvec.mz %qs : vector<4x!qco.qubit> -> vector<4xi1>
+        %qs_out, %bits = qvec.measure z %qs : vector<4x!qcc.qubit> -> vector<4xi1>
         ```
     }];
 
-  let arguments = (ins QVec_QubitVector:$qubits_in);
+  let arguments = (ins Qcc_BasisAttr:$basis,
+                       QVec_QubitVector:$qubits_in);
   let results = (outs QVec_QubitVector:$qubits_out,
                       QVec_BitVector:$bits);
 
   let assemblyFormat = [{
-        $qubits_in attr-dict `:` type($qubits_in) `->` type($bits)
+        $basis $qubits_in attr-dict `:` type($qubits_in) `->` type($bits)
     }];
 
-  let extraClassDeclaration = [{
-        /// One lane for the measured qubits. `bits` is classical and hence outside the lanes.
-        unsigned getNumQubitLanes() { return 1; }
+  let builders = [
+    // One bit per qubit.
+    OpBuilder<(ins "::qcc::Basis":$basis, "::mlir::Value":$qubitsIn), [{
+      auto qubitsType = ::llvm::cast<::mlir::VectorType>(qubitsIn.getType());
+      build($_builder, $_state, qubitsType, qubitsType.clone($_builder.getI1Type()), basis, qubitsIn);
+    }]>
+  ];
+}
 
-        ::mlir::TypedValue<::mlir::VectorType> getQubitOperand(unsigned lane) {
-          assert(lane == 0 && "no such qubit lane");
-          return getQubitsIn();
-        }
+def QVec_ResetOp : QVec_Op<"reset", [AllTypesMatch<["qubits_in", "qubits_out"]>]> {
+  let summary = "resets a vector of qubits to a basis state";
+  let description = [{
+        Resets every element of `qubits_in` to the first state of the given basis: `z` sends it to |0⟩, `x` to |+⟩.
 
-        ::mlir::TypedValue<::mlir::VectorType> getQubitResult(unsigned lane) {
-          assert(lane == 0 && "no such qubit lane");
-          return getQubitsOut();
-        }
+        Example:
+        ```mlir
+        %qs_out = qvec.reset z %qs : vector<4x!qcc.qubit>
+        ```
     }];
+
+  let arguments = (ins Qcc_BasisAttr:$basis,
+                       QVec_QubitVector:$qubits_in);
+  let results = (outs QVec_QubitVector:$qubits_out);
+
+  let assemblyFormat = [{
+        $basis $qubits_in attr-dict `:` type($qubits_in)
+    }];
+
+  let builders = [
+    OpBuilder<(ins "::qcc::Basis":$basis, "::mlir::Value":$qubitsIn), [{
+      build($_builder, $_state, qubitsIn.getType(), basis, qubitsIn);
+    }]>
+  ];
 }
 
 #endif // INCLUDE_QCC_DIALECT_QVEC_IR_QVECOPS_TD_

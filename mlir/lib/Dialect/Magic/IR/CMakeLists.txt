@@ -4,13 +4,6 @@ add_mlir_dialect_library(
   MagicDialect.cpp
   MagicOps.cpp
   MagicTypes.cpp
-  DEPENDS
-  QCCMagicDialectIncGen
-  QCCMagicAttrsIncGen
-  QCCMagicTypesIncGen
-  QCCMagicOpsIncGen
-  QCCAuxDialectIncGen
-  QCCAuxOpsIncGen
   LINK_LIBS
   PRIVATE
   MLIRIR

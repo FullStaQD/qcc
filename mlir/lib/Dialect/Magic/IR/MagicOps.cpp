@@ -22,6 +22,7 @@
 #include "mlir/IR/Region.h"
 #include "mlir/IR/Value.h"
 
+#include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Sequence.h"
@@ -252,6 +253,14 @@ LogicalResult SymZXZOp::verify() {
                  succeeded(verifyOneAnglePerIon(*this, "x", getX(), numIons)));
 }
 
+OpFoldResult RZOp::fold(FoldAdaptor /*adaptor*/) {
+  if (llvm::all_of(getAngles().getAsValueRange<FloatAttr>(),
+                   [](const APFloat& angle) { return normalizeAngle(angle.convertToDouble()) == 0.0; })) {
+    return getChainIn();
+  }
+  return {};
+}
+
 LogicalResult RZOp::canonicalize(RZOp op, PatternRewriter& rewriter) {
   // Per ion the sum of the angles of this op and, if it directly follows one, the preceding `rz`. Chain values are
   // affine, so the preceding op has no other user.
@@ -276,14 +285,10 @@ LogicalResult RZOp::canonicalize(RZOp op, PatternRewriter& rewriter) {
     }
   }
 
-  Value chainIn = previous ? previous.getChainIn() : op.getChainIn();
-  if (ions.empty()) {
-    rewriter.replaceOp(op, chainIn);
-  } else if (previous || ions.size() != op.getIons().size()) {
-    rewriter.replaceOpWithNewOp<RZOp>(op, chainIn, ions, sums);
-  } else {
+  if (!previous && ions.size() == op.getIons().size()) {
     return failure();
   }
+  rewriter.replaceOpWithNewOp<RZOp>(op, previous ? previous.getChainIn() : op.getChainIn(), ions, sums);
   if (previous) {
     rewriter.eraseOp(previous);
   }
@@ -310,6 +315,33 @@ void ActiveZZOp::build(OpBuilder& builder, OperationState& state, Value chain, i
   matrix[(b * size) + a] = angle;
   auto matrixType = RankedTensorType::get({size, size}, Float64Type::get(builder.getContext()));
   build(builder, state, type, chain, DenseElementsAttr::get(matrixType, ArrayRef(matrix)));
+}
+
+OpFoldResult ActiveZZOp::fold(FoldAdaptor /*adaptor*/) {
+  if (llvm::all_of(getAngles().getValues<double>(), [](double angle) { return normalizeAngle(angle) == 0.0; })) {
+    return getChainIn();
+  }
+  return {};
+}
+
+LogicalResult ActiveZZOp::canonicalize(ActiveZZOp op, PatternRewriter& rewriter) {
+  // Chain values are affine, so the preceding `active_zz` has no other user. Both act on the same chain type, so their
+  // matrices have the same shape.
+  auto previous = op.getChainIn().getDefiningOp<ActiveZZOp>();
+  if (!previous) {
+    return failure();
+  }
+  // The sum stays symmetric with a zero diagonal.
+  SmallVector<double> sums;
+  for (auto [first, second] :
+       llvm::zip_equal(previous.getAngles().getValues<double>(), op.getAngles().getValues<double>())) {
+    sums.push_back(normalizeAngle(first + second));
+  }
+
+  rewriter.replaceOpWithNewOp<ActiveZZOp>(op, op.getType(), previous.getChainIn(),
+                                          DenseElementsAttr::get(op.getAngles().getType(), ArrayRef(sums)));
+  rewriter.eraseOp(previous);
+  return success();
 }
 
 LogicalResult ActiveZZOp::verify() {
@@ -453,6 +485,33 @@ LogicalResult MZDOp::verify() {
 // InterTrapZZOp
 //===----------------------------------------------------------------------===//
 
+LogicalResult InterTrapZZOp::fold(FoldAdaptor /*adaptor*/, SmallVectorImpl<OpFoldResult>& results) {
+  if (normalizeAngle(getAngle().convertToDouble()) != 0.0) {
+    return failure();
+  }
+  results.push_back(getAIn());
+  results.push_back(getBIn());
+  return success();
+}
+
+LogicalResult InterTrapZZOp::canonicalize(InterTrapZZOp op, PatternRewriter& rewriter) {
+  // The preceding `inter_trap_zz` must produce both chains, and on the same ions. Chain values are affine, so it has
+  // no other user.
+  auto previous = op.getAIn().getDefiningOp<InterTrapZZOp>();
+  if (!previous || op.getAIn() != previous.getAOut() || op.getBIn() != previous.getBOut() ||
+      op.getIons() != previous.getIons()) {
+    return failure();
+  }
+  const double sum = normalizeAngle(previous.getAngle().convertToDouble() + op.getAngle().convertToDouble());
+
+  Value aIn = previous.getAIn();
+  Value bIn = previous.getBIn();
+  rewriter.replaceOpWithNewOp<InterTrapZZOp>(op, aIn.getType(), bIn.getType(), aIn, bIn, op.getIonsAttr(),
+                                             rewriter.getF64FloatAttr(sum));
+  rewriter.eraseOp(previous);
+  return success();
+}
+
 LogicalResult InterTrapZZOp::verify() {
   const IonChainType a = getAIn().getType();
   const IonChainType b = getBIn().getType();
@@ -468,6 +527,10 @@ LogicalResult InterTrapZZOp::verify() {
   }
   if (!b.contains(getIons()[1])) {
     return emitOpError() << "ion " << getIons()[1] << " is not in the second chain " << b;
+  }
+  if (getIons()[1] < getIons()[0]) {
+    return emitOpError() << "ions must be listed in increasing order, got ion " << getIons()[1] << " after ion "
+                         << getIons()[0];
   }
   return success();
 }

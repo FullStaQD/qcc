@@ -132,6 +132,9 @@ def Magic_RZOp : Magic_SingleIonGateOp<"rz", [Magic_Native]> {
                        DenseI64ArrayAttr:$ions,
                        F64ArrayAttr:$angles);
 
+  // With all angles zero (wrapped into (-pi, pi]) it is a no-op.
+  let hasFolder = 1;
+
   // Merges two consecutive `rz`, drops zero angles.
   let hasCanonicalizeMethod = 1;
 
@@ -188,6 +191,12 @@ def Magic_ActiveZZOp : Magic_SameChainOp<"active_zz"> {
         $chain_in attr-dict `:` type($chain_in)
     }];
   let hasVerifier = 1;
+
+  // With a zero matrix (wrapped into (-pi, pi]) it is a no-op.
+  let hasFolder = 1;
+
+  // Merges two consecutive `active_zz`: the angles add up entrywise (wrapped into (-pi, pi]).
+  let hasCanonicalizeMethod = 1;
 
   let builders = [
     // `rzz(angle)` between the ions `ionA` and `ionB` (ids) of `chain`, both active; every other entry is zero.
@@ -315,7 +324,8 @@ def Magic_InterTrapZZOp : Magic_Op<"inter_trap_zz", [AllTypesMatch<["a_in", "a_o
   let summary = "rzz between two ions in different traps";
   let description = [{
         Applies `rzz(angle) = exp(-i angle/2 Z⊗Z)` between ion `ions[0]` of chain `a` and ion `ions[1]` of chain `b`,
-        which belong to different traps. It requires shuttling, so the op is a sync point in the making.
+        which belong to different traps. The ions are listed in increasing order. It requires shuttling, so the op is a
+        sync point in the making.
 
         Example:
         ```mlir
@@ -334,6 +344,12 @@ def Magic_InterTrapZZOp : Magic_Op<"inter_trap_zz", [AllTypesMatch<["a_in", "a_o
         $a_in `,` $b_in custom<IonList>($ions) attr-dict `:` type($a_in) `,` type($b_in)
     }];
   let hasVerifier = 1;
+
+  // A zero angle (wrapped into (-pi, pi]) is a no-op.
+  let hasFolder = 1;
+
+  // Merges two consecutive `inter_trap_zz` on the same ions: the angles add up (wrapped into (-pi, pi]).
+  let hasCanonicalizeMethod = 1;
 }
 
 def Magic_SwapOp : Magic_SameChainOp<"swap"> {

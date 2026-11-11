@@ -16,7 +16,7 @@ include "mlir/IR/EnumAttr.td"
 // Gate kinds
 //===----------------------------------------------------------------------===//
 
-// The gates of `qcirc` and `qref`.
+// The gates of `qcirc`, `qref` and `qvec`.
 
 class Qcc_GateCase<string sym, int val, string str, int numParamsVal> : I32EnumCase<sym, val, str> {
   int numParams = numParamsVal;

@@ -12,9 +12,9 @@
 #include "qcc/Conversion/Aux_/AuxUnpackRecordInt.h"
 #include "qcc/Conversion/JaspToQC/JaspToQC.h"
 #include "qcc/Conversion/OQ3ToQRef/OQ3ToQRef.h"
-#include "qcc/Conversion/QCOToQVec/QCOToQVec.h"
 #include "qcc/Conversion/QCToQRef/QCToQRef.h"
 #include "qcc/Conversion/QCircToQRef/QCircToQRef.h"
+#include "qcc/Conversion/QCircToQVec/QCircToQVec.h"
 #include "qcc/Conversion/QRefToOQ3/QRefToOQ3.h"
 #include "qcc/Conversion/QRefToQCirc/QRefToQCirc.h"
 #include "qcc/Conversion/QVecToMagic/QVecToMagic.h"
@@ -36,7 +36,6 @@
 #include "mlir/Conversion/ArithToLLVM/ArithToLLVM.h"
 #include "mlir/Conversion/FuncToLLVM/ConvertFuncToLLVM.h"
 #include "mlir/Conversion/Passes.h"
-#include "mlir/Conversion/QCToQCO/QCToQCO.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/Transforms/Passes.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
@@ -56,7 +55,6 @@
 #include "mlir/Dialect/MemRef/Transforms/AllocationOpInterfaceImpl.h"
 #include "mlir/Dialect/MemRef/Transforms/Passes.h"
 #include "mlir/Dialect/QC/IR/QCDialect.h"
-#include "mlir/Dialect/QCO/IR/QCODialect.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SCF/Transforms/BufferizableOpInterfaceImpl.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
@@ -88,7 +86,6 @@ int main(int argc, char** argv) {
     mlir::vector::VectorDialect,
     jasp::JaspDialect,
     mlir::qc::QCDialect,
-    mlir::qco::QCODialect,
     qcc::aux::AuxDialect,
     qcc::magic::MagicDialect,
     qcc::oq3::OQ3Dialect,
@@ -131,12 +128,12 @@ int main(int argc, char** argv) {
   mlir::registerConvertFuncToLLVMPass();
   qcc::registerConvertQIRToHiSEPQIntrinsics();
   qcc::registerEmitHiSEPQStart();
-  qcc::registerConvertQCOToQVec();
   qcc::registerConvertQCToQRef();
   qcc::registerConvertQRefToQCirc();
   qcc::registerConvertQCircToQRef();
   qcc::registerConvertOQ3ToQRef();
   qcc::registerConvertQRefToOQ3();
+  qcc::registerConvertQCircToQVec();
   qcc::registerConvertQVecToMagic();
   qcc::registerConvertQVecToHiSEPQIntrinsics();
   qcc::registerQVecMerge();
@@ -146,7 +143,6 @@ int main(int argc, char** argv) {
   qcc::registerQVecLayer();
   qcc::magic::registerMagicPasses();
   qcc::registerQccAttachDevice();
-  mlir::registerQCToQCO();
 
   // Extension registration
   mlir::arith::registerBufferizableOpInterfaceExternalModels(registry);

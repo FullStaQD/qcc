@@ -11,7 +11,7 @@ func.func @vector() {
 
 func.func @scf_if(%cond: i1) {
   %q0, %q1 = qcc.static [0, 1] : !qcc.qubit
-  // expected-error @+1 {{'scf.if' op is not supported by convert-qcirc-to-qref on qubits}}
+  // expected-error @+1 {{'scf.if' op uses qubits, but convert-qcirc-to-qref expects only 'qcc.static', 'qcirc' and 'qcf' ops to use qubits}}
   %q = scf.if %cond -> !qcc.qubit {
     scf.yield %q0 : !qcc.qubit
   } else {

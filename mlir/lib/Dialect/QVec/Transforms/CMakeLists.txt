@@ -6,8 +6,6 @@ add_mlir_dialect_library(
   QVecMerge.cpp
   QVecToRZZ.cpp
   QVecToUZXZ.cpp
-  DEPENDS
-  QCCQVecTransformsIncGen
   LINK_LIBS
   PRIVATE
   MLIRIR
@@ -18,7 +16,6 @@ add_mlir_dialect_library(
   MLIRArithDialect
   MLIRFuncDialect
   MLIRVectorDialect
-  MLIRQCODialect
-  MLIRQTensorDialect
+  QCCQccDialect
   QCCQVecDialect
   QCCDialectUtils)

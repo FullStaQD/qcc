@@ -31,7 +31,7 @@ def Magic_Dialect : Dialect {
 
         - each chain value is used at most once
         - `magic` ops are only allowed directly inside a `func.func` with a single block
-        - only `magic` ops are allowed to produce chain values (magic.init` being its only source)
+        - only `magic` ops are allowed to produce chain values (`magic.init` being its only source)
 
         **Native vs intermediate ops.** The `Magic_Native` trait marks the native instructions of the hardware; the
         others are intermediate and are lowered to native ones before export.
@@ -47,7 +47,7 @@ def Magic_Dialect : Dialect {
 
         Example:
         ```mlir
-        // A chain *type* with with ions 3 and 8, both activated.
+        // A chain *type* with ions 3 and 8, both activated.
         !t0 = !magic.ion_chain<0, [3:1, 8:1]>
 
         // Initialize a trap (chain).

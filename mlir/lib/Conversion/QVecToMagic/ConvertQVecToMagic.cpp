@@ -20,10 +20,10 @@
 #include "qcc/Dialect/Magic/IR/Magic.h"
 #include "qcc/Dialect/QVec/IR/QVec.h"
 #include "qcc/Dialect/QVec/Transforms/Angles.h"
+#include "qcc/Dialect/Qcc/IR/Qcc.h"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/Dialect/QCO/IR/QCOOps.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/Block.h"
 #include "mlir/IR/Builders.h"
@@ -37,7 +37,6 @@
 #include "mlir/Support/LLVM.h"
 
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/TypeSwitch.h"
@@ -105,15 +104,10 @@ private:
   /// qubits (ion id = qubit index). If they all fit into trap 0 they go there, which needs no shuttling. Otherwise
   /// they are filled in trap by trap, one ion less than the capacity each, as shuttling needs a free slot.
   LogicalResult createChains(Block& block) {
-    int64_t numQubits = 0;
-    mlir::qco::StaticOp highest;
-    for (Operation& op : block) {
-      auto staticOp = dyn_cast<mlir::qco::StaticOp>(op);
-      if (staticOp && std::cmp_greater_equal(staticOp.getIndex(), numQubits)) {
-        numQubits = static_cast<int64_t>(staticOp.getIndex()) + 1;
-        highest = staticOp;
-      }
-    }
+    // A function has at most one `qcc.static`, and its indices ascend.
+    auto statics = block.getOps<qcc::StaticOp>();
+    qcc::StaticOp staticOp = statics.empty() ? qcc::StaticOp() : *statics.begin();
+    const int64_t numQubits = staticOp && !staticOp.getIndices().empty() ? staticOp.getIndices().back() + 1 : 0;
 
     MLIRContext* ctx = func.getContext();
     const bool spread = device.numTraps() > 1 && numQubits > device.capacity(0);
@@ -128,9 +122,9 @@ private:
       types.push_back(IonChainType::get(ctx, trap, slots));
     }
     if (std::ssize(trapOf) < numQubits) {
-      return highest.emitOpError() << "uses qubit " << numQubits - 1 << ", but the device can be loaded with at most "
-                                   << trapOf.size() << " ions"
-                                   << (spread ? ": one slot per trap stays free for shuttling" : "");
+      return staticOp.emitOpError() << "uses qubit " << numQubits - 1 << ", but the device can be loaded with at most "
+                                    << trapOf.size() << " ions"
+                                    << (spread ? ": one slot per trap stays free for shuttling" : "");
     }
 
     auto builder = OpBuilder::atBlockBegin(&block);
@@ -150,29 +144,20 @@ private:
 
   LogicalResult convert(Operation* op) {
     return llvm::TypeSwitch<Operation*, LogicalResult>(op)
-        .Case([&](mlir::qco::StaticOp staticOp) { return convertStatic(staticOp); })
-        .Case([&](mlir::qco::AllocOp alloc) {
-          return alloc.emitOpError() << "is not supported: ions are placed statically, use `qco.static`";
-        })
+        .Case([&](qcc::StaticOp staticOp) { return convertStatic(staticOp); })
         .Case([&](vector::FromElementsOp fromElements) { return convertFromElements(fromElements); })
         .Case([&](vector::ExtractOp extract) { return convertExtract(extract); })
         .Case([&](qvec::SingleOp single) { return convertSingle(single); })
         .Case([&](qvec::GlobalOp global) { return convertGlobal(global); })
-        .Case([&](qvec::MZOp mz) { return convertMZ(mz); })
-        .Case([&](mlir::qco::SinkOp sink) {
-          replaced.push_back(sink);
-          return success();
-        })
+        .Case([&](qvec::MeasureOp measure) { return convertMeasure(measure); })
         // Everything else is left for `checkLegal`.
         .Default([](Operation*) { return success(); });
   }
 
-  LogicalResult convertStatic(mlir::qco::StaticOp staticOp) {
-    const auto index = static_cast<int64_t>(staticOp.getIndex());
-    if (!usedQubits.insert(index).second) {
-      return staticOp.emitOpError() << "refers to qubit " << index << " a second time";
+  LogicalResult convertStatic(qcc::StaticOp staticOp) {
+    for (auto [qubit, index] : llvm::zip_equal(staticOp.getQubits(), staticOp.getIndices())) {
+      ionOf[qubit] = index;
     }
-    ionOf[staticOp.getQubit()] = index;
     replaced.push_back(staticOp);
     return success();
   }
@@ -181,13 +166,13 @@ private:
   FailureOr<int64_t> lookupIon(Operation* user, Value qubit) {
     auto it = ionOf.find(qubit);
     if (it == ionOf.end()) {
-      return user->emitOpError() << "uses a qubit that cannot be traced back to a `qco.static`";
+      return user->emitOpError() << "uses a qubit that cannot be traced back to a `qcc.static`";
     }
     return it->second;
   }
 
   LogicalResult convertFromElements(vector::FromElementsOp fromElements) {
-    if (!qvec::isQubitVector(fromElements.getType())) {
+    if (!qcc::isQubitVector(fromElements.getType())) {
       return success();
     }
     SmallVector<int64_t>& ions = lanes[fromElements.getResult()];
@@ -215,7 +200,7 @@ private:
       return extract.emitOpError() << "must not extract at the poison position";
     }
     const int64_t ion = it->second[position];
-    if (qvec::isQubitVector(extract.getSource().getType())) {
+    if (qcc::isQubitVector(extract.getSource().getType())) {
       ionOf[extract.getResult()] = ion;
     } else {
       // A measured bit: the chains are measured already.
@@ -229,7 +214,7 @@ private:
   FailureOr<ArrayRef<int64_t>> lookupLanes(Operation* op, Value qubits) {
     auto it = lanes.find(qubits);
     if (it == lanes.end()) {
-      return op->emitOpError() << "acts on qubits that cannot be traced back to `qco.static`";
+      return op->emitOpError() << "acts on qubits that cannot be traced back to `qcc.static`";
     }
     return ArrayRef<int64_t>(it->second);
   }
@@ -248,12 +233,12 @@ private:
   }
 
   LogicalResult convertSingle(qvec::SingleOp single) {
-    const qvec::SingleGateKind kind = single.getGateKind();
-    if (kind != qvec::SingleGateKind::UZXZ && kind != qvec::SingleGateKind::RZ) {
-      return single.emitOpError() << "gate '" << qvec::stringifySingleGateKind(kind)
+    const SingleGateKind kind = single.getGateKind();
+    if (kind != SingleGateKind::UZXZ && kind != SingleGateKind::RZ) {
+      return single.emitOpError() << "gate '" << stringifySingleGateKind(kind)
                                   << "' is not supported, run `qvec-to-u-zxz` and `qvec-layer` first";
     }
-    if (failed(checkLayer(single, kind == qvec::SingleGateKind::UZXZ ? Layer::ZXZ : Layer::RZ))) {
+    if (failed(checkLayer(single, kind == SingleGateKind::UZXZ ? Layer::ZXZ : Layer::RZ))) {
       return failure();
     }
     const FailureOr<ArrayRef<int64_t>> ions = lookupLanes(single, single.getQubitsIn());
@@ -285,7 +270,7 @@ private:
       if (trapIons.empty()) {
         continue;
       }
-      if (kind == qvec::SingleGateKind::UZXZ) {
+      if (kind == SingleGateKind::UZXZ) {
         chain = ZXZOp::create(builder, single.getLoc(), chain, trapIons, trapParams[qvec::zxz::z1],
                               trapParams[qvec::zxz::x], trapParams[qvec::zxz::z2]);
       } else {
@@ -359,8 +344,8 @@ private:
         if (trapA == trapB || entry(i, j) == 0.0) {
           continue;
         }
-        // The lower trap first, so the output does not depend on the lane order.
-        const bool ordered = trapA < trapB;
+        // The lower ion first, as `inter_trap_zz` wants its ions.
+        const bool ordered = ionA < ionB;
         TypedValue<IonChainType>& first = chains[ordered ? trapA : trapB];
         TypedValue<IonChainType>& second = chains[ordered ? trapB : trapA];
         auto interTrap = InterTrapZZOp::create(
@@ -376,21 +361,25 @@ private:
     return success();
   }
 
-  LogicalResult convertMZ(qvec::MZOp mz) {
-    const FailureOr<ArrayRef<int64_t>> ions = lookupLanes(mz, mz.getQubitsIn());
+  LogicalResult convertMeasure(qvec::MeasureOp measure) {
+    if (measure.getBasis() != Basis::Z) {
+      return measure.emitOpError() << "measures in basis '" << stringifyBasis(measure.getBasis())
+                                   << "', which convert-qvec-to-magic does not support";
+    }
+    const FailureOr<ArrayRef<int64_t>> ions = lookupLanes(measure, measure.getQubitsIn());
     if (failed(ions)) {
       return failure();
     }
     if (!measured) {
       // The first measurement ends the program: every chain is measured as a whole.
-      OpBuilder builder(mz);
+      OpBuilder builder(measure);
       for (const TypedValue<IonChainType> chain : chains) {
         const IonChainType type = chain.getType();
         if (type.getNumIons() == 0) {
           continue;
         }
         auto mzd =
-            MZDOp::create(builder, mz.getLoc(), SmallVector<Type>(type.getNumIons(), builder.getI1Type()), chain);
+            MZDOp::create(builder, measure.getLoc(), SmallVector<Type>(type.getNumIons(), builder.getI1Type()), chain);
         for (auto [ion, bit] : llvm::zip_equal(type.getIons(), mzd.getBits())) {
           bitOf[ion] = bit;
         }
@@ -398,13 +387,13 @@ private:
       measured = true;
     }
     for (const int64_t ion : *ions) {
-      if (!measuredBy.try_emplace(ion, mz).second) {
-        return mz.emitOpError() << "measures qubit " << ion << " a second time";
+      if (!measuredBy.try_emplace(ion, measure).second) {
+        return measure.emitOpError() << "measures qubit " << ion << " a second time";
       }
     }
-    lanes[mz.getQubitsOut()] = SmallVector<int64_t>(*ions);
-    lanes[mz.getBits()] = SmallVector<int64_t>(*ions);
-    replaced.push_back(mz);
+    lanes[measure.getQubitsOut()] = SmallVector<int64_t>(*ions);
+    lanes[measure.getBits()] = SmallVector<int64_t>(*ions);
+    replaced.push_back(measure);
     return success();
   }
 
@@ -457,13 +446,12 @@ private:
   SmallVector<TypedValue<IonChainType>> chains;
   /// The ion held by a scalar qubit value.
   llvm::DenseMap<Value, int64_t> ionOf;
-  /// The ion per lane of a qubit vector, or of the bit vector of a `qvec.mz`.
+  /// The ion per lane of a qubit vector, or of the bit vector of a `qvec.measure`.
   llvm::DenseMap<Value, SmallVector<int64_t>> lanes;
   /// The `magic.mzd` result per ion, once measured.
   llvm::DenseMap<int64_t, Value> bitOf;
-  /// The `qvec.mz` that measures an ion.
+  /// The `qvec.measure` that measures an ion.
   llvm::DenseMap<int64_t, Operation*> measuredBy;
-  llvm::DenseSet<int64_t> usedQubits;
   /// The ops to erase, in program order.
   SmallVector<Operation*> replaced;
   Layer last = Layer::None;

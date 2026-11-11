@@ -9,16 +9,86 @@
 
 #include "qcc/Dialect/Utils/RotationUtils.h"
 
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
+#include <array>
 #include <cmath>
+#include <complex>
 #include <numbers>
+#include <ostream>
+#include <utility>
 
 using namespace qcc;
 
-TEST(RotationUtilsTest, NormalizeAngle) {
-  constexpr double pi = std::numbers::pi;
+//===----------------------------------------------------------------------===//
+// Test helpers
+//===----------------------------------------------------------------------===//
 
+constexpr double pi = std::numbers::pi;
+
+/// The absolute tolerance of the numerical checks.
+constexpr double tolerance = 1e-12;
+
+namespace qcc {
+
+/// Prints `angles` in failure messages, with every digit. gtest finds this by ADL, so it keeps gtest's name.
+// NOLINTNEXTLINE(readability-identifier-naming)
+static void PrintTo(const ZXZAngles& angles, std::ostream* os) {
+  *os << "{z1 = " << testing::PrintToString(angles.z1) << ", x = " << testing::PrintToString(angles.x)
+      << ", z2 = " << testing::PrintToString(angles.z2) << "}";
+}
+
+} // namespace qcc
+
+/// Matches ZXZ angles that are each within `maxError` of `expected`.
+static testing::Matcher<ZXZAngles> zxzNear(const ZXZAngles& expected, double maxError) {
+  return testing::AllOf(testing::Field("z1", &ZXZAngles::z1, testing::DoubleNear(expected.z1, maxError)),
+                        testing::Field("x", &ZXZAngles::x, testing::DoubleNear(expected.x, maxError)),
+                        testing::Field("z2", &ZXZAngles::z2, testing::DoubleNear(expected.z2, maxError)));
+}
+
+static const Complex arbitraryGlobalPhase = std::polar(1.0, 0.7);
+
+/// The global phase that brings `rhs` closest to `lhs` in the Hilbert-Schmidt (Frobenius) norm: the phase of the
+/// Hilbert-Schmidt inner product tr(rhs^dagger lhs).
+static Complex bestGlobalPhase(const Matrix2x2& lhs, const Matrix2x2& rhs) {
+  const Complex overlap = (rhs.adjoint() * lhs).trace();
+  return overlap / std::abs(overlap); // NaN if overlap == 0, so matrixNearUpToGlobalPhase fails
+}
+
+/// Matches a matrix within Hilbert-Schmidt distance `maxError` of `expected`.
+static testing::Matcher<Matrix2x2> matrixNear(const Matrix2x2& expected, double maxError) {
+  return testing::ResultOf(
+      "Hilbert-Schmidt distance",
+      [expected](const Matrix2x2& matrix) { return (matrix - expected).hilbertSchmidtNorm(); }, testing::Le(maxError));
+}
+
+/// Like `matrixNear`, but up to a global phase.
+static testing::Matcher<Matrix2x2> matrixNearUpToGlobalPhase(const Matrix2x2& expected, double maxError) {
+  return testing::ResultOf(
+      "Hilbert-Schmidt distance after aligning the global phase",
+      [expected](const Matrix2x2& matrix) {
+        return (matrix - (bestGlobalPhase(matrix, expected) * expected)).hilbertSchmidtNorm();
+      },
+      testing::Le(maxError));
+}
+
+TEST(RotationUtilsTestHelpers, Matchers) {
+  // The other tests rely on the matchers, so make sure they can fail.
+  const Matrix2x2 matrix = rxMatrix(0.5);
+  EXPECT_THAT(arbitraryGlobalPhase * matrix, matrixNearUpToGlobalPhase(matrix, tolerance));
+  EXPECT_THAT(arbitraryGlobalPhase * matrix, testing::Not(matrixNear(matrix, tolerance)));
+
+  // A relative phase is not a global phase.
+  EXPECT_THAT(rzMatrix(0.5), testing::Not(matrixNearUpToGlobalPhase(rzMatrix(-0.5), tolerance)));
+}
+
+//===----------------------------------------------------------------------===//
+// RotationUtils
+//===----------------------------------------------------------------------===//
+
+TEST(RotationUtilsTest, NormalizeAngle) {
   // The range is (-pi, pi]: values inside are unchanged, pi stays, -pi becomes pi.
   EXPECT_DOUBLE_EQ(normalizeAngle(1.0), 1.0);
   EXPECT_DOUBLE_EQ(normalizeAngle(-1.0), -1.0);
@@ -36,4 +106,77 @@ TEST(RotationUtilsTest, NormalizeAngle) {
     EXPECT_EQ(normalizeAngle(angle), 0.0);
     EXPECT_FALSE(std::signbit(normalizeAngle(angle)));
   }
+}
+
+TEST(RotationUtilsTest, MatrixOperations) {
+  // Only these matrix operations need a direct check; errors in the others would show up elsewhere.
+  const Matrix2x2 matrix{
+      Complex{1, 2}, Complex{3, 4}, //
+      Complex{5, 6}, Complex{7, 8}  //
+  };
+
+  // `+` has no other user.
+  const Matrix2x2 sum{
+      2.0, Complex{8, -2}, //
+      Complex{8, 2}, 14.0  //
+  };
+  EXPECT_THAT(matrix + matrix.adjoint(), matrixNear(sum, tolerance));
+
+  EXPECT_EQ(matrix.trace(), Complex(8, 10));
+  EXPECT_DOUBLE_EQ(matrix.hilbertSchmidtNorm(), std::sqrt(204.0)); // sqrt(5 + 25 + 61 + 113)
+}
+
+TEST(RotationUtilsTest, RotationMatrices) {
+  // Pins the conventions, including the global phase: Rz(theta) = diag(e^{-i theta/2}, e^{i theta/2}) and
+  // Rx(theta) = cos(theta/2) I - i sin(theta/2) X.
+  constexpr double s = std::numbers::sqrt2 / 2;
+  const Matrix2x2 rz{
+      Complex{s, -s}, 0.0, //
+      0.0, Complex{s, s}   //
+  };
+  const Matrix2x2 rx{
+      s, Complex{0.0, -s}, //
+      Complex{0.0, -s}, s  //
+  };
+  EXPECT_THAT(rzMatrix(pi / 2), matrixNear(rz, tolerance));
+  EXPECT_THAT(rxMatrix(pi / 2), matrixNear(rx, tolerance));
+}
+
+TEST(RotationUtilsTest, DecomposeZXZRoundTrip) {
+  constexpr double s = std::numbers::sqrt2 / 2;
+  const auto cases = std::to_array<std::pair<const char*, Matrix2x2>>({
+      // Written by hand, so independent of `zxzMatrix`.
+      {"Hadamard", Matrix2x2{s, s, s, -s}},
+      // Unlike for the Hadamard z1 != z2, and the arguments of the matrix elements lie beyond +-pi/2.
+      {"generic", zxzMatrix({.z1 = 2.5, .x = 2.0, .z2 = 3.0})},
+      // Small but real deviations from x = 0 and x = pi must survive, i.e. the degenerate cases must not kick in early.
+      {"x near 0", zxzMatrix({.z1 = 0.3, .x = 1e-9, .z2 = -2.0})},
+      {"x near pi", zxzMatrix({.z1 = 0.3, .x = pi - 1e-9, .z2 = -2.0})},
+  });
+  for (const auto& [name, unitary] : cases) {
+    SCOPED_TRACE(name);
+    // The global phase makes det != 1.
+    const Matrix2x2 input = arbitraryGlobalPhase * unitary;
+    EXPECT_THAT(zxzMatrix(decomposeZXZ(input)), matrixNearUpToGlobalPhase(input, tolerance));
+  }
+}
+
+TEST(RotationUtilsTest, DecomposeZXZDegenerate) {
+  // x = 0 only defines z1 + z2, and x = pi only z1 - z2. Both are resolved by z2 = 0.
+  EXPECT_THAT(decomposeZXZ(arbitraryGlobalPhase * zxzMatrix({.z1 = 0.5, .x = 0.0, .z2 = 0.3})),
+              zxzNear({.z1 = 0.8, .x = 0.0, .z2 = 0.0}, tolerance));
+  EXPECT_THAT(decomposeZXZ(arbitraryGlobalPhase * zxzMatrix({.z1 = 0.5, .x = pi, .z2 = 0.3})),
+              zxzNear({.z1 = 0.2, .x = pi, .z2 = 0.0}, tolerance));
+}
+
+TEST(RotationUtilsTest, FuseZXZWithRZ) {
+  const ZXZAngles zxz{.z1 = 0.125, .x = 0.25, .z2 = 0.375};
+
+  // The Rz angle is added exactly: to z1 if the Rz comes first, to z2 if it comes last.
+  EXPECT_THAT(fuseZXZ(0.5, zxz), zxzNear({.z1 = 0.625, .x = 0.25, .z2 = 0.375}, 0.0));
+  EXPECT_THAT(fuseZXZ(zxz, 0.5), zxzNear({.z1 = 0.125, .x = 0.25, .z2 = 0.875}, 0.0));
+
+  // The general fuseZXZ agrees up to rounding.
+  EXPECT_THAT(fuseZXZ(ZXZAngles{.z1 = 0.5}, zxz), zxzNear(fuseZXZ(0.5, zxz), tolerance));
+  EXPECT_THAT(fuseZXZ(zxz, ZXZAngles{.z1 = 0.5}), zxzNear(fuseZXZ(zxz, 0.5), tolerance));
 }

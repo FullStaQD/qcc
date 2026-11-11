@@ -41,12 +41,12 @@ target_link_libraries(
           QCCMagicTransforms
           QCCQVecTransforms
           QCCQccTransforms
-          QCCQCOToQVec
           QCCOQ3ToQRef
           QCCQRefToOQ3
           QCCQCToQRef
           QCCQRefToQCirc
           QCCQCircToQRef
+          QCCQCircToQVec
           QCCQVecToMagic
           QCCToHiSEPQ
           QCCToQIR
@@ -55,7 +55,4 @@ target_link_libraries(
           # Extensions/Interfaces
           MLIRFuncInlinerExtension
           MLIRTransformUtils
-          MLIRQCDialect
-          MLIRQCODialect
-          MLIRQCToQCO
-          MLIRQTensorDialect)
+          MLIRQCDialect)

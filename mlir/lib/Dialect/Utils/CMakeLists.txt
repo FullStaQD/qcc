@@ -1,1 +1,1 @@
-add_mlir_library(QCCDialectUtils RotationUtils.cpp)
+add_mlir_library(QCCDialectUtils RotationUtils.cpp LINK_COMPONENTS Support)

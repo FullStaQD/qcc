@@ -1,9 +1,6 @@
 add_mlir_dialect_library(
   QCCQCircDialect
   QCircDialect.cpp
-  DEPENDS
-  QCCQCircDialectIncGen
-  QCCQCircOpsIncGen
   LINK_LIBS
   PRIVATE
   MLIRIR

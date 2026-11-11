@@ -27,20 +27,19 @@ def QVec_Dialect : Dialect {
         The dialect has **value semantics** to ease optimization passes.
 
         The dialect does not model a global phase: gates are equal if they agree up to a global phase, and a lowering
-        into `qvec` may drop one (e.g. `qco.gphase` at the top level).
+        into `qvec` may drop one.
 
         Example:
         ```mlir
         // A Hadamard gate on all four qubits in %qs.
-        %qs_out = qvec.single h %qs : vector<4x!qco.qubit>
+        %qs_out = qvec.single h %qs : vector<4x!qcc.qubit>
         ```
     }];
 
     let name = "qvec";
     let cppNamespace = "::qcc::qvec";
 
-    // `!qco.qubit` appears in our operations' assembly.
-    let dependentDialects = ["::mlir::qco::QCODialect"];
+    let dependentDialects = ["::qcc::QccDialect"];
 
     let useDefaultTypePrinterParser = 0;      // set to 1 once we define types of our own.
     let useDefaultAttributePrinterParser = 1; // needed by the gate-kind attributes.

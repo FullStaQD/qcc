@@ -3,11 +3,6 @@ add_mlir_dialect_library(
   ConstantEvaluator.cpp
   OQ3Dialect.cpp
   OQ3Ops.cpp
-  DEPENDS
-  QCCOQ3DialectIncGen
-  QCCOQ3AttrsIncGen
-  QCCOQ3TypesIncGen
-  QCCOQ3OpsIncGen
   LINK_LIBS
   PRIVATE
   MLIRIR

@@ -45,6 +45,11 @@ elseif(NOT TARGET llvm_gtest)
 endif()
 
 add_subdirectory(mlir/include)
+
+# All targets below may depend on all tablegen'd files (like clang does). Must come after mlir/include: the tablegen
+# targets themselves would otherwise depend on these aggregates, which contain them.
+list(APPEND LLVM_COMMON_DEPENDS mlir-headers mlir-generic-headers)
+
 add_subdirectory(mlir/lib)
 add_subdirectory(mlir/tools)
 

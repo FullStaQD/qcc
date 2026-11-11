@@ -29,6 +29,7 @@
 
 using namespace mlir;
 using namespace qcc::qvec;
+using qcc::SingleGateKind;
 
 namespace {
 
@@ -58,18 +59,27 @@ struct SingleToUZXZ final : OpRewritePattern<SingleOp> {
     case SingleGateKind::RZ:
     case SingleGateKind::UZXZ:
       return failure(); // Already in the target gate set.
-    case SingleGateKind::I:
-      return uZXZ(splat(0.0), splat(0.0), splat(0.0));
     case SingleGateKind::H:
       return uZXZ(splat(pi / 2), splat(pi / 2), splat(pi / 2));
     case SingleGateKind::X:
       return uZXZ(splat(0.0), splat(pi), splat(0.0));
     case SingleGateKind::Y:
       return uZXZ(splat(-pi / 2), splat(pi), splat(pi / 2));
+    case SingleGateKind::SX:
+      return uZXZ(splat(0.0), splat(pi / 2), splat(0.0));
+    case SingleGateKind::SXdg:
+      return uZXZ(splat(0.0), splat(-pi / 2), splat(0.0));
     case SingleGateKind::RX:
       return uZXZ(splat(0.0), op.getParams().front(), splat(0.0));
     case SingleGateKind::RY:
       return uZXZ(splat(-pi / 2), op.getParams().front(), splat(pi / 2));
+    case SingleGateKind::UZYZ: {
+      // u_zyz(z1, y, z2) = u_zxz(z1 - pi/2, y, z2 + pi/2).
+      ValueRange params = op.getParams();
+      Value z1 = offsetAngles(rewriter, loc, params[zxz::z1], -pi / 2);
+      Value z2 = offsetAngles(rewriter, loc, params[zxz::z2], pi / 2);
+      return uZXZ(z1, params[zxz::x], z2);
+    }
     case SingleGateKind::Z:
       return rz(pi);
     case SingleGateKind::S:
