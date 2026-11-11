@@ -9,3 +9,7 @@ FetchContent_Declare(
 list(APPEND FETCH_PACKAGES mqt-core)
 
 FetchContent_MakeAvailable(${FETCH_PACKAGES})
+
+# qcc only depends on the aggregate header targets (see top-level CMakeLists.txt), but mqt-core's pass declarations are
+# in none of them. Add the ones we include.
+add_dependencies(mlir-headers QCToQCOIncGen)

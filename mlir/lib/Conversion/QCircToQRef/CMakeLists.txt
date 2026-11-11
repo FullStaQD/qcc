@@ -1,8 +1,6 @@
 add_mlir_conversion_library(
   QCCQCircToQRef
   ConvertQCircToQRef.cpp
-  DEPENDS
-  QCCQCircToQRefIncGen
   LINK_LIBS
   PRIVATE
   # Dialects
