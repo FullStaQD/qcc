@@ -16,6 +16,9 @@ if(NOT QCC_VERSION_SUFFIX MATCHES "^(-[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?$")
 endif()
 set(QCC_VERSION "${PROJECT_VERSION}${QCC_VERSION_SUFFIX}")
 
+# Off by default: with the commit in --version, every new commit relinks the tools. Release builds should turn it on.
+option(QCC_APPEND_VC_REV "Append the git commit to the --version output" OFF)
+
 if(NOT DEFINED CMAKE_CXX_STANDARD OR CMAKE_CXX_STANDARD LESS 20)
   set(CMAKE_CXX_STANDARD
       20

@@ -1,4 +1,4 @@
 // RUN: qcc --version | FileCheck %s -DVERSION=%qcc_version
 
-// The commit is missing in builds outside a git checkout.
+// The commit is only there with QCC_APPEND_VC_REV=ON in a git checkout.
 // CHECK: {{^}}[[VERSION]]{{( \([0-9a-f]{7}\))?$}}

@@ -13,7 +13,8 @@
 
 namespace qcc {
 
-/// Prints the version and, if known, the commit this build is from, e.g. "0.1.0-alpha.1 (abc1234)".
+/// Prints the version and, if known (see QCC_APPEND_VC_REV), the commit this build is from, e.g.
+/// "0.1.0-alpha.1 (abc1234)".
 ///
 /// Tools register it with llvm::cl::SetVersionPrinter, so that --version prints it instead of LLVM's version.
 void printVersion(llvm::raw_ostream& os);
