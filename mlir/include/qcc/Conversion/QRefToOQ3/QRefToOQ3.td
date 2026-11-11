@@ -19,6 +19,10 @@ def ConvertQRefToOQ3 : Pass<"convert-qref-to-oq3", "mlir::ModuleOp"> {
 
       The entry function must be a single block of straight-line code. Notable behavior:
       - `qcc.alloc` (a qubit or a static-size array) becomes a `qubit` declaration.
+        TODO: At the moment, `qcc.alloc` prepares a |0> state, while OpenQASM's declarations
+        are uninitialized.
+        In practice, OpenQASM is commonly written under the assumption of |0> initialization.
+        The `qcc.alloc` semantics may also be changed.
       - `qcc.static_ref` becomes a physical qubit `$n`.
       - `qcc.dealloc` is dropped.
 
@@ -33,6 +37,8 @@ def ConvertQRefToOQ3 : Pass<"convert-qref-to-oq3", "mlir::ModuleOp"> {
       oq3.gate_call @h [%q : !qcc.qubit_ref]
       %m = oq3.measure %q : !qcc.qubit_ref -> !oq3.bit
       ```
+
+      TODO: Allow multiple entry points.
    }];
 
   let dependentDialects = [
