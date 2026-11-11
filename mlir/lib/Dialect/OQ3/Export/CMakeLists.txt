@@ -5,6 +5,7 @@ add_mlir_library(
   PRIVATE
   MLIRIR
   MLIRSupport
+  MLIRDLTIDialect
   MLIRFuncDialect
   MLIRTranslateLib
   QCCOQ3Dialect

@@ -17,6 +17,7 @@ add_mlir_conversion_library(
   LINK_LIBS
   PUBLIC
   MLIRArithDialect
+  MLIRDataLayoutInterfaces
   MLIRFuncDialect
   MLIRIR
   MLIRMemRefDialect

@@ -227,3 +227,25 @@ func.func @main() attributes {qcc.entry_point} {
   qref.single rx(%fquot) %q : f64, !qcc.qubit_ref
   return
 }
+
+// -----
+
+// The target's `float` has its word size (32 bits in this case), so `f32` values become `float`s.
+
+// CHECK-LABEL: OPENQASM 3.1;
+// CHECK-NEXT:  include "stdgates.inc";
+// CHECK-NEXT:  qubit q0;
+// CHECK-NEXT:  rx(0.1 * 2) q0;
+// CHECK-EMPTY:
+module attributes {dlti.dl_spec = #dlti.dl_spec<index = 32>} {
+  func.func @main() attributes {qcc.entry_point} {
+    %q = qcc.alloc : !qcc.qubit_ref
+    %a = arith.constant 0.1 : f32
+    %c2 = arith.constant 2 : i32
+    %b = arith.sitofp %c2 : i32 to f32
+    %prod = arith.mulf %a, %b : f32
+    %theta = arith.extf %prod : f32 to f64
+    qref.single rx(%theta) %q : f64, !qcc.qubit_ref
+    return
+  }
+}

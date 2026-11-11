@@ -26,6 +26,7 @@
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/Value.h"
 #include "mlir/IR/ValueRange.h"
+#include "mlir/Interfaces/DataLayoutInterfaces.h"
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Pass/Pass.h" // IWYU pragma: keep
 #include "mlir/Support/LLVM.h"
@@ -40,7 +41,6 @@
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/Error.h"
 
-#include <cmath>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -99,21 +99,20 @@ static bool onlyPureOpsBetween(Operation* first, Operation* last) {
   return true;
 }
 
-/// Returns the shortest decimal text of the finite `value` that reads back as `value`.
-static std::string formatFloat(double value) {
-  const llvm::APFloat exact(value);
+/// Returns the shortest decimal text of the finite `value` that reads back as `value` in its semantics.
+static std::string formatFloat(const llvm::APFloat& value) {
   llvm::SmallString<32> text;
-  // 17 significant digits identify every double.
-  for (unsigned precision = 1; precision <= 17; ++precision) {
+  // 36 significant digits identify every value of the widest target `float`, IEEE binary128.
+  for (unsigned precision = 1; precision <= 36; ++precision) {
     text.clear();
-    exact.toString(text, precision);
-    llvm::APFloat parsed(llvm::APFloat::IEEEdouble());
+    value.toString(text, precision);
+    llvm::APFloat parsed(value.getSemantics());
     llvm::Expected<llvm::APFloat::opStatus> status = parsed.convertFromString(text, llvm::APFloat::rmNearestTiesToEven);
     if (!status) {
       llvm::consumeError(status.takeError());
       continue;
     }
-    if (parsed.bitwiseIsEqual(exact)) {
+    if (parsed.bitwiseIsEqual(value)) {
       break;
     }
   }
@@ -128,7 +127,8 @@ namespace {
 
 class Translator {
 public:
-  explicit Translator(func::FuncOp entry) : entry(entry), builder(entry.getContext()) {}
+  /// `floatType` is the target's `float`, the type of the word size.
+  Translator(func::FuncOp entry, Type floatType) : entry(entry), floatType(floatType), builder(entry.getContext()) {}
 
   LogicalResult run();
 
@@ -151,7 +151,7 @@ private:
   FailureOr<Value> lookupAngle(Value value, Operation* user);
 
   Value createInt(Location loc, const llvm::APInt& value);
-  Value createFloat(Location loc, double value);
+  Value createFloat(Location loc, const llvm::APFloat& value);
   Value createAngle(Location loc, Value floatValue);
   /// Returns the angle `-π/2`.
   Value createNegHalfPi(Location loc);
@@ -161,6 +161,7 @@ private:
   std::string freshName(StringRef prefix);
 
   func::FuncOp entry;
+  Type floatType;
   OpBuilder builder;
   llvm::DenseMap<Value, Value> values;
   llvm::DenseMap<Value, Value> storedBits;
@@ -235,12 +236,12 @@ Value Translator::createInt(Location loc, const llvm::APInt& value) {
   return ConstantOp::create(builder, loc, IntLiteralAttr::get(value, UnsizedIntType::get(context)));
 }
 
-Value Translator::createFloat(Location loc, double value) {
+Value Translator::createFloat(Location loc, const llvm::APFloat& value) {
   MLIRContext* context = builder.getContext();
-  const std::string text = formatFloat(std::abs(value));
+  const std::string text = formatFloat(llvm::abs(value));
   Value magnitude =
       ConstantOp::create(builder, loc, FloatLiteralAttr::get(context, text, UnsizedFloatType::get(context)));
-  if (std::signbit(value)) {
+  if (value.isNegative()) {
     return UnaryOp::create(builder, loc, UnaryKind::Neg, magnitude);
   }
   return magnitude;
@@ -314,8 +315,9 @@ LogicalResult Translator::translate(Operation* op) {
         return success();
       })
       .Case([&](arith::SIToFPOp convert) -> LogicalResult {
-        if (!convert.getType().isF64()) {
-          return op->emitError() << "only conversions to 'f64' can be converted to OpenQASM";
+        if (convert.getType() != floatType) {
+          return op->emitError() << "only conversions to the target's 'float', " << floatType
+                                 << ", can be converted to OpenQASM";
         }
         FailureOr<Value> operand = lookup(convert.getIn(), op);
         if (failed(operand)) {
@@ -326,6 +328,14 @@ LogicalResult Translator::translate(Operation* op) {
         return success();
       })
       .Case<arith::IndexCastOp, arith::ExtSIOp>([&](Operation*) { return forward(); })
+      .Case([&](arith::ExtFOp extend) -> LogicalResult {
+        // Widening the target's `float` to an `f64` gate parameter: the implicit cast to `angle` takes its place.
+        if (extend.getIn().getType() != floatType || !extend.getType().isF64()) {
+          return op->emitError() << "only the extension of the target's 'float', " << floatType
+                                 << ", to 'f64' can be converted to OpenQASM";
+        }
+        return forward();
+      })
       .Case([&](StaticRefOp staticRef) -> LogicalResult {
         for (auto [result, index] : llvm::zip_equal(staticRef.getQubits(), staticRef.getIndices())) {
           values[result] = PhysicalQubitOp::create(builder, loc, QubitRefType::get(context), index);
@@ -388,11 +398,11 @@ LogicalResult Translator::translateConstant(arith::ConstantOp op) {
       return success();
     }
   }
-  if (auto real = dyn_cast<FloatAttr>(op.getValue()); real && real.getType().isF64()) {
+  if (auto real = dyn_cast<FloatAttr>(op.getValue()); real && real.getType() == floatType) {
     if (!real.getValue().isFinite()) {
       return op.emitError() << "non-finite constant cannot be converted to OpenQASM";
     }
-    values[op.getResult()] = createFloat(loc, real.getValueAsDouble());
+    values[op.getResult()] = createFloat(loc, real.getValue());
     return success();
   }
   return op.emitError() << "a constant " << op.getValue() << " cannot be converted to OpenQASM";
@@ -635,6 +645,22 @@ LogicalResult Translator::translateMeasure(qref::MeasureOp op) {
 // Pass
 //===----------------------------------------------------------------------===//
 
+/// The IEEE 754 binary floating-point type of `width` bits, the target's `float`, or null if there is none.
+static Type getFloatType(MLIRContext* context, unsigned width) {
+  switch (width) {
+  case 16:
+    return Float16Type::get(context);
+  case 32:
+    return Float32Type::get(context);
+  case 64:
+    return Float64Type::get(context);
+  case 128:
+    return Float128Type::get(context);
+  default:
+    return {};
+  }
+}
+
 namespace {
 
 struct ConvertQRefToOQ3 final : qcc::impl::ConvertQRefToOQ3Base<ConvertQRefToOQ3> {
@@ -671,7 +697,15 @@ protected:
       }
     }
 
-    if (failed(Translator(entry).run())) {
+    const unsigned wordSize =
+        static_cast<unsigned>(DataLayout::closest(module).getTypeSizeInBits(IndexType::get(context)).getFixedValue());
+    Type floatType = getFloatType(context, wordSize);
+    if (floatType == nullptr) {
+      module.emitError() << "there is no " << wordSize << "-bit 'float' for the target's word size";
+      signalPassFailure();
+      return;
+    }
+    if (failed(Translator(entry, floatType).run())) {
       signalPassFailure();
       return;
     }
