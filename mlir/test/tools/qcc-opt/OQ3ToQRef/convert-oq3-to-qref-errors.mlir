@@ -65,7 +65,7 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<index = 24>} {
 // Unsupported features for now.
 
 func.func @f(%reg: !oq3.qreg<2>, %index: !oq3.int) {
-  // expected-error @+1 {{an index that is not a constant expression cannot be converted to 'qref' yet}}
+  // expected-error @+1 {{an index that is not a constant expression cannot be converted to 'qref'}}
   %q = oq3.qubit_index %reg[%index] : !oq3.qreg<2>, !oq3.int
   return
 }
@@ -75,7 +75,7 @@ func.func @f(%reg: !oq3.qreg<2>, %index: !oq3.int) {
 module attributes {oq3.version = #oq3.version<3, 1>} {
   func.func private @f()
   func.func @main() attributes {qcc.entry_point} {
-    // expected-error @+1 {{global definitions cannot be converted to 'qref' yet}}
+    // expected-error @+1 {{global definitions cannot be converted to 'qref'}}
     oq3.defined @f
     return
   }
@@ -90,19 +90,19 @@ func.func @main() attributes {qcc.entry_point} {
   %c = oq3.qubit_decl "c" : !qcc.qubit_ref
   %pi = oq3.math_constant pi : !oq3.float
   %theta = oq3.cast %pi implicit : !oq3.float -> !qcc.angle
-  // expected-error @below {{the gate 'ch' cannot be converted to 'qref' yet}}
+  // expected-error @below {{the gate 'ch' cannot be converted to 'qref'}}
   oq3.gate_call @ch [%a, %b : !qcc.qubit_ref, !qcc.qubit_ref]
-  // expected-error @below {{the gate 'crx' cannot be converted to 'qref' yet}}
+  // expected-error @below {{the gate 'crx' cannot be converted to 'qref'}}
   oq3.gate_call @crx(%theta : !qcc.angle) [%a, %b : !qcc.qubit_ref, !qcc.qubit_ref]
-  // expected-error @below {{the gate 'cry' cannot be converted to 'qref' yet}}
+  // expected-error @below {{the gate 'cry' cannot be converted to 'qref'}}
   oq3.gate_call @cry(%theta : !qcc.angle) [%a, %b : !qcc.qubit_ref, !qcc.qubit_ref]
-  // expected-error @below {{the gate 'crz' cannot be converted to 'qref' yet}}
+  // expected-error @below {{the gate 'crz' cannot be converted to 'qref'}}
   oq3.gate_call @crz(%theta : !qcc.angle) [%a, %b : !qcc.qubit_ref, !qcc.qubit_ref]
-  // expected-error @below {{the gate 'cu' cannot be converted to 'qref' yet}}
+  // expected-error @below {{the gate 'cu' cannot be converted to 'qref'}}
   oq3.gate_call @cu(%theta, %theta, %theta, %theta : !qcc.angle, !qcc.angle, !qcc.angle, !qcc.angle) [%a, %b : !qcc.qubit_ref, !qcc.qubit_ref]
-  // expected-error @below {{the gate 'ccx' cannot be converted to 'qref' yet}}
+  // expected-error @below {{the gate 'ccx' cannot be converted to 'qref'}}
   oq3.gate_call @ccx [%a, %b, %c : !qcc.qubit_ref, !qcc.qubit_ref, !qcc.qubit_ref]
-  // expected-error @below {{the gate 'cswap' cannot be converted to 'qref' yet}}
+  // expected-error @below {{the gate 'cswap' cannot be converted to 'qref'}}
   oq3.gate_call @cswap [%a, %b, %c : !qcc.qubit_ref, !qcc.qubit_ref, !qcc.qubit_ref]
   return
 }

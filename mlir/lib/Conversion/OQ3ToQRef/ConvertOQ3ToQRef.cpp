@@ -724,18 +724,18 @@ static LogicalResult checkPreconditions(ModuleOp module, IntegerType intType, Ty
     TypeSwitch<Operation*>(op)
         .Case<QubitIndexOp, SubrefOp>([&](Operation* indexing) {
           if (failed(evaluateConstantInt(indexing->getOperand(1)))) {
-            indexing->emitError() << "an index that is not a constant expression cannot be converted to 'qref' yet";
+            indexing->emitError() << "an index that is not a constant expression cannot be converted to 'qref'";
             convertible = false;
           }
         })
         .Case([&](GateCallOp call) {
           if (!isConvertibleGate(call.getCallee())) {
-            call.emitError() << "the gate '" << call.getCallee() << "' cannot be converted to 'qref' yet";
+            call.emitError() << "the gate '" << call.getCallee() << "' cannot be converted to 'qref'";
             convertible = false;
           }
         })
         .Case([&](DefinedOp marker) {
-          marker.emitError() << "global definitions cannot be converted to 'qref' yet";
+          marker.emitError() << "global definitions cannot be converted to 'qref'";
           convertible = false;
         })
         .Case([&](ConstantOp constant) {

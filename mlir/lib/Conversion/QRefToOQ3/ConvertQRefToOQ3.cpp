@@ -497,7 +497,7 @@ LogicalResult Translator::translateStore(memref::StoreOp op) {
 
 LogicalResult Translator::translateLoad(memref::LoadOp op) {
   if (!op.getIndices().empty()) {
-    return op.emitError() << "reading a bit of a register cannot be converted to OpenQASM yet";
+    return op.emitError() << "reading a bit of a register cannot be converted to OpenQASM";
   }
   // A load is printed at its use, so it is created there.
   FailureOr<Value> ref = lookup(op.getMemRef(), op);
@@ -540,7 +540,7 @@ LogicalResult Translator::translateSingle(qref::SingleOp op) {
     call(loc, "U", {params[1], params[2], params[0]}, *qubit);
     return success();
   default:
-    return op.emitError() << "the gate '" << stringifySingleGateKind(kind) << "' cannot be converted to OpenQASM yet";
+    return op.emitError() << "the gate '" << stringifySingleGateKind(kind) << "' cannot be converted to OpenQASM";
   }
 }
 
@@ -548,7 +548,7 @@ LogicalResult Translator::translatePair(qref::PairOp op) {
   const PairGateKind kind = op.getGateKind();
   const std::optional<StringRef> name = getStandardGateName(kind);
   if (!name) {
-    return op.emitError() << "the gate '" << stringifyPairGateKind(kind) << "' cannot be converted to OpenQASM yet";
+    return op.emitError() << "the gate '" << stringifyPairGateKind(kind) << "' cannot be converted to OpenQASM";
   }
 
   FailureOr<Value> lhs = lookup(op.getLhs(), op);
@@ -654,7 +654,7 @@ protected:
       return;
     }
     if (entry.getNumArguments() != 0 || entry.getNumResults() != 0) {
-      entry.emitError() << "an entry function with arguments or results cannot be converted to OpenQASM yet";
+      entry.emitError() << "an entry function with arguments or results cannot be converted to OpenQASM";
       signalPassFailure();
       return;
     }
@@ -665,7 +665,7 @@ protected:
     }
     for (Operation& op : *module.getBody()) {
       if (&op != entry.getOperation()) {
-        op.emitError() << "only the entry function can be converted to OpenQASM yet";
+        op.emitError() << "only the entry function can be converted to OpenQASM";
         signalPassFailure();
         return;
       }

@@ -245,7 +245,7 @@ FailureOr<std::string> Exporter::printStatementBody(Operation* op) {
       .Case([](PragmaOp pragma) { return ("pragma " + pragma.getText()).str(); })
       .Case([](IncludeOp include) { return "include " + quotePath(include.getPath()) + ";"; })
       .Case([](DefinedOp marker) -> FailureOr<std::string> {
-        return marker.emitOpError() << "marks a global definition, whose export is not supported yet";
+        return marker.emitOpError() << "marks a global definition, whose export is not supported";
       })
       .Case([&](QubitDeclOp decl) -> FailureOr<std::string> {
         const StringRef name = decl.getName();

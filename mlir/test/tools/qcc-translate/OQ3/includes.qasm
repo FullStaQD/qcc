@@ -29,7 +29,7 @@
 // CHECK-EXPORT-NEXT: U(0, 0, 0) a;
 // CHECK-EXPORT-NEXT: c[0] = measure b;
 
-// A `stdgates.inc` on disk is not read yet, the built-in signature table describes it.
+// A `stdgates.inc` on disk is not read, the built-in signature table describes it.
 // CHECK-STDGATES:      oq3.include "stdgates.inc" id 0{{$}}
 // CHECK-STDGATES-NEXT: oq3.qubit_decl "q"
 // CHECK-STDGATES-NEXT: oq3.gate_call @h

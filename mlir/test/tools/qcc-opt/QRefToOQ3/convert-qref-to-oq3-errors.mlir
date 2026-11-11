@@ -9,14 +9,14 @@ module {
 
 // -----
 
-// expected-error @below {{an entry function with arguments or results cannot be converted to OpenQASM yet}}
+// expected-error @below {{an entry function with arguments or results cannot be converted to OpenQASM}}
 func.func @main(%theta: f64) attributes {qcc.entry_point} {
   return
 }
 
 // -----
 
-// expected-error @below {{only the entry function can be converted to OpenQASM yet}}
+// expected-error @below {{only the entry function can be converted to OpenQASM}}
 func.func private @helper()
 
 func.func @main() attributes {qcc.entry_point} {
@@ -73,7 +73,7 @@ func.func @main() attributes {qcc.entry_point} {
 func.func @main() attributes {qcc.entry_point} {
   %c = memref.alloca() : memref<2xi1>
   %c0 = arith.constant 0 : index
-  // expected-error @below {{reading a bit of a register cannot be converted to OpenQASM yet}}
+  // expected-error @below {{reading a bit of a register cannot be converted to OpenQASM}}
   %bit = memref.load %c[%c0] : memref<2xi1>
   return
 }
@@ -104,7 +104,7 @@ func.func @main() attributes {qcc.entry_point} {
   %a = qcc.alloc : !qcc.qubit_ref
   %b = qcc.alloc : !qcc.qubit_ref
   %theta = arith.constant 0.5 : f64
-  // expected-error @below {{the gate 'u_zxz' cannot be converted to OpenQASM yet}}
+  // expected-error @below {{the gate 'u_zxz' cannot be converted to OpenQASM}}
   qref.single u_zxz(%theta, %theta, %theta) %a : f64, !qcc.qubit_ref
   return
 }
@@ -115,7 +115,7 @@ func.func @main() attributes {qcc.entry_point} {
   %a = qcc.alloc : !qcc.qubit_ref
   %b = qcc.alloc : !qcc.qubit_ref
   %theta = arith.constant 0.5 : f64
-  // expected-error @below {{the gate 'rzz' cannot be converted to OpenQASM yet}}
+  // expected-error @below {{the gate 'rzz' cannot be converted to OpenQASM}}
   qref.pair rzz(%theta) %a, %b : f64, !qcc.qubit_ref
   return
 }
@@ -126,7 +126,7 @@ func.func @main() attributes {qcc.entry_point} {
   %a = qcc.alloc : !qcc.qubit_ref
   %b = qcc.alloc : !qcc.qubit_ref
   %theta = arith.constant 0.5 : f64
-  // expected-error @below {{the gate 'rxx' cannot be converted to OpenQASM yet}}
+  // expected-error @below {{the gate 'rxx' cannot be converted to OpenQASM}}
   qref.pair rxx(%theta) %a, %b : f64, !qcc.qubit_ref
   return
 }
@@ -137,7 +137,7 @@ func.func @main() attributes {qcc.entry_point} {
   %a = qcc.alloc : !qcc.qubit_ref
   %b = qcc.alloc : !qcc.qubit_ref
   %theta = arith.constant 0.5 : f64
-  // expected-error @below {{the gate 'ryy' cannot be converted to OpenQASM yet}}
+  // expected-error @below {{the gate 'ryy' cannot be converted to OpenQASM}}
   qref.pair ryy(%theta) %a, %b : f64, !qcc.qubit_ref
   return
 }
@@ -147,19 +147,19 @@ func.func @main() attributes {qcc.entry_point} {
 func.func @main() attributes {qcc.entry_point} {
   %a = qcc.alloc : !qcc.qubit_ref
   %b = qcc.alloc : !qcc.qubit_ref
-  // expected-error @below {{the gate 'iswap' cannot be converted to OpenQASM yet}}
+  // expected-error @below {{the gate 'iswap' cannot be converted to OpenQASM}}
   qref.pair iswap %a, %b : !qcc.qubit_ref
   return
 }
 
 // -----
 
-// TODO: `crz` is not supported yet: OpenQASM reduces gate angles modulo 2π, but `crz` is 4π-periodic.
+// TODO: `crz` is not supported: OpenQASM reduces gate angles modulo 2π, but `crz` is 4π-periodic.
 func.func @main() attributes {qcc.entry_point} {
   %a = qcc.alloc : !qcc.qubit_ref
   %b = qcc.alloc : !qcc.qubit_ref
   %theta = arith.constant 0.5 : f64
-  // expected-error @below {{the gate 'crz' cannot be converted to OpenQASM yet}}
+  // expected-error @below {{the gate 'crz' cannot be converted to OpenQASM}}
   qref.pair crz(%theta) %a, %b : f64, !qcc.qubit_ref
   return
 }

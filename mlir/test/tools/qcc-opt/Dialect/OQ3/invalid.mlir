@@ -275,7 +275,7 @@ module attributes {oq3.version = #oq3.version<3, 1>} {
 
 module attributes {oq3.version = #oq3.version<3, 1>} {
   func.func @main() attributes {qcc.entry_point} {
-    // expected-error @below {{'oq3.declare' op declares a variable of type '!oq3.int', but only 'bit' and 'bit[n]' variables are supported yet}}
+    // expected-error @below {{'oq3.declare' op declares a variable of type '!oq3.int', but only 'bit' and 'bit[n]' variables are supported}}
     %i = oq3.declare "i" : !qcc.ref<!oq3.int>
     return
   }

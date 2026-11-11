@@ -153,9 +153,9 @@ private:
   InFlightDiagnostic emitError(SMLoc loc) { return mlir::emitError(getLoc(loc)); }
   InFlightDiagnostic emitError(SMLoc loc, const Twine& message) { return mlir::emitError(getLoc(loc), message); }
 
-  /// Reports that the construct at `loc` is valid OpenQASM, but not supported by the importer yet.
+  /// Reports that the construct at `loc` is valid OpenQASM, but not supported by the importer.
   InFlightDiagnostic emitUnsupported(SMLoc loc, StringRef construct) {
-    return emitError(loc) << construct << " are not supported yet";
+    return emitError(loc) << construct << " are not supported";
   }
 
   /// Reports the current token as unexpected.
@@ -369,7 +369,7 @@ LogicalResult Importer::parseVersion() {
                                        << " is not supported; supported versions are 3.0, 3.1, and 3.2";
   }
   if (minor == devMinorVersion && !options.allowDevVersion) {
-    InFlightDiagnostic diag = emitError(token().getLoc()) << "OpenQASM " << text << " is not released yet";
+    InFlightDiagnostic diag = emitError(token().getLoc()) << "OpenQASM " << text << " is not released";
     diag.attachNote() << "qcc implements the development specification as of " << devSpecDate << " (" << devSpecCommit
                       << "), which may still change; use --oq3-allow-dev-version to import the "
                       << "program anyway";
@@ -470,7 +470,7 @@ FailureOr<Operation*> Importer::parseStatement() {
   case TokenKind::KwArray:
   case TokenKind::KwDuration:
   case TokenKind::KwStretch:
-    return emitError(loc) << "declarations of type '" << token().spelling << "' are not supported yet";
+    return emitError(loc) << "declarations of type '" << token().spelling << "' are not supported";
   case TokenKind::KwIf:
   case TokenKind::KwFor:
   case TokenKind::KwWhile:
@@ -480,11 +480,11 @@ FailureOr<Operation*> Importer::parseStatement() {
   case TokenKind::KwReturn:
   case TokenKind::KwEnd:
   case TokenKind::LBrace:
-    return emitError(loc) << "control flow ('" << token().spelling << "') is not supported yet";
+    return emitError(loc) << "control flow ('" << token().spelling << "') is not supported";
   case TokenKind::KwBox:
   case TokenKind::KwDelay:
   case TokenKind::KwNop:
-    return emitError(loc) << "timing instructions ('" << token().spelling << "') are not supported yet";
+    return emitError(loc) << "timing instructions ('" << token().spelling << "') are not supported";
   case TokenKind::KwCal:
   case TokenKind::KwDefcal:
   case TokenKind::KwDefcalgrammar:
@@ -979,7 +979,7 @@ static std::optional<std::pair<BinaryKind, unsigned>> getBinaryOperator(TokenKin
   }
 }
 
-/// Whether `kind` is a binary operator of the language that is not supported yet.
+/// Whether `kind` is a binary operator of the language that is not supported.
 static bool isUnsupportedBinaryOperator(TokenKind kind) {
   switch (kind) {
   case TokenKind::Percent:
@@ -1011,7 +1011,7 @@ FailureOr<Expr> Importer::parseBinary(unsigned minPrecedence) {
   }
   while (true) {
     if (isUnsupportedBinaryOperator(token().kind)) {
-      return emitError(token().getLoc()) << "the operator '" << token().spelling << "' is not supported yet";
+      return emitError(token().getLoc()) << "the operator '" << token().spelling << "' is not supported";
     }
     const std::optional<std::pair<BinaryKind, unsigned>> op = getBinaryOperator(token().kind);
     if (!op || op->second < minPrecedence) {
@@ -1063,7 +1063,7 @@ FailureOr<Expr> Importer::buildBinary(BinaryKind kind, Expr lhs, Expr rhs, SMLoc
 FailureOr<Expr> Importer::parseUnary() {
   const SMLoc loc = token().getLoc();
   if (token().is(TokenKind::Tilde) || token().is(TokenKind::Exclamation)) {
-    return emitError(loc) << "the operator '" << token().spelling << "' is not supported yet";
+    return emitError(loc) << "the operator '" << token().spelling << "' is not supported";
   }
   if (!consumeIf(TokenKind::Minus)) {
     return parsePrimary();
