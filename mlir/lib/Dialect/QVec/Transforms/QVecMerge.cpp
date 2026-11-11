@@ -54,8 +54,8 @@ using BucketKey = std::pair<OperationName, uint32_t>;
 /// Get the second component of the `BucketKey`, or nullopt for an operation this pass never merges.
 ///
 /// TODO(#141): Parametrised `single` / `pair` are left alone for now, because merging them means concatenating
-/// their angle vectors (trivial for constants, a `vector.shuffle` / `vector.from_elements` for SSA vectors). Disjoint
-/// `global zz` blocks could merge by direct sum of their (constant) matrices. Both belong to the merge rewrite.
+/// their angle vectors (trivial for constants, a `vector.shuffle` / `vector.from_elements` for SSA vectors). This
+/// belongs to the merge rewrite.
 static std::optional<uint32_t> getSecondaryBucketKey(QubitLaneOpInterface op) {
   return TypeSwitch<Operation*, std::optional<uint32_t>>(op)
       .Case([](SingleOp singleOp) -> std::optional<uint32_t> {
@@ -70,7 +70,6 @@ static std::optional<uint32_t> getSecondaryBucketKey(QubitLaneOpInterface op) {
         }
         return static_cast<uint32_t>(pairOp.getGateKind());
       })
-      .Case([](GlobalOp) -> std::optional<uint32_t> { return std::nullopt; })
       .Case<MeasureOp, ResetOp>([](auto op) -> std::optional<uint32_t> { return static_cast<uint32_t>(op.getBasis()); })
       .Default([](Operation*) -> std::optional<uint32_t> {
         assert(false && "unhandled qvec operation, it stays unmerged");

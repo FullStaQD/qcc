@@ -12,10 +12,10 @@
 #include "qcc/Conversion/Aux_/AuxUnpackRecordInt.h"
 #include "qcc/Conversion/JaspToQC/JaspToQC.h"
 #include "qcc/Conversion/QCToQRef/QCToQRef.h"
+#include "qcc/Conversion/QCircToMagic/QCircToMagic.h"
 #include "qcc/Conversion/QCircToQRef/QCircToQRef.h"
 #include "qcc/Conversion/QCircToQVec/QCircToQVec.h"
 #include "qcc/Conversion/QRefToQCirc/QRefToQCirc.h"
-#include "qcc/Conversion/QVecToMagic/QVecToMagic.h"
 #include "qcc/Conversion/ToHiSEPQ/ToHiSEPQ.h"
 #include "qcc/Conversion/ToQIR/ToQIR.h"
 #include "qcc/Dialect/Aux_/IR/Aux_.h"
@@ -25,6 +25,7 @@
 #include "qcc/Dialect/OQ3/IR/OQ3.h"
 #include "qcc/Dialect/QCF/IR/QCF.h"
 #include "qcc/Dialect/QCirc/IR/QCirc.h"
+#include "qcc/Dialect/QCirc/Transforms/Passes.h"
 #include "qcc/Dialect/QRef/IR/QRef.h"
 #include "qcc/Dialect/QVec/IR/QVec.h"
 #include "qcc/Dialect/QVec/Transforms/Passes.h"
@@ -130,13 +131,10 @@ int main(int argc, char** argv) {
   qcc::registerConvertQRefToQCirc();
   qcc::registerConvertQCircToQRef();
   qcc::registerConvertQCircToQVec();
-  qcc::registerConvertQVecToMagic();
+  qcc::registerConvertQCircToMagic();
   qcc::registerConvertQVecToHiSEPQIntrinsics();
   qcc::registerQVecMerge();
-  qcc::registerQVecToRZZ();
-  qcc::registerQVecToUZXZ();
-  qcc::registerQVecFuseZXZ();
-  qcc::registerQVecLayer();
+  qcc::registerQCircPasses();
   qcc::magic::registerMagicPasses();
   qcc::registerQccAttachDevice();
 

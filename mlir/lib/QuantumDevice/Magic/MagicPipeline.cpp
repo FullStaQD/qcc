@@ -12,11 +12,10 @@
 #include "qcc/Conversion/Aux_/AuxOutputRecording.h"
 #include "qcc/Conversion/Aux_/AuxUnpackRecordInt.h"
 #include "qcc/Conversion/QCToQRef/QCToQRef.h"
-#include "qcc/Conversion/QCircToQVec/QCircToQVec.h"
+#include "qcc/Conversion/QCircToMagic/QCircToMagic.h"
 #include "qcc/Conversion/QRefToQCirc/QRefToQCirc.h"
-#include "qcc/Conversion/QVecToMagic/QVecToMagic.h"
 #include "qcc/Dialect/Magic/Transforms/Passes.h"
-#include "qcc/Dialect/QVec/Transforms/Passes.h"
+#include "qcc/Dialect/QCirc/Transforms/Passes.h"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Pass/PassManager.h"
@@ -29,21 +28,19 @@ void addLoweringPassesMagic(mlir::PassManager& pm) {
   pm.addPass(qcc::createAuxOutputRecording());
   pm.addPass(qcc::createAuxUnpackRecordInt());
 
-  // qc -> qref -> qcirc -> qvec
-  mlir::OpPassManager& toQVec = pm.nest<mlir::func::FuncOp>();
-  toQVec.addPass(qcc::createConvertQCToQRef());
-  toQVec.addPass(qcc::createConvertQRefToQCirc());
-  toQVec.addPass(qcc::createConvertQCircToQVec());
-
-  // The gates of the architecture: ZZ couplings and single-qubit rotations in ZXZ form, in alternating layers.
-  pm.addPass(qcc::createQVecToRZZ());
-  pm.addPass(qcc::createQVecToUZXZ());
-  pm.addPass(qcc::createQVecFuseZXZ());
-  pm.addPass(qcc::createQVecLayer());
-
-  // qvec -> magic, then down to the native ops.
+  // qc -> qref -> qcirc
   mlir::OpPassManager& lowering = pm.nest<mlir::func::FuncOp>();
-  lowering.addPass(qcc::createConvertQVecToMagic());
+  lowering.addPass(qcc::createConvertQCToQRef());
+  lowering.addPass(qcc::createConvertQRefToQCirc());
+
+  // The gates of the architecture: ZZ couplings and single-qubit rotations in ZXZ form.
+  lowering.addPass(qcc::createQCircToRZZ());
+  lowering.addPass(qcc::createQCircToUZXZ());
+  lowering.addPass(qcc::createQCircFuseZXZ());
+
+  // qcirc -> magic in alternating layers, then down to the native ops.
+  lowering.addPass(qcc::createConvertQCircToMagic());
+  lowering.addPass(qcc::magic::createMagicLayer());
   lowering.addPass(qcc::magic::createMagicShuttleInterTrapZZ());
   lowering.addPass(qcc::magic::createMagicCompileSwap());
   lowering.addPass(qcc::magic::createMagicCompileActiveZZTrivially());

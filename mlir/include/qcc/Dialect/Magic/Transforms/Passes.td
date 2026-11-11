@@ -31,6 +31,9 @@ def MagicLayer : Pass<"magic-layer", "mlir::func::FuncOp"> {
       The schedule is greedy and commutation-aware for the diagonal gates (`rz`, `active_zz`, `inter_trap_zz`). ZZ
       couplings are moved to the earliest layer possible (and merged).
 
+      A function that holds a magic op of a later stage (e.g. `sym_zxz`, `delay` or `shuttle`) is left alone, as is
+      one without `magic.init`. This way the MAGIC pipeline also takes a program that is magic IR already.
+
       Example (three ions in one trap):
 
       ```mlir

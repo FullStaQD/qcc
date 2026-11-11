@@ -1,16 +1,5 @@
 // RUN: qcc-opt %s --magic-layer --split-input-file --verify-diagnostics
 
-!c = !magic.ion_chain<0, [0:1]>
-
-func.func @sym_zxz() {
-  %c0 = magic.init : !c
-  // expected-error @+1 {{'magic.sym_zxz' op is not supported by magic-layer, which schedules zxz, rz, active_zz and inter_trap_zz only}}
-  %c1 = magic.sym_zxz %c0 ions [0] {z = [0.5], x = [0.25]} : !c
-  return
-}
-
-// -----
-
 !a = !magic.ion_chain<0, [0:1]>
 !b = !magic.ion_chain<1, [1:1]>
 

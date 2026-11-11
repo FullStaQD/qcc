@@ -39,13 +39,14 @@ target_link_libraries(
           MLIRFuncToLLVM
           MLIRVectorToLLVMPass
           QCCMagicTransforms
+          QCCQCircTransforms
           QCCQVecTransforms
           QCCQccTransforms
           QCCQCToQRef
           QCCQRefToQCirc
           QCCQCircToQRef
+          QCCQCircToMagic
           QCCQCircToQVec
-          QCCQVecToMagic
           QCCToHiSEPQ
           QCCToQIR
           QCCAuxOutputRecording

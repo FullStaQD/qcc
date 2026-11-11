@@ -25,30 +25,6 @@
 #include "qcc/Dialect/QVec/IR/QVecDialect.h.inc"
 
 //===----------------------------------------------------------------------===//
-// QVec Attributes
-//===----------------------------------------------------------------------===//
-
-#include "qcc/Dialect/QVec/IR/QVecEnums.h.inc"
-
-#define GET_ATTRDEF_CLASSES
-#include "qcc/Dialect/QVec/IR/QVecAttrs.h.inc"
-
-//===----------------------------------------------------------------------===//
-// QVec gate parameters
-//===----------------------------------------------------------------------===//
-
-namespace qcc::qvec {
-
-/// Positions of the three parameters of `qvec.single u_zxz(z1, x, z2)` = Rz(z2) * Rx(x) * Rz(z1), z1 applied first.
-namespace zxz {
-inline constexpr unsigned z1 = 0;
-inline constexpr unsigned x = 1;
-inline constexpr unsigned z2 = 2;
-} // namespace zxz
-
-} // namespace qcc::qvec
-
-//===----------------------------------------------------------------------===//
 // QVec Operations
 //===----------------------------------------------------------------------===//
 

@@ -7,33 +7,32 @@
 //
 // ===----------------------------------------------------------------------===//
 
-#include "qcc/Dialect/QVec/IR/QVec.h"
-#include "qcc/Dialect/QVec/Transforms/Angles.h"
-#include "qcc/Dialect/QVec/Transforms/Passes.h" // IWYU pragma: keep
+#include "qcc/Dialect/QCirc/IR/QCirc.h"
+#include "qcc/Dialect/QCirc/Transforms/Angles.h"
+#include "qcc/Dialect/QCirc/Transforms/Passes.h" // IWYU pragma: keep
 
-#include "mlir/Dialect/Arith/IR/Arith.h" // IWYU pragma: keep
-#include "mlir/IR/Builders.h"
-#include "mlir/IR/BuiltinOps.h"
-#include "mlir/IR/BuiltinTypes.h"
+#include "mlir/Dialect/Arith/IR/Arith.h"  // IWYU pragma: keep
+#include "mlir/Dialect/Func/IR/FuncOps.h" // IWYU pragma: keep
 #include "mlir/IR/Location.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Value.h"
 #include "mlir/IR/ValueRange.h"
 #include "mlir/Pass/Pass.h" // IWYU pragma: keep
 #include "mlir/Support/LLVM.h"
-#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include "mlir/Transforms/WalkPatternRewriteDriver.h"
 
-#include <cstdint>
+#include "llvm/Support/ErrorHandling.h"
+
 #include <numbers>
 #include <utility>
 
 using namespace mlir;
-using namespace qcc::qvec;
+using namespace qcc::qcirc;
 using qcc::SingleGateKind;
 
 namespace {
 
-/// Rewrites one `qvec.single` into `u_zxz(z1, x, z2)` = Rz(z2) Rx(x) Rz(z1), or into `rz` if the gate is diagonal.
+/// Rewrites one `qcirc.single` into `u_zxz(z1, x, z2)` = Rz(z2) Rx(x) Rz(z1), or into `rz` if the gate is diagonal.
 /// Every identity below holds up to a global phase.
 struct SingleToUZXZ final : OpRewritePattern<SingleOp> {
   using OpRewritePattern::OpRewritePattern;
@@ -41,17 +40,22 @@ struct SingleToUZXZ final : OpRewritePattern<SingleOp> {
   LogicalResult matchAndRewrite(SingleOp op, PatternRewriter& rewriter) const override {
     constexpr double pi = std::numbers::pi;
     Location loc = op.getLoc();
-    const int64_t width = op.getQubitsIn().getType().getNumElements();
 
-    auto splat = [&](double value) { return buildSplatAngleVector(rewriter, loc, width, value); };
+    auto angle = [&](double value) { return buildAngle(rewriter, loc, value); };
 
     auto uZXZ = [&](Value z1, Value x, Value z2) {
-      rewriter.replaceOpWithNewOp<SingleOp>(op, SingleGateKind::UZXZ, op.getQubitsIn(), ValueRange{z1, x, z2});
+      rewriter.replaceOpWithNewOp<SingleOp>(op, SingleGateKind::UZXZ, op.getQubitIn(), ValueRange{z1, x, z2});
       return success();
     };
 
+    // rx(theta) = u_zxz(0, theta, 0)
+    auto xRotation = [&](Value theta) {
+      Value zero = angle(0.0);
+      return uZXZ(zero, theta, zero);
+    };
+
     auto rz = [&](double theta) {
-      rewriter.replaceOpWithNewOp<SingleOp>(op, SingleGateKind::RZ, op.getQubitsIn(), ValueRange{splat(theta)});
+      rewriter.replaceOpWithNewOp<SingleOp>(op, SingleGateKind::RZ, op.getQubitIn(), ValueRange{angle(theta)});
       return success();
     };
 
@@ -59,26 +63,28 @@ struct SingleToUZXZ final : OpRewritePattern<SingleOp> {
     case SingleGateKind::RZ:
     case SingleGateKind::UZXZ:
       return failure(); // Already in the target gate set.
-    case SingleGateKind::H:
-      return uZXZ(splat(pi / 2), splat(pi / 2), splat(pi / 2));
+    case SingleGateKind::H: {
+      Value quarter = angle(pi / 2);
+      return uZXZ(quarter, quarter, quarter);
+    }
     case SingleGateKind::X:
-      return uZXZ(splat(0.0), splat(pi), splat(0.0));
+      return xRotation(angle(pi));
     case SingleGateKind::Y:
-      return uZXZ(splat(-pi / 2), splat(pi), splat(pi / 2));
+      return uZXZ(angle(-pi / 2), angle(pi), angle(pi / 2));
     case SingleGateKind::SX:
-      return uZXZ(splat(0.0), splat(pi / 2), splat(0.0));
+      return xRotation(angle(pi / 2));
     case SingleGateKind::SXdg:
-      return uZXZ(splat(0.0), splat(-pi / 2), splat(0.0));
+      return xRotation(angle(-pi / 2));
     case SingleGateKind::RX:
-      return uZXZ(splat(0.0), op.getParams().front(), splat(0.0));
+      return xRotation(op.getParams().front());
     case SingleGateKind::RY:
-      return uZXZ(splat(-pi / 2), op.getParams().front(), splat(pi / 2));
+      return uZXZ(angle(-pi / 2), op.getParams().front(), angle(pi / 2));
     case SingleGateKind::UZYZ: {
       // u_zyz(z1, y, z2) = u_zxz(z1 - pi/2, y, z2 + pi/2).
       ValueRange params = op.getParams();
-      Value z1 = offsetAngles(rewriter, loc, params[zxz::z1], -pi / 2);
-      Value z2 = offsetAngles(rewriter, loc, params[zxz::z2], pi / 2);
-      return uZXZ(z1, params[zxz::x], z2);
+      Value z1 = offsetAngle(rewriter, loc, params[qcc::zxz::z1], -pi / 2);
+      Value z2 = offsetAngle(rewriter, loc, params[qcc::zxz::z2], pi / 2);
+      return uZXZ(z1, params[qcc::zxz::x], z2);
     }
     case SingleGateKind::Z:
       return rz(pi);
@@ -99,22 +105,20 @@ struct SingleToUZXZ final : OpRewritePattern<SingleOp> {
 
 namespace qcc {
 
-#define GEN_PASS_DEF_QVECTOUZXZ
-#include "qcc/Dialect/QVec/Transforms/Passes.h.inc"
+#define GEN_PASS_DEF_QCIRCTOUZXZ
+#include "qcc/Dialect/QCirc/Transforms/Passes.h.inc"
 
 namespace {
 
-struct QVecToUZXZ final : impl::QVecToUZXZBase<QVecToUZXZ> {
-  using QVecToUZXZBase::QVecToUZXZBase;
+struct QCircToUZXZ final : impl::QCircToUZXZBase<QCircToUZXZ> {
+  using QCircToUZXZBase::QCircToUZXZBase;
 
 protected:
   void runOnOperation() override {
-    ModuleOp moduleOp = getOperation();
-    RewritePatternSet patterns(moduleOp.getContext());
-    patterns.add<SingleToUZXZ>(moduleOp.getContext());
-    if (failed(applyPatternsGreedily(moduleOp, std::move(patterns)))) {
-      signalPassFailure();
-    }
+    // Not the greedy driver: it would erase the gates whose qubits nothing observes.
+    RewritePatternSet patterns(&getContext());
+    patterns.add<SingleToUZXZ>(&getContext());
+    walkAndApplyPatterns(getOperation(), std::move(patterns));
   }
 };
 

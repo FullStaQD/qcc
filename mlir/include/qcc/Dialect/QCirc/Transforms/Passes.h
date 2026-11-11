@@ -14,9 +14,9 @@
 namespace qcc {
 
 #define GEN_PASS_DECL
-#include "qcc/Conversion/QVecToMagic/QVecToMagic.h.inc"
+#include "qcc/Dialect/QCirc/Transforms/Passes.h.inc"
 
 #define GEN_PASS_REGISTRATION
-#include "qcc/Conversion/QVecToMagic/QVecToMagic.h.inc"
+#include "qcc/Dialect/QCirc/Transforms/Passes.h.inc"
 
 } // namespace qcc

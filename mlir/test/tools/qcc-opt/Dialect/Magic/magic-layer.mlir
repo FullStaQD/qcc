@@ -163,3 +163,23 @@ func.func @untouched(%x: i64) -> i64 {
 // CHECK:      %[[C:.*]] = arith.constant 1 : i64
 // CHECK-NEXT: %[[Y:.*]] = arith.addi %arg0, %[[C]] : i64
 // CHECK-NEXT: return %[[Y]]
+
+// -----
+
+!c = !magic.ion_chain<0, [0:1, 1:1]>
+
+// A function with an op of a later stage is left alone, so the zxz gates are not fused.
+// CHECK-LABEL: func.func @past_layering
+func.func @past_layering() {
+  %c0 = magic.init : !c
+  %c1 = magic.zxz %c0 ions [0] {z1 = [0.5], x = [0.5], z2 = [0.5]} : !c
+  %c2 = magic.sym_zxz %c1 ions [1] {z = [0.5], x = [0.25]} : !c
+  %c3 = magic.zxz %c2 ions [0] {z1 = [0.5], x = [0.5], z2 = [0.5]} : !c
+  return
+}
+
+// CHECK:      %[[C0:.*]] = magic.init : !chain
+// CHECK-NEXT: %[[C1:.*]] = magic.zxz %[[C0]] ions [0]
+// CHECK-NEXT: %[[C2:.*]] = magic.sym_zxz %[[C1]] ions [1]
+// CHECK-NEXT: magic.zxz %[[C2]] ions [0]
+// CHECK-NEXT: return
