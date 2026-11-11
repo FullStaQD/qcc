@@ -60,8 +60,8 @@ static SmallVector<Value> buildAngleVectors(OpBuilder& builder, Location loc, Va
 
 namespace {
 
-/// Converts `!qcc.qubit` into `vector<1x!qcc.qubit>`. `qcc.static` stays, so its results keep the type `!qcc.qubit`;
-/// when a converted op uses one, the target materialization packs it by a `vector.from_elements`.
+/// Converts `!qcc.qubit` into `vector<1x!qcc.qubit>`. The `qcc.static` op still produces `!qcc.qubit` after the
+/// conversion. We use `vector.from_elements` as target materialization to pack it into a vector.
 struct QCircToQVecTypeConverter final : TypeConverter {
   QCircToQVecTypeConverter() {
     addConversion([](Type type) { return type; });
