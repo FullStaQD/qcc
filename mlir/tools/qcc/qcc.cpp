@@ -18,9 +18,8 @@
 #include "qcc/Dialect/QRef/IR/QRef.h"
 #include "qcc/Dialect/QVec/IR/QVec.h"
 #include "qcc/QuantumDevice/QuantumDeviceRegistry.h"
+#include "qcc/Support/Version.h"
 #include "qcc/Target/TargetRegistry.h"
-
-#include "VCSRevision.h"
 
 #include "mlir/Bytecode/BytecodeWriter.h"
 #include "mlir/Conversion/VectorToSCF/VectorToSCF.h"
@@ -48,7 +47,6 @@
 
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
-#include "llvm/ADT/StringRef.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
@@ -57,7 +55,6 @@
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/SystemUtils.h"
 #include "llvm/Support/ToolOutputFile.h"
-#include "llvm/Support/raw_ostream.h"
 
 #include <cstdint>
 #include <string>
@@ -71,15 +68,6 @@ namespace {
 /// The stage to compile to and emit.
 enum class Stage : uint8_t { Mlir, LlvmIr, Native, CustomMagic };
 } // namespace
-
-/// Prints the version and, if known, the commit this build is from, e.g. "0.1.0-alpha.1 (abc1234)".
-static void printVersion(llvm::raw_ostream& os) {
-  os << QCC_VERSION;
-#ifdef QCC_REVISION
-  os << " (" << llvm::StringRef(QCC_REVISION).take_front(7) << ")";
-#endif
-  os << "\n";
-}
 
 /// Prints the targets compiled into this build.
 static void printTargets() {
@@ -157,7 +145,7 @@ int main(int argc, char** argv) {
   const cl::opt<bool> binary("binary", cl::desc("Emit the binary encoding (obj/bytecode/bitcode) instead of text"),
                              cl::init(false), cl::cat(qccCategory));
 
-  cl::SetVersionPrinter(printVersion);
+  cl::SetVersionPrinter(qcc::printVersion);
   cl::ParseCommandLineOptions(argc, argv, "qcc - Quantum Compiler Collection\n");
 
   if (listTargets) {

@@ -13,6 +13,8 @@
 
 #pragma once
 
-// Non-zero when qcc was built with the HiSEP-Q target. Use with `#if
-// QCC_ENABLE_HISEPQ`.
+// Non-zero when qcc was built with the HiSEP-Q target. Use with `#if QCC_ENABLE_HISEPQ`.
 #cmakedefine01 QCC_ENABLE_HISEPQ
+
+// The version including QCC_VERSION_SUFFIX, e.g. "0.1.0-alpha.1". Print it with qcc::printVersion.
+#define QCC_VERSION "@QCC_VERSION@"
