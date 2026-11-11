@@ -1,19 +1,19 @@
-file(GLOB CONVERSION_SOURCES *.cpp)
-
 add_mlir_conversion_library(
-  QCCQCOToQVec
-  ${CONVERSION_SOURCES}
+  QCCQCircToQVec
+  ConvertQCircToQVec.cpp
   LINK_LIBS
+  PRIVATE
   # Dialects
-  MLIRQCODialect
-  MLIRSCFDialect
-  MLIRQTensorDialect
   MLIRFuncDialect
+  MLIRSCFDialect
   MLIRVectorDialect
   QCCQccDialect
+  QCCQCFDialect
+  QCCQCircDialect
   QCCQVecDialect
   # Conversion infra
   MLIRTransforms
   # Core MLIR
   MLIRIR
-  MLIRPass)
+  MLIRPass
+  MLIRSupport)

@@ -7,9 +7,10 @@ add_mlir_library(
   # Dialects
   MLIRFuncDialect
   # Passes
-  MLIRQCToQCO
   QCCAuxOutputRecording
   QCCMagicTransforms
-  QCCQCOToQVec
+  QCCQCToQRef
+  QCCQCircToQVec
+  QCCQRefToQCirc
   QCCQVecToMagic
   QCCQVecTransforms)
