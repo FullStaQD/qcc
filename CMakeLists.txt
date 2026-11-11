@@ -2,8 +2,19 @@ cmake_minimum_required(VERSION 3.24...4.2)
 
 project(
   qcc
+  VERSION 0.1.0
   DESCRIPTION "Quantum Compiler Collection, part of FullStaQD"
   LANGUAGES C CXX)
+
+# Pre-releases append a SemVer pre-release suffix to the version, e.g. 0.1.0-alpha.1.
+set(QCC_VERSION_SUFFIX
+    ""
+    CACHE STRING "Suffix appended to the version, e.g. -alpha.1 (empty for a release)")
+if(NOT QCC_VERSION_SUFFIX MATCHES "^(-[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?$")
+  message(FATAL_ERROR "QCC_VERSION_SUFFIX must be empty or a pre-release suffix like -alpha.1, "
+                      "got '${QCC_VERSION_SUFFIX}'")
+endif()
+set(QCC_VERSION "${PROJECT_VERSION}${QCC_VERSION_SUFFIX}")
 
 if(NOT DEFINED CMAKE_CXX_STANDARD OR CMAKE_CXX_STANDARD LESS 20)
   set(CMAKE_CXX_STANDARD
