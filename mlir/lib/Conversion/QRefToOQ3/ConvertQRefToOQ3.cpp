@@ -90,7 +90,7 @@ static std::optional<StringRef> getStandardGateName(PairGateKind kind) {
 }
 
 /// Whether nothing between `first` and `last`, which follows it in the same block, has a memory effect.
-static bool onlyPureOpsBetween(Operation* first, Operation* last) {
+static bool onlyMemoryEffectFreeOpsBetween(Operation* first, Operation* last) {
   for (Operation* op = first->getNextNode(); op != nullptr && op != last; op = op->getNextNode()) {
     if (!isMemoryEffectFree(op)) {
       return false;
@@ -584,7 +584,8 @@ LogicalResult Translator::translatePair(qref::PairOp op) {
 ///    %b = qref.measure z %q : !qcc.qubit_ref -> i1  |  %b = oq3.measure %q : !qcc.qubit_ref -> !oq3.bit
 ///    // %b has no use
 ///    ```
-/// 2. The result is stored directly into a bit or register, with only pure ops between the measurement and the store:
+/// 2. The result is stored directly into a bit or register, with only memory-effect-free ops between the measurement
+///    and the store:
 ///    ```
 ///    %b = qref.measure z %q : !qcc.qubit_ref -> i1  |  // (unrelated ops)
 ///    // (some unrelated ops in between)             |  %b = oq3.measure %q : !qcc.qubit_ref -> !oq3.bit
@@ -620,7 +621,7 @@ LogicalResult Translator::translateMeasure(qref::MeasureOp op) {
   if (isZ && bit.hasOneUse()) {
     auto store = dyn_cast<memref::StoreOp>(*bit.user_begin());
     if (store && store.getValueToStore() == bit && store->getBlock() == op->getBlock() &&
-        onlyPureOpsBetween(op, store)) {
+        onlyMemoryEffectFreeOpsBetween(op, store)) {
       // Measure-store pair: the measurement creation is deferred to the store.
       // We can then avoid creating temporary bits in oq3.
       pendingMeasurements[bit] = op;
