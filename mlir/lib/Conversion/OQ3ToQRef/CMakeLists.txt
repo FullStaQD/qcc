@@ -1,30 +1,21 @@
 add_mlir_conversion_library(
   QCCOQ3ToQRef
   ConvertOQ3ToQRef.cpp
-  DEPENDS
-  QCCOQ3ToQRefIncGen
-  QCCOQ3AttrsIncGen
-  QCCOQ3DialectIncGen
-  QCCOQ3OpsIncGen
-  QCCOQ3TypesIncGen
-  QCCQccAttrsIncGen
-  QCCQccDialectIncGen
-  QCCQccInterfacesIncGen
-  QCCQccOpsIncGen
-  QCCQccTypesIncGen
-  QCCQRefDialectIncGen
-  QCCQRefOpsIncGen
   LINK_LIBS
-  PUBLIC
+  PRIVATE
+  # Dialects
   MLIRArithDialect
-  MLIRDataLayoutInterfaces
   MLIRFuncDialect
-  MLIRIR
   MLIRMemRefDialect
-  MLIRPass
   MLIRSCFDialect
   MLIRTensorDialect
-  MLIRTransforms
   QCCOQ3Dialect
   QCCQccDialect
-  QCCQRefDialect)
+  QCCQRefDialect
+  # Conversion infra
+  MLIRTransforms
+  # Core MLIR
+  MLIRDataLayoutInterfaces
+  MLIRIR
+  MLIRPass
+  MLIRSupport)
