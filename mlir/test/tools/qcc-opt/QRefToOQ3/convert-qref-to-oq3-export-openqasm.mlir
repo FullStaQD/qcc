@@ -35,8 +35,6 @@ func.func @check_array_qubits() attributes {qcc.entry_point} {
   return
 }
 
-// No include because we don't use any standard gates. TODO: Mini dedicated test for this instead of a double purpose test.
-// CHECK-NOT:  include "stdgates.inc";
 // CHECK-NEXT:  qubit[3] q0;
 // CHECK-NEXT:  qubit[0] q1;
 // CHECK-NEXT:  U(0.5, 0.25, 0.125) q0[2];
@@ -45,7 +43,26 @@ func.func @check_array_qubits() attributes {qcc.entry_point} {
 
 // -----
 
-  // CHECK-LABEL: OPENQASM 3.1;
+// Without standard gates, `stdgates.inc` isn't included.
+
+// CHECK-LABEL: OPENQASM 3.1;
+func.func @check_no_stdgates_include() attributes {qcc.entry_point} {
+  %q = qcc.alloc : !qcc.qubit_ref
+  %z1 = arith.constant 0.125 : f64
+  %y = arith.constant 0.5 : f64
+  %z2 = arith.constant 0.25 : f64
+  qref.single u_zyz(%z1, %y, %z2) %q : f64, !qcc.qubit_ref
+  return
+}
+
+// CHECK-NOT:   include
+// CHECK:       qubit q0;
+// CHECK-NEXT:  U(0.5, 0.25, 0.125) q0;
+// CHECK-EMPTY:
+
+// -----
+
+// CHECK-LABEL: OPENQASM 3.1;
 func.func @check_single_qubit_gates() attributes {qcc.entry_point} {
   %q = qcc.alloc : !qcc.qubit_ref
   %a = arith.constant 1.5 : f64
@@ -109,13 +126,25 @@ func.func @check_two_qubit_gates() attributes {qcc.entry_point} {
 
 // -----
 
-// Measurements: an unused one is a statement, one that a store uses next is assigned directly. Others get a `bit`
-// variable of their own, which every use reads. A measurement or reset in the x basis is one in the z basis between
-// Hadamard gates.
-// TODO: Split test cases.
+// An unused measurement is a statement.
 
 // CHECK-LABEL: OPENQASM 3.1;
-func.func @check_measurements() attributes {qcc.entry_point} {
+func.func @check_unused_measurement() attributes {qcc.entry_point} {
+  %q = qcc.alloc : !qcc.qubit_ref
+  %m = qref.measure z %q : !qcc.qubit_ref -> i1
+  return
+}
+
+// CHECK-NEXT:  qubit q0;
+// CHECK-NEXT:  measure q0;
+// CHECK-EMPTY:
+
+// -----
+
+// A measurement that a store uses next is assigned directly. Pure ops between a measurement and its store don't matter.
+
+// CHECK-LABEL: OPENQASM 3.1;
+func.func @check_stored_measurement() attributes {qcc.entry_point} {
   %r = qcc.alloc : tensor<2x!qcc.qubit_ref>
   %b = memref.alloca() : memref<i1>
   %c = memref.alloca() : memref<2xi1>
@@ -123,43 +152,108 @@ func.func @check_measurements() attributes {qcc.entry_point} {
   %c1 = arith.constant 1 : index
   %q0 = tensor.extract %r[%c0] : tensor<2x!qcc.qubit_ref>
   %q1 = tensor.extract %r[%c1] : tensor<2x!qcc.qubit_ref>
-  %unused = qref.measure z %q0 : !qcc.qubit_ref -> i1
-  %direct = qref.measure z %q0 : !qcc.qubit_ref -> i1
-  memref.store %direct, %b[] : memref<i1>
-  // Pure ops between a measurement and its store don't matter.
+  %m0 = qref.measure z %q0 : !qcc.qubit_ref -> i1
+  memref.store %m0, %b[] : memref<i1>
   %m1 = qref.measure z %q1 : !qcc.qubit_ref -> i1
   %index = arith.constant 1 : index
   memref.store %m1, %c[%index] : memref<2xi1>
-  // Used twice, and a gate comes between.
-  %twice = qref.measure z %q0 : !qcc.qubit_ref -> i1
+  return
+}
+
+// CHECK-NEXT:  qubit[2] q0;
+// CHECK-NEXT:  bit c1;
+// CHECK-NEXT:  bit[2] c2;
+// CHECK-NEXT:  c1 = measure q0[0];
+// CHECK-NEXT:  c2[1] = measure q0[1];
+// CHECK-EMPTY:
+
+// -----
+
+// A measurement with several uses gets a `bit` variable of its own, which every use reads.
+
+// CHECK-LABEL: OPENQASM 3.1;
+func.func @check_measurement_used_twice() attributes {qcc.entry_point} {
+  %q = qcc.alloc : !qcc.qubit_ref
+  %b = memref.alloca() : memref<i1>
+  %c = memref.alloca() : memref<2xi1>
+  %c0 = arith.constant 0 : index
+  %m = qref.measure z %q : !qcc.qubit_ref -> i1
+  memref.store %m, %c[%c0] : memref<2xi1>
+  memref.store %m, %b[] : memref<i1>
+  return
+}
+
+// CHECK-NEXT:  qubit q0;
+// CHECK-NEXT:  bit c1;
+// CHECK-NEXT:  bit[2] c2;
+// CHECK-NEXT:  bit m3 = measure q0;
+// CHECK-NEXT:  c2[0] = m3;
+// CHECK-NEXT:  c1 = m3;
+// CHECK-EMPTY:
+
+// -----
+
+// A measurement whose store doesn't come next gets a `bit` variable too.
+
+// CHECK-LABEL: OPENQASM 3.1;
+func.func @check_measurement_gate_before_store() attributes {qcc.entry_point} {
+  %q0 = qcc.alloc : !qcc.qubit_ref
+  %q1 = qcc.alloc : !qcc.qubit_ref
+  %b = memref.alloca() : memref<i1>
+  %m = qref.measure z %q0 : !qcc.qubit_ref -> i1
   qref.single x %q1 : !qcc.qubit_ref
-  memref.store %twice, %c[%c0] : memref<2xi1>
-  memref.store %twice, %b[] : memref<i1>
-  %x = qref.measure x %q1 : !qcc.qubit_ref -> i1
-  memref.store %x, %b[] : memref<i1>
-  qref.reset z %q0 : !qcc.qubit_ref
-  qref.reset x %q1 : !qcc.qubit_ref
+  memref.store %m, %b[] : memref<i1>
   return
 }
 
 // CHECK-NEXT:  include "stdgates.inc";
-// CHECK-NEXT:  qubit[2] q0;
+// CHECK-NEXT:  qubit q0;
+// CHECK-NEXT:  qubit q1;
+// CHECK-NEXT:  bit c2;
+// CHECK-NEXT:  bit m3 = measure q0;
+// CHECK-NEXT:  x q1;
+// CHECK-NEXT:  c2 = m3;
+// CHECK-EMPTY:
+
+// -----
+
+// A measurement in the x basis is one in the z basis between Hadamard gates.
+
+// CHECK-LABEL: OPENQASM 3.1;
+func.func @check_x_basis_measurement() attributes {qcc.entry_point} {
+  %q = qcc.alloc : !qcc.qubit_ref
+  %b = memref.alloca() : memref<i1>
+  %m = qref.measure x %q : !qcc.qubit_ref -> i1
+  memref.store %m, %b[] : memref<i1>
+  return
+}
+
+// CHECK-NEXT:  include "stdgates.inc";
+// CHECK-NEXT:  qubit q0;
 // CHECK-NEXT:  bit c1;
-// CHECK-NEXT:  bit[2] c2;
-// CHECK-NEXT:  measure q0[0];
-// CHECK-NEXT:  c1 = measure q0[0];
-// CHECK-NEXT:  c2[1] = measure q0[1];
-// CHECK-NEXT:  bit m3 = measure q0[0];
-// CHECK-NEXT:  x q0[1];
-// CHECK-NEXT:  c2[0] = m3;
-// CHECK-NEXT:  c1 = m3;
-// CHECK-NEXT:  h q0[1];
-// CHECK-NEXT:  bit m4 = measure q0[1];
-// CHECK-NEXT:  h q0[1];
-// CHECK-NEXT:  c1 = m4;
-// CHECK-NEXT:  reset q0[0];
-// CHECK-NEXT:  reset q0[1];
-// CHECK-NEXT:  h q0[1];
+// CHECK-NEXT:  h q0;
+// CHECK-NEXT:  bit m2 = measure q0;
+// CHECK-NEXT:  h q0;
+// CHECK-NEXT:  c1 = m2;
+// CHECK-EMPTY:
+
+// -----
+
+// A reset in the x basis is one in the z basis followed by a Hadamard gate.
+
+// CHECK-LABEL: OPENQASM 3.1;
+func.func @check_resets() attributes {qcc.entry_point} {
+  %q = qcc.alloc : !qcc.qubit_ref
+  qref.reset z %q : !qcc.qubit_ref
+  qref.reset x %q : !qcc.qubit_ref
+  return
+}
+
+// CHECK-NEXT:  include "stdgates.inc";
+// CHECK-NEXT:  qubit q0;
+// CHECK-NEXT:  reset q0;
+// CHECK-NEXT:  reset q0;
+// CHECK-NEXT:  h q0;
 // CHECK-EMPTY:
 
 // -----

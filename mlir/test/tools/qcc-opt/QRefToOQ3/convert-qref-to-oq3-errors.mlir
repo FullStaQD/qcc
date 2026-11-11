@@ -185,7 +185,7 @@ func.func @iswap_unsupported() attributes {qcc.entry_point} {
 
 // -----
 
-// TODO: `crz` is not supported: OpenQASM reduces gate angles modulo 2π, but `crz` is 4π-periodic.
+// TODO: `crz` is not supported: It is genuinely 4-pi periodic, but OpenQASM reduces gate angles modulo 2π.
 func.func @crz_unsupported() attributes {qcc.entry_point} {
   %a = qcc.alloc : !qcc.qubit_ref
   %b = qcc.alloc : !qcc.qubit_ref
