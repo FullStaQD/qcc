@@ -1,8 +1,6 @@
 add_mlir_conversion_library(
   QCCQCircToQVec
   ConvertQCircToQVec.cpp
-  DEPENDS
-  QCCQCircToQVecIncGen
   LINK_LIBS
   PRIVATE
   # Dialects

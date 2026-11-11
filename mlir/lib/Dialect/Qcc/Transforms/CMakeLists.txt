@@ -1,8 +1,6 @@
 add_mlir_dialect_library(
   QCCQccTransforms
   AttachDevice.cpp
-  DEPENDS
-  QCCQccTransformsIncGen
   LINK_LIBS
   PRIVATE
   MLIRIR

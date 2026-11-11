@@ -10,8 +10,6 @@ add_mlir_dialect_library(
   ShuttleInterTrapZZ.cpp
   Timing.cpp
   Verify.cpp
-  DEPENDS
-  QCCMagicTransformsIncGen
   LINK_LIBS
   PRIVATE
   MLIRIR

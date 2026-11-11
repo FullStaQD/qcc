@@ -1,10 +1,6 @@
 add_mlir_dialect_library(
   QCCQVecDialect
   QVecDialect.cpp
-  DEPENDS
-  QCCQVecDialectIncGen
-  QCCQVecAttrsIncGen
-  QCCQVecOpsIncGen
   LINK_LIBS
   PRIVATE
   MLIRIR

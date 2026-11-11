@@ -1,8 +1,6 @@
 add_mlir_conversion_library(
   QCCQVecToMagic
   ConvertQVecToMagic.cpp
-  DEPENDS
-  QCCQVecToMagicIncGen
   LINK_LIBS
   PRIVATE
   # Dialects

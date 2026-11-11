@@ -1,10 +1,6 @@
 add_mlir_library(
   QCCCompiler
   Compiler.cpp
-  DEPENDS
-  JaspToQCIncGen
-  QCCAffineRaiseIncGen
-  QCCQccTransformsIncGen
   LINK_LIBS
   MLIRPass
   MLIRTransforms
