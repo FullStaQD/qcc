@@ -1,0 +1,338 @@
+name: Release
+on:
+  push:
+    tags:
+      - "v*"
+    # Tag runs only see caches of their own tag and of main. The `paths` filter (see below) does not apply to tags.
+    branches:
+      - main
+      - prepare-qcc-release # TODO: Remove before merging.
+    paths:
+      - third-party/llvm/**
+      - .github/workflows/release.yml
+  # A dry run: the archives only become workflow artifacts, the version gets the suffix -dev.
+  workflow_dispatch:
+  # A dry run twice a week keeps the LLVM cache of main from being evicted (after 7 days without use). Optimized for
+  # European working hours. Minutes chosen arbitrarily on purpose (avoiding "crowded" times everybody is using).
+  schedule:
+    - cron: "28 1 * * 1,4"
+      timezone: Europe/Berlin
+
+# Note on how GitHub groups work (with cancel-in-progress: false): Within each group only one run is active and at most
+# one is waiting. If a third run arrives it replaces the waiting one. Hence release runs (from tags) must be in
+# different groups to not drop a release in case 3 release runs arrive (even if that is unlikely).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false # LLVM builds are expensive, new runs should wait.
+
+permissions:
+  contents: read # Needed to fetch code
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  # Bump this to invalidate the LLVM install cache when the LLVM CMake flags below change (the cache key does not track
+  # them).
+  LLVM_CACHE_VERSION: v1
+
+jobs:
+  # Tag runs: the tag is v<version>, where the version is the one in CMakeLists.txt plus an optional pre-release suffix,
+  # e.g. v0.1.0-alpha.1. Dry runs: the suffix is -dev.
+  version:
+    name: Version
+    runs-on: ubuntu-slim
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      suffix: ${{ steps.version.outputs.suffix }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Determine the version
+        id: version
+        run: |
+          project_version=$(sed -n 's/^ *VERSION \([0-9]*\.[0-9]*\.[0-9]*\)$/\1/p' CMakeLists.txt)
+          if [[ ! $project_version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Found no version in project() in CMakeLists.txt"
+            exit 1
+          fi
+          if [[ $GITHUB_REF_TYPE == tag ]]; then
+            version=${GITHUB_REF_NAME#v}
+            suffix=${version#"$project_version"}
+          else
+            suffix=-dev
+            version=$project_version$suffix
+          fi
+          # The same check as for QCC_VERSION_SUFFIX in CMakeLists.txt, but before hours of building.
+          suffix_regex='^(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'
+          if [[ $version != "$project_version$suffix" || ! $suffix =~ $suffix_regex ]]; then
+            echo "::error::Tag $GITHUB_REF_NAME is not v$project_version or v$project_version-<suffix>, e.g. -alpha.1"
+            exit 1
+          fi
+          echo "Version: $version"
+          {
+            echo "version=$version"
+            echo "suffix=$suffix"
+          } >> "$GITHUB_OUTPUT"
+
+  # Builds LLVM (or restores it from the cache) and qcc in a manylinux container: glibc 2.28 and a recent GCC. The
+  # binaries then run on any Linux with glibc 2.28 or newer.
+  build:
+    name: Build ${{ matrix.arch }}
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86_64, aarch64]
+        # The dated tag of the manylinux image, part of the LLVM cache key.
+        manylinux: ["2026.11.07-1"]
+        include:
+          - arch: x86_64
+            runs-on: ubuntu-26.04
+          - arch: aarch64
+            runs-on: ubuntu-26.04-arm
+    runs-on: ${{ matrix.runs-on }}
+    container: quay.io/pypa/manylinux_2_28_${{ matrix.arch }}:${{ matrix.manylinux }}
+    timeout-minutes: 330 # LLVM alone takes about 3 h, GitHub's limit is 6 h
+    env:
+      LLVM_INSTALL_DIR: /opt/llvm-install
+      PACKAGE: qcc-${{ needs.version.outputs.version }}-linux-${{ matrix.arch }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The container runs as root, the workspace belongs to the runner's user. Git refuses to work in it otherwise,
+      # which breaks provision-llvm and leaves the commit out of --version.
+      - name: Trust the workspace
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      # The image has cmake and uv.
+      - name: Install build and test tools
+        run: |
+          uv tool install ninja
+          uv tool install lit
+          uv tool dir --bin >> "$GITHUB_PATH"
+
+      - name: Restore patched LLVM install
+        id: llvm-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.LLVM_INSTALL_DIR }}
+          key: llvm-release-${{ matrix.arch }}-manylinux_2_28-${{ matrix.manylinux }}-${{ env.LLVM_CACHE_VERSION }}-${{ hashFiles('third-party/llvm/base.rev', 'third-party/llvm/patches/qisa/*.patch') }}
+
+      - name: Provision patched LLVM sources
+        if: steps.llvm-cache.outputs.cache-hit != 'true'
+        # The script applies the QISA patches with `git am`, which needs a committer identity.
+        env:
+          GIT_COMMITTER_NAME: qcc ci
+          GIT_COMMITTER_EMAIL: qcc@example.com
+        run: ./utils/provision-llvm "$RUNNER_TEMP/llvm-project"
+
+      # RISC-V only: QIR needs no LLVM backend, HiSEP-Q is a RISC-V subtarget. Without zlib and zstd the binaries need
+      # nothing but glibc. RTTI for mqt-core. The utilities and gtest are for check-qcc. GNU ld needs a lot of memory.
+      - name: Configure LLVM
+        if: steps.llvm-cache.outputs.cache-hit != 'true'
+        run: |
+          cmake -G Ninja -S "$RUNNER_TEMP/llvm-project/llvm" -B "$RUNNER_TEMP/llvm-project/build" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER=gcc \
+            -DCMAKE_CXX_COMPILER=g++ \
+            -DLLVM_ENABLE_PROJECTS=mlir \
+            -DLLVM_TARGETS_TO_BUILD=RISCV \
+            -DLLVM_ENABLE_ASSERTIONS=OFF \
+            -DLLVM_ENABLE_RTTI=ON \
+            -DLLVM_ENABLE_ZLIB=OFF \
+            -DLLVM_ENABLE_ZSTD=OFF \
+            -DLLVM_INSTALL_UTILS=ON \
+            -DLLVM_INSTALL_GTEST=ON \
+            -DLLVM_PARALLEL_LINK_JOBS=2 \
+            -DCMAKE_INSTALL_PREFIX="$LLVM_INSTALL_DIR"
+
+      - name: Build and install LLVM
+        if: steps.llvm-cache.outputs.cache-hit != 'true'
+        run: |
+          cmake --build "$RUNNER_TEMP/llvm-project/build" --target install
+          df -h .
+
+      # Right after the build, so that a later failing step does not discard it.
+      - name: Save patched LLVM install
+        if: steps.llvm-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.LLVM_INSTALL_DIR }}
+          key: ${{ steps.llvm-cache.outputs.cache-primary-key }}
+
+      # DEPLOY=ON keeps mqt-core from compiling for the runner's CPU (-march=native).
+      - name: Configure qcc
+        env:
+          VERSION_SUFFIX: ${{ needs.version.outputs.suffix }}
+        run: |
+          cmake -G Ninja -S . -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER=gcc \
+            -DCMAKE_CXX_COMPILER=g++ \
+            -DCMAKE_EXE_LINKER_FLAGS="-static-libstdc++ -static-libgcc" \
+            -DMLIR_DIR="$LLVM_INSTALL_DIR/lib/cmake/mlir" \
+            -DLLVM_EXTERNAL_LIT="$(command -v lit)" \
+            -DQCC_ENABLE_HISEPQ=ON \
+            -DDEPLOY=ON \
+            -DQCC_APPEND_VC_REV=ON \
+            -DQCC_VERSION_SUFFIX="$VERSION_SUFFIX"
+
+      # Such binaries crash with "Illegal instruction" on older CPUs, which no test on this runner can catch.
+      - name: Check for CPU specific flags
+        run: |
+          if grep -qE -- '-m(arch|cpu|tune)=native' build/build.ninja; then
+            echo "::error::build.ninja contains -march, -mcpu or -mtune=native"
+            exit 1
+          fi
+
+      - name: Build qcc
+        run: cmake --build build
+
+      # qir-runner has no wheels for glibc 2.28, hence no QIR execution tests (QISA CI runs them). Without lld and the
+      # HiSEP-Q simulator lit skips the tests that need them.
+      - name: Test qcc
+        env:
+          LIT_FILTER_OUT: qrisp-integration/qir/
+          LIT_OPTS: --time-tests
+        run: cmake --build build --target check-qcc
+
+      - name: Install
+        run: cmake --install build --component qcc --strip --prefix "$PACKAGE"
+
+      # glibc 2.28 still has libpthread, libdl and librt as separate libraries.
+      - name: Check that the binaries need only glibc
+        run: |
+          status=0
+          for binary in "$PACKAGE"/bin/*; do
+            for lib in $(readelf -d "$binary" | sed -n 's/.*(NEEDED).*\[\(.*\)\]$/\1/p'); do
+              case $lib in
+                libc.so.* | libm.so.* | libpthread.so.* | libdl.so.* | librt.so.* | ld-linux-*) echo "$binary: $lib" ;;
+                *)
+                  echo "::error::$binary needs $lib, which is not part of glibc"
+                  status=1
+                  ;;
+              esac
+            done
+          done
+          exit $status
+
+      - name: Pack
+        run: tar -czf "$PACKAGE.tar.gz" "$PACKAGE"
+
+      # Not zipped: the artifact is the archive itself.
+      - name: Upload archive
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          path: ${{ env.PACKAGE }}.tar.gz
+          archive: false
+          if-no-files-found: error
+
+  # The archives alone on a plain glibc 2.28 system: without the build container's toolchain and without the sources.
+  smoke-test:
+    name: Smoke test ${{ matrix.arch }}
+    needs: [version, build]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runs-on: ubuntu-26.04
+          - arch: aarch64
+            runs-on: ubuntu-26.04-arm
+    runs-on: ${{ matrix.runs-on }}
+    container: almalinux:8.10-20261027
+    timeout-minutes: 15
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      PACKAGE: qcc-${{ needs.version.outputs.version }}-linux-${{ matrix.arch }}
+    steps:
+      - name: Download archive
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ env.PACKAGE }}.tar.gz
+
+      - name: Unpack
+        run: tar -xzf "$PACKAGE.tar.gz"
+
+      # The build sets QCC_APPEND_VC_REV, so the commit has to be there.
+      - name: Check the versions
+        run: |
+          expected="$VERSION (${GITHUB_SHA::7})"
+          for tool in qcc hisepq-elf2mem; do
+            actual=$("$PACKAGE/bin/$tool" --version)
+            echo "$tool --version: $actual"
+            if [[ $actual != "$expected" ]]; then
+              echo "::error::$tool --version prints '$actual', expected '$expected'"
+              exit 1
+            fi
+          done
+
+      # A minimal Qrisp program: measure a single qubit.
+      - name: Compile to QIR
+        run: |
+          "$PACKAGE/bin/qcc" - -o output.ll <<'EOF'
+          builtin.module @jasp_module {
+            func.func public @main(%arg0: !jasp.QuantumState) -> (tensor<i64>, !jasp.QuantumState) {
+              %0 = arith.constant dense<1> : tensor<i64>
+              %1, %2 = "jasp.create_qubits"(%0, %arg0) : (tensor<i64>, !jasp.QuantumState) -> (!jasp.QubitArray, !jasp.QuantumState)
+              %3, %4 = "jasp.measure"(%1, %2) : (!jasp.QubitArray, !jasp.QuantumState) -> (tensor<i64>, !jasp.QuantumState)
+              func.return %3, %4 : tensor<i64>, !jasp.QuantumState
+            }
+          }
+          EOF
+          grep -q 'call void @__quantum__qis__mz__body' output.ll
+
+  # The only job with write permissions. It creates a draft, publish it by hand. Not for workflow_dispatch on a tag.
+  release:
+    name: Release
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    needs: [version, smoke-test]
+    runs-on: ubuntu-slim
+    permissions:
+      contents: write # Needed to create the release
+      id-token: write # Needed to sign the attestations
+      attestations: write # Needed to store the attestations
+    steps:
+      # For the release notes.
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download archives
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: qcc-*.tar.gz
+          path: dist
+          merge-multiple: true
+
+      - name: Write SHA256SUMS
+        working-directory: dist
+        run: sha256sum qcc-*.tar.gz | tee SHA256SUMS
+
+      # Users check them with `gh attestation verify <archive> --repo FullStaQD/qcc`.
+      - name: Attest archives
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: dist/qcc-*.tar.gz
+
+      # Versions with a suffix such as -alpha.1 are pre-releases.
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          prerelease=()
+          if [[ $VERSION == *-* ]]; then
+            prerelease=(--prerelease)
+          fi
+          gh release create "$GITHUB_REF_NAME" --draft --verify-tag "${prerelease[@]}" \
+            --notes-file docs/release/release-notes.md dist/qcc-*.tar.gz dist/SHA256SUMS
