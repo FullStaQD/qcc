@@ -73,3 +73,18 @@ endif()
 
 enable_testing()
 add_subdirectory(mlir/test)
+
+# To enable `cmake --install <build> --component qcc --strip --prefix <dir>`.
+install(
+  FILES LICENSE.txt NOTICE.txt docs/release/README.md
+  DESTINATION .
+  COMPONENT qcc)
+install(
+  FILES third-party/llvm/LICENSE.TXT
+  DESTINATION third-party/llvm
+  COMPONENT qcc)
+# All of it, so the source of the EPL-2.0 licensed dialect definition travels with the binaries.
+install(
+  DIRECTORY third-party/qrisp
+  DESTINATION third-party
+  COMPONENT qcc)
