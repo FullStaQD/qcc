@@ -135,7 +135,9 @@ jobs:
         run: ./utils/provision-llvm "$RUNNER_TEMP/llvm-project"
 
       # RISC-V only: QIR needs no LLVM backend, HiSEP-Q is a RISC-V subtarget. Without zlib and zstd the binaries need
-      # nothing but glibc. RTTI for mqt-core. The utilities and gtest are for check-qcc. GNU ld needs a lot of memory.
+      # nothing but glibc. RTTI for mqt-core. The utilities and gtest are for check-qcc. The job limits keep GCC and GNU ld
+      # within the runner's 16 GB of memory: GCC needs up to 4.3 GB for some MLIR files, and Ninja's default of 6 jobs on
+      # 4 cores ran out of memory on aarch64.
       - name: Configure LLVM
         if: steps.llvm-cache.outputs.cache-hit != 'true'
         run: |
@@ -151,6 +153,7 @@ jobs:
             -DLLVM_ENABLE_ZSTD=OFF \
             -DLLVM_INSTALL_UTILS=ON \
             -DLLVM_INSTALL_GTEST=ON \
+            -DLLVM_PARALLEL_COMPILE_JOBS=3 \
             -DLLVM_PARALLEL_LINK_JOBS=2 \
             -DCMAKE_INSTALL_PREFIX="$LLVM_INSTALL_DIR"
 
