@@ -1,7 +1,9 @@
 // RUN: qcc-opt %s --split-input-file --convert-qref-to-oq3 \
 // RUN:   | qcc-translate --split-input-file --export-openqasm | FileCheck %s --strict-whitespace
 
-// Tests of `--convert-qref-to-oq3` with checks against the exported OpenQASM.
+// This test file translates to OpenQASM for readability (OQ3 is verbose). Try to put tests here instead of its
+// companion file `convert-qref-to-oq3.mlir` whenever possible. But note that the translation hides certain aspects;
+// tests of those need to go into the companion file.
 
 // The module becomes an OpenQASM program of qcc's default version, and `stdgates.inc` is included for standard gates.
 

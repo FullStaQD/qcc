@@ -1,5 +1,9 @@
 // RUN: qcc-opt %s --split-input-file --convert-qref-to-oq3 | FileCheck %s
 
+// Before adding a test to this file, consider whether it could go into its companion file
+// `convert-qref-to-oq3-export-openqasm.mlir`. Put the test here only if the OpenQASM translation hides what it checks
+// (like implicit casts or a value used twice).
+
 // A value that is used twice is converted once.
 
 // CHECK-LABEL: func.func @shared_expression
