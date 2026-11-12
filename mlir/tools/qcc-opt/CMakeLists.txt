@@ -41,6 +41,8 @@ target_link_libraries(
           QCCMagicTransforms
           QCCQVecTransforms
           QCCQccTransforms
+          QCCOQ3ToQRef
+          QCCQRefToOQ3
           QCCQCToQRef
           QCCQRefToQCirc
           QCCQCircToQRef

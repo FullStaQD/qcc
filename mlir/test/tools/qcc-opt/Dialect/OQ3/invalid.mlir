@@ -275,7 +275,7 @@ module attributes {oq3.version = #oq3.version<3, 1>} {
 
 module attributes {oq3.version = #oq3.version<3, 1>} {
   func.func @main() attributes {qcc.entry_point} {
-    // expected-error @below {{'oq3.declare' op declares a variable of type '!oq3.int', but only 'bit' and 'bit[n]' variables are supported yet}}
+    // expected-error @below {{'oq3.declare' op declares a variable of type '!oq3.int', but only 'bit' and 'bit[n]' variables are supported}}
     %i = oq3.declare "i" : !qcc.ref<!oq3.int>
     return
   }
@@ -415,6 +415,21 @@ module attributes {oq3.version = #oq3.version<3, 1>} {
 
 // expected-error @below {{expected the text of a floating-point literal, got 'one'}}
 %x = oq3.constant #oq3.float<"one"> : !oq3.float
+
+// -----
+
+// expected-error @below {{expected the text of a floating-point literal, got '1.2.3'}}
+%x = oq3.constant #oq3.float<"1.2.3"> : !oq3.float
+
+// -----
+
+// expected-error @below {{expected the text of a floating-point literal, got 'e5'}}
+%x = oq3.constant #oq3.float<"e5"> : !oq3.float
+
+// -----
+
+// expected-error @below {{expected the text of a floating-point literal, got '1-2'}}
+%x = oq3.constant #oq3.float<"1-2"> : !oq3.float
 
 // -----
 
