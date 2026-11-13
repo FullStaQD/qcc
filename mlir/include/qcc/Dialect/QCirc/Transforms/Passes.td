@@ -43,9 +43,9 @@ def QCircToUZXZ : Pass<"qcirc-to-u-zxz", "mlir::func::FuncOp"> {
   let summary = "Rewrites every `qcirc.single` gate into `u_zxz` or `rz`.";
 
   let description = [{
-      Rewrites every single-qubit gate kind into the general rotation `u_zxz(z1, x, z2) = Rz(z2) * Rx(x) * Rz(z1)`, up
-      to a global phase. Diagonal gates (`z`, `s`, `sdg`, `t`, `tdg`) become `rz` instead, and `rz` stays `rz`: a
-      scheduler must be able to see that they commute with `rzz`.
+      Rewrites every single-qubit gate kind into the general rotation `u_zxz(z1, x, z2)`, up to a global phase. Diagonal
+      gates (e.g. `z`, `s`) become `rz` instead, and `rz` stays `rz`: thus a scheduler is able to see that they commute
+      with `rzz`.
 
       Example:
 
