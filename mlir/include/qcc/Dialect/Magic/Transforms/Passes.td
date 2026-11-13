@@ -17,7 +17,7 @@ def MagicLayer : Pass<"magic-layer", "mlir::func::FuncOp"> {
 
   let description = [{
       A scheduler for the gates the conversion into `magic` emits: `zxz`, `rz`, `active_zz` and `inter_trap_zz` (rejects
-      other ops). It runs before shuttles, swaps and recodes exist, so every ion is active and stays in the trap.
+      other magic ops). It runs before shuttles, swaps and recodes exist, so every ion is active and stays in the trap.
 
       The gates are replaced by a sequence of *layers*, emitted right behind `magic.init`:
 
