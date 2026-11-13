@@ -155,7 +155,7 @@ LogicalResult DeclareOp::verify() {
   const Type elementType = getType().getElementType();
   if (!isa<BitType, BitsType>(elementType)) {
     return emitOpError() << "declares a variable of type " << elementType
-                         << ", but only 'bit' and 'bit[n]' variables are supported yet";
+                         << ", but only 'bit' and 'bit[n]' variables are supported";
   }
   if (getInit() && getInit().getType() != elementType) {
     return emitOpError() << "initial value of type " << getInit().getType() << " does not match the variable type "

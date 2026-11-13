@@ -1,7 +1,7 @@
 // RUN: qcc-translate --import-openqasm --split-input-file --verify-diagnostics %s
 
 // Errors and warnings of the OpenQASM importer: invalid programs, deprecated syntax, and valid programs that use
-// constructs not supported yet.
+// constructs not supported.
 
 // expected-error-re @below {{OpenQASM 2.0 is not supported; supported versions are {{.*}}}}
 OPENQASM 2.0;
@@ -9,7 +9,7 @@ OPENQASM 2.0;
 // -----
 
 // The development version needs `--oq3-allow-dev-version`.
-// expected-error @below {{OpenQASM 3.2 is not released yet}}
+// expected-error @below {{OpenQASM 3.2 is not released}}
 // expected-note-re @below {{qcc implements the development specification as of {{.*}}; use --oq3-allow-dev-version to import the program anyway}}
 OPENQASM 3.2;
 
@@ -315,14 +315,14 @@ OPENQASM 3.1;
 
 // Constructs of later stages.
 
-// expected-error @below {{gate definitions are not supported yet}}
+// expected-error @below {{gate definitions are not supported}}
 gate g q { }
 
 // -----
 
 OPENQASM 3.1;
 
-// expected-error @below {{declarations of type 'int' are not supported yet}}
+// expected-error @below {{declarations of type 'int' are not supported}}
 int[32] i;
 
 // -----
@@ -330,7 +330,7 @@ int[32] i;
 OPENQASM 3.1;
 
 bit c;
-// expected-error @below {{control flow ('if') is not supported yet}}
+// expected-error @below {{control flow ('if') is not supported}}
 if (c) { }
 
 // -----
@@ -339,7 +339,7 @@ OPENQASM 3.1;
 
 include "stdgates.inc";
 qubit[2] q;
-// expected-error @below {{gate modifiers are not supported yet}}
+// expected-error @below {{gate modifiers are not supported}}
 ctrl @ x q[0], q[1];
 
 // -----
@@ -348,7 +348,7 @@ OPENQASM 3.1;
 
 include "stdgates.inc";
 qubit[3] q;
-// expected-error @below {{slices and multiple indices are not supported yet}}
+// expected-error @below {{slices and multiple indices are not supported}}
 x q[0:1];
 
 // -----
@@ -357,7 +357,7 @@ OPENQASM 3.1;
 
 include "stdgates.inc";
 qubit q;
-// expected-error @below {{the operator '**' is not supported yet}}
+// expected-error @below {{the operator '**' is not supported}}
 rx(2 ** 3) q;
 
 // -----
@@ -365,7 +365,7 @@ rx(2 ** 3) q;
 OPENQASM 3.1;
 
 bit[2] c;
-// expected-error @below {{compound assignments are not supported yet}}
+// expected-error @below {{compound assignments are not supported}}
 c |= "01";
 
 // -----
@@ -374,7 +374,7 @@ OPENQASM 3.1;
 
 include "stdgates.inc";
 qubit q;
-// expected-error @below {{built-in functions are not supported yet}}
+// expected-error @below {{built-in functions are not supported}}
 rx(sin(1)) q;
 
 // -----
@@ -384,7 +384,7 @@ OPENQASM 3.1;
 include "stdgates.inc";
 qubit q;
 // 3.0 and 3.1 list a built-in function `pow`, which 3.2 drops.
-// expected-error @below {{built-in functions are not supported yet}}
+// expected-error @below {{built-in functions are not supported}}
 rx(pow(2, 2)) q;
 
 // -----
@@ -393,7 +393,7 @@ OPENQASM 3.0;
 
 include "stdgates.inc";
 qubit q;
-// expected-error @below {{built-in functions are not supported yet}}
+// expected-error @below {{built-in functions are not supported}}
 rx(pow(2, 2)) q;
 
 // -----
@@ -402,7 +402,7 @@ OPENQASM 3.1;
 
 include "stdgates.inc";
 qubit q;
-// expected-error @below {{durations of gate calls are not supported yet}}
+// expected-error @below {{durations of gate calls are not supported}}
 x[100ns] q;
 
 // -----

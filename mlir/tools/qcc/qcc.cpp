@@ -18,6 +18,7 @@
 #include "qcc/Dialect/QRef/IR/QRef.h"
 #include "qcc/Dialect/QVec/IR/QVec.h"
 #include "qcc/QuantumDevice/QuantumDeviceRegistry.h"
+#include "qcc/Support/Version.h"
 #include "qcc/Target/TargetRegistry.h"
 
 #include "mlir/Bytecode/BytecodeWriter.h"
@@ -144,6 +145,7 @@ int main(int argc, char** argv) {
   const cl::opt<bool> binary("binary", cl::desc("Emit the binary encoding (obj/bytecode/bitcode) instead of text"),
                              cl::init(false), cl::cat(qccCategory));
 
+  cl::SetVersionPrinter(qcc::printVersion);
   cl::ParseCommandLineOptions(argc, argv, "qcc - Quantum Compiler Collection\n");
 
   if (listTargets) {

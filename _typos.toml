@@ -1,0 +1,3 @@
+[default.extend-words]
+# `arith.cmpf olt`: the "ordered less than" predicate.
+olt = "olt"

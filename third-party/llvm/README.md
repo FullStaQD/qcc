@@ -65,3 +65,13 @@ BASE_REV=$(cat third-party/llvm/base.rev)
 git -C /path/to/llvm-fork format-patch $BASE_REV..fullstaqd-qisa \
   -o /path/to/qcc/third-party/llvm/patches/qisa
 ```
+
+## License
+
+`LICENSE.TXT` is LLVM's license at the revision in `base.rev`. Update it together with `base.rev`:
+
+```shell
+BASE_REV=$(cat third-party/llvm/base.rev)
+git -C /path/to/llvm-project show $BASE_REV:llvm/LICENSE.TXT \
+  > third-party/llvm/LICENSE.TXT
+```

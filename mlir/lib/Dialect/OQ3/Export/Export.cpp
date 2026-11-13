@@ -12,6 +12,7 @@
 #include "qcc/Dialect/OQ3/IR/OQ3.h"
 #include "qcc/Dialect/Qcc/IR/Qcc.h"
 
+#include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/Block.h"
 #include "mlir/IR/BuiltinAttributes.h"
@@ -245,7 +246,7 @@ FailureOr<std::string> Exporter::printStatementBody(Operation* op) {
       .Case([](PragmaOp pragma) { return ("pragma " + pragma.getText()).str(); })
       .Case([](IncludeOp include) { return "include " + quotePath(include.getPath()) + ";"; })
       .Case([](DefinedOp marker) -> FailureOr<std::string> {
-        return marker.emitOpError() << "marks a global definition, whose export is not supported yet";
+        return marker.emitOpError() << "marks a global definition, whose export is not supported";
       })
       .Case([&](QubitDeclOp decl) -> FailureOr<std::string> {
         const StringRef name = decl.getName();
@@ -455,5 +456,5 @@ void qcc::oq3::registerExportOpenQASMTranslation() {
   static const TranslateFromMLIRRegistration registration(
       "export-openqasm", "Export a program of the oq3 dialect to OpenQASM 3",
       [](Operation* op, llvm::raw_ostream& os) { return exportOpenQASM(op, os); },
-      [](DialectRegistry& registry) { registry.insert<OQ3Dialect, QccDialect, func::FuncDialect>(); });
+      [](DialectRegistry& registry) { registry.insert<OQ3Dialect, QccDialect, func::FuncDialect, DLTIDialect>(); });
 }

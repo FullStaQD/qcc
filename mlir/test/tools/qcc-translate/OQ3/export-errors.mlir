@@ -20,7 +20,7 @@ module attributes {oq3.version = #oq3.version<3, 1>} {
 module attributes {oq3.version = #oq3.version<3, 1>} {
   func.func private @f()
   func.func @main() attributes {qcc.entry_point} {
-    // expected-error @below {{'oq3.defined' op marks a global definition, whose export is not supported yet}}
+    // expected-error @below {{'oq3.defined' op marks a global definition, whose export is not supported}}
     oq3.defined @f
     return
   }
