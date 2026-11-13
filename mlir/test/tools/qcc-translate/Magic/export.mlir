@@ -1,34 +1,50 @@
-// RUN: qcc %s --quantum-device=magic --device-description=%S/Inputs/device-2x3-500ns.mlir --compile-to=custom-magic -o %t.txt
+// RUN: qcc-translate --export-custom-magic %s -o %t.txt
 // RUN: FileCheck %s < %t.txt
-// RUN: magic-runner --file %t.txt --device %S/Inputs/device-2x3-500ns.mlir -s 3 | FileCheck %s --check-prefix=CHECK-SIM
-// RUN: magic-runner --file %t.txt --device %S/Inputs/device-2x3-500ns.mlir --probabilities --keep-garbage-bits | FileCheck %s --check-prefix=CHECK-ALL-BITS
+// RUN: magic-runner --file %t.txt --device %s -s 3 | FileCheck %s --check-prefix=CHECK-SIM
+// RUN: magic-runner --file %t.txt --device %s --probabilities --keep-garbage-bits | FileCheck %s --check-prefix=CHECK-ALL-BITS
 
-// The exporter on a program that is already magic IR. The driver completes it: the unmeasured ion 5 is measured and
-// recorded as garbage, the ions 2, 5, 7 become 0, 1, 2, and trap 1 waits before the shuttle as long as trap 0 did.
+// A finished program, as the MAGIC pipeline leaves it: the ions are numbered 0..N-1 trap by trap, every ion is measured
+// and recorded (ion 1 as garbage), and trap 1 waits as long as trap 0 before the shuttle.
 
-!a  = !magic.ion_chain<0, [2:1, 5:1]>
-!b  = !magic.ion_chain<1, [7:1]>
-!as = !magic.ion_chain<0, [5:1]>
-!bs = !magic.ion_chain<1, [2:1, 7:1]>
+#trap = #magic.trap<capacity = 3, couplings = [
+  dense<0.0> : tensor<1x1xf64>,
+  dense<[[0.0, 1200.0],
+         [1200.0, 0.0]]> : tensor<2x2xf64>,
+  dense<[[0.0, 1200.0, 900.0],
+         [1200.0, 0.0, 1200.0],
+         [900.0, 1200.0, 0.0]]> : tensor<3x3xf64>]>
 
-func.func @main() {
-  %a0, %b0 = magic.init : !a, !b
-  %a1 = magic.sym_zxz %a0 ions [2, 5] {z = [0.0, -0.25], x = [3.141592653589793, 0.5]} : !a
-  %a2 = magic.delay %a1 {ticks = 2491} : !a
-  %a3, %b1 = magic.shuttle %a2, %b0 : !a, !b -> !as, !bs
-  %b2 = magic.sym_zxz %b1 ions [7] {z = [1.0], x = [3.141592653589793]} : !bs
-  %m2, %m7 = magic.mzd %b2 : !bs -> i1, i1
-  aux.record_int %m7 : i1
-  aux.record_int %m2 : i1
-  return
-}
+!a = !magic.ion_chain<0, [0:1, 1:1]>
+!b = !magic.ion_chain<1, [2:1]>
+!bOff = !magic.ion_chain<1, [2:0]>
+!as = !magic.ion_chain<0, [1:1]>
+!bs = !magic.ion_chain<1, [0:1, 2:1]>
 
-// Only the entry point is exported. Any other function is ignored.
-func.func @unused() {
-  %b0 = magic.init : !b
-  %m7 = magic.mzd %b0 : !b -> i1
-  aux.record_int %m7 : i1
-  return
+module attributes {qcc.device = #magic.device<name = "two-trap-2x3", time_unit_ns = 500, traps = [#trap, #trap]>} {
+  func.func @main() attributes {qcc.entry_point} {
+    %a0, %b0 = magic.init : !a, !b
+    %a1 = magic.sym_zxz %a0 ions [0, 1] {z = [0.0, -0.25], x = [3.141592653589793, 0.5]} : !a
+    %a2 = magic.delay %a1 {ticks = 2491} : !a
+    %b1 = magic.recode %b0 : !b -> !bOff
+    %b2 = magic.delay %b1 {ticks = 2491} : !bOff
+    %b3 = magic.recode %b2 : !bOff -> !b
+    %a3, %b4 = magic.shuttle %a2, %b3 : !a, !b -> !as, !bs
+    %b5 = magic.sym_zxz %b4 ions [2] {z = [1.0], x = [3.141592653589793]} : !bs
+    %m0, %m2 = magic.mzd %b5 : !bs -> i1, i1
+    %m1 = magic.mzd %a3 : !as -> i1
+    aux.record_int %m2 : i1
+    aux.record_int %m0 : i1
+    aux.record_int %m1 {magic.garbage_result} : i1
+    return
+  }
+
+  // Only the entry point is exported. Any other function is ignored.
+  func.func @unused() {
+    %b0 = magic.init : !b
+    %m2 = magic.mzd %b0 : !b -> i1
+    aux.record_int %m2 : i1
+    return
+  }
 }
 
 // The header: the traps of the device, the ions each trap holds initially, and for every ion the bit it is measured

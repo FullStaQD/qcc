@@ -10,7 +10,6 @@ add_mlir_library(
   QCCAuxOutputRecording
   QCCMagicTransforms
   QCCQCToQRef
-  QCCQCircToQVec
-  QCCQRefToQCirc
-  QCCQVecToMagic
-  QCCQVecTransforms)
+  QCCQCircToMagic
+  QCCQCircTransforms
+  QCCQRefToQCirc)

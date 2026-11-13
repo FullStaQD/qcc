@@ -13,15 +13,12 @@
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/BuiltinTypes.h"
-#include "mlir/IR/DialectImplementation.h" // IWYU pragma: keep
-#include "mlir/IR/Matchers.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/Value.h"
 
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/TypeSwitch.h" // IWYU pragma: keep
 
 #include <cassert>
 #include <cstddef>
@@ -33,10 +30,6 @@ using namespace mlir;
 using namespace qcc::qvec;
 
 #include "qcc/Dialect/QVec/IR/QVecDialect.cpp.inc"
-#include "qcc/Dialect/QVec/IR/QVecEnums.cpp.inc"
-
-#define GET_ATTRDEF_CLASSES
-#include "qcc/Dialect/QVec/IR/QVecAttrs.cpp.inc"
 
 #define GET_OP_CLASSES
 #include "qcc/Dialect/QVec/IR/QVecOps.cpp.inc"
@@ -71,48 +64,12 @@ LogicalResult PairOp::verify() {
   return verifyParamShapes(*this, getLhsIn().getType(), getParams());
 }
 
-LogicalResult GlobalOp::verify() {
-  const int64_t numQubits = getQubitsIn().getType().getNumElements();
-  VectorType anglesType = getAngles().getType();
-  if (anglesType.getShape() != ArrayRef<int64_t>{numQubits, numQubits}) {
-    return emitOpError() << "angle matrix " << anglesType << " must be " << numQubits << "x" << numQubits
-                         << " to match the qubit vector";
-  }
-
-  // Only a constant matrix can be further checked.
-  DenseFPElementsAttr angles;
-  if (!matchPattern(getAngles(), m_Constant(&angles))) {
-    return success();
-  }
-
-  auto values = angles.getValues<double>();
-  auto at = [&](int64_t i, int64_t j) { return values[static_cast<size_t>((i * numQubits) + j)]; };
-  for (int64_t i = 0; i < numQubits; ++i) {
-    if (at(i, i) != 0.0) {
-      return emitOpError() << "angle matrix must have a zero diagonal, entry (" << i << ", " << i << ") is "
-                           << at(i, i);
-    }
-    for (int64_t j = 0; j < i; ++j) {
-      if (at(i, j) != at(j, i)) {
-        return emitOpError() << "angle matrix must be symmetric, entries (" << i << ", " << j << ") and (" << j << ", "
-                             << i << ") differ";
-      }
-    }
-  }
-  return success();
-}
-
 //===----------------------------------------------------------------------===//
 // Dialect
 //===----------------------------------------------------------------------===//
 
 void QVecDialect::initialize() {
   addTypes<>();
-
-  addAttributes<
-#define GET_ATTRDEF_LIST
-#include "qcc/Dialect/QVec/IR/QVecAttrs.cpp.inc"
-      >();
 
   addOperations<
 #define GET_OP_LIST

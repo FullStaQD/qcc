@@ -7,6 +7,7 @@
 //
 // ===----------------------------------------------------------------------===//
 
+#include "qcc/Dialect/Magic/Export/Export.h"
 #include "qcc/Dialect/OQ3/Export/Export.h"
 #include "qcc/Dialect/OQ3/Import/Import.h"
 
@@ -15,6 +16,7 @@
 int main(int argc, char** argv) {
   qcc::oq3::registerImportOpenQASMTranslation();
   qcc::oq3::registerExportOpenQASMTranslation();
+  qcc::magic::registerExportCustomMagicTranslation();
 
   return mlir::failed(mlir::mlirTranslateMain(argc, argv, "qcc translation tool")) ? 1 : 0;
 }

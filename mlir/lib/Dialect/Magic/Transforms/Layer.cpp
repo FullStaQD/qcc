@@ -358,44 +358,47 @@ static bool touchesChains(Operation* op) {
   return llvm::any_of(op->getOperandTypes(), isChain) || llvm::any_of(op->getResultTypes(), isChain);
 }
 
+/// Reads `op` into `program`, or fails with a diagnostic naming the pass `passName`.
+static LogicalResult analyzeOp(Operation* op, Program& program, StringRef passName) {
+  return llvm::TypeSwitch<Operation*, LogicalResult>(op)
+      .Case([&](InitOp init) -> LogicalResult {
+        if (program.init) {
+          return init.emitOpError() << "is the second 'magic.init' of the program: expected at most one";
+        }
+        program.init = init;
+        return success();
+      })
+      .Case<ZXZOp, RZOp, ActiveZZOp, InterTrapZZOp>([&](Operation* gate) {
+        program.addGateOp(gate);
+        return success();
+      })
+      .Case([&](MZDOp mzd) {
+        program.measurements.push_back(mzd);
+        return success();
+      })
+      .Default([&](Operation* other) -> LogicalResult {
+        if (isa_and_present<MagicDialect>(other->getDialect())) {
+          return other->emitOpError() << "is not supported by " << passName
+                                      << ", which handles only the magic ops 'init', 'zxz', 'rz', 'active_zz', "
+                                         "'inter_trap_zz' and 'mzd'";
+        }
+        // Magic ops sit directly in the function, but a nested non-magic op may still use a chain.
+        const WalkResult walk = other->walk([&](Operation* nested) {
+          if (!touchesChains(nested)) {
+            return WalkResult::advance();
+          }
+          nested->emitOpError() << "is not a magic op but uses an ion chain, which " << passName << " does not support";
+          return WalkResult::interrupt();
+        });
+        return failure(walk.wasInterrupted());
+      });
+}
+
 /// Reads `block` into a `Program`, or fails with a diagnostic naming the pass `passName`.
 static FailureOr<Program> analyzeBlock(Block& block, StringRef passName) {
   Program program;
   for (Operation& op : block) {
-    const LogicalResult result =
-        llvm::TypeSwitch<Operation*, LogicalResult>(&op)
-            .Case([&](InitOp init) -> LogicalResult {
-              if (program.init) {
-                return init.emitOpError() << "is the second 'magic.init' of the program: expected at most one";
-              }
-              program.init = init;
-              return success();
-            })
-            .Case<ZXZOp, RZOp, ActiveZZOp, InterTrapZZOp>([&](Operation* gate) {
-              program.addGateOp(gate);
-              return success();
-            })
-            .Case([&](MZDOp mzd) {
-              program.measurements.push_back(mzd);
-              return success();
-            })
-            .Default([&](Operation* other) -> LogicalResult {
-              if (isa_and_present<MagicDialect>(other->getDialect())) {
-                return other->emitOpError() << "is not supported by " << passName
-                                            << ", which schedules zxz, rz, active_zz and inter_trap_zz only";
-              }
-              // Magic ops sit directly in the function, but a nested non-magic op may still use a chain.
-              const WalkResult walk = other->walk([&](Operation* nested) {
-                if (!touchesChains(nested)) {
-                  return WalkResult::advance();
-                }
-                nested->emitOpError() << "is not a magic op but uses an ion chain, which " << passName
-                                      << " does not support";
-                return WalkResult::interrupt();
-              });
-              return failure(walk.wasInterrupted());
-            });
-    if (failed(result)) {
+    if (failed(analyzeOp(&op, program, passName))) {
       return failure();
     }
   }

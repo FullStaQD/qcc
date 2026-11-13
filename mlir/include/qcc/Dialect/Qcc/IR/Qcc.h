@@ -20,7 +20,8 @@
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/OpImplementation.h"
-#include "mlir/IR/Operation.h" // IWYU pragma: keep
+#include "mlir/IR/Operation.h"    // IWYU pragma: keep
+#include "mlir/IR/PatternMatch.h" // IWYU pragma: keep
 #include "mlir/IR/TypeRange.h"
 #include "mlir/IR/Types.h"
 #include "mlir/IR/Value.h"
@@ -107,6 +108,13 @@ mlir::ParseResult parseGateTypes(mlir::OpAsmParser& parser, llvm::SmallVectorImp
 /// Prints the types of a gate (custom directive `GateTypes`): `[<angle type>, ]<qubit type>`.
 void printGateTypes(mlir::OpAsmPrinter& printer, mlir::Operation* op, mlir::TypeRange paramTypes,
                     mlir::OperandRange params, mlir::Type qubitType);
+
+/// Positions of the three parameters of `u_zxz(z1, x, z2)` = Rz(z2) * Rx(x) * Rz(z1), z1 applied first.
+namespace zxz {
+inline constexpr unsigned z1 = 0;
+inline constexpr unsigned x = 1;
+inline constexpr unsigned z2 = 2;
+} // namespace zxz
 
 } // namespace qcc
 

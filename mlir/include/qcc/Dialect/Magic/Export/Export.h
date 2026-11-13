@@ -27,4 +27,7 @@ namespace qcc::magic {
 /// - measure every ion and record every result (`magic-measure-and-record-garbage`).
 llvm::LogicalResult exportProgram(mlir::ModuleOp module, llvm::raw_ostream& os);
 
+/// Registers `exportProgram` as the translation `--export-custom-magic`.
+void registerExportCustomMagicTranslation();
+
 } // namespace qcc::magic

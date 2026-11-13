@@ -42,7 +42,7 @@ def QVec_Dialect : Dialect {
     let dependentDialects = ["::qcc::QccDialect"];
 
     let useDefaultTypePrinterParser = 0;      // set to 1 once we define types of our own.
-    let useDefaultAttributePrinterParser = 1; // needed by the gate-kind attributes.
+    let useDefaultAttributePrinterParser = 0; // set to 1 once we define attributes of our own.
 }
 
 #endif // INCLUDE_QCC_DIALECT_QVEC_IR_QVECDIALECT_TD_
