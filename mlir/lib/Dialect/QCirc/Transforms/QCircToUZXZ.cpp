@@ -115,7 +115,6 @@ struct QCircToUZXZ final : impl::QCircToUZXZBase<QCircToUZXZ> {
 
 protected:
   void runOnOperation() override {
-    // Not the greedy driver: it would erase the gates whose qubits nothing observes.
     RewritePatternSet patterns(&getContext());
     patterns.add<SingleToUZXZ>(&getContext());
     walkAndApplyPatterns(getOperation(), std::move(patterns));
