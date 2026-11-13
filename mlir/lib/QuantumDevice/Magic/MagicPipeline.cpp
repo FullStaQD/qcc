@@ -33,6 +33,9 @@ void addLoweringPassesMagic(mlir::PassManager& pm) {
   lowering.addPass(qcc::createConvertQCToQRef());
   lowering.addPass(qcc::createConvertQRefToQCirc());
 
+  // Dead code elimination.
+  lowering.addPass(mlir::createCanonicalizerPass());
+
   // The gates of the architecture: ZZ couplings and single-qubit rotations in ZXZ form.
   lowering.addPass(qcc::createQCircToRZZ());
   lowering.addPass(qcc::createQCircToUZXZ());

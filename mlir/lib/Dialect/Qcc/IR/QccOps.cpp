@@ -19,6 +19,7 @@
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/OperationSupport.h"
+#include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Region.h"
 #include "mlir/IR/TypeRange.h"
 #include "mlir/IR/Types.h"
@@ -323,6 +324,27 @@ LogicalResult StaticOp::verify() {
       return diag;
     }
   }
+  return success();
+}
+
+LogicalResult StaticOp::canonicalize(StaticOp op, PatternRewriter& rewriter) {
+  // A qubit nothing acts on need not exist. An op without any use is left to dead code elimination.
+  SmallVector<Value> used;
+  SmallVector<int64_t> indices;
+  for (auto [qubit, index] : llvm::zip_equal(op.getQubits(), op.getIndices())) {
+    if (!qubit.use_empty()) {
+      used.push_back(qubit);
+      indices.push_back(index);
+    }
+  }
+  if (used.empty() || used.size() == op.getNumResults()) {
+    return failure();
+  }
+  auto shrunk = StaticOp::create(rewriter, op.getLoc(), indices);
+  for (auto [qubit, replacement] : llvm::zip_equal(used, shrunk.getQubits())) {
+    rewriter.replaceAllUsesWith(qubit, replacement);
+  }
+  rewriter.eraseOp(op);
   return success();
 }
 

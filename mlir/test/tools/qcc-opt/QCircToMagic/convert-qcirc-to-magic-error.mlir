@@ -42,7 +42,7 @@ func.func @too_many_qubits() {
 // -----
 
 // This is a limitation of the export format (it cannot express recording a bit twice). We catch it already in this pass
-// for an earlier error reporting.
+// for earlier error reporting.
 func.func @recorded_twice() {
   %q = qcc.static [0] : !qcc.qubit
   // expected-error @+1 {{has its result used other than by one 'aux.record_int', which convert-qcirc-to-magic does not support}}

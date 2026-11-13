@@ -24,7 +24,7 @@ func.func @main() {
   return
 }
 
-// CHECK-MLIR:      !chain = !magic.ion_chain<1, [0:1, 1:1]>
+// CHECK-MLIR:      !chain = !magic.ion_chain<0, [0:1, 1:1]>
 // CHECK-MLIR:      func.func @main()
 // CHECK-MLIR-NEXT:   magic.init : !chain
 // CHECK-MLIR:        %[[M:.*]]:2 = magic.mzd %{{.*}} : !chain -> i1, i1
@@ -33,7 +33,7 @@ func.func @main() {
 // CHECK-MLIR-NEXT:   return
 
 // CHECK-TXT:      //     capacities (3, 3),
-// CHECK-TXT-NEXT: //     occupancies (0, 2),
+// CHECK-TXT-NEXT: //     occupancies (2, 0),
 // CHECK-TXT-NEXT: //     ion-bit map [0, 1],
 // CHECK-TXT-NEXT: //     unused_qubits ().
 // CHECK-TXT-NEXT: // qcc: result_bits = 1

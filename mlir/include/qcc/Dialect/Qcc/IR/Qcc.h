@@ -20,7 +20,8 @@
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/OpImplementation.h"
-#include "mlir/IR/Operation.h" // IWYU pragma: keep
+#include "mlir/IR/Operation.h"    // IWYU pragma: keep
+#include "mlir/IR/PatternMatch.h" // IWYU pragma: keep
 #include "mlir/IR/TypeRange.h"
 #include "mlir/IR/Types.h"
 #include "mlir/IR/Value.h"
