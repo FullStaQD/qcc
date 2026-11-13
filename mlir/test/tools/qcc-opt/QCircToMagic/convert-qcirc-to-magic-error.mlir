@@ -6,7 +6,7 @@ func.func @gate_after_measurement() {
   %a = arith.constant 0.5 : f64
   %q0, %m0 = qcirc.measure z %q#0 : !qcc.qubit -> i1
   aux.record_int %m0 : i1
-  // expected-error @+1 {{acts on qubit 0 after its measurement, which convert-qcirc-to-magic does not support}}
+  // expected-error @+1 {{acts on qubit 0 after its measurement, but convert-qcirc-to-magic expects no gate on a qubit after its measurement}}
   %a1, %b1 = qcirc.pair rzz(%a) %q#1, %q0 : f64, !qcc.qubit
   return
 }
@@ -16,7 +16,7 @@ func.func @gate_after_measurement() {
 func.func @measured_twice() {
   %q = qcc.static [0] : !qcc.qubit
   %q0, %m0 = qcirc.measure z %q : !qcc.qubit -> i1
-  // expected-error @+1 {{measures qubit 0 a second time, which convert-qcirc-to-magic does not support}}
+  // expected-error @+1 {{measures qubit 0 a second time, but convert-qcirc-to-magic expects no second measurement of a qubit}}
   %q1, %m1 = qcirc.measure z %q0 : !qcc.qubit -> i1
   return
 }
@@ -54,7 +54,7 @@ func.func @recorded_twice() {
 
 func.func @single_gate() {
   %q = qcc.static [0] : !qcc.qubit
-  // expected-error @+1 {{applies gate 'h', but convert-qcirc-to-magic expects only 'u_zxz' and 'rz' (run qcirc-to-u-zxz first)}}
+  // expected-error @+1 {{applies gate 'h', but convert-qcirc-to-magic expects only 'u_zxz' and 'rz'}}
   %q0 = qcirc.single h %q : !qcc.qubit
   return
 }
@@ -63,7 +63,7 @@ func.func @single_gate() {
 
 func.func @pair_gate() {
   %q:2 = qcc.static [0, 1] : !qcc.qubit
-  // expected-error @+1 {{applies gate 'cx', but convert-qcirc-to-magic expects only 'rzz' (run qcirc-to-rzz first)}}
+  // expected-error @+1 {{applies gate 'cx', but convert-qcirc-to-magic expects only 'rzz'}}
   %c, %t = qcirc.pair cx %q#0, %q#1 : !qcc.qubit
   return
 }

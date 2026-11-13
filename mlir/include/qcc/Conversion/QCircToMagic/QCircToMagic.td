@@ -13,24 +13,20 @@ def ConvertQCircToMagic : Pass<"convert-qcirc-to-magic", "mlir::func::FuncOp"> {
   let summary = "Converts `qcirc` programs to magic IR for the device in `qcc.device`.";
 
   let description = [{
-      Converts gate by gate, in program order, and takes the gates in any order: scheduling them into layers is left
-      to `magic-layer`. Expects the gates `single u_zxz`, `single rz` and `pair rzz` with constant angles (run
-      `qcirc-to-u-zxz` and `qcirc-to-rzz` first) and `measure z`. A measured bit is recorded by one `aux.record_int`
-      or left unused. Anything else is rejected, also a gate on a qubit after its measurement: `magic.mzd` measures a
-      whole trap and ends its chain.
+      Converts gate by gate, in program order. Expects the gates `single u_zxz`, `single rz` and `pair rzz` with
+      constant angles and `measure z`. A measured bit is recorded by one `aux.record_int` or left unused. Anything else
+      is rejected.
 
-      Static qubit `i` becomes ion `i`. If all ions fit into trap 0 they go there. Otherwise the traps are filled one
-      by one, leaving one slot free per trap for shuttling.
-
-      - `single u_zxz` / `single rz` becomes a `magic.zxz` / `magic.rz` on one ion.
-      - `pair rzz` becomes a `magic.active_zz` with one coupling if both ions are in the same trap, a
-        `magic.inter_trap_zz` otherwise.
-      - `measure z`: each trap with a measured qubit gets one `magic.mzd` behind all gates.
+      Static qubit `i` becomes ion `i`. If all ions fit into trap 0 they go there. Otherwise the traps are filled one by
+      one, leaving one slot free per trap for shuttling. The resulting IR contains at most the following `magic`
+      operations: `init`, `zxz`, `rz`, `active_zz`, `inter_trap_zz`, and `mzd`.
 
       The magic ops are emitted right behind a `magic.init` at the start of the function, so all other ops (e.g. the
       records) stay where they are. A function without `qcc.static` is left alone.
 
-      Precondition: only `qcc.static` and `qcirc` ops use qubits.
+      Preconditions:
+      - Only `qcc.static` and `qcirc` ops use qubits.
+      - No gate or second measurement on a qubit after its measurement (`magic` measures destructively).
 
       Example (one trap, `%theta = 0.5`):
 

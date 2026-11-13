@@ -39,6 +39,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/TypeSwitch.h"
+#include "llvm/Support/ErrorHandling.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -94,9 +95,10 @@ private:
   // Placement
   //===--------------------------------------------------------------------===//
 
-  /// One `magic.init` at the start of `block` with the chains of all traps. It creates as many ions as the program has
-  /// qubits (ion id = qubit index). If they all fit into trap 0 they go there, which needs no shuttling. Otherwise
-  /// they are filled in trap by trap, one ion less than the capacity each, as shuttling needs a free slot.
+  /// One `magic.init` at the start of `block` with the chains of all traps, replacing `qcc.static`. It creates as many
+  /// ions as the program has qubits (ion id = qubit index). If they all fit into trap 0 they go there, which needs no
+  /// shuttling. Otherwise they are filled in trap by trap, one ion less than the capacity each, as shuttling needs a
+  /// free slot.
   LogicalResult createChains(Block& block) {
     // The indices of `qcc.static` increase.
     const ArrayRef<int64_t> indices = staticOp.getIndices();
@@ -125,6 +127,12 @@ private:
     for (Value chain : init.getChains()) {
       chains.push_back(cast<TypedValue<IonChainType>>(chain));
     }
+
+    // Static qubit `i` holds ion `i`.
+    for (auto [qubit, index] : llvm::zip_equal(staticOp.getQubits(), indices)) {
+      ionOf[qubit] = index;
+    }
+    replaced.push_back(staticOp);
     return success();
   }
 
@@ -134,23 +142,14 @@ private:
 
   LogicalResult convert(Operation* op) {
     return llvm::TypeSwitch<Operation*, LogicalResult>(op)
-        .Case([&](StaticOp) { return convertStatic(); })
         .Case([&](qcirc::SingleOp single) { return convertSingle(single); })
         .Case([&](qcirc::PairOp pair) { return convertPair(pair); })
         .Case([&](qcirc::MeasureOp measure) { return convertMeasure(measure); })
         .Case([&](qcirc::ResetOp reset) {
           return reset.emitOpError() << "resets a qubit, which " << passName << " does not support";
         })
-        // Everything else is left for `checkLegal`.
+        // `createChains` replaced `qcc.static` already, everything else is left for `checkLegal`.
         .Default([](Operation*) { return success(); });
-  }
-
-  LogicalResult convertStatic() {
-    for (auto [qubit, index] : llvm::zip_equal(staticOp.getQubits(), staticOp.getIndices())) {
-      ionOf[qubit] = index;
-    }
-    replaced.push_back(staticOp);
-    return success();
   }
 
   /// The ion that `op` acts on through `qubit`, or a diagnostic if it is measured already.
@@ -158,8 +157,8 @@ private:
     // The precondition ensures that every qubit comes from `qcc.static` through the ops converted so far.
     const int64_t ion = ionOf.at(qubit);
     if (measuredBy.contains(ion)) {
-      return op->emitOpError() << "acts on qubit " << ion << " after its measurement, which " << passName
-                               << " does not support";
+      return op->emitOpError() << "acts on qubit " << ion << " after its measurement, but " << passName
+                               << " expects no gate on a qubit after its measurement";
     }
     return ion;
   }
@@ -182,7 +181,7 @@ private:
     const SingleGateKind kind = single.getGateKind();
     if (kind != SingleGateKind::UZXZ && kind != SingleGateKind::RZ) {
       return single.emitOpError() << "applies gate '" << stringifySingleGateKind(kind) << "', but " << passName
-                                  << " expects only 'u_zxz' and 'rz' (run qcirc-to-u-zxz first)";
+                                  << " expects only 'u_zxz' and 'rz'";
     }
     const FailureOr<int64_t> ion = lookupUnmeasuredIon(single, single.getQubitIn());
     if (failed(ion)) {
@@ -195,11 +194,16 @@ private:
 
     TypedValue<IonChainType>& chain = chains[trapOf[*ion]];
     const ArrayRef<int64_t> ions(*ion);
-    if (kind == SingleGateKind::UZXZ) {
+    switch (kind) {
+    case SingleGateKind::UZXZ:
       chain = ZXZOp::create(builder, single.getLoc(), chain, ions, ArrayRef((*angles)[zxz::z1]),
                             ArrayRef((*angles)[zxz::x]), ArrayRef((*angles)[zxz::z2]));
-    } else {
+      break;
+    case SingleGateKind::RZ:
       chain = RZOp::create(builder, single.getLoc(), chain, ions, ArrayRef(angles->front()));
+      break;
+    default:
+      llvm_unreachable("gate kind rejected above");
     }
     ionOf[single.getQubitOut()] = *ion;
     replaced.push_back(single);
@@ -210,7 +214,7 @@ private:
     const PairGateKind kind = pair.getGateKind();
     if (kind != PairGateKind::RZZ) {
       return pair.emitOpError() << "applies gate '" << stringifyPairGateKind(kind) << "', but " << passName
-                                << " expects only 'rzz' (run qcirc-to-rzz first)";
+                                << " expects only 'rzz'";
     }
     const FailureOr<int64_t> lhs = lookupUnmeasuredIon(pair, pair.getLhsIn());
     if (failed(lhs)) {
@@ -255,8 +259,8 @@ private:
     }
     const int64_t ion = ionOf.at(measure.getQubitIn());
     if (measuredBy.contains(ion)) {
-      return measure.emitOpError() << "measures qubit " << ion << " a second time, which " << passName
-                                   << " does not support";
+      return measure.emitOpError() << "measures qubit " << ion << " a second time, but " << passName
+                                   << " expects no second measurement of a qubit";
     }
     const Value bit = measure.getBit();
     if (!bit.use_empty() && (!bit.hasOneUse() || !isa<aux::RecordIntOp>(*bit.user_begin()))) {
