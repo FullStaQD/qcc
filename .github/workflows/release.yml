@@ -6,7 +6,6 @@ on:
     # Tag runs only see caches of their own tag and of main. The `paths` filter (see below) does not apply to tags.
     branches:
       - main
-      - prepare-qcc-release # TODO: Remove before merging.
     paths:
       - third-party/llvm/**
       - .github/workflows/release.yml
