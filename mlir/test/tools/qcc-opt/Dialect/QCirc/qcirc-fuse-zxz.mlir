@@ -38,21 +38,22 @@ func.func @rz_zxz_rz() {
 
 // -----
 
-// CHECK-LABEL: func.func @x_x_is_identity
-func.func @x_x_is_identity() {
+// CHECK-LABEL: func.func @zxz_zxz
+func.func @zxz_zxz() {
     %q = qcc.static [0] : !qcc.qubit
-    %zero = arith.constant 0.0 : f64
-    %pi = arith.constant 3.1415926535897931 : f64
-    %x0 = qcirc.single u_zxz(%zero, %pi, %zero) %q : f64, !qcc.qubit
-    %x1 = qcirc.single u_zxz(%zero, %pi, %zero) %x0 : f64, !qcc.qubit
+    %a = arith.constant 0.5 : f64
+    %b = arith.constant 0.25 : f64
+    %u0 = qcirc.single u_zxz(%a, %b, %a) %q : f64, !qcc.qubit
+    %u1 = qcirc.single u_zxz(%b, %a, %b) %u0 : f64, !qcc.qubit
     func.return
 }
 
-// Two u_zxz fuse through their matrices.
-// CHECK:         %[[Z1:.*]] = arith.constant 0.000000e+00 : f64
-// CHECK-NEXT:    %[[X:.*]] = arith.constant 0.000000e+00 : f64
-// CHECK-NEXT:    %[[Z2:.*]] = arith.constant 0.000000e+00 : f64
-// CHECK-NEXT:    qcirc.single u_zxz(%[[Z1]], %[[X]], %[[Z2]]) %{{.*}} : f64, !qcc.qubit
+// Two u_zxz fuse through their matrices into one with new constant angles. The old angles go with the gates.
+// CHECK:         %[[Q:.*]] = qcc.static [0] : !qcc.qubit
+// CHECK-NEXT:    %[[Z1:.*]] = arith.constant {{.*}} : f64
+// CHECK-NEXT:    %[[X:.*]] = arith.constant {{.*}} : f64
+// CHECK-NEXT:    %[[Z2:.*]] = arith.constant {{.*}} : f64
+// CHECK-NEXT:    qcirc.single u_zxz(%[[Z1]], %[[X]], %[[Z2]]) %[[Q]] : f64, !qcc.qubit
 // CHECK-NEXT:    return
 
 // -----

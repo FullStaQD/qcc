@@ -67,7 +67,8 @@ static Rotation fuse(const Rotation& first, const Rotation& second) {
                     first, second);
 }
 
-/// Erases the ops that define `angles` if nothing uses them any more.
+/// Erases the ops that define `angles` if nothing uses them any more. Not essential but keeps the output of the pass
+/// clean.
 static void eraseUnusedAngles(RewriterBase& rewriter, ValueRange angles) {
   llvm::SmallSetVector<Operation*, 6> definingOps;
   for (Value angle : angles) {
@@ -125,8 +126,6 @@ struct QCircFuseZXZ final : impl::QCircFuseZXZBase<QCircFuseZXZ> {
 
 protected:
   void runOnOperation() override {
-    // A plain walk, as it may erase the ops it visited already; the greedy driver would also erase the gates whose
-    // qubits nothing observes. One walk in program order suffices: the fused gate is the first one of the next pair.
     IRRewriter rewriter(&getContext());
     getOperation().walk([&](SingleOp op) { fuseIntoProducer(rewriter, op); });
   }
