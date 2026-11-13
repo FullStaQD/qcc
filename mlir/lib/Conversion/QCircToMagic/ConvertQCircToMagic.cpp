@@ -6,8 +6,8 @@
 // ===----------------------------------------------------------------------===//
 //
 // `convert-qcirc-to-magic` walks each function once, in order. Qubit values are traced forward to the ions they hold
-// (ion id = qubit index), each gate is emitted on the current chain value of its trap, and the replaced operations are
-// erased at the end.
+// (ion `i` = the `i`-th qubit of `qcc.static`), each gate is emitted on the current chain value of its trap, and the
+// replaced operations are erased at the end.
 //
 // We do not use the dialect conversion framework here: A qubit has no magic value to be replaced with. Instead all
 // qubits of a trap share a single chain.
@@ -95,14 +95,12 @@ private:
   // Placement
   //===--------------------------------------------------------------------===//
 
-  /// One `magic.init` at the start of `block` with the chains of all traps, replacing `qcc.static`. It creates as many
-  /// ions as the program has qubits (ion id = qubit index). If they all fit into trap 0 they go there, which needs no
-  /// shuttling. Otherwise they are filled in trap by trap, one ion less than the capacity each, as shuttling needs a
-  /// free slot.
+  /// One `magic.init` at the start of `block` with the chains of all traps, replacing `qcc.static`. It creates one ion
+  /// per qubit: the `i`-th qubit becomes ion `i`, whatever its index, so gaps in the indices cost no slots. If all ions
+  /// fit into trap 0 they go there, which needs no shuttling. Otherwise they are filled in trap by trap, one ion less
+  /// than the capacity each, as shuttling needs a free slot.
   LogicalResult createChains(Block& block) {
-    // The indices of `qcc.static` increase.
-    const ArrayRef<int64_t> indices = staticOp.getIndices();
-    const int64_t numQubits = indices.empty() ? 0 : indices.back() + 1;
+    const int64_t numQubits = std::ssize(staticOp.getQubits());
 
     MLIRContext* ctx = staticOp->getContext();
     const bool spread = device.numTraps() > 1 && numQubits > device.capacity(0);
@@ -117,7 +115,7 @@ private:
       types.push_back(IonChainType::get(ctx, trap, slots));
     }
     if (std::ssize(trapOf) < numQubits) {
-      return staticOp.emitOpError() << "uses qubit " << numQubits - 1 << ", but the device can be loaded with at most "
+      return staticOp.emitOpError() << "uses " << numQubits << " qubits, but the device can be loaded with at most "
                                     << trapOf.size() << " ions"
                                     << (spread ? ": one slot per trap stays free for shuttling" : "");
     }
@@ -128,9 +126,8 @@ private:
       chains.push_back(cast<TypedValue<IonChainType>>(chain));
     }
 
-    // Static qubit `i` holds ion `i`.
-    for (auto [qubit, index] : llvm::zip_equal(staticOp.getQubits(), indices)) {
-      ionOf[qubit] = index;
+    for (auto [ion, qubit] : llvm::enumerate(staticOp.getQubits())) {
+      ionOf[qubit] = static_cast<int64_t>(ion);
     }
     replaced.push_back(staticOp);
     return success();
@@ -152,12 +149,15 @@ private:
         .Default([](Operation*) { return success(); });
   }
 
+  /// The `qcc.static` index of the qubit that `ion` holds, for diagnostics.
+  int64_t qubitIndexOf(int64_t ion) { return staticOp.getIndices()[ion]; }
+
   /// The ion that `op` acts on through `qubit`, or a diagnostic if it is measured already.
   FailureOr<int64_t> lookupUnmeasuredIon(Operation* op, Value qubit) {
     // The precondition ensures that every qubit comes from `qcc.static` through the ops converted so far.
     const int64_t ion = ionOf.at(qubit);
     if (measuredBy.contains(ion)) {
-      return op->emitOpError() << "acts on qubit " << ion << " after its measurement, but " << passName
+      return op->emitOpError() << "acts on qubit " << qubitIndexOf(ion) << " after its measurement, but " << passName
                                << " expects no gate on a qubit after its measurement";
     }
     return ion;
@@ -259,7 +259,7 @@ private:
     }
     const int64_t ion = ionOf.at(measure.getQubitIn());
     if (measuredBy.contains(ion)) {
-      return measure.emitOpError() << "measures qubit " << ion << " a second time, but " << passName
+      return measure.emitOpError() << "measures qubit " << qubitIndexOf(ion) << " a second time, but " << passName
                                    << " expects no second measurement of a qubit";
     }
     const Value bit = measure.getBit();

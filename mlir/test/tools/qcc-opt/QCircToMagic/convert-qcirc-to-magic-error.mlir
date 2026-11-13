@@ -2,11 +2,11 @@
 
 // The mzd of a trap would have to come before the gate and after it: it measures all ions and ends the chain.
 func.func @gate_after_measurement() {
-  %q:2 = qcc.static [0, 1] : !qcc.qubit
+  %q:2 = qcc.static [1, 2] : !qcc.qubit
   %a = arith.constant 0.5 : f64
   %q0, %m0 = qcirc.measure z %q#0 : !qcc.qubit -> i1
   aux.record_int %m0 : i1
-  // expected-error @+1 {{acts on qubit 0 after its measurement, but convert-qcirc-to-magic expects no gate on a qubit after its measurement}}
+  // expected-error @+1 {{acts on qubit 1 after its measurement, but convert-qcirc-to-magic expects no gate on a qubit after its measurement}}
   %a1, %b1 = qcirc.pair rzz(%a) %q#1, %q0 : f64, !qcc.qubit
   return
 }
@@ -14,9 +14,9 @@ func.func @gate_after_measurement() {
 // -----
 
 func.func @measured_twice() {
-  %q = qcc.static [0] : !qcc.qubit
+  %q = qcc.static [3] : !qcc.qubit
   %q0, %m0 = qcirc.measure z %q : !qcc.qubit -> i1
-  // expected-error @+1 {{measures qubit 0 a second time, but convert-qcirc-to-magic expects no second measurement of a qubit}}
+  // expected-error @+1 {{measures qubit 3 a second time, but convert-qcirc-to-magic expects no second measurement of a qubit}}
   %q1, %m1 = qcirc.measure z %q0 : !qcc.qubit -> i1
   return
 }
@@ -34,13 +34,15 @@ func.func @dynamic_angle(%theta: f64) {
 
 // The device has two traps of capacity 3: it takes up to four qubits, two per trap.
 func.func @too_many_qubits() {
-  // expected-error @+1 {{uses qubit 4, but the device can be loaded with at most 4 ions: one slot per trap stays free for shuttling}}
-  %q = qcc.static [4] : !qcc.qubit
+  // expected-error @+1 {{uses 5 qubits, but the device can be loaded with at most 4 ions: one slot per trap stays free for shuttling}}
+  %q:5 = qcc.static [0, 1, 2, 3, 4] : !qcc.qubit
   return
 }
 
 // -----
 
+// This is a limitation of the export format (it cannot express recording a bit twice). We catch it already in this pass
+// for an earlier error reporting.
 func.func @recorded_twice() {
   %q = qcc.static [0] : !qcc.qubit
   // expected-error @+1 {{has its result used other than by one 'aux.record_int', which convert-qcirc-to-magic does not support}}

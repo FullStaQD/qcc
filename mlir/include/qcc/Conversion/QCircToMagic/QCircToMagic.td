@@ -17,9 +17,9 @@ def ConvertQCircToMagic : Pass<"convert-qcirc-to-magic", "mlir::func::FuncOp"> {
       constant angles and `measure z`. A measured bit is recorded by one `aux.record_int` or left unused. Anything else
       is rejected.
 
-      Static qubit `i` becomes ion `i`. If all ions fit into trap 0 they go there. Otherwise the traps are filled one by
-      one, leaving one slot free per trap for shuttling. The resulting IR contains at most the following `magic`
-      operations: `init`, `zxz`, `rz`, `active_zz`, `inter_trap_zz`, and `mzd`.
+      The qubit of `qcc.static` at position `i` becomes ion `i`. If all ions fit into trap 0 they go there. Otherwise
+      the traps are filled one by one, leaving one slot free per trap for shuttling. The resulting IR contains at most
+      the following `magic` operations: `init`, `zxz`, `rz`, `active_zz`, `inter_trap_zz`, and `mzd`.
 
       The magic ops are emitted right behind a `magic.init` at the start of the function, so all other ops (e.g. the
       records) stay where they are. A function without `qcc.static` is left alone.

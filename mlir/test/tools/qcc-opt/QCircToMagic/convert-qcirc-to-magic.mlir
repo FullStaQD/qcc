@@ -74,6 +74,26 @@ func.func @partly_observed() {
 
 // -----
 
+// The qubits become ions 0, 1 in order, whatever their indices. Both fit into trap 0.
+// CHECK:       !chain = !magic.ion_chain<0, [0:1, 1:1]>
+// CHECK-LABEL: func.func @sparse_indices
+func.func @sparse_indices() {
+  %q:2 = qcc.static [2, 5] : !qcc.qubit
+  %a = arith.constant 0.5 : f64
+  %q5 = qcirc.single rz(%a) %q#1 : f64, !qcc.qubit
+  %q2, %m2 = qcirc.measure z %q#0 : !qcc.qubit -> i1
+  aux.record_int %m2 : i1
+  return
+}
+
+// CHECK:      %[[INIT:.*]]:2 = magic.init : !chain, !chain1
+// CHECK-NEXT: %[[C1:.*]] = magic.rz %[[INIT]]#0 ions [1] {angles = [5.000000e-01]} : !chain
+// CHECK-NEXT: %[[M:.*]]:2 = magic.mzd %[[C1]] : !chain -> i1, i1
+// CHECK-NEXT: aux.record_int %[[M]]#0 : i1
+// CHECK-NEXT: return
+
+// -----
+
 // A function without `qcc.static` is left alone.
 // CHECK-LABEL: func.func @classical
 func.func @classical(%x: i64) -> i64 {
