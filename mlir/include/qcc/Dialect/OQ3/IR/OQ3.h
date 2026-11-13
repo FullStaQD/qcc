@@ -18,6 +18,7 @@
 #include "mlir/IR/Dialect.h"     // IWYU pragma: keep
 #include "mlir/IR/SymbolTable.h" // IWYU pragma: keep
 #include "mlir/IR/Value.h"
+#include "mlir/Interfaces/DataLayoutInterfaces.h" // IWYU pragma: keep
 #include "mlir/Interfaces/InferTypeOpInterface.h" // IWYU pragma: keep
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Support/LLVM.h"
@@ -37,6 +38,9 @@
 #include "qcc/Dialect/OQ3/IR/OQ3Dialect.h.inc"
 
 namespace qcc::oq3 {
+
+/// The IEEE 754 binary floating-point type of `width` bits, or null if there is none.
+mlir::FloatType getFloatTypeOfWidth(mlir::MLIRContext* context, unsigned width);
 
 /// The resource that statements write which shape the program without having uses (definition markers, includes,
 /// pragmas, qubit declarations): it keeps them alive, but aliases with nothing else.

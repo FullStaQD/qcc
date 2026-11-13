@@ -14,6 +14,7 @@ include "qcc/Dialect/OQ3/IR/OQ3Dialect.td"
 include "qcc/Dialect/Qcc/IR/QccInterfaces.td"
 
 include "mlir/IR/AttrTypeBase.td"
+include "mlir/Interfaces/DataLayoutInterfaces.td"
 
 //===----------------------------------------------------------------------===//
 // OQ3 types
@@ -68,10 +69,15 @@ def OQ3_BitsType : OQ3_SizedType<"Bits", "bits", [Qcc_ClassicalTypeInterface]> {
     }];
 }
 
-def OQ3_UnsizedIntType : OQ3_Type<"UnsizedInt", "int", [Qcc_ClassicalTypeInterface]> {
+def OQ3_UnsizedIntType : OQ3_Type<"UnsizedInt", "int", [
+    Qcc_ClassicalTypeInterface,
+    DeclareTypeInterfaceMethods<DataLayoutTypeInterface, ["verifyEntries"]>]> {
   let summary = "integer of unspecified width";
   let description = [{
         OpenQASM's unsized `int`, whose width the target defines. Integer literals have this type.
+
+        The width is the type's entry in the data layout (`dlti.dl_spec`), e.g. `!oq3.int = 32`. Without an entry it is
+        the width of `index`, which is 64 without a data layout.
 
         Example:
         ```mlir
@@ -80,17 +86,26 @@ def OQ3_UnsizedIntType : OQ3_Type<"UnsizedInt", "int", [Qcc_ClassicalTypeInterfa
     }];
 }
 
-def OQ3_UnsizedFloatType : OQ3_Type<"UnsizedFloat", "float", [Qcc_ClassicalTypeInterface]> {
+def OQ3_UnsizedFloatType : OQ3_Type<"UnsizedFloat", "float", [
+    Qcc_ClassicalTypeInterface,
+    DeclareTypeInterfaceMethods<DataLayoutTypeInterface, ["verifyEntries"]>]> {
   let summary = "floating-point number of unspecified width";
   let description = [{
         OpenQASM's unsized `float`, whose precision the target defines. Floating-point literals and the math constants
         have this type.
+
+        The width is the type's entry in the data layout (`dlti.dl_spec`), e.g. `!oq3.float = 32`, and must be 16, 32,
+        64 or 128. Without an entry it is 64, independent of the width of `int` and `index`.
 
         Example:
         ```mlir
         !oq3.float
         ```
     }];
+  let extraClassDeclaration = [{
+    /// The width in bits when the data layout has no entry for the type.
+    static constexpr unsigned defaultWidth = 64;
+  }];
 }
 
 #endif // INCLUDE_QCC_DIALECT_OQ3_IR_OQ3TYPES_TD_

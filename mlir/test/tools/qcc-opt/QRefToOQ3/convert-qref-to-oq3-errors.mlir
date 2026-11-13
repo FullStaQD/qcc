@@ -46,7 +46,7 @@ func.func @if_unsupported() attributes {qcc.entry_point} {
 
 // -----
 
-// The target's `float` has its word size, 64 bits without a `dlti.dl_spec`.
+// The target's `float` is 64 bits wide unless the data layout says otherwise.
 func.func @f32() attributes {qcc.entry_point} {
   // expected-error @below {{a constant 1.500000e+00 : f32 cannot be converted to OpenQASM}}
   %c = arith.constant 1.5 : f32
@@ -55,7 +55,7 @@ func.func @f32() attributes {qcc.entry_point} {
 
 // -----
 
-module attributes {dlti.dl_spec = #dlti.dl_spec<index = 32>} {
+module attributes {dlti.dl_spec = #dlti.dl_spec<!oq3.int = 32, !oq3.float = 32>} {
   func.func @f64_with_32_bit_word_size() attributes {qcc.entry_point} {
     // expected-error @below {{a constant 1.500000e+00 : f64 cannot be converted to OpenQASM}}
     %c = arith.constant 1.5 : f64
@@ -65,7 +65,7 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<index = 32>} {
 
 // -----
 
-module attributes {dlti.dl_spec = #dlti.dl_spec<index = 32>} {
+module attributes {dlti.dl_spec = #dlti.dl_spec<!oq3.int = 32, !oq3.float = 32>} {
   func.func @sitofp_to_f64_with_32_bit_word_size() attributes {qcc.entry_point} {
     %c = arith.constant 2 : i32
     // expected-error @below {{only conversions to the target's 'float', 'f32', can be converted to OpenQASM}}
@@ -76,8 +76,8 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<index = 32>} {
 
 // -----
 
-// expected-error @below {{there is no 24-bit 'float' for the target's word size}}
-module attributes {dlti.dl_spec = #dlti.dl_spec<index = 24>} {
+// expected-error @below {{the data layout entry for '!oq3.float' must be 16, 32, 64 or 128}}
+module attributes {dlti.dl_spec = #dlti.dl_spec<!oq3.float = 24>} {
   func.func @no_float_for_word_size() attributes {qcc.entry_point} {
     return
   }
