@@ -69,16 +69,24 @@ struct SingleToUZXZ final : OpRewritePattern<SingleOp> {
     }
     case SingleGateKind::X:
       return xRotation(angle(pi));
-    case SingleGateKind::Y:
-      return uZXZ(angle(-pi / 2), angle(pi), angle(pi / 2));
+    case SingleGateKind::Y: {
+      // Build angles in named locals: argument evaluation order, and thus constant order, is compiler-dependent.
+      Value z1 = angle(-pi / 2);
+      Value x = angle(pi);
+      Value z2 = angle(pi / 2);
+      return uZXZ(z1, x, z2);
+    }
     case SingleGateKind::SX:
       return xRotation(angle(pi / 2));
     case SingleGateKind::SXdg:
       return xRotation(angle(-pi / 2));
     case SingleGateKind::RX:
       return xRotation(op.getParams().front());
-    case SingleGateKind::RY:
-      return uZXZ(angle(-pi / 2), op.getParams().front(), angle(pi / 2));
+    case SingleGateKind::RY: {
+      Value z1 = angle(-pi / 2);
+      Value z2 = angle(pi / 2);
+      return uZXZ(z1, op.getParams().front(), z2);
+    }
     case SingleGateKind::UZYZ: {
       // u_zyz(z1, y, z2) = u_zxz(z1 - pi/2, y, z2 + pi/2).
       ValueRange params = op.getParams();
