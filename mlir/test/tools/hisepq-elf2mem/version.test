@@ -1,0 +1,6 @@
+# REQUIRES: hisepq
+
+# RUN: hisepq-elf2mem --version | FileCheck %s -DVERSION=%qcc_version
+
+# The commit is only there with QCC_APPEND_VC_REV=ON in a git checkout.
+# CHECK: {{^}}[[VERSION]]{{( \([0-9a-f]{7}\))?$}}

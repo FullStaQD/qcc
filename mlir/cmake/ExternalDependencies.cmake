@@ -9,3 +9,9 @@ FetchContent_Declare(
 list(APPEND FETCH_PACKAGES mqt-core)
 
 FetchContent_MakeAvailable(${FETCH_PACKAGES})
+
+# qcc links parts of mqt-core, so the release archives carry its license.
+install(
+  FILES ${mqt-core_SOURCE_DIR}/LICENSE
+  DESTINATION third-party/mqt-core
+  COMPONENT qcc)

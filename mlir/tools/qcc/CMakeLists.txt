@@ -21,6 +21,7 @@ set(LIBS
     MLIRBuiltinToLLVMIRTranslation
     MLIRLLVMToLLVMIRTranslation
     QCCCompiler
+    QCCSupport
     QCCTarget)
 
 add_llvm_executable(qcc qcc.cpp DEPENDS ${LIBS})
@@ -29,3 +30,5 @@ target_link_libraries(qcc PRIVATE ${LIBS})
 
 llvm_update_compile_flags(qcc)
 mlir_check_all_link_libraries(qcc)
+
+install(TARGETS qcc RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT qcc)

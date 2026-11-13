@@ -2,8 +2,22 @@ cmake_minimum_required(VERSION 3.24...4.2)
 
 project(
   qcc
+  VERSION 0.1.0
   DESCRIPTION "Quantum Compiler Collection, part of FullStaQD"
   LANGUAGES C CXX)
+
+# Pre-releases append a SemVer pre-release suffix to the version, e.g. 0.1.0-alpha.1.
+set(QCC_VERSION_SUFFIX
+    ""
+    CACHE STRING "Suffix appended to the version, e.g. -alpha.1 (empty for a release)")
+if(NOT QCC_VERSION_SUFFIX MATCHES "^(-[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?$")
+  message(FATAL_ERROR "QCC_VERSION_SUFFIX must be empty or a pre-release suffix like -alpha.1, "
+                      "got '${QCC_VERSION_SUFFIX}'")
+endif()
+set(QCC_VERSION "${PROJECT_VERSION}${QCC_VERSION_SUFFIX}")
+
+# Off by default: with the commit in --version, every new commit relinks the tools. Release builds should turn it on.
+option(QCC_APPEND_VC_REV "Append the git commit to the --version output" OFF)
 
 if(NOT DEFINED CMAKE_CXX_STANDARD OR CMAKE_CXX_STANDARD LESS 20)
   set(CMAKE_CXX_STANDARD
@@ -59,3 +73,18 @@ endif()
 
 enable_testing()
 add_subdirectory(mlir/test)
+
+# To enable `cmake --install <build> --component qcc --strip --prefix <dir>`.
+install(
+  FILES LICENSE.txt NOTICE.txt docs/release/README.md
+  DESTINATION .
+  COMPONENT qcc)
+install(
+  FILES third-party/llvm/LICENSE.TXT
+  DESTINATION third-party/llvm
+  COMPONENT qcc)
+# All of it, so the source of the EPL-2.0 licensed dialect definition travels with the binaries.
+install(
+  DIRECTORY third-party/qrisp
+  DESTINATION third-party
+  COMPONENT qcc)

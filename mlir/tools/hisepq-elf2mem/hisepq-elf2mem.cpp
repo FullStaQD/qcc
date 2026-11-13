@@ -18,6 +18,7 @@
 //
 // ===----------------------------------------------------------------------===//
 
+#include "qcc/Support/Version.h"
 #include "qcc/Target/HiSEPQ/Elf2Mem.h"
 
 #include "llvm/ADT/StringRef.h"
@@ -62,6 +63,7 @@ int main(int argc, char** argv) {
   const cl::opt<std::string> outputFilename("o", cl::desc("Output .mem file"), cl::value_desc("filename"),
                                             cl::init("-"), cl::cat(elf2memCategory));
 
+  cl::SetVersionPrinter(qcc::printVersion);
   cl::ParseCommandLineOptions(argc, argv,
                               "hisepq-elf2mem - convert a HiSEP-Q ELF image into a Verilog $readmemh memory file\n");
 

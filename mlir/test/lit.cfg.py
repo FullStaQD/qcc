@@ -24,6 +24,7 @@ config.test_source_root = Path(__file__).parent
 config.substitutions.append(("%PATH%", config.environment["PATH"]))
 config.substitutions.append(("%shlibext", config.llvm_shlib_ext))
 config.substitutions.append(("%project_source_dir", config.project_source_dir))
+config.substitutions.append(("%qcc_version", config.qcc_version))
 
 llvm_config.with_system_environment(["HOME", "INCLUDE", "LIB", "TMP", "TEMP"])
 
