@@ -36,3 +36,14 @@ func.func @chain_used_in_region(%flag: i1) {
   }
   return
 }
+
+// -----
+
+!c = !magic.ion_chain<0, [0:1]>
+
+func.func @later_stage() {
+  %c0 = magic.init : !c
+  // expected-error @+1 {{'magic.sym_zxz' op is not supported by magic-layer, which handles only the magic ops 'init', 'zxz', 'rz', 'active_zz', 'inter_trap_zz' and 'mzd'}}
+  %c1 = magic.sym_zxz %c0 ions [0] {z = [0.5], x = [0.25]} : !c
+  return
+}

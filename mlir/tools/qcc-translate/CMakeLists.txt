@@ -5,6 +5,7 @@ target_link_libraries(
           MLIRSupport
           MLIRTranslateLib
           MLIRFuncDialect
+          QCCMagicExport
           QCCOQ3Dialect
           QCCOQ3Export
           QCCOQ3Import

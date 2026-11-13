@@ -16,8 +16,8 @@ def MagicLayer : Pass<"magic-layer", "mlir::func::FuncOp"> {
   let summary = "Schedules the gates into alternating SQ and ZZ layers.";
 
   let description = [{
-      A scheduler for the gates the conversion into `magic` emits: `zxz`, `rz`, `active_zz` and `inter_trap_zz`. It
-      runs before shuttles, swaps and recodes exist, so every ion is active and stays in the trap.
+      A scheduler for the gates the conversion into `magic` emits: `zxz`, `rz`, `active_zz` and `inter_trap_zz` (rejects
+      other ops). It runs before shuttles, swaps and recodes exist, so every ion is active and stays in the trap.
 
       The gates are replaced by a sequence of *layers*, emitted right behind `magic.init`:
 
@@ -30,9 +30,6 @@ def MagicLayer : Pass<"magic-layer", "mlir::func::FuncOp"> {
 
       The schedule is greedy and commutation-aware for the diagonal gates (`rz`, `active_zz`, `inter_trap_zz`). ZZ
       couplings are moved to the earliest layer possible (and merged).
-
-      A function that holds a magic op of a later stage (e.g. `sym_zxz`, `delay` or `shuttle`) is left alone, as is
-      one without `magic.init`. This way the MAGIC pipeline also takes a program that is magic IR already.
 
       Example (three ions in one trap):
 

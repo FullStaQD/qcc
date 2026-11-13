@@ -300,8 +300,6 @@ public:
 
   /// The one `magic.init` of the function, null if there is none.
   InitOp init;
-  /// Whether the function holds a magic op of a later stage (e.g. `sym_zxz`, `shuttle`), so it is past layering.
-  bool pastLayering = false;
   /// The gates in program order, see `collectGates`.
   SmallVector<Gate> gates;
   /// The ops the gates were read from, in program order. The layers replace them.
@@ -380,8 +378,9 @@ static LogicalResult analyzeOp(Operation* op, Program& program, StringRef passNa
       })
       .Default([&](Operation* other) -> LogicalResult {
         if (isa_and_present<MagicDialect>(other->getDialect())) {
-          program.pastLayering = true;
-          return success();
+          return other->emitOpError() << "is not supported by " << passName
+                                      << ", which handles only the magic ops 'init', 'zxz', 'rz', 'active_zz', "
+                                         "'inter_trap_zz' and 'mzd'";
         }
         // Magic ops sit directly in the function, but a nested non-magic op may still use a chain.
         const WalkResult walk = other->walk([&](Operation* nested) {
@@ -566,8 +565,8 @@ protected:
     if (failed(program)) {
       return signalPassFailure();
     }
-    if (program->init == nullptr || program->pastLayering) {
-      return; // Nothing quantum to schedule here, or not any more.
+    if (program->init == nullptr) {
+      return; // Nothing quantum to schedule here.
     }
     rebuild(*program, layerGates(program->gates), func.getLoc());
   }
