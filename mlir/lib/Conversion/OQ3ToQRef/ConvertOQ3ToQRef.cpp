@@ -63,7 +63,7 @@ namespace {
 /// Lowers the unsized `int` and `float`, whose width the target defines, to `intType` and `floatType`.
 class OQ3TypeConverter final : public TypeConverter {
 public:
-  OQ3TypeConverter(MLIRContext* context, IntegerType intType, Type floatType) {
+  OQ3TypeConverter(MLIRContext* context, IntegerType intType, FloatType floatType) {
     addConversion([](Type type) { return type; });
     addConversion([intType](UnsizedIntType) -> Type { return intType; });
     addConversion([floatType](UnsizedFloatType) -> Type { return floatType; });
@@ -695,7 +695,7 @@ struct GateCallLowering final : public OpConversionPattern<GateCallOp> {
 // Pass
 //===----------------------------------------------------------------------===//
 
-static LogicalResult checkPreconditions(ModuleOp module, IntegerType intType, Type floatType) {
+static LogicalResult checkPreconditions(ModuleOp module, IntegerType intType, FloatType floatType) {
   bool convertible = true;
   module.walk([&](Operation* op) {
     TypeSwitch<Operation*>(op)
@@ -723,7 +723,7 @@ static LogicalResult checkPreconditions(ModuleOp module, IntegerType intType, Ty
             convertible = false;
           }
           if (auto literal = dyn_cast<FloatLiteralAttr>(constant.getValue())) {
-            if (failed(parseFloatLiteral(literal, cast<FloatType>(floatType), [&] { return constant.emitError(); }))) {
+            if (failed(parseFloatLiteral(literal, floatType, [&] { return constant.emitError(); }))) {
               convertible = false;
             }
           }
