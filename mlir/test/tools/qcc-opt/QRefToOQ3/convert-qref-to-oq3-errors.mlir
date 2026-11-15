@@ -46,7 +46,7 @@ func.func @if_unsupported() attributes {qcc.entry_point} {
 
 // -----
 
-// The target's `float` is 64 bits wide unless the data layout says otherwise.
+// The target's `float` is 64 bits wide by default.
 func.func @f32() attributes {qcc.entry_point} {
   // expected-error @below {{a constant 1.500000e+00 : f32 cannot be converted to OpenQASM}}
   %c = arith.constant 1.5 : f32

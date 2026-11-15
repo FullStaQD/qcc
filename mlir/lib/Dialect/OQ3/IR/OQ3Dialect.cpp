@@ -66,7 +66,6 @@ FloatType qcc::oq3::getFloatTypeOfWidth(MLIRContext* context, unsigned width) {
   }
 }
 
-/// The width in bits that the data layout entries give the type, if any.
 static std::optional<uint64_t> getEntryWidth(DataLayoutEntryListRef params) {
   for (DataLayoutEntryInterface entry : params) {
     if (auto width = dyn_cast<IntegerAttr>(entry.getValue())) {
@@ -76,7 +75,6 @@ static std::optional<uint64_t> getEntryWidth(DataLayoutEntryListRef params) {
   return std::nullopt;
 }
 
-/// The entry of an unsized type must be a positive integer, whose range `isValid` further restricts.
 template <typename IsValid>
 static LogicalResult verifyWidthEntries(DataLayoutEntryListRef entries, Location loc, StringRef requirement,
                                         IsValid isValid) {
@@ -92,7 +90,7 @@ static LogicalResult verifyWidthEntries(DataLayoutEntryListRef entries, Location
   return success();
 }
 
-/// The alignment in bytes of a scalar of `bits` bits.
+/// The number of bytes used to store `bits` many bits.
 static uint64_t getScalarAlignment(uint64_t bits) { return llvm::PowerOf2Ceil(llvm::divideCeil(bits, 8)); }
 
 llvm::TypeSize UnsizedIntType::getTypeSizeInBits(const DataLayout& dataLayout, DataLayoutEntryListRef params) const {
@@ -106,12 +104,14 @@ uint64_t UnsizedIntType::getABIAlignment(const DataLayout& dataLayout, DataLayou
   return getScalarAlignment(getTypeSizeInBits(dataLayout, params).getFixedValue());
 }
 
+// NOLINTNEXTLINE(readability-convert-member-functions-to-static): signature is declared by TableGen
 LogicalResult UnsizedIntType::verifyEntries(DataLayoutEntryListRef entries, Location loc) const {
   return verifyWidthEntries(entries, loc, "a positive integer", [](const APInt& width) {
     return width.isStrictlyPositive() && width.getActiveBits() <= IntegerType::kMaxWidth;
   });
 }
 
+// NOLINTNEXTLINE(readability-convert-member-functions-to-static): signature is declared by TableGen
 llvm::TypeSize UnsizedFloatType::getTypeSizeInBits(const DataLayout& /*dataLayout*/,
                                                    DataLayoutEntryListRef params) const {
   return llvm::TypeSize::getFixed(getEntryWidth(params).value_or(defaultWidth));

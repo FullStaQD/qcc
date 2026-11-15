@@ -322,8 +322,6 @@ func.func @check_arithmetic() attributes {qcc.entry_point} {
 
 // -----
 
-// The target's `float` has the width of its data layout entry (32 bits in this case), so `f32` values become `float`s.
-
 // CHECK-LABEL: OPENQASM 3.1;
 module attributes {dlti.dl_spec = #dlti.dl_spec<!oq3.int = 32, !oq3.float = 32>} {
   func.func @check_float_conversion() attributes {qcc.entry_point} {

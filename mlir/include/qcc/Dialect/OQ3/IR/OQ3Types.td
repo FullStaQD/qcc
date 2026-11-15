@@ -77,7 +77,7 @@ def OQ3_UnsizedIntType : OQ3_Type<"UnsizedInt", "int", [
         OpenQASM's unsized `int`, whose width the target defines. Integer literals have this type.
 
         The width is the type's entry in the data layout (`dlti.dl_spec`), e.g. `!oq3.int = 32`. Without an entry it is
-        the width of `index`, which is 64 without a data layout.
+        the width of `index`.
 
         Example:
         ```mlir
@@ -95,7 +95,7 @@ def OQ3_UnsizedFloatType : OQ3_Type<"UnsizedFloat", "float", [
         have this type.
 
         The width is the type's entry in the data layout (`dlti.dl_spec`), e.g. `!oq3.float = 32`, and must be 16, 32,
-        64 or 128. Without an entry it is 64, independent of the width of `int` and `index`.
+        64 or 128. Without an entry it is 64.
 
         Example:
         ```mlir
@@ -103,7 +103,6 @@ def OQ3_UnsizedFloatType : OQ3_Type<"UnsizedFloat", "float", [
         ```
     }];
   let extraClassDeclaration = [{
-    /// The width in bits when the data layout has no entry for the type.
     static constexpr unsigned defaultWidth = 64;
   }];
 }
