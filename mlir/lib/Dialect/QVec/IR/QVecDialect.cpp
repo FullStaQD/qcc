@@ -7,11 +7,12 @@
 //
 // ===----------------------------------------------------------------------===//
 
+#include "qcc/Dialect/QCF/IR/QCF.h"
 #include "qcc/Dialect/QVec/IR/QVec.h"
 #include "qcc/Dialect/Qcc/IR/Qcc.h"
 
-#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
+#include "mlir/IR/Block.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/Operation.h"
@@ -94,8 +95,6 @@ namespace {
 struct QubitRef {
   [[nodiscard]] bool isInVector() const { return index.has_value(); }
 
-  bool operator==(const QubitRef&) const = default;
-
   Value value;
   std::optional<int64_t> index;
 };
@@ -143,51 +142,18 @@ static bool carriesQubits(Type type) {
   return isa<qcc::QubitType>(shapedType ? shapedType.getElementType() : type);
 }
 
-static QubitStep stepBack(QubitRef qubit);
-
-static bool isDefinedInside(Value value, Operation* op) {
-  Operation* owner = value.getParentRegion()->getParentOp();
-  return owner == op || op->isProperAncestor(owner);
+/// Traces the qubit `argument` holds (element `index` if it is a vector) one step back. A binding of `qcf.if` is the
+/// qubit it binds, element by element. Any other block argument is an origin.
+static QubitStep stepBackArgument(BlockArgument argument, std::optional<int64_t> index) {
+  auto ifOp = dyn_cast_if_present<qcc::qcf::IfOp>(argument.getOwner()->getParentOp());
+  if (!ifOp) {
+    return QubitStep(QubitStep::Kind::Origin);
+  }
+  return stepTo(ifOp.getQubitsIn()[argument.getArgNumber()], index);
 }
 
-/// Traces `qubit` back to its value before `ifOp`, or nullopt if that fails.
-static std::optional<QubitRef> traceOutOf(QubitRef qubit, scf::IfOp ifOp) {
-  while (isDefinedInside(qubit.value, ifOp)) {
-    const QubitStep step = stepBack(qubit);
-    if (step.getKind() != QubitStep::Kind::Stepped) {
-      return std::nullopt;
-    }
-    qubit = step.getQubit();
-  }
-  return qubit;
-}
-
-/// Traces `result` of `ifOp` (element `index` if it is a vector) to the qubit before the `if`; Unknown if the two
-/// branches lead to different qubits.
-static QubitStep stepBackIfResult(scf::IfOp ifOp, OpResult result, std::optional<int64_t> index) {
-  const unsigned resultNumber = result.getResultNumber();
-  std::optional<QubitRef> thenQubit =
-      traceOutOf(QubitRef{.value = ifOp.thenYield().getOperand(resultNumber), .index = index}, ifOp);
-  std::optional<QubitRef> elseQubit =
-      traceOutOf(QubitRef{.value = ifOp.elseYield().getOperand(resultNumber), .index = index}, ifOp);
-
-  if (!thenQubit || !elseQubit || *thenQubit != *elseQubit) {
-    return QubitStep(QubitStep::Kind::Unknown);
-  }
-  return QubitStep(*thenQubit);
-}
-
-/// Traces the scalar qubit `element` one step back.
-static QubitStep stepBackElement(Value element) {
-  Operation* definingOp = element.getDefiningOp();
-  if (definingOp == nullptr) {
-    return QubitStep(QubitStep::Kind::Origin); // A block argument.
-  }
-
-  if (auto ifOp = dyn_cast<scf::IfOp>(definingOp)) {
-    return stepBackIfResult(ifOp, cast<OpResult>(element), std::nullopt);
-  }
-
+/// Traces the scalar qubit `element`, defined by `definingOp`, one step back.
+static QubitStep stepBackElement(Operation* definingOp) {
   // The element may be read out of another qubit vector, in which case the walk continues there.
   if (auto extractOp = dyn_cast<vector::ExtractOp>(definingOp)) {
     if (extractOp.hasDynamicPosition() || extractOp.getStaticPosition().size() != 1) {
@@ -204,23 +170,8 @@ static QubitStep stepBackElement(Value element) {
   return QubitStep(QubitStep::Kind::Unknown);
 }
 
-/// Traces element `index` of the qubit vector `qubits` one step back.
-static QubitStep stepBackVectorElement(Value qubits, int64_t index) {
-  Operation* definingOp = qubits.getDefiningOp();
-  if (definingOp == nullptr) {
-    return QubitStep(QubitStep::Kind::Origin); // A block argument.
-  }
-
-  if (auto ifOp = dyn_cast<scf::IfOp>(definingOp)) {
-    return stepBackIfResult(ifOp, cast<OpResult>(qubits), index);
-  }
-
-  // A lane op, e.g. a `qvec` operation, hands its qubits on lane by lane, element order untouched, so the index carries
-  // over.
-  if (auto laneOp = dyn_cast<qcc::QubitLaneOpInterface>(definingOp)) {
-    return stepTo(laneOp.getTiedQubitOperand(cast<OpResult>(qubits)), index);
-  }
-
+/// Traces element `index` of the qubit vector defined by `definingOp` one step back.
+static QubitStep stepBackVectorElement(Operation* definingOp, int64_t index) {
   if (auto fromElementsOp = dyn_cast<vector::FromElementsOp>(definingOp)) {
     ValueRange elements = fromElementsOp.getElements();
     assert(index >= 0 && std::cmp_less(index, elements.size()) && "index out of bounds");
@@ -251,7 +202,19 @@ static QubitStep stepBackVectorElement(Value qubits, int64_t index) {
 
 /// Traces `qubit` one step back towards its definition, through the operations that only move qubits around.
 static QubitStep stepBack(QubitRef qubit) {
-  return qubit.isInVector() ? stepBackVectorElement(qubit.value, *qubit.index) : stepBackElement(qubit.value);
+  if (auto argument = dyn_cast<BlockArgument>(qubit.value)) {
+    return stepBackArgument(argument, qubit.index);
+  }
+
+  // A lane op, e.g. a `qvec` op or `qcf.if`, hands its qubits on lane by lane, element order untouched, so the index
+  // carries over.
+  auto result = cast<OpResult>(qubit.value);
+  if (auto laneOp = dyn_cast<qcc::QubitLaneOpInterface>(result.getOwner())) {
+    return stepTo(laneOp.getTiedQubitOperand(result), qubit.index);
+  }
+
+  return qubit.isInVector() ? stepBackVectorElement(result.getOwner(), *qubit.index)
+                            : stepBackElement(result.getOwner());
 }
 
 std::optional<int64_t> qcc::qvec::getStaticQubitIndex(TypedValue<VectorType> qubits, int64_t index) {

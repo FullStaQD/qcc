@@ -183,46 +183,21 @@ func.func @output_recording(%value: i64, %buffer: memref<4xi1>) {
 
 // -----
 
-// Qubits yielded by `scf.if` resolve to their static index.
+// `qcf.if` becomes an `scf.if` without the qubits. The instructions act on the qubits in place, so its bindings and
+// qubit results are the bound qubits, here qubit 5 on both sides of the `if`. The `qcc.static` dies with the qubit
+// values: it must not outlive the pass, as `convert-scf-to-cf` splits its function into blocks. Classical results stay.
 
-// CHECK-LABEL: func.func @qubit_through_if
-func.func @qubit_through_if(%cond: i1) {
+// CHECK-LABEL: func.func @if
+func.func @if(%cond: i1) -> i64 {
     %q0 = qcc.static [5] : !qcc.qubit
-    %v0 = vector.from_elements %q0 : vector<1x!qcc.qubit>
-    %x0 = scf.if %cond -> (vector<1x!qcc.qubit>) {
-      %x = qvec.single x %v0 : vector<1x!qcc.qubit>
-      scf.yield %x : vector<1x!qcc.qubit>
-    } else {
-      scf.yield %v0 : vector<1x!qcc.qubit>
-    }
-    %h = qvec.single h %x0 : vector<1x!qcc.qubit>
-    func.return
-}
-
-// CHECK:         %[[IDX:.*]] = llvm.mlir.constant(dense<5> : vector<1xi8>)
-// CHECK:         scf.if
-// CHECK:           llvm.call_intrinsic "llvm.riscv.qv.x"
-// CHECK:         }
-// CHECK:         %[[Q:.*]] = llvm.intr.vector.insert %[[IDX]]
-// CHECK:         llvm.call_intrinsic "llvm.riscv.qv.h"(%[[Q]]
-
-// -----
-
-// The instructions act on the qubits in place, so the qubits an `scf.if` yields are dropped. The `qcc.static` goes with
-// them: it hands out each qubit only once and must not outlive the pass, as `convert-scf-to-cf` splits its function into
-// blocks. Classical results stay.
-
-// CHECK-LABEL: func.func @if_yields_qubits
-func.func @if_yields_qubits(%cond: i1) -> i64 {
-    %q0 = qcc.static [0] : !qcc.qubit
     %qs = vector.from_elements %q0 : vector<1x!qcc.qubit>
     %c1 = arith.constant 1 : i64
     %c2 = arith.constant 2 : i64
-    %pick, %out = scf.if %cond -> (i64, vector<1x!qcc.qubit>) {
-      %x = qvec.single x %qs : vector<1x!qcc.qubit>
-      scf.yield %c1, %x : i64, vector<1x!qcc.qubit>
-    } else {
-      scf.yield %c2, %qs : i64, vector<1x!qcc.qubit>
+    %out, %pick = qcf.if %cond (%a = %qs) -> (vector<1x!qcc.qubit>, i64) {
+      %x = qvec.single x %a : vector<1x!qcc.qubit>
+      qcf.yield %x, %c1 : vector<1x!qcc.qubit>, i64
+    } else (%b) {
+      qcf.yield %b, %c2 : vector<1x!qcc.qubit>, i64
     }
     %h = qvec.single h %out : vector<1x!qcc.qubit>
     func.return %pick : i64
@@ -230,11 +205,14 @@ func.func @if_yields_qubits(%cond: i1) -> i64 {
 
 // CHECK-NOT:     qcc.static
 // CHECK-NOT:     vector.from_elements
+// CHECK:         %[[IDX:.*]] = llvm.mlir.constant(dense<5> : vector<1xi8>)
 // CHECK:         %[[PICK:.*]] = scf.if %{{.*}} -> (i64) {
-// CHECK:           llvm.call_intrinsic "llvm.riscv.qv.x"
+// CHECK:           %[[A:.*]] = llvm.intr.vector.insert %[[IDX]]
+// CHECK:           llvm.call_intrinsic "llvm.riscv.qv.x"(%[[A]]
 // CHECK:           scf.yield %{{.*}} : i64
 // CHECK:         } else {
 // CHECK:           scf.yield %{{.*}} : i64
 // CHECK:         }
-// CHECK:         llvm.call_intrinsic "llvm.riscv.qv.h"
+// CHECK:         %[[OUT:.*]] = llvm.intr.vector.insert %[[IDX]]
+// CHECK:         llvm.call_intrinsic "llvm.riscv.qv.h"(%[[OUT]]
 // CHECK:         return %[[PICK]] : i64

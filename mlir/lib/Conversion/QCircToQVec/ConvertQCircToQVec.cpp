@@ -14,7 +14,6 @@
 #include "qcc/Dialect/Qcc/IR/Qcc.h"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h" // IWYU pragma: keep
-#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinTypes.h"
@@ -33,7 +32,6 @@
 #include "llvm/ADT/SmallVector.h" // IWYU pragma: keep
 #include "llvm/ADT/SmallVectorExtras.h"
 
-#include <cassert>
 #include <utility>
 
 namespace qcc {
@@ -124,55 +122,32 @@ struct ResetConversion final : OpConversionPattern<qcirc::ResetOp> {
   }
 };
 
-/// Converts `qcf.if` into `scf.if` with the same results. The bound qubits are captured. An omitted else region becomes
-/// one that yields the bound qubits.
-///
-/// TODO: Temporary. Remove once the `qvec` passes support `qcf.if`.
+/// Converts the qubits of `qcf.if` into vectors: its bindings, the arguments of its regions and its qubit results.
 struct IfConversion final : OpConversionPattern<qcf::IfOp> {
   using OpConversionPattern::OpConversionPattern;
 
   LogicalResult matchAndRewrite(qcf::IfOp op, OpAdaptor adaptor, ConversionPatternRewriter& rewriter) const override {
-    SmallVector<Type> resultTypes;
-    if (failed(getTypeConverter()->convertTypes(op.getResultTypes(), resultTypes))) {
-      return failure();
-    }
-
-    Location loc = op.getLoc();
-    ValueRange qubits = adaptor.getQubitsIn();
-    auto ifOp = scf::IfOp::create(rewriter, loc, resultTypes, adaptor.getCondition(),
-                                  /*addThenBlock=*/false, /*addElseBlock=*/false);
+    auto ifOp = qcf::IfOp::create(rewriter, op.getLoc(), adaptor.getCondition(), adaptor.getQubitsIn(),
+                                  op.getClassicalResults().getTypes(), /*addThenBlock=*/false,
+                                  /*addElseBlock=*/false);
     for (auto [from, to] : llvm::zip_equal(op->getRegions(), ifOp->getRegions())) {
-      if (from.empty()) {
-        continue;
-      }
       rewriter.inlineRegionBefore(from, to, to.end());
-      TypeConverter::SignatureConversion bindings(to.getNumArguments());
-      for (auto [binding, qubit] : llvm::zip_equal(to.getArguments(), qubits)) {
-        bindings.remapInput(binding.getArgNumber(), qubit);
+      if (failed(rewriter.convertRegionTypes(&to, *getTypeConverter()))) {
+        return failure();
       }
-      rewriter.applySignatureConversion(&to.front(), bindings);
     }
-
-    // `scf.if` needs an else region for its results. Without one, `qcf.if` has no classical results.
-    if (ifOp.getElseRegion().empty() && ifOp.getNumResults() != 0) {
-      assert(ifOp.getNumResults() == qubits.size() && "an omitted else region implies no classical results");
-      const OpBuilder::InsertionGuard guard(rewriter);
-      rewriter.createBlock(&ifOp.getElseRegion());
-      scf::YieldOp::create(rewriter, loc, qubits);
-    }
-
     rewriter.replaceOp(op, ifOp.getResults());
     return success();
   }
 };
 
-/// Converts `qcf.yield` into `scf.yield`.
+/// Converts the qubits `qcf.yield` passes on into vectors.
 struct YieldConversion final : OpConversionPattern<qcf::YieldOp> {
   using OpConversionPattern::OpConversionPattern;
 
   LogicalResult matchAndRewrite(qcf::YieldOp op, OpAdaptor adaptor,
                                 ConversionPatternRewriter& rewriter) const override {
-    rewriter.replaceOpWithNewOp<scf::YieldOp>(op, adaptor.getResults());
+    rewriter.replaceOpWithNewOp<qcf::YieldOp>(op, adaptor.getResults());
     return success();
   }
 };
@@ -198,12 +173,13 @@ protected:
       return signalPassFailure();
     }
 
+    const QCircToQVecTypeConverter typeConverter;
     ConversionTarget target(*ctx);
-    target.addIllegalDialect<qcirc::QCircDialect, qcf::QCFDialect>();
-    target.addLegalDialect<qvec::QVecDialect, scf::SCFDialect, vector::VectorDialect>();
+    target.addIllegalDialect<qcirc::QCircDialect>();
+    target.addDynamicallyLegalDialect<qcf::QCFDialect>([&](Operation* op) { return typeConverter.isLegal(op); });
+    target.addLegalDialect<qvec::QVecDialect, vector::VectorDialect>();
     target.addLegalOp<StaticOp>();
 
-    const QCircToQVecTypeConverter typeConverter;
     RewritePatternSet patterns(ctx);
     patterns.add<SingleConversion, PairConversion, MeasureConversion, ResetConversion, IfConversion, YieldConversion>(
         typeConverter, ctx);
