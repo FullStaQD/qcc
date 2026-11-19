@@ -18,10 +18,8 @@ def ConvertQCircToQVec : Pass<"convert-qcirc-to-qvec", "mlir::func::FuncOp"> {
 
       - The results of `qcc.static` stay scalar. Each one in use is packed by a `vector.from_elements` behind it.
       - Each angle is packed into a `vector<1xf64>`, and each measured bit is taken out by `vector.extract`.
-      - `qcf.if` becomes `scf.if`, which captures the bound qubits. Its qubit results stay, so that later ops on these
-        qubits stay ordered after it.
-
-      TODO: In the near future `qcf.if` stays and is not converted to `scf.if`.
+      - `qcf.if` stays. Its bindings, the arguments of its regions and its qubit results become vectors of one qubit,
+        as do the qubits `qcf.yield` passes on.
 
       Precondition: only `qcc.static`, `qcirc` and `qcf` ops use qubits.
 
@@ -47,17 +45,14 @@ def ConvertQCircToQVec : Pass<"convert-qcirc-to-qvec", "mlir::func::FuncOp"> {
       %v0_1 = qvec.single rz(%ts) %v0 : vector<1xf64>, vector<1x!qcc.qubit>
       %v0_2, %bits = qvec.measure z %v0_1 : vector<1x!qcc.qubit> -> vector<1xi1>
       %bit = vector.extract %bits[0] : i1 from vector<1xi1>
-      %v1_1 = scf.if %bit -> (vector<1x!qcc.qubit>) {
-        %a_1 = qvec.single x %v1 : vector<1x!qcc.qubit>
-        scf.yield %a_1 : vector<1x!qcc.qubit>
-      } else {
-        scf.yield %v1 : vector<1x!qcc.qubit>
+      %v1_1 = qcf.if %bit (%a = %v1) -> (vector<1x!qcc.qubit>) {
+        %a_1 = qvec.single x %a : vector<1x!qcc.qubit>
+        qcf.yield %a_1 : vector<1x!qcc.qubit>
       }
       ```
   }];
 
   let dependentDialects = [
-    "mlir::scf::SCFDialect",
     "mlir::vector::VectorDialect",
     "qcc::qvec::QVecDialect"
   ];

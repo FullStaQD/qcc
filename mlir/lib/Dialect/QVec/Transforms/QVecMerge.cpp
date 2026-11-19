@@ -7,6 +7,7 @@
 //
 // ===----------------------------------------------------------------------===//
 
+#include "qcc/Dialect/QCF/IR/QCF.h"
 #include "qcc/Dialect/QVec/IR/QVec.h"
 #include "qcc/Dialect/QVec/Transforms/Passes.h" // IWYU pragma: keep
 
@@ -71,8 +72,10 @@ static std::optional<uint32_t> getSecondaryBucketKey(QubitLaneOpInterface op) {
         return static_cast<uint32_t>(pairOp.getGateKind());
       })
       .Case<MeasureOp, ResetOp>([](auto op) -> std::optional<uint32_t> { return static_cast<uint32_t>(op.getBasis()); })
+      // Layered like a gate, but its regions are merged on their own.
+      .Case([](qcc::qcf::IfOp) -> std::optional<uint32_t> { return std::nullopt; })
       .Default([](Operation*) -> std::optional<uint32_t> {
-        assert(false && "unhandled qvec operation, it stays unmerged");
+        assert(false && "unhandled lane operation, it stays unmerged");
         return std::nullopt;
       });
 }
@@ -217,11 +220,11 @@ static void mergeGroup(const Group& group) {
 /// so let us explain how it works. For clarity we skip minor details, which are addressed by comments in the
 /// implementation.
 ///
-/// *Layering:* Every `qvec` op and every op with regions (e.g. `scf.if`) is assigned an integer layer: one more than
-/// the highest layer it depends on through its operands, including values used inside its regions. Other ops only pass
-/// on the highest layer of their operands. An op depending on no layered op (e.g. the first `qvec` op in the block)
-/// gets layer `0`. Classical operands count as well, e.g. the measurement result an `scf.if` condition is computed
-/// from.
+/// *Layering:* Every lane op (a `qvec` op or `qcf.if`) and every other op with regions is assigned an integer layer:
+/// one more than the highest layer it depends on through its operands, including values used inside its regions. Other
+/// ops only pass on the highest layer of their operands. An op depending on no layered op (e.g. the first `qvec` op in
+/// the block) gets layer `0`. Classical operands count as well, e.g. the measurement result a `qcf.if` condition is
+/// computed from. A `qcf.if` is never merged itself; its regions are blocks of their own.
 ///
 /// Ops in the same layer never depend on each other through SSA values, which makes them merge candidates. Whether a
 /// merge is legal is decided by the conditions under *Grouping*, all of which are required.

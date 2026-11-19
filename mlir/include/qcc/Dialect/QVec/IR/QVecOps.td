@@ -28,7 +28,7 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 // intended semantics.
 class QVec_Op<string mnemonic, list<Trait> traits = []>
     : Op<QVec_Dialect, mnemonic,
-         !listconcat(traits, [MemoryEffects<[MemRead, MemWrite]>, Qcc_QubitLaneOpInterface])>;
+         !listconcat(traits, [MemoryEffects<[MemRead, MemWrite]>, Qcc_NoMultiUseQubits, Qcc_QubitLaneOpInterface])>;
 
 def QVec_SingleOp : QVec_Op<"single", [AllTypesMatch<["qubits_in", "qubits_out"]>]> {
   let summary = "single-qubit gate across a vector of qubits";

@@ -111,8 +111,8 @@ def ConvertQVecToHiSEPQIntrinsics : Pass<"convert-qvec-to-hisepq-intrinsics", "m
       example `qvec.reset z` becomes a measurement followed by an `llvm.riscv.qv.x` on each qubit measured in |1⟩. This
       is because HiSEP-Q has no reset operation.
 
-      The instructions act on the qubits in place, so no qubit value outlives the pass: the `scf.if` results that
-      carried qubits are dropped, and the `qcc.static` goes with the rest of the qubit values.
+      The instructions act on the qubits in place, so no qubit value outlives the pass, the `qcc.static` included.
+      Hence `qcf.if` becomes an `scf.if` without the qubits: its bindings and qubit results are the bound qubits.
 
       - `llvm.riscv.qv.mz` returns void and the QISA specifies no way to read a measurement back, so the classical
         result of `qvec.measure` is replaced with `poison`, i.e. the measurement result is lost. The flips of a reset

@@ -77,7 +77,10 @@ func.func @qubit_selected_at_runtime(%pick: i1) {
 
 // TODO: So far no support for dynamic qubits. This and the next test case might work in the future.
 
-func.func @qubit_vector_is_not_from_elements(%qs: vector<1x!qcc.qubit>) {
+func.func private @opaque_qubits() -> vector<1x!qcc.qubit>
+
+func.func @qubit_vector_is_not_from_elements() {
+  %qs = func.call @opaque_qubits() : () -> vector<1x!qcc.qubit>
   // expected-error @+1 {{'qvec.single' op expects every qubit vector element to trace back to a 'qcc.static' operation}}
   %h = qvec.single h %qs : vector<1x!qcc.qubit>
   func.return
@@ -87,7 +90,10 @@ func.func @qubit_vector_is_not_from_elements(%qs: vector<1x!qcc.qubit>) {
 
 // A `vector.from_elements` is not enough on its own; every element has to come from a `qcc.static`.
 
-func.func @qubit_vector_is_not_static(%q: !qcc.qubit) {
+func.func private @opaque_qubit() -> !qcc.qubit
+
+func.func @qubit_vector_is_not_static() {
+  %q = func.call @opaque_qubit() : () -> !qcc.qubit
   %qs = vector.from_elements %q : vector<1x!qcc.qubit>
   // expected-error @+1 {{'qvec.measure' op expects every qubit vector element to trace back to a 'qcc.static' operation}}
   %qs_out, %result = qvec.measure z %qs : vector<1x!qcc.qubit> -> vector<1xi1>
