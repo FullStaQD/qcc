@@ -21,6 +21,8 @@ def ConvertQCircToMagic : Pass<"convert-qcirc-to-magic", "mlir::func::FuncOp"> {
       the traps are filled one by one, leaving one slot free per trap for shuttling. The resulting IR contains at most
       the following `magic` operations: `init`, `zxz`, `rz`, `active_zz`, `inter_trap_zz`, and `mzd`.
 
+      TODO(#192): Occupancies cannot be chosen by the compiler, this behavior must change.
+
       The magic ops are emitted right behind a `magic.init` at the start of the function, so all other ops (e.g. the
       records) stay where they are. A function without `qcc.static` is left alone.
 

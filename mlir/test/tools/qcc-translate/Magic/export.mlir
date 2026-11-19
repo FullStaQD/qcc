@@ -38,7 +38,6 @@ module attributes {qcc.device = #magic.device<name = "two-trap-2x3", time_unit_n
     return
   }
 
-  // Only the entry point is exported. Any other function is ignored.
   func.func @unused() {
     %b0 = magic.init : !b
     %m2 = magic.mzd %b0 : !b -> i1
@@ -84,7 +83,10 @@ module attributes {qcc.device = #magic.device<name = "two-trap-2x3", time_unit_n
 // CHECK-NEXT: c[1] = measure q[0];
 // CHECK-NEXT: c[2] = measure q[1];
 // CHECK-NEXT: c[0] = measure q[2];
+
+// The output ends here: only the entry point is exported, `@unused` is ignored.
 // CHECK-EMPTY:
+// CHECK-NOT: {{.}}
 
 // The two recorded ions are flipped to |1>. The garbage bit is dropped by default.
 // CHECK-SIM:      START

@@ -74,7 +74,9 @@ func.func @partly_observed() {
 
 // -----
 
-// The qubits become ions 0, 1 in order, whatever their indices. Both fit into trap 0.
+// The qubits become ions 0, 1 in order, whatever their indices. Both fit into trap 0. Mapping index to ion id would
+// need 6 ions, more than the attached device can hold (with a free slot per trap to allow shuttling). Moreover, mapping
+// the two qubits to nearby ions strengthens the coupling and speeds up ZZ gates.
 // CHECK:       !chain = !magic.ion_chain<0, [0:1, 1:1]>
 // CHECK-LABEL: func.func @sparse_indices
 func.func @sparse_indices() {
