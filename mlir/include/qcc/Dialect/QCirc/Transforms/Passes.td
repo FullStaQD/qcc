@@ -16,8 +16,8 @@ def QCircToRZZ : Pass<"qcirc-to-rzz", "mlir::func::FuncOp"> {
   let summary = "Decomposes every `qcirc.pair` gate into `rzz` and single-qubit gates.";
 
   let description = [{
-      Decomposition happens up to global phase. A constant angle is scaled at compile time, any other one at runtime
-      (`arith.mulf`).
+      Decomposition happens up to global phase. Some angles need to be rescaled: For constant values this is done at
+      compile time, for others one at runtime via (`arith.mulf`).
 
       Example:
 
