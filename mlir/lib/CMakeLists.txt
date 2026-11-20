@@ -4,3 +4,51 @@ add_subdirectory(Dialect)
 add_subdirectory(QuantumDevice)
 add_subdirectory(Support)
 add_subdirectory(Target)
+
+add_mlir_library(
+  QCCRegisterAllDialects
+  RegisterAllDialects.cpp
+  LINK_LIBS
+  MLIRIR
+  # Dialects
+  MLIRAffineDialect
+  MLIRArithDialect
+  MLIRBufferizationDialect
+  MLIRComplexDialect
+  MLIRControlFlowDialect
+  MLIRDLTIDialect
+  MLIRFuncDialect
+  MLIRIndexDialect
+  MLIRLinalgDialect
+  MLIRLLVMDialect
+  MLIRMathDialect
+  MLIRMemRefDialect
+  MLIRQCDialect
+  MLIRSCFDialect
+  MLIRTensorDialect
+  MLIRUBDialect
+  MLIRVectorDialect
+  QCCAuxDialect
+  QCCJaspDialect
+  QCCMagicDialect
+  QCCOQ3Dialect
+  QCCQccDialect
+  QCCQCFDialect
+  QCCQCircDialect
+  QCCQRefDialect
+  QCCQVecDialect
+  # External models and extensions
+  MLIRArithTransforms
+  MLIRArithValueBoundsOpInterfaceImpl
+  MLIRBufferizationTransforms
+  MLIRCastInterfaces
+  MLIRControlFlowTransforms
+  MLIRFuncInlinerExtension
+  MLIRLinalgTransforms
+  MLIRLLVMIRTransforms
+  MLIRMemRefTransforms
+  MLIRSCFTransforms
+  MLIRTensorInferTypeOpInterfaceImpl
+  MLIRTensorTilingInterfaceImpl
+  MLIRTensorTransforms
+  MLIRVectorTransforms)
