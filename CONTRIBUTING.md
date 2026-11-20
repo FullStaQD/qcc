@@ -133,4 +133,4 @@ TODO
 
 ## Releasing a New Version
 
-TODO
+See [how to release](docs/how-to-release.md).

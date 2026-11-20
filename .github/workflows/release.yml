@@ -337,4 +337,4 @@ jobs:
             prerelease=(--prerelease)
           fi
           gh release create "$GITHUB_REF_NAME" --draft --verify-tag "${prerelease[@]}" \
-            --notes-file docs/release/release-notes.md dist/qcc-*.tar.gz dist/SHA256SUMS
+            --notes-file utils/release/release-notes.md dist/qcc-*.tar.gz dist/SHA256SUMS

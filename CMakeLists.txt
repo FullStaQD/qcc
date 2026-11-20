@@ -76,8 +76,13 @@ add_subdirectory(mlir/test)
 
 # To enable `cmake --install <build> --component qcc --strip --prefix <dir>`.
 install(
-  FILES LICENSE.txt NOTICE.txt docs/release/README.md
+  FILES LICENSE.txt NOTICE.txt
   DESTINATION .
+  COMPONENT qcc)
+install(
+  FILES utils/release/archive-readme.md
+  DESTINATION .
+  RENAME README.md
   COMPONENT qcc)
 install(
   FILES third-party/llvm/LICENSE.TXT
