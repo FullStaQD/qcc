@@ -16,12 +16,13 @@ On Windows, use WSL2. On other platforms, build qcc from source.
 
 ## Install
 
-Download the archive for your architecture and `SHA256SUMS` from the release page, check the archive, and unpack it
-anywhere:
+Download the archive for your architecture and `SHA256SUMS` from the release page, check the archive, unpack it
+anywhere, and make sure that qcc runs:
 
 ```sh
 sha256sum -c SHA256SUMS --ignore-missing
 tar -xzf qcc-<version>-linux-<arch>.tar.gz
+qcc-<version>-linux-<arch>/bin/qcc --version
 ```
 
 Optionally check that GitHub Actions built the archive from the qcc repository (needs the GitHub CLI):
@@ -31,18 +32,8 @@ gh attestation verify qcc-<version>-linux-<arch>.tar.gz --repo FullStaQD/qcc
 ```
 
 The download URL `https://github.com/FullStaQD/qcc/releases/download/v<version>/qcc-<version>-linux-<arch>.tar.gz` and
-the path `qcc-<version>-linux-<arch>/bin/qcc` inside the archive stay stable (or we announce changes), so scripts can
-rely on them. Use exact versions: `releases/latest` skips pre-releases.
-
-## Usage
-
-Compile Qrisp's `jasp` MLIR to QIR:
-
-```sh
-qcc input.mlir -o output.ll
-```
-
-See `qcc --help` for all options.
+the path `qcc-<version>-linux-<arch>/bin/qcc` inside the archive stay stable (or we announce changes), hence scripts can
+rely on them.
 
 ## Reporting problems
 
@@ -52,8 +43,4 @@ the input file.
 ## License
 
 qcc is licensed under the Apache License v2.0 with LLVM Exceptions, see `LICENSE.txt` and `NOTICE.txt`. The binaries
-contain third-party code under its own license, see `third-party/`:
-
-- LLVM and MLIR: Apache License v2.0 with LLVM Exceptions
-- MQT Core: MIT License
-- The Qrisp `jasp` dialect definition: Eclipse Public License 2.0, source included
+contain third-party code under their own licenses, see `third-party/`.
