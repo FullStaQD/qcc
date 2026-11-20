@@ -183,9 +183,9 @@ func.func @output_recording(%value: i64, %buffer: memref<4xi1>) {
 
 // -----
 
-// `qcf.if` becomes an `scf.if` without the qubits. The instructions act on the qubits in place, so its bindings and
-// qubit results are the bound qubits, here qubit 5 on both sides of the `if`. The `qcc.static` dies with the qubit
-// values: it must not outlive the pass, as `convert-scf-to-cf` splits its function into blocks. Classical results stay.
+// `qcf.if` becomes an `scf.if` without the qubits; the classical results stay. The instructions act on the qubits in
+// place, so both `qvec.single` act on qubit 5. Once they are lowered, nothing uses the qubits anymore and they are
+// erased, `qcc.static` included.
 
 // CHECK-LABEL: func.func @if
 func.func @if(%cond: i1) -> i64 {

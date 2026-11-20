@@ -14,7 +14,7 @@
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/Block.h"
 #include "mlir/IR/BuiltinTypes.h"
-#include "mlir/IR/OpImplementation.h"
+#include "mlir/IR/OpImplementation.h" // IWYU pragma: keep
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/Value.h"
 

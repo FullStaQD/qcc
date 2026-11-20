@@ -224,7 +224,7 @@ static void mergeGroup(const Group& group) {
 /// one more than the highest layer it depends on through its operands, including values used inside its regions. Other
 /// ops only pass on the highest layer of their operands. An op depending on no layered op (e.g. the first `qvec` op in
 /// the block) gets layer `0`. Classical operands count as well, e.g. the measurement result a `qcf.if` condition is
-/// computed from. A `qcf.if` is never merged itself; its regions are blocks of their own.
+/// computed from. A `qcf.if` is not merged itself; its regions are blocks of their own.
 ///
 /// Ops in the same layer never depend on each other through SSA values, which makes them merge candidates. Whether a
 /// merge is legal is decided by the conditions under *Grouping*, all of which are required.
