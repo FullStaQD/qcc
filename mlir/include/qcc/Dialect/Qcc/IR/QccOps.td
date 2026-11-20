@@ -34,6 +34,8 @@ def Qcc_StaticOp : Op<Qcc_Dialect, "static", [NoMemoryEffect, Qcc_NoMultiUseQubi
         The op is the only source of `!qcc.qubit` values. It sits directly in a `func.func`, and a function holds at
         most one of them.
 
+        Canonicalization drops the qubits that are unused. The other qubits keep their indices.
+
         Example:
         ```mlir
         %q0, %q1, %q3 = qcc.static [0, 1, 3] : !qcc.qubit
@@ -53,6 +55,7 @@ def Qcc_StaticOp : Op<Qcc_Dialect, "static", [NoMemoryEffect, Qcc_NoMultiUseQubi
   ];
 
   let hasVerifier = 1;
+  let hasCanonicalizeMethod = 1;
 }
 
 def Qcc_StaticRefOp : Op<Qcc_Dialect, "static_ref", [Pure]> {

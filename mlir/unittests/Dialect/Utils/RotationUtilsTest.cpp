@@ -169,6 +169,14 @@ TEST(RotationUtilsTest, DecomposeZXZDegenerate) {
               zxzNear({.z1 = 0.2, .x = pi, .z2 = 0.0}, tolerance));
 }
 
+TEST(RotationUtilsTest, FuseZXZ) {
+  // Two generic rotations: the fused one is their product, with the first as the right factor.
+  const ZXZAngles first{.z1 = 2.5, .x = 2.0, .z2 = 3.0};
+  const ZXZAngles second{.z1 = -1.0, .x = 0.5, .z2 = 1.5};
+  EXPECT_THAT(zxzMatrix(fuseZXZ(first, second)),
+              matrixNearUpToGlobalPhase(zxzMatrix(second) * zxzMatrix(first), tolerance));
+}
+
 TEST(RotationUtilsTest, FuseZXZWithRZ) {
   const ZXZAngles zxz{.z1 = 0.125, .x = 0.25, .z2 = 0.375};
 

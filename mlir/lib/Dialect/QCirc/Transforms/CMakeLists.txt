@@ -1,0 +1,17 @@
+add_mlir_dialect_library(
+  QCCQCircTransforms
+  Angles.cpp
+  QCircFuseZXZ.cpp
+  QCircToRZZ.cpp
+  QCircToUZXZ.cpp
+  LINK_LIBS
+  PRIVATE
+  MLIRIR
+  MLIRPass
+  MLIRSupport
+  MLIRTransformUtils
+  MLIRArithDialect
+  MLIRFuncDialect
+  QCCQccDialect
+  QCCQCircDialect
+  QCCDialectUtils)

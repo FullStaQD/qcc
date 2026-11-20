@@ -13,6 +13,7 @@
 #include "qcc/Dialect/Aux_/IR/Aux_.h"
 #include "qcc/Dialect/Magic/Device/MagicDevice.h"
 #include "qcc/Dialect/Magic/IR/Magic.h"
+#include "qcc/Dialect/Qcc/IR/Qcc.h"
 #include "qcc/Dialect/Utils/RotationUtils.h"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -20,9 +21,11 @@
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Diagnostics.h"
+#include "mlir/IR/DialectRegistry.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/Value.h"
 #include "mlir/Support/LLVM.h"
+#include "mlir/Tools/mlir-translate/Translation.h"
 
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
@@ -330,6 +333,21 @@ LogicalResult exportProgram(ModuleOp module, raw_ostream& os) {
     return failure();
   }
   return Exporter(init, *device).run(os);
+}
+
+void registerExportCustomMagicTranslation() {
+  static const TranslateFromMLIRRegistration registration(
+      "export-custom-magic", "Export a finished magic program to the text format of the MAGIC device",
+      [](Operation* op, raw_ostream& os) -> LogicalResult {
+        auto module = dyn_cast<ModuleOp>(op);
+        if (!module) {
+          return op->emitError() << "expected a 'builtin.module' to export";
+        }
+        return exportProgram(module, os);
+      },
+      [](DialectRegistry& registry) {
+        registry.insert<MagicDialect, aux::AuxDialect, QccDialect, func::FuncDialect>();
+      });
 }
 
 } // namespace qcc::magic
