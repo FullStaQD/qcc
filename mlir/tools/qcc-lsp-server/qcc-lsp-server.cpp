@@ -7,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "qcc/InitAllDialects.h"
+#include "qcc/RegisterAllDialects.h"
 
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/InitAllDialects.h"

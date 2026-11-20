@@ -8,8 +8,8 @@
 // ===----------------------------------------------------------------------===//
 
 #include "qcc/Compiler/Compiler.h"
-#include "qcc/InitAllDialects.h"
 #include "qcc/QuantumDevice/QuantumDeviceRegistry.h"
+#include "qcc/RegisterAllDialects.h"
 #include "qcc/Support/Version.h"
 #include "qcc/Target/TargetRegistry.h"
 

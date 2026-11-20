@@ -23,7 +23,7 @@
 #include "qcc/Dialect/Magic/Transforms/Passes.h"
 #include "qcc/Dialect/QVec/Transforms/Passes.h"
 #include "qcc/Dialect/Qcc/Transforms/Passes.h"
-#include "qcc/InitAllDialects.h"
+#include "qcc/RegisterAllDialects.h"
 
 #include "mlir/Conversion/ArithToLLVM/ArithToLLVM.h"
 #include "mlir/Conversion/FuncToLLVM/ConvertFuncToLLVM.h"

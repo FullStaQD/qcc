@@ -7,6 +7,8 @@
 //
 // ===----------------------------------------------------------------------===//
 
+#include "qcc/RegisterAllDialects.h"
+
 #include "qcc/Dialect/Aux_/IR/Aux_.h"
 #include "qcc/Dialect/Jasp/IR/Jasp.h"
 #include "qcc/Dialect/Magic/IR/Magic.h"
@@ -16,7 +18,6 @@
 #include "qcc/Dialect/QRef/IR/QRef.h"
 #include "qcc/Dialect/QVec/IR/QVec.h"
 #include "qcc/Dialect/Qcc/IR/Qcc.h"
-#include "qcc/InitAllDialects.h"
 
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/IR/ValueBoundsOpInterfaceImpl.h"
