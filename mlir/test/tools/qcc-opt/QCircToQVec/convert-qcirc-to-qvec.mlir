@@ -28,7 +28,7 @@ func.func @gates(%theta: f64) -> i1 {
 
 // -----
 
-// The bindings, the region arguments and the qubit results become vectors, in whatever order the qubits are bound.
+// The bound qubits become (bound) vectors of a single qubits.
 // CHECK-LABEL: func.func @if_else
 // CHECK-SAME:  (%[[COND:.*]]: i1) -> i1
 func.func @if_else(%cond: i1) -> i1 {

@@ -183,9 +183,7 @@ func.func @output_recording(%value: i64, %buffer: memref<4xi1>) {
 
 // -----
 
-// `qcf.if` becomes an `scf.if` without the qubits; the classical results stay. The instructions act on the qubits in
-// place, so both `qvec.single` act on qubit 5. Once they are lowered, nothing uses the qubits anymore and they are
-// erased, `qcc.static` included.
+// `qcf.if` becomes an `scf.if` with qubit bindings replaced by captures (of qubits given by integer ids).
 
 // CHECK-LABEL: func.func @if
 func.func @if(%cond: i1) -> i64 {
@@ -203,6 +201,7 @@ func.func @if(%cond: i1) -> i64 {
     func.return %pick : i64
 }
 
+// No static op because we operate on qubits identified by integers.
 // CHECK-NOT:     qcc.static
 // CHECK-NOT:     vector.from_elements
 // CHECK:         %[[IDX:.*]] = llvm.mlir.constant(dense<5> : vector<1xi8>)
