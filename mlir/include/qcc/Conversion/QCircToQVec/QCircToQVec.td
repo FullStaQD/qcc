@@ -18,8 +18,7 @@ def ConvertQCircToQVec : Pass<"convert-qcirc-to-qvec", "mlir::func::FuncOp"> {
 
       - The results of `qcc.static` stay scalar. Each one in use is packed by a `vector.from_elements` behind it.
       - Each angle is packed into a `vector<1xf64>`, and each measured bit is taken out by `vector.extract`.
-      - `qcf.if` stays. Its bindings, the arguments of its regions and its qubit results become vectors of one qubit,
-        as do the qubits `qcf.yield` passes on.
+      - `qcf.if` stays it just operates on vectors of one qubit now.
 
       Precondition: only `qcc.static`, `qcirc` and `qcf` ops use qubits.
 

@@ -352,11 +352,9 @@ struct ResetOpLowering : public OpRewritePattern<ResetOp> {
   HiSEPQMachine machine;
 };
 
-/// Rewrites `qcf.if` into an `scf.if` without the qubits.
+/// Rewrites `qcf.if` into an `scf.if`.
 ///
-/// The instructions act on the qubits in place, so the bindings and the qubit results are the bound qubits, and the
-/// qubits the regions yield are dropped. This way all qubit values die within the pass, the `qcc.static` that creates
-/// them included: it must not outlive the pass, as `convert-scf-to-cf` splits its function into blocks.
+/// The qubits which were bound by `qcf.if` now get captured in `scf.if`.
 struct IfOpLowering : public OpRewritePattern<qcc::qcf::IfOp> {
   using OpRewritePattern::OpRewritePattern;
 
