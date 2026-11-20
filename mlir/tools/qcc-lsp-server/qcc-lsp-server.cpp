@@ -7,17 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "qcc/Dialect/Aux_/IR/Aux_.h"
-#include "qcc/Dialect/Jasp/IR/Jasp.h"
-#include "qcc/Dialect/Magic/IR/Magic.h"
-#include "qcc/Dialect/OQ3/IR/OQ3.h"
-#include "qcc/Dialect/QCF/IR/QCF.h"
-#include "qcc/Dialect/QCirc/IR/QCirc.h"
-#include "qcc/Dialect/QRef/IR/QRef.h"
-#include "qcc/Dialect/QVec/IR/QVec.h"
-#include "qcc/Dialect/Qcc/IR/Qcc.h"
+#include "qcc/InitAllDialects.h"
 
-#include "mlir/Dialect/QC/IR/QCDialect.h"
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/InitAllDialects.h"
 #include "mlir/Tools/mlir-lsp-server/MlirLspServerMain.h"
@@ -28,10 +19,8 @@ int main(int argc, char** argv) {
   // Register all builtin dialects and their extensions/interfaces.
   mlir::registerAllDialects(registry);
 
-  // Register our custom project dialects.
-  registry.insert<jasp::JaspDialect, mlir::qc::QCDialect, qcc::aux::AuxDialect, qcc::magic::MagicDialect,
-                  qcc::oq3::OQ3Dialect, qcc::QccDialect, qcc::qcf::QCFDialect, qcc::qcirc::QCircDialect,
-                  qcc::qref::QRefDialect, qcc::qvec::QVecDialect>();
+  // Register our dialects.
+  qcc::registerAllDialects(registry);
 
   return mlir::succeeded(mlir::MlirLspServerMain(argc, argv, registry)) ? 0 : 1;
 }
