@@ -5,7 +5,6 @@ add_mlir_conversion_library(
   PRIVATE
   # Dialects
   MLIRFuncDialect
-  MLIRSCFDialect
   MLIRVectorDialect
   QCCQccDialect
   QCCQCFDialect

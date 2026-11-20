@@ -11,6 +11,7 @@ add_mlir_conversion_library(
   MLIRVectorDialect
   QCCAuxDialect
   QCCQccDialect
+  QCCQCFDialect
   QCCQVecDialect
   # Conversion infra
   MLIRLLVMCommonConversion

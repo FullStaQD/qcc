@@ -28,7 +28,7 @@ func.func @gates(%theta: f64) -> i1 {
 
 // -----
 
-// The bindings become captures of the bound vectors, in whatever order they are bound; the results stay.
+// The bound qubits become (bound) vectors of a single qubits.
 // CHECK-LABEL: func.func @if_else
 // CHECK-SAME:  (%[[COND:.*]]: i1) -> i1
 func.func @if_else(%cond: i1) -> i1 {
@@ -49,14 +49,15 @@ func.func @if_else(%cond: i1) -> i1 {
 // CHECK-DAG:     %[[A:.*]] = vector.from_elements %[[Q]]#0 : vector<1x!qcc.qubit>
 // CHECK-DAG:     %[[B:.*]] = vector.from_elements %[[Q]]#1 : vector<1x!qcc.qubit>
 // CHECK:         %[[H:.*]] = qvec.single h %[[A]] : vector<1x!qcc.qubit>
-// CHECK-NEXT:    %[[IF:.*]]:3 = scf.if %[[COND]] -> (vector<1x!qcc.qubit>, vector<1x!qcc.qubit>, i1) {
-// CHECK-NEXT:      %[[A1:.*]], %[[B1:.*]] = qvec.pair cx %[[H]], %[[B]] : vector<1x!qcc.qubit>
+// CHECK-NEXT:    %[[IF:.*]]:3 = qcf.if %[[COND]] (%[[TB:.*]] = %[[B]], %[[TA:.*]] = %[[H]])
+// CHECK-SAME:        -> (vector<1x!qcc.qubit>, vector<1x!qcc.qubit>, i1) {
+// CHECK-NEXT:      %[[A1:.*]], %[[B1:.*]] = qvec.pair cx %[[TA]], %[[TB]] : vector<1x!qcc.qubit>
 // CHECK-NEXT:      %[[B2:.*]], %[[BITS:.*]] = qvec.measure z %[[B1]] : vector<1x!qcc.qubit> -> vector<1xi1>
 // CHECK-NEXT:      %[[M1:.*]] = vector.extract %[[BITS]][0] : i1 from vector<1xi1>
-// CHECK-NEXT:      scf.yield %[[B2]], %[[A1]], %[[M1]] : vector<1x!qcc.qubit>, vector<1x!qcc.qubit>, i1
-// CHECK-NEXT:    } else {
+// CHECK-NEXT:      qcf.yield %[[B2]], %[[A1]], %[[M1]] : vector<1x!qcc.qubit>, vector<1x!qcc.qubit>, i1
+// CHECK-NEXT:    } else (%[[EB:.*]], %[[EA:.*]]) {
 // CHECK-NEXT:      %[[FALSE:.*]] = arith.constant false
-// CHECK-NEXT:      scf.yield %[[B]], %[[H]], %[[FALSE]] : vector<1x!qcc.qubit>, vector<1x!qcc.qubit>, i1
+// CHECK-NEXT:      qcf.yield %[[EB]], %[[EA]], %[[FALSE]] : vector<1x!qcc.qubit>, vector<1x!qcc.qubit>, i1
 // CHECK-NEXT:    }
 // CHECK-NEXT:    qvec.single h %[[IF]]#0 : vector<1x!qcc.qubit>
 // CHECK-NEXT:    return %[[IF]]#2 : i1
@@ -80,16 +81,12 @@ func.func @nested_if(%c0: i1, %c1: i1) {
 // CHECK:         %[[Q:.*]]:2 = qcc.static [0, 1] : !qcc.qubit
 // CHECK-DAG:     %[[A:.*]] = vector.from_elements %[[Q]]#0 : vector<1x!qcc.qubit>
 // CHECK-DAG:     %[[B:.*]] = vector.from_elements %[[Q]]#1 : vector<1x!qcc.qubit>
-// CHECK:         scf.if %[[C0]] -> (vector<1x!qcc.qubit>, vector<1x!qcc.qubit>) {
-// CHECK-NEXT:      %[[H:.*]] = qvec.single h %[[A]] : vector<1x!qcc.qubit>
-// CHECK-NEXT:      %[[INNER:.*]] = scf.if %[[C1]] -> (vector<1x!qcc.qubit>) {
-// CHECK-NEXT:        %[[X:.*]] = qvec.single x %[[B]] : vector<1x!qcc.qubit>
-// CHECK-NEXT:        scf.yield %[[X]] : vector<1x!qcc.qubit>
-// CHECK-NEXT:      } else {
-// CHECK-NEXT:        scf.yield %[[B]] : vector<1x!qcc.qubit>
+// CHECK:         qcf.if %[[C0]] (%[[TA:.*]] = %[[A]], %[[TB:.*]] = %[[B]]) -> (vector<1x!qcc.qubit>, vector<1x!qcc.qubit>) {
+// CHECK-NEXT:      %[[H:.*]] = qvec.single h %[[TA]] : vector<1x!qcc.qubit>
+// CHECK-NEXT:      %[[INNER:.*]] = qcf.if %[[C1]] (%[[TC:.*]] = %[[TB]]) -> vector<1x!qcc.qubit> {
+// CHECK-NEXT:        %[[X:.*]] = qvec.single x %[[TC]] : vector<1x!qcc.qubit>
+// CHECK-NEXT:        qcf.yield %[[X]] : vector<1x!qcc.qubit>
 // CHECK-NEXT:      }
-// CHECK-NEXT:      scf.yield %[[H]], %[[INNER]] : vector<1x!qcc.qubit>, vector<1x!qcc.qubit>
-// CHECK-NEXT:    } else {
-// CHECK-NEXT:      scf.yield %[[A]], %[[B]] : vector<1x!qcc.qubit>, vector<1x!qcc.qubit>
+// CHECK-NEXT:      qcf.yield %[[H]], %[[INNER]] : vector<1x!qcc.qubit>, vector<1x!qcc.qubit>
 // CHECK-NEXT:    }
 // CHECK-NEXT:    return

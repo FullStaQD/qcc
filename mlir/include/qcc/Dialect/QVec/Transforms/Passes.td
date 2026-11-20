@@ -16,8 +16,8 @@ def QVecMerge : Pass<"qvec-merge", "mlir::ModuleOp"> {
   let summary = "Merges independent `qvec` operations into wider ones.";
 
   let description = [{
-      Merges `qvec` operations that carry the same gate and act on disjoint qubits into one operation over the union
-      of their qubits. Merges only happen within the same block.
+      Merges `qvec` operations that carry the same gate and act on disjoint qubits into one operation over the union of
+      their qubits. Merges only happen within the same block, hence the regions of a `qcf` op are merged on their own.
 
       Cost model: the vectorization factor VF, i.e. the number of elements in one operation, is made as large as the
       option `max-vf` allows.
