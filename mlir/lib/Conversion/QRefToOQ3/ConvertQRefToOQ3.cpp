@@ -128,7 +128,8 @@ namespace {
 class Translator {
 public:
   /// `floatType` is the target's `float`, the type of the word size.
-  Translator(func::FuncOp entry, Type floatType) : entry(entry), floatType(floatType), builder(entry.getContext()) {}
+  Translator(func::FuncOp entry, FloatType floatType)
+      : entry(entry), floatType(floatType), builder(entry.getContext()) {}
 
   LogicalResult run();
 
@@ -161,7 +162,7 @@ private:
   std::string freshName(StringRef prefix);
 
   func::FuncOp entry;
-  Type floatType;
+  FloatType floatType;
   OpBuilder builder;
   llvm::DenseMap<Value, Value> values;
   llvm::DenseMap<Value, Value> storedBits;
@@ -646,22 +647,6 @@ LogicalResult Translator::translateMeasure(qref::MeasureOp op) {
 // Pass
 //===----------------------------------------------------------------------===//
 
-/// The IEEE 754 binary floating-point type of `width` bits, the target's `float`, or null if there is none.
-static Type getFloatType(MLIRContext* context, unsigned width) {
-  switch (width) {
-  case 16:
-    return Float16Type::get(context);
-  case 32:
-    return Float32Type::get(context);
-  case 64:
-    return Float64Type::get(context);
-  case 128:
-    return Float128Type::get(context);
-  default:
-    return {};
-  }
-}
-
 namespace {
 
 struct ConvertQRefToOQ3 final : qcc::impl::ConvertQRefToOQ3Base<ConvertQRefToOQ3> {
@@ -698,14 +683,9 @@ protected:
       }
     }
 
-    const unsigned wordSize =
-        static_cast<unsigned>(DataLayout::closest(module).getTypeSizeInBits(IndexType::get(context)).getFixedValue());
-    Type floatType = getFloatType(context, wordSize);
-    if (floatType == nullptr) {
-      module.emitError() << "there is no " << wordSize << "-bit 'float' for the target's word size";
-      signalPassFailure();
-      return;
-    }
+    const FloatType floatType = getFloatTypeOfWidth(
+        context, static_cast<unsigned>(
+                     DataLayout::closest(module).getTypeSizeInBits(UnsizedFloatType::get(context)).getFixedValue()));
     if (failed(Translator(entry, floatType).run())) {
       signalPassFailure();
       return;

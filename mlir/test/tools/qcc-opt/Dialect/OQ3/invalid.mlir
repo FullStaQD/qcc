@@ -531,3 +531,22 @@ module attributes {oq3.version = #oq3.version<3, 1>} {
 
 // expected-error @below {{size must be non-negative, got -1}}
 func.func private @f() -> !oq3.qreg<-1>
+
+//===----------------------------------------------------------------------===//
+// Data layout of the unsized types
+//===----------------------------------------------------------------------===//
+
+// -----
+
+// expected-error @below {{the data layout entry for '!oq3.int' must be a positive integer}}
+module attributes {dlti.dl_spec = #dlti.dl_spec<!oq3.int = 0>} {}
+
+// -----
+
+// expected-error @below {{the data layout entry for '!oq3.int' must be a positive integer}}
+module attributes {dlti.dl_spec = #dlti.dl_spec<!oq3.int = "wide">} {}
+
+// -----
+
+// expected-error @below {{the data layout entry for '!oq3.float' must be 16, 32, 64 or 128}}
+module attributes {dlti.dl_spec = #dlti.dl_spec<!oq3.float = 48>} {}

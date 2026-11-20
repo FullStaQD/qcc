@@ -322,10 +322,8 @@ func.func @check_arithmetic() attributes {qcc.entry_point} {
 
 // -----
 
-// The target's `float` has its word size (32 bits in this case), so `f32` values become `float`s.
-
 // CHECK-LABEL: OPENQASM 3.1;
-module attributes {dlti.dl_spec = #dlti.dl_spec<index = 32>} {
+module attributes {dlti.dl_spec = #dlti.dl_spec<!oq3.int = 32, !oq3.float = 32>} {
   func.func @check_float_conversion() attributes {qcc.entry_point} {
     %q = qcc.alloc : !qcc.qubit_ref
     %a = arith.constant 0.1 : f32

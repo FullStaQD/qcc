@@ -5,6 +5,7 @@ add_mlir_dialect_library(
   OQ3Ops.cpp
   LINK_LIBS
   PRIVATE
+  MLIRDataLayoutInterfaces
   MLIRIR
   MLIRSupport
   MLIRFuncDialect

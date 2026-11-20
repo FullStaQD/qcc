@@ -63,7 +63,7 @@ namespace {
 /// Lowers the unsized `int` and `float`, whose width the target defines, to `intType` and `floatType`.
 class OQ3TypeConverter final : public TypeConverter {
 public:
-  OQ3TypeConverter(MLIRContext* context, IntegerType intType, Type floatType) {
+  OQ3TypeConverter(MLIRContext* context, IntegerType intType, FloatType floatType) {
     addConversion([](Type type) { return type; });
     addConversion([intType](UnsizedIntType) -> Type { return intType; });
     addConversion([floatType](UnsizedFloatType) -> Type { return floatType; });
@@ -695,30 +695,7 @@ struct GateCallLowering final : public OpConversionPattern<GateCallOp> {
 // Pass
 //===----------------------------------------------------------------------===//
 
-/// The target's word size in bits: the width of `index` in the module's data layout
-/// (`dlti.dl_spec`), 64 if it has none. This is the width of `int` and `float`.
-static unsigned getWordSize(ModuleOp module) {
-  return static_cast<unsigned>(
-      DataLayout::closest(module).getTypeSizeInBits(IndexType::get(module.getContext())).getFixedValue());
-}
-
-/// The IEEE 754 binary floating-point type of `width` bits, or null if there is none.
-static Type getFloatType(MLIRContext* context, unsigned width) {
-  switch (width) {
-  case 16:
-    return Float16Type::get(context);
-  case 32:
-    return Float32Type::get(context);
-  case 64:
-    return Float64Type::get(context);
-  case 128:
-    return Float128Type::get(context);
-  default:
-    return {};
-  }
-}
-
-static LogicalResult checkPreconditions(ModuleOp module, IntegerType intType, Type floatType) {
+static LogicalResult checkPreconditions(ModuleOp module, IntegerType intType, FloatType floatType) {
   bool convertible = true;
   module.walk([&](Operation* op) {
     TypeSwitch<Operation*>(op)
@@ -746,7 +723,7 @@ static LogicalResult checkPreconditions(ModuleOp module, IntegerType intType, Ty
             convertible = false;
           }
           if (auto literal = dyn_cast<FloatLiteralAttr>(constant.getValue())) {
-            if (failed(parseFloatLiteral(literal, cast<FloatType>(floatType), [&] { return constant.emitError(); }))) {
+            if (failed(parseFloatLiteral(literal, floatType, [&] { return constant.emitError(); }))) {
               convertible = false;
             }
           }
@@ -764,15 +741,12 @@ protected:
   void runOnOperation() override {
     ModuleOp module = getOperation();
     MLIRContext* context = &getContext();
-    // The target defines the width of the unsized `int` and `float`; we choose its word size for both.
-    const unsigned wordSize = getWordSize(module);
-    Type floatType = getFloatType(context, wordSize);
-    if (floatType == nullptr) {
-      module.emitError() << "there is no " << wordSize << "-bit 'float' for the target's word size";
-      signalPassFailure();
-      return;
-    }
-    auto intType = IntegerType::get(context, wordSize);
+    // The target's data layout defines the widths of the unsized `int` and `float`.
+    const DataLayout layout = DataLayout::closest(module);
+    auto intType = IntegerType::get(
+        context, static_cast<unsigned>(layout.getTypeSizeInBits(UnsizedIntType::get(context)).getFixedValue()));
+    const FloatType floatType = getFloatTypeOfWidth(
+        context, static_cast<unsigned>(layout.getTypeSizeInBits(UnsizedFloatType::get(context)).getFixedValue()));
     if (failed(checkPreconditions(module, intType, floatType))) {
       signalPassFailure();
       return;
