@@ -11,8 +11,9 @@ Release tags are protected by a ruleset. Only maintainers can create, move, or d
 ## Versioning
 
 The version of QCC is given by `VERSION` in `project()` in the top-level `CMakeLists.txt`. It is of the form `X.Y.Z`.
-Each release commit should be tagged with `v<VERSION>`. For pre-releases use `v<VERSION>-<suffix>` (which are sorted
-before `v<VERSION>`). The release workflow rejects any other tags of the form `v*`.
+Each release commit should be tagged with `v<VERSION>`. For pre-releases use `v<VERSION>-<suffix>` (which SemVer orders
+before `v<VERSION>`). The release workflow rejects any other tags of the form `v*`. In this file, `<version>` is
+`VERSION` plus the suffix, if any.
 
 After releasing `X.Y.Z`, bump `VERSION` on main to `X.Y.(Z+1)`, so that dev builds report `X.Y.(Z+1)-dev`, which SemVer
 orders after the release. Decide on the actual version when preparing the next release: keep `X.Y.(Z+1)` if only fixes
@@ -21,7 +22,8 @@ have landed, or raise it to `X.(Y+1).0` for notable or breaking changes.
 TODO: Remove this TODO once `0.1.0` is released. Until then we are in the alpha phase: we want people to try qcc while
 the release process and the archive layout are still settling. In this phase the rules above are overridden: releases
 are pre-releases `0.1.0-alpha.<n>`, `VERSION` stays at `0.1.0`, and there is no bump after a release. The alpha phase
-ends with the release of `0.1.0`, after which main moves on to `0.1.1` as described above.
+ends with the release of `0.1.0`, after which main moves on to `0.1.1` as described above. For `0.1.0`, also remove the
+alpha wording from `utils/release/archive-readme.md` and `utils/release/release-notes.md`.
 
 ## Releasing
 
