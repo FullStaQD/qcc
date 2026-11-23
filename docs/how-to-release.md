@@ -15,15 +15,15 @@ Each release commit should be tagged with `v<VERSION>`. For pre-releases use `v<
 before `v<VERSION>`). The release workflow rejects any other tags of the form `v*`. In this file, `<version>` is
 `VERSION` plus the suffix, if any.
 
-After releasing `X.Y.Z`, bump `VERSION` on main to `X.Y.(Z+1)`, so that dev builds report `X.Y.(Z+1)-dev`, which SemVer
-orders after the release. Decide on the actual version when preparing the next release: keep `X.Y.(Z+1)` if only fixes
-have landed, or raise it to `X.(Y+1).0` for notable or breaking changes.
+After releasing `X.Y.Z`, bump `VERSION` on `main` to `X.Y.(Z+1)`, so that dev builds report `X.Y.(Z+1)-dev`, which
+SemVer orders after the release. Decide on the actual version when preparing the next release: keep `X.Y.(Z+1)` if only
+fixes have landed, or raise it to `X.(Y+1).0` for notable or breaking changes.
 
 TODO: Remove this TODO once `0.1.0` is released. Until then we are in the alpha phase: we want people to try qcc while
 the release process and the archive layout are still settling. In this phase the rules above are overridden: releases
 are pre-releases `0.1.0-alpha.<n>`, `VERSION` stays at `0.1.0`, and there is no bump after a release. The alpha phase
-ends with the release of `0.1.0`, after which main moves on to `0.1.1` as described above. For `0.1.0`, also remove the
-alpha wording from `utils/release/archive-readme.md` and `utils/release/release-notes.md`.
+ends with the release of `0.1.0`, after which `main` moves on to `0.1.1` as described above. For `0.1.0`, also remove
+the alpha wording from `utils/release/archive-readme.md` and `utils/release/release-notes.md`.
 
 ## Releasing
 
@@ -31,7 +31,7 @@ alpha wording from `utils/release/archive-readme.md` and `utils/release/release-
 1. In a PR, decide on `VERSION` (see [Versioning](#versioning)) and update the release files under `utils/release/` if
    necessary.
 2. Check that CI passed on the commit you want to release.
-3. Optionally, do a [dry run](#dry-runs). This also ensures the cache is warm for the real release.
+3. Optionally, do a [dry run](#dry-runs). It also warms the LLVM cache for the release.
 4. Tag the commit and push the tag:
 
    ```sh
@@ -40,11 +40,10 @@ alpha wording from `utils/release/archive-readme.md` and `utils/release/release-
    git push origin v<version>
    ```
 
-5. Wait for the "Release" workflow to finish, then inspect the draft release (either via UI or `gh` CLI): Check the
-   files (one archive per architecture and `SHA256SUMS`) and the release notes. Check the release like a user would,
-   following the README inside each archive.
-6. Publish it either via GitHub UI or via `gh release edit v<version> --draft=false`.
-7. Bump `VERSION` on main in a PR, see [Versioning](#versioning).
+5. Wait for the "Release" workflow to finish, then check the draft release: its files (one archive per architecture and
+   `SHA256SUMS`) and release notes. Try the archives like a user would, following the README inside them.
+6. Publish it in the GitHub UI or with `gh release edit v<version> --draft=false`.
+7. Bump `VERSION` on `main` in a PR, see [Versioning](#versioning).
 
 ### If something goes wrong
 
