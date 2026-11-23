@@ -7,6 +7,8 @@
 //
 // ===----------------------------------------------------------------------===//
 
+#include "qcc/Dialect/Qcc/IR/Qcc.h"
+
 #include "qcc/Compiler/Compiler.h"
 #include "qcc/QuantumDevice/QuantumDeviceRegistry.h"
 #include "qcc/RegisterAllDialects.h"
@@ -240,6 +242,15 @@ int main(int argc, char** argv) {
 
   mlir::OwningOpRef<mlir::ModuleOp> module = mlir::parseSourceFile<mlir::ModuleOp>(sourceMgr, &context);
   if (!module) {
+    return 1;
+  }
+
+  // Checked once here: the device lowering would notice it only in its function passes, once per function.
+  if (hasQuantumDevice && deviceDescription.empty() &&
+      !qcc::QccDialect::DeviceAttrHelper(&context).isAttrPresent(module.get())) {
+    llvm::errs() << "error: --quantum-device=" << quantumDeviceName
+                 << " requires --device-description or an input module that carries a '"
+                 << qcc::QccDialect::DeviceAttrHelper::getNameStr() << "' attribute\n";
     return 1;
   }
 

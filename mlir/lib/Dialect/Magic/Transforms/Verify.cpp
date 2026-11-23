@@ -155,7 +155,8 @@ protected:
     }
 
     // The lookup checks that the program fits the device: the traps exist and no chain exceeds its capacity.
-    if (failed(MagicDevice::fromParentModuleChecked(function)) || failed(ProgramVerifier(function).verify())) {
+    if (failed(MagicDevice::fromParentModuleChecked(function, getArgument())) ||
+        failed(ProgramVerifier(function).verify())) {
       return signalPassFailure();
     }
   }

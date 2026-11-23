@@ -106,16 +106,29 @@ FailureOr<MagicDevice> MagicDevice::fromModule(ModuleOp module) {
   return fromAttr(magicAttr);
 }
 
-FailureOr<MagicDevice> MagicDevice::fromParentModule(Operation* op) {
+FailureOr<MagicDevice> MagicDevice::fromParentModule(Operation* op, StringRef passName) {
   auto module = op->getParentOfType<ModuleOp>();
   if (!module) {
-    return op->emitError() << "is not inside a module, which would carry the device";
+    return op->emitOpError() << "is not inside a module, which would carry the device";
   }
-  return fromModule(module);
+
+  // Unlike `fromModule`, every failure is reported on `op`.
+  const StringRef attrName = QccDialect::DeviceAttrHelper::getNameStr();
+  Attribute attr = QccDialect::DeviceAttrHelper(module.getContext()).getAttr(module);
+  if (!attr) {
+    return op->emitOpError() << "is inside a module without a '" << attrName << "' attribute, but " << passName
+                             << " expects one";
+  }
+  auto magicAttr = dyn_cast<DeviceAttr>(attr);
+  if (!magicAttr) {
+    return op->emitOpError() << "is inside a module whose '" << attrName << "' is " << attr << ", but " << passName
+                             << " expects a #magic.device";
+  }
+  return fromAttr(magicAttr);
 }
 
-FailureOr<MagicDevice> MagicDevice::fromParentModuleChecked(Operation* op) {
-  FailureOr<MagicDevice> device = fromParentModule(op);
+FailureOr<MagicDevice> MagicDevice::fromParentModuleChecked(Operation* op, StringRef passName) {
+  FailureOr<MagicDevice> device = fromParentModule(op, passName);
   if (failed(device)) {
     return failure();
   }

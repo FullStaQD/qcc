@@ -12,6 +12,7 @@ set(LIBS
     MLIRTargetLLVMIRExport
     # QCC
     QCCCompiler
+    QCCQccDialect
     QCCQuantumDevice
     QCCRegisterAllDialects
     QCCSupport
