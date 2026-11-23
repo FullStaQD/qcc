@@ -75,3 +75,18 @@ BASE_REV=$(cat third-party/llvm/base.rev)
 git -C /path/to/llvm-project show $BASE_REV:llvm/LICENSE.TXT \
   > third-party/llvm/LICENSE.TXT
 ```
+
+## Dialect Registration
+
+`qcc::registerAllDialects` (`mlir/lib/RegisterAllDialects.cpp`) registers only the upstream dialects we use, together
+with the external models that upstream's `mlir::registerAllDialects` registers for them. A missing model can cost
+optimizations or even produce wrong code (for example: without the view-flow model of `arith.select`,
+`promote-buffers-to-stack` moves buffers that escape through a select onto the stack). So whenever you update
+`base.rev`, check upstream's list for new models of these dialects and copy them over:
+
+```shell
+OLD_REV=<base.rev before the update>
+NEW_REV=$(cat third-party/llvm/base.rev)
+git -C /path/to/llvm-project diff $OLD_REV $NEW_REV \
+  -- mlir/lib/RegisterAllDialects.cpp
+```
