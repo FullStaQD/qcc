@@ -22,13 +22,10 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 // QVec operations
 //===----------------------------------------------------------------------===//
 
-// TODO: The memory effects we use here are probably too conservative. We have them here to protect our ops against
-// quantum-unaware passes. Note that e.g. a `Pure` measurement would allow some passes to hoist them out of control-flow
-// or alternatively sink into control-flow (see code motion) under circumstances where this is not consistent with the
-// intended semantics.
+// No memory effects, but deliberately not `Pure`: qubit values must never be duplicated.
 class QVec_Op<string mnemonic, list<Trait> traits = []>
     : Op<QVec_Dialect, mnemonic,
-         !listconcat(traits, [MemoryEffects<[MemRead, MemWrite]>, Qcc_NoMultiUseQubits, Qcc_QubitLaneOpInterface])>;
+         !listconcat(traits, [NoMemoryEffect, Qcc_NoMultiUseQubits, Qcc_QubitLaneOpInterface])>;
 
 def QVec_SingleOp : QVec_Op<"single", [AllTypesMatch<["qubits_in", "qubits_out"]>]> {
   let summary = "single-qubit gate across a vector of qubits";

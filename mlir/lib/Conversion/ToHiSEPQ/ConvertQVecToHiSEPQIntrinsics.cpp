@@ -28,6 +28,7 @@
 #include "mlir/Pass/Pass.h" // IWYU pragma: keep
 #include "mlir/Support/LogicalResult.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include "mlir/Transforms/WalkPatternRewriteDriver.h"
 
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
@@ -423,12 +424,22 @@ protected:
 
     const HiSEPQMachine machine(minVLen, numQubitControlLines);
 
+    // Lower with a driver that erases nothing. `qvec` ops have no memory effects, so a greedy driver would erase every
+    // one whose results are unused, and once the records are gone that is the whole program.
     Diagnostics diags;
-    RewritePatternSet patterns(ctx);
-    patterns.add<SingleOpLowering, PairOpLowering, MeasureOpLowering, ResetOpLowering>(ctx, &diags, machine);
-    patterns.add<IfOpLowering, RecordOpErasure<aux::RecordIntOp>, RecordOpErasure<aux::RecordMemRefOp>>(ctx);
+    RewritePatternSet loweringPatterns(ctx);
+    loweringPatterns.add<SingleOpLowering, PairOpLowering, MeasureOpLowering, ResetOpLowering>(ctx, &diags, machine);
+    loweringPatterns.add<IfOpLowering>(ctx);
+    walkAndApplyPatterns(moduleOp, std::move(loweringPatterns));
+    if (diags.hadError) {
+      return signalPassFailure();
+    }
 
-    if (failed(applyPatternsGreedily(moduleOp, std::move(patterns))) || diags.hadError) {
+    // The intrinsics have side effects, so now the records can go, and with them what has become dead (`qcc.static`,
+    // the qubit vectors, the measurement results).
+    RewritePatternSet cleanupPatterns(ctx);
+    cleanupPatterns.add<RecordOpErasure<aux::RecordIntOp>, RecordOpErasure<aux::RecordMemRefOp>>(ctx);
+    if (failed(applyPatternsGreedily(moduleOp, std::move(cleanupPatterns)))) {
       signalPassFailure();
     }
   }

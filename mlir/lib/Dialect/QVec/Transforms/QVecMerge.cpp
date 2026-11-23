@@ -327,6 +327,43 @@ static void mergeOpsInBlock(Block& block, int64_t limitVF) {
   }
 }
 
+//===----------------------------------------------------------------------===//
+// Cleanup
+//===----------------------------------------------------------------------===//
+
+/// Canonicalizes the `vector` ops in `moduleOp`. Merging takes a qubit vector apart element by element and immediately
+/// puts it back together again. This leads to verbose IR which we simplify here.
+///
+/// Only `vector` ops go on the worklist: a greedy run over the whole module would also erase every `qvec` op whose
+/// results are unused, as `qvec` ops have no memory effects. Unlike the driver of a whole region, the driver of a list
+/// of ops sweeps only once, so a fold that enables another one may go unnoticed; hence the loop.
+static LogicalResult simplifyVectorOps(ModuleOp moduleOp) {
+  MLIRContext* ctx = moduleOp.getContext();
+  RewritePatternSet patterns(ctx);
+  vector::FromElementsOp::getCanonicalizationPatterns(patterns, ctx);
+  const FrozenRewritePatternSet frozenPatterns(std::move(patterns));
+
+  GreedyRewriteConfig config;
+  config.setStrictness(GreedyRewriteStrictness::ExistingAndNewOps);
+  for (int64_t iteration = 0; iteration < config.getMaxIterations(); ++iteration) {
+    SmallVector<Operation*> vectorOps;
+    moduleOp->walk([&](Operation* op) {
+      if (isa<vector::VectorDialect>(op->getDialect())) {
+        vectorOps.push_back(op);
+      }
+    });
+
+    bool changed = false;
+    if (failed(applyOpPatternsGreedily(vectorOps, frozenPatterns, config, &changed))) {
+      return failure();
+    }
+    if (!changed) {
+      return success();
+    }
+  }
+  return failure();
+}
+
 namespace qcc {
 
 #define GEN_PASS_DEF_QVECMERGE
@@ -340,7 +377,6 @@ struct QVecMerge final : impl::QVecMergeBase<QVecMerge> {
 protected:
   void runOnOperation() override {
     ModuleOp moduleOp = getOperation();
-    auto* ctx = moduleOp.getContext();
 
     // A max-vf of 0 leaves VF (vectorization factor) unbounded; see the pass description.
     const int64_t limitVF = maxVF == 0 ? std::numeric_limits<int64_t>::max() : maxVF;
@@ -351,11 +387,7 @@ protected:
       mergeOpsInBlock(*block, limitVF);
     }
 
-    // Merging takes a qubit vector apart element by element and immediately puts it back together again. This leads to
-    // verbose IR which we canonicalize (and simplify) here.
-    RewritePatternSet patterns(ctx);
-    vector::FromElementsOp::getCanonicalizationPatterns(patterns, ctx);
-    if (failed(applyPatternsGreedily(moduleOp, std::move(patterns)))) {
+    if (failed(simplifyVectorOps(moduleOp))) {
       signalPassFailure();
     }
   }
