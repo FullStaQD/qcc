@@ -93,17 +93,23 @@ MagicDevice MagicDevice::fromAttr(DeviceAttr attr) {
   return MagicDevice(std::make_shared<const Storage>(std::move(storage)));
 }
 
-FailureOr<MagicDevice> MagicDevice::fromModule(ModuleOp module) {
+/// The device that `module` carries. `emitError` starts the diagnostic of a failure: it picks the op to report on and
+/// may add context, which then ends in ": ".
+static FailureOr<MagicDevice> lookUpDevice(ModuleOp module, function_ref<InFlightDiagnostic()> emitError) {
   const StringRef attrName = QccDialect::DeviceAttrHelper::getNameStr();
   Attribute attr = QccDialect::DeviceAttrHelper(module.getContext()).getAttr(module);
   if (!attr) {
-    return module.emitError() << "module carries no '" << attrName << "' attribute";
+    return emitError() << "module carries no '" << attrName << "' attribute";
   }
   auto magicAttr = dyn_cast<DeviceAttr>(attr);
   if (!magicAttr) {
-    return module.emitError() << "expected '" << attrName << "' to be a #magic.device, got " << attr;
+    return emitError() << "module carries " << attr << " as '" << attrName << "', not a #magic.device";
   }
-  return fromAttr(magicAttr);
+  return MagicDevice::fromAttr(magicAttr);
+}
+
+FailureOr<MagicDevice> MagicDevice::fromModule(ModuleOp module) {
+  return lookUpDevice(module, [&] { return module.emitError(); });
 }
 
 FailureOr<MagicDevice> MagicDevice::fromParentModule(Operation* op, StringRef passName) {
@@ -111,20 +117,7 @@ FailureOr<MagicDevice> MagicDevice::fromParentModule(Operation* op, StringRef pa
   if (!module) {
     return op->emitOpError() << "is not inside a module, which would carry the device";
   }
-
-  // Unlike `fromModule`, every failure is reported on `op`.
-  const StringRef attrName = QccDialect::DeviceAttrHelper::getNameStr();
-  Attribute attr = QccDialect::DeviceAttrHelper(module.getContext()).getAttr(module);
-  if (!attr) {
-    return op->emitOpError() << "is inside a module without a '" << attrName << "' attribute, but " << passName
-                             << " expects one";
-  }
-  auto magicAttr = dyn_cast<DeviceAttr>(attr);
-  if (!magicAttr) {
-    return op->emitOpError() << "is inside a module whose '" << attrName << "' is " << attr << ", but " << passName
-                             << " expects a #magic.device";
-  }
-  return fromAttr(magicAttr);
+  return lookUpDevice(module, [&] { return op->emitOpError() << "needs a device for " << passName << ": "; });
 }
 
 FailureOr<MagicDevice> MagicDevice::fromParentModuleChecked(Operation* op, StringRef passName) {

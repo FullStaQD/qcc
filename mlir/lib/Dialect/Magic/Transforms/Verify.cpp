@@ -20,9 +20,9 @@
 #include "mlir/IR/Visitors.h"
 #include "mlir/Pass/Pass.h" // IWYU pragma: keep
 #include "mlir/Support/LLVM.h"
+#include "mlir/Support/WalkResult.h"
 
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/SmallVector.h"
 
 using namespace mlir;
 
