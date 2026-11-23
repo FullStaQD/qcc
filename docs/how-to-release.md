@@ -52,15 +52,6 @@ instead, see [Versioning](#versioning).
 
 ## Dry runs
 
-The workflow also runs without a tag: manually (`gh workflow run release.yml --ref main`, or "Run workflow" on the
-Actions page), on pushes to main that change `third-party/llvm/` or `release.yml`, and twice a week on a schedule. Dry
-runs create no release, the archives become workflow artifacts. The scheduled runs keep the LLVM cache of main from
-being evicted. This matters because a tag run can only use the caches of main and of its own tag.
-
-## Maintenance
-
-- The archives contain everything installed with `COMPONENT qcc`, among it `utils/release/archive-readme.md` as
-  `README.md`. That README promises that the download URL and the path of `bin/qcc` in the archive stay stable, hence
-  announce changes to them.
-- Bump `LLVM_CACHE_VERSION` in `release.yml` when the LLVM CMake flags there change. The cache key only tracks the LLVM
-  revision, the patches, and the manylinux image.
+The release workflow also runs without a tag (but doesn't create a draft release): manually (`gh workflow run
+release.yml --ref main`, or "Run workflow" on the Actions page), on pushes to `main` that change `third-party/llvm/` or
+`release.yml`, and twice a week on a schedule. The scheduled runs keep the LLVM cache of `main` from being evicted.
