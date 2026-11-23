@@ -65,14 +65,15 @@ public:
   /// complete coupling table.
   static MagicDevice fromAttr(DeviceAttr attr);
 
-  /// Looks up `qcc.device` on the module and checks that it is a `#magic.device`. Reports a failure on the module, so
-  /// passes on a nested op use `fromParentModule` instead.
+  /// Looks up `qcc.device` on the module and checks that it is a `#magic.device`.
+  ///
+  /// Reports a failure on the module, so passes on a nested op *must* use `fromParentModule` instead: the diagnostic
+  /// prints the module (`--mlir-print-op-on-diagnostic`, on by default), which *inspects* the siblings of the op, and a
+  /// pass must not do that (https://mlir.llvm.org/docs/PassManagement/#operation-pass).
   static mlir::FailureOr<MagicDevice> fromModule(mlir::ModuleOp module);
 
   /// Like `fromModule`, for the module that encloses `op`, but reports a failure on `op`, naming `passName` as the pass
-  /// that needs the device. A pass on `op` must not report on the module: the diagnostic prints the op it is reported
-  /// on (see `--mlir-print-op-on-diagnostic`), and the module holds siblings of `op` that other threads may be
-  /// changing.
+  /// that needs the device.
   static mlir::FailureOr<MagicDevice> fromParentModule(mlir::Operation* op, llvm::StringRef passName);
 
   /// Like `fromParentModule`, for a program `op` that already holds magic ops. Additionally checks that the program
