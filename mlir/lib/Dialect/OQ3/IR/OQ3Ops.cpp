@@ -75,8 +75,8 @@ static LogicalResult verifyInEntryBody(Operation* op) {
 /// Verifies the designator of a declaration against `size`, the size that the declared type holds.
 static LogicalResult verifyDesignator(Operation* op, Value designator, int64_t size) {
   const Type type = designator.getType();
-  if (!isa<UnsizedIntType>(type)) {
-    return op->emitOpError() << "designator must be an unsized integer, got " << type;
+  if (!isa<NativeIntType>(type)) {
+    return op->emitOpError() << "designator must be a native integer, got " << type;
   }
   const FailureOr<int64_t> value = evaluateConstantInt(designator);
   if (failed(value)) {
@@ -90,8 +90,8 @@ static LogicalResult verifyDesignator(Operation* op, Value designator, int64_t s
 
 /// Verifies a constant `index` into something of `size` elements: `-size <= index < size`.
 static LogicalResult verifyIndex(Operation* op, Value index, int64_t size) {
-  if (!isa<UnsizedIntType>(index.getType())) {
-    return op->emitOpError() << "index must be an unsized integer, got " << index.getType();
+  if (!isa<NativeIntType>(index.getType())) {
+    return op->emitOpError() << "index must be a native integer, got " << index.getType();
   }
   const FailureOr<int64_t> value = evaluateConstantInt(index);
   if (succeeded(value) && (*value < -size || *value >= size)) {
@@ -200,7 +200,7 @@ LogicalResult ConstantOp::verify() {
 }
 
 /// Whether `type` supports arithmetic.
-static bool isArithmetic(Type type) { return isa<UnsizedIntType, UnsizedFloatType, AngleType>(type); }
+static bool isArithmetic(Type type) { return isa<NativeIntType, NativeFloatType, AngleType>(type); }
 
 LogicalResult UnaryOp::verify() {
   if (!isArithmetic(getType())) {
@@ -227,8 +227,8 @@ LogicalResult BinaryOp::verify() {
   // Scaling an angle by an integer.
   const bool lhsAngle = isa<AngleType>(lhsType);
   const bool rhsAngle = isa<AngleType>(rhsType);
-  const bool lhsInt = isa<UnsizedIntType>(lhsType);
-  const bool rhsInt = isa<UnsizedIntType>(rhsType);
+  const bool lhsInt = isa<NativeIntType>(lhsType);
+  const bool rhsInt = isa<NativeIntType>(rhsType);
   if (isa<AngleType>(resultType) && ((kind == BinaryKind::Mul && ((lhsAngle && rhsInt) || (lhsInt && rhsAngle))) ||
                                      (kind == BinaryKind::Div && lhsAngle && rhsInt))) {
     return success();
@@ -241,8 +241,8 @@ LogicalResult BinaryOp::verify() {
 LogicalResult CastOp::verify() {
   const Type from = getInput().getType();
   const Type to = getType();
-  const bool supported = (isa<UnsizedIntType>(from) && isa<UnsizedFloatType, BitType>(to)) ||
-                         (isa<UnsizedFloatType>(from) && isa<AngleType>(to));
+  const bool supported = (isa<NativeIntType>(from) && isa<NativeFloatType, BitType>(to)) ||
+                         (isa<NativeFloatType>(from) && isa<AngleType>(to));
   if (!supported) {
     return emitOpError() << "unsupported cast from " << from << " to " << to;
   }

@@ -83,8 +83,8 @@ static std::string describeType(Type type) {
       .Case([&](QRegType reg) { return withSize("qubit", reg.getSize()); })
       .Case([](BitType) { return "bit"; })
       .Case([&](BitsType bits) { return withSize("bit", bits.getSize()); })
-      .Case([](UnsizedIntType) { return "int"; })
-      .Case([](UnsizedFloatType) { return "float"; })
+      .Case([](NativeIntType) { return "int"; })
+      .Case([](NativeFloatType) { return "float"; })
       .Case([](AngleType) { return "angle"; })
       .Default([](Type other) {
         std::string result;
@@ -656,7 +656,7 @@ FailureOr<std::pair<Value, int64_t>> Importer::parseDesignator() {
   if (failed(size) || failed(expect(TokenKind::RBracket, "']'"))) {
     return failure();
   }
-  if (!isa<UnsizedIntType>(size->getType())) {
+  if (!isa<NativeIntType>(size->getType())) {
     return emitError(size->loc) << "a size must be an integer, got '" << describeType(size->getType()) << "'";
   }
   // The evaluator explains most failures itself, so the generic error is only for the others.
@@ -1037,19 +1037,19 @@ FailureOr<Expr> Importer::buildBinary(BinaryKind kind, Expr lhs, Expr rhs, SMLoc
   Type rhsType = rhs.getType();
   Type resultType;
 
-  if (lhsType == rhsType && (isa<UnsizedIntType, UnsizedFloatType>(lhsType) ||
+  if (lhsType == rhsType && (isa<NativeIntType, NativeFloatType>(lhsType) ||
                              (isa<AngleType>(lhsType) && (kind == BinaryKind::Add || kind == BinaryKind::Sub)))) {
     // Angles only add to and subtract from angles.
     resultType = lhsType;
-  } else if (isa<UnsizedIntType>(lhsType) && isa<UnsizedFloatType>(rhsType)) {
+  } else if (isa<NativeIntType>(lhsType) && isa<NativeFloatType>(rhsType)) {
     lhs.value = CastOp::create(builder, loc, rhsType, lhs.value, /*implicit=*/true);
     resultType = rhsType;
-  } else if (isa<UnsizedFloatType>(lhsType) && isa<UnsizedIntType>(rhsType)) {
+  } else if (isa<NativeFloatType>(lhsType) && isa<NativeIntType>(rhsType)) {
     rhs.value = CastOp::create(builder, loc, lhsType, rhs.value, /*implicit=*/true);
     resultType = lhsType;
-  } else if ((kind == BinaryKind::Mul && isa<AngleType>(lhsType) && isa<UnsizedIntType>(rhsType)) ||
-             (kind == BinaryKind::Mul && isa<UnsizedIntType>(lhsType) && isa<AngleType>(rhsType)) ||
-             (kind == BinaryKind::Div && isa<AngleType>(lhsType) && isa<UnsizedIntType>(rhsType))) {
+  } else if ((kind == BinaryKind::Mul && isa<AngleType>(lhsType) && isa<NativeIntType>(rhsType)) ||
+             (kind == BinaryKind::Mul && isa<NativeIntType>(lhsType) && isa<AngleType>(rhsType)) ||
+             (kind == BinaryKind::Div && isa<AngleType>(lhsType) && isa<NativeIntType>(rhsType))) {
     resultType = AngleType::get(context);
   } else {
     return emitError(opLoc) << "the operator '" << StringRef(opLoc.getPointer(), 1) << "' cannot be applied to '"
@@ -1072,7 +1072,7 @@ FailureOr<Expr> Importer::parseUnary() {
   if (failed(operand)) {
     return failure();
   }
-  if (!isa<UnsizedIntType, UnsizedFloatType, AngleType>(operand->getType())) {
+  if (!isa<NativeIntType, NativeFloatType, AngleType>(operand->getType())) {
     return emitError(loc) << "the operator '-' cannot be applied to '" << describeType(operand->getType()) << "'";
   }
   auto negation = UnaryOp::create(builder, getLoc(loc), UnaryKind::Neg, operand->value);
@@ -1096,7 +1096,7 @@ FailureOr<Expr> Importer::parsePrimary() {
     const std::string text = withoutSeparators(token().spelling);
     consume();
     auto constant =
-        ConstantOp::create(builder, getLoc(loc), FloatLiteralAttr::get(context, text, UnsizedFloatType::get(context)));
+        ConstantOp::create(builder, getLoc(loc), FloatLiteralAttr::get(context, text, NativeFloatType::get(context)));
     return Expr{.value = constant, .loc = loc};
   }
   case TokenKind::StringLiteral: {
@@ -1180,7 +1180,7 @@ FailureOr<Expr> Importer::parseIntegerLiteral() {
     return emitError(loc, "invalid integer literal");
   }
   consume();
-  auto constant = ConstantOp::create(builder, getLoc(loc), IntLiteralAttr::get(value, UnsizedIntType::get(context)));
+  auto constant = ConstantOp::create(builder, getLoc(loc), IntLiteralAttr::get(value, NativeIntType::get(context)));
   return Expr{.value = constant, .loc = loc};
 }
 
@@ -1200,7 +1200,7 @@ FailureOr<Expr> Importer::parseIdentifierExpression() {
   }
 
   if (const auto constant = lookupMathConstant(name)) {
-    auto op = MathConstantOp::create(builder, getLoc(loc), UnsizedFloatType::get(context), *constant);
+    auto op = MathConstantOp::create(builder, getLoc(loc), NativeFloatType::get(context), *constant);
     return Expr{.value = op, .loc = loc};
   }
   if (auto it = scope.find(name); it != scope.end()) {
@@ -1252,18 +1252,18 @@ FailureOr<Value> Importer::coerce(Expr expr, Type type, StringRef context) {
   if (from == type) {
     return expr.value;
   }
-  if (isa<UnsizedIntType>(from) && isa<UnsizedFloatType>(type)) {
+  if (isa<NativeIntType>(from) && isa<NativeFloatType>(type)) {
     return CastOp::create(builder, loc, type, expr.value, /*implicit=*/true).getResult();
   }
-  if (isa<UnsizedFloatType>(from) && isa<AngleType>(type)) {
+  if (isa<NativeFloatType>(from) && isa<AngleType>(type)) {
     return CastOp::create(builder, loc, type, expr.value, /*implicit=*/true).getResult();
   }
-  if (isa<UnsizedIntType>(from) && isa<AngleType>(type)) {
+  if (isa<NativeIntType>(from) && isa<AngleType>(type)) {
     // An integer is no angle, but it is a float, which is.
-    Value asFloat = CastOp::create(builder, loc, UnsizedFloatType::get(this->context), expr.value, /*implicit=*/true);
+    Value asFloat = CastOp::create(builder, loc, NativeFloatType::get(this->context), expr.value, /*implicit=*/true);
     return CastOp::create(builder, loc, type, asFloat, /*implicit=*/true).getResult();
   }
-  if (isa<UnsizedIntType>(from) && isa<BitType>(type)) {
+  if (isa<NativeIntType>(from) && isa<BitType>(type)) {
     const FailureOr<int64_t> value = evaluateConstantInt(expr.value);
     if (failed(value) || (*value != 0 && *value != 1)) {
       return emitError(expr.loc) << "only the integers 0 and 1 convert to a 'bit' implicitly";
@@ -1293,7 +1293,7 @@ FailureOr<Expr> Importer::parseIndex(StringRef name, int64_t size) {
   if (failed(expect(TokenKind::RBracket, "']'"))) {
     return failure();
   }
-  if (!isa<UnsizedIntType>(index->getType())) {
+  if (!isa<NativeIntType>(index->getType())) {
     return emitError(index->loc) << "an index must be an integer, got '" << describeType(index->getType()) << "'";
   }
   const FailureOr<int64_t> value = evaluateConstantInt(index->value);

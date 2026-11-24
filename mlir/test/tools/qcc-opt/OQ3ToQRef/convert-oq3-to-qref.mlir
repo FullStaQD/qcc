@@ -239,7 +239,7 @@ module attributes {oq3.version = #oq3.version<3, 1>} {
 
 // -----
 
-// Without a `dlti.dl_spec`, the unsized `int` is `i64` and `float` is `f64`.
+// Without a `dlti.dl_spec`, the native `int` is `i64` and `float` is `f64`.
 
 // CHECK-LABEL: func.func @default_word_size
 module attributes {oq3.version = #oq3.version<3, 1>} {
@@ -255,7 +255,7 @@ module attributes {oq3.version = #oq3.version<3, 1>} {
 
 // -----
 
-// The unsized `int` and `float` have the widths that the data layout gives them (32 bits each in this case).
+// The native `int` and `float` have the widths that the data layout gives them (32 bits each in this case).
 // An angle stays `f64`, the type of gate parameters.
 
 // CHECK-LABEL: func.func @data_layout_word_size

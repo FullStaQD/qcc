@@ -18,8 +18,8 @@ def ConvertOQ3ToQRef : Pass<"convert-oq3-to-qref", "mlir::ModuleOp"> {
       attribute.
 
       Notable behavior:
-      - The module's data layout (`dlti.dl_spec`) defines widths for`!oq3.int` and `!oq3.float`, used for the
-        unsized `int` and `float` types. E.g.: `#dlti.dl_spec<!oq3.int = 32, !oq3.float = 64>`. Without an entry,
+      - The native `int` and `float` get the widths that the module's data layout (`dlti.dl_spec`) gives `!oq3.int`
+        and `!oq3.float`, e.g. `#dlti.dl_spec<!oq3.int = 32, !oq3.float = 64>`. Without an entry,
         `int` has the width of `index` and `float` is 64 bits wide. Without a data layout both are 64 bits wide.
       - `qubit` declarations become `qcc.alloc`, a register `!oq3.qreg<n>` a `tensor<nx!qcc.qubit_ref>`.
       - A physical qubit `$n` is `qcc.static_ref [n]`.

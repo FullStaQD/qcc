@@ -133,7 +133,7 @@ static FailureOr<std::string> printLiteral(ConstantOp constant) {
 /// The OpenQASM spelling of a type an explicit cast converts to.
 static FailureOr<std::string> printCastType(CastOp cast) {
   return TypeSwitch<Type, FailureOr<std::string>>(cast.getType())
-      .Case([](UnsizedFloatType) { return std::string("float"); })
+      .Case([](NativeFloatType) { return std::string("float"); })
       .Case([](AngleType) { return std::string("angle"); })
       .Case([](BitType) { return std::string("bit"); })
       .Default([&](Type type) -> FailureOr<std::string> {

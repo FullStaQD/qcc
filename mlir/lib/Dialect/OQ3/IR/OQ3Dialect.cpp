@@ -48,7 +48,7 @@ using namespace qcc::oq3;
 #include "qcc/Dialect/OQ3/IR/OQ3Attrs.cpp.inc"
 
 //===----------------------------------------------------------------------===//
-// Data layout of the unsized types
+// Data layout of the native types
 //===----------------------------------------------------------------------===//
 
 FloatType qcc::oq3::getFloatTypeOfWidth(MLIRContext* context, unsigned width) {
@@ -93,35 +93,35 @@ static LogicalResult verifyWidthEntries(DataLayoutEntryListRef entries, Location
 /// The number of bytes used to store `bits` many bits.
 static uint64_t getScalarAlignment(uint64_t bits) { return llvm::PowerOf2Ceil(llvm::divideCeil(bits, 8)); }
 
-llvm::TypeSize UnsizedIntType::getTypeSizeInBits(const DataLayout& dataLayout, DataLayoutEntryListRef params) const {
+llvm::TypeSize NativeIntType::getTypeSizeInBits(const DataLayout& dataLayout, DataLayoutEntryListRef params) const {
   if (const std::optional<uint64_t> width = getEntryWidth(params)) {
     return llvm::TypeSize::getFixed(*width);
   }
   return dataLayout.getTypeSizeInBits(IndexType::get(getContext()));
 }
 
-uint64_t UnsizedIntType::getABIAlignment(const DataLayout& dataLayout, DataLayoutEntryListRef params) const {
+uint64_t NativeIntType::getABIAlignment(const DataLayout& dataLayout, DataLayoutEntryListRef params) const {
   return getScalarAlignment(getTypeSizeInBits(dataLayout, params).getFixedValue());
 }
 
 // NOLINTNEXTLINE(readability-convert-member-functions-to-static): signature is declared by TableGen
-LogicalResult UnsizedIntType::verifyEntries(DataLayoutEntryListRef entries, Location loc) const {
+LogicalResult NativeIntType::verifyEntries(DataLayoutEntryListRef entries, Location loc) const {
   return verifyWidthEntries(entries, loc, "a positive integer", [](const APInt& width) {
     return width.isStrictlyPositive() && width.getActiveBits() <= IntegerType::kMaxWidth;
   });
 }
 
 // NOLINTNEXTLINE(readability-convert-member-functions-to-static): signature is declared by TableGen
-llvm::TypeSize UnsizedFloatType::getTypeSizeInBits(const DataLayout& /*dataLayout*/,
-                                                   DataLayoutEntryListRef params) const {
+llvm::TypeSize NativeFloatType::getTypeSizeInBits(const DataLayout& /*dataLayout*/,
+                                                  DataLayoutEntryListRef params) const {
   return llvm::TypeSize::getFixed(getEntryWidth(params).value_or(defaultWidth));
 }
 
-uint64_t UnsizedFloatType::getABIAlignment(const DataLayout& dataLayout, DataLayoutEntryListRef params) const {
+uint64_t NativeFloatType::getABIAlignment(const DataLayout& dataLayout, DataLayoutEntryListRef params) const {
   return getScalarAlignment(getTypeSizeInBits(dataLayout, params).getFixedValue());
 }
 
-LogicalResult UnsizedFloatType::verifyEntries(DataLayoutEntryListRef entries, Location loc) const {
+LogicalResult NativeFloatType::verifyEntries(DataLayoutEntryListRef entries, Location loc) const {
   return verifyWidthEntries(entries, loc, "16, 32, 64 or 128", [&](const APInt& width) {
     return width.getActiveBits() <= 32 && getFloatTypeOfWidth(getContext(), width.getZExtValue()) != nullptr;
   });
@@ -476,7 +476,7 @@ void IntLiteralAttr::print(AsmPrinter& printer) const {
 // The signature is generated, so the parameter cannot be taken by reference.
 // NOLINTNEXTLINE(performance-unnecessary-value-param)
 LogicalResult IntLiteralAttr::verify(function_ref<InFlightDiagnostic()> emitError, APInt /*value*/, Type type) {
-  if (!isa<UnsizedIntType>(type)) {
+  if (!isa<NativeIntType>(type)) {
     return emitError() << "an integer literal has type '!oq3.int', got " << type;
   }
   return success();
@@ -491,7 +491,7 @@ LogicalResult FloatLiteralAttr::verify(function_ref<InFlightDiagnostic()> emitEr
   if (!decimal || !parses) {
     return emitError() << "expected the text of a floating-point literal, got '" << text << "'";
   }
-  if (!isa<UnsizedFloatType>(type)) {
+  if (!isa<NativeFloatType>(type)) {
     return emitError() << "a floating-point literal has type '!oq3.float', got " << type;
   }
   return success();

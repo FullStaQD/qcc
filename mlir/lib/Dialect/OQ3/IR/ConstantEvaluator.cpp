@@ -104,7 +104,7 @@ private:
   }
 
   FailureOr<ConstantValue> evaluateBinary(BinaryOp binary) {
-    if (!isa<UnsizedIntType, UnsizedFloatType>(binary.getType())) {
+    if (!isa<NativeIntType, NativeFloatType>(binary.getType())) {
       return fail(binary, "not a numeric constant expression");
     }
     FailureOr<ConstantValue> lhs = evaluate(binary.getLhs());
@@ -164,7 +164,7 @@ private:
     if (failed(input)) {
       return failure();
     }
-    if (isa<UnsizedFloatType>(cast.getType()) && std::holds_alternative<int64_t>(*input)) {
+    if (isa<NativeFloatType>(cast.getType()) && std::holds_alternative<int64_t>(*input)) {
       return ConstantValue(static_cast<double>(std::get<int64_t>(*input)));
     }
     return fail(cast, "not a numeric constant expression");

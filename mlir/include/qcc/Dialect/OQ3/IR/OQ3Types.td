@@ -69,12 +69,13 @@ def OQ3_BitsType : OQ3_SizedType<"Bits", "bits", [Qcc_ClassicalTypeInterface]> {
     }];
 }
 
-def OQ3_UnsizedIntType : OQ3_Type<"UnsizedInt", "int", [
+def OQ3_NativeIntType : OQ3_Type<"NativeInt", "int", [
     Qcc_ClassicalTypeInterface,
     DeclareTypeInterfaceMethods<DataLayoutTypeInterface, ["verifyEntries"]>]> {
-  let summary = "integer of unspecified width";
+  let summary = "integer of the target's native width";
   let description = [{
-        OpenQASM's unsized `int`, whose width the target defines. Integer literals have this type.
+        OpenQASM's `int` without a designator, whose width the target defines. Integer literals have this type. The
+        width is not part of the type but comes from the data layout.
 
         The width is the type's entry in the data layout (`dlti.dl_spec`), e.g. `!oq3.int = 32`. Without an entry it is
         the width of `index`.
@@ -86,13 +87,13 @@ def OQ3_UnsizedIntType : OQ3_Type<"UnsizedInt", "int", [
     }];
 }
 
-def OQ3_UnsizedFloatType : OQ3_Type<"UnsizedFloat", "float", [
+def OQ3_NativeFloatType : OQ3_Type<"NativeFloat", "float", [
     Qcc_ClassicalTypeInterface,
     DeclareTypeInterfaceMethods<DataLayoutTypeInterface, ["verifyEntries"]>]> {
-  let summary = "floating-point number of unspecified width";
+  let summary = "floating-point number of the target's native width";
   let description = [{
-        OpenQASM's unsized `float`, whose precision the target defines. Floating-point literals and the math constants
-        have this type.
+        OpenQASM's `float` without a designator, whose precision the target defines. Floating-point literals and the math
+        constants have this type. The width is not part of the type but comes from the data layout.
 
         The width is the type's entry in the data layout (`dlti.dl_spec`), e.g. `!oq3.float = 32`, and must be 16, 32,
         64 or 128. Without an entry it is 64.
