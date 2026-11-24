@@ -6,7 +6,9 @@ add_mlir_library(
   MLIRIR
   MLIRSupport
   MLIRFuncDialect
+  MLIRTranslateLib
   QCCAuxDialect
   QCCMagicDevice
   QCCMagicDialect
+  QCCQccDialect
   QCCDialectUtils)

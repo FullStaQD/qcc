@@ -10,7 +10,6 @@
 #ifndef INCLUDE_QCC_DIALECT_QVEC_IR_QVECOPS_TD_
 #define INCLUDE_QCC_DIALECT_QVEC_IR_QVECOPS_TD_
 
-include "qcc/Dialect/QVec/IR/QVecAttrs.td"
 include "qcc/Dialect/QVec/IR/QVecDialect.td"
 include "qcc/Dialect/QVec/IR/QVecTypes.td"
 include "qcc/Dialect/Qcc/IR/QccAttrs.td"
@@ -101,43 +100,6 @@ def QVec_PairOp : QVec_Op<"pair", [AllTypesMatch<["lhs_in", "rhs_in", "lhs_out",
     OpBuilder<(ins "::qcc::PairGateKind":$gateKind, "::mlir::Value":$lhsIn, "::mlir::Value":$rhsIn,
                    CArg<"::mlir::ValueRange", "{}">:$params), [{
       build($_builder, $_state, lhsIn.getType(), rhsIn.getType(), gateKind, lhsIn, rhsIn, params);
-    }]>
-  ];
-
-  let hasVerifier = 1;
-}
-
-def QVec_GlobalOp : QVec_Op<"global", [AllTypesMatch<["qubits_in", "qubits_out"]>]> {
-  let summary = "gate acting on all qubits of a vector jointly";
-  let description = [{
-        Unlike `single` and `pair`, which apply one gate per lane, a `global` gate acts on all lanes of its qubit vector
-        *jointly*. The gate is parametrised by a square matrix over the lanes.
-
-        For example the `zz` global gate with the `n x n` angle matrix `A` applies
-
-            exp(-i/4 * sum_{i != j} A_ij Z_i Z_j).
-
-        `A` must be symmetric with a zero diagonal; the verifier checks this for constant matrices. Note that
-        `rzz(theta)` between lanes `i` and `j` corresponds to `A_ij = A_ji = theta`.
-
-        Example:
-        ```mlir
-        %qs_out = qvec.global zz(%A) %qs : vector<4x!qcc.qubit>, vector<4x4xf64>
-        ```
-    }];
-
-  let arguments = (ins QVec_GlobalGateKindAttr:$gate_kind,
-                       QVec_QubitVector:$qubits_in,
-                       QVec_AngleMatrix:$angles);
-  let results = (outs QVec_QubitVector:$qubits_out);
-
-  let assemblyFormat = [{
-        $gate_kind `(` $angles `)` $qubits_in attr-dict `:` type($qubits_in) `,` type($angles)
-    }];
-
-  let builders = [
-    OpBuilder<(ins "::qcc::qvec::GlobalGateKind":$gateKind, "::mlir::Value":$qubitsIn, "::mlir::Value":$angles), [{
-      build($_builder, $_state, qubitsIn.getType(), gateKind, qubitsIn, angles);
     }]>
   ];
 

@@ -54,19 +54,6 @@ func.func @pair_gates(%as: vector<2x!qcc.qubit>, %bs: vector<2x!qcc.qubit>, %the
     func.return
 }
 
-// CHECK-LABEL: @global_gates
-func.func @global_gates(%qs: vector<2x!qcc.qubit>, %angles: vector<2x2xf64>) {
-    // CHECK: %[[Z:.*]] = qvec.global zz(%{{.*}}) %{{.*}} : vector<2x!qcc.qubit>, vector<2x2xf64>
-    %z = qvec.global zz(%angles) %qs : vector<2x!qcc.qubit>, vector<2x2xf64>
-    // A constant matrix must be symmetric with a zero diagonal.
-    // CHECK: %[[A:.*]] = arith.constant dense<{{\[\[}}0.000000e+00, 5.000000e-01], [5.000000e-01, 0.000000e+00]]> : vector<2x2xf64>
-    %a = arith.constant dense<[[0.0, 0.5], [0.5, 0.0]]> : vector<2x2xf64>
-    // CHECK: qvec.global zz(%[[A]]) %[[Z]] : vector<2x!qcc.qubit>, vector<2x2xf64>
-    %z2 = qvec.global zz(%a) %z : vector<2x!qcc.qubit>, vector<2x2xf64>
-
-    func.return
-}
-
 // CHECK-LABEL: @measure_and_reset
 func.func @measure_and_reset(%qs: vector<2x!qcc.qubit>) {
     // CHECK: %[[MZ:.*]], %{{.*}} = qvec.measure z %{{.*}} : vector<2x!qcc.qubit> -> vector<2xi1>

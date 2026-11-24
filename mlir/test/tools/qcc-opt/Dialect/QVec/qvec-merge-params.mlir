@@ -1,7 +1,6 @@
 // RUN: qcc-opt %s -qvec-merge | FileCheck %s
 
-// Parametrised gates and global gates are not merged (yet, see the pass description); the parameter-free gates next
-// to them still are.
+// Parametrised gates are not merged (yet, see the pass description); the parameter-free gates next to them still are.
 
 // CHECK-LABEL: func.func @parametrised_ops_pass_through
 func.func @parametrised_ops_pass_through() {
@@ -11,7 +10,6 @@ func.func @parametrised_ops_pass_through() {
     %v2 = vector.from_elements %q2 : vector<1x!qcc.qubit>
     %v3 = vector.from_elements %q3 : vector<1x!qcc.qubit>
     %theta = arith.constant dense<0.5> : vector<1xf64>
-    %angles = arith.constant dense<[[0.0, 0.5], [0.5, 0.0]]> : vector<2x2xf64>
 
     %h0 = qvec.single h %v0 : vector<1x!qcc.qubit>
     %h1 = qvec.single h %v1 : vector<1x!qcc.qubit>
@@ -22,11 +20,6 @@ func.func @parametrised_ops_pass_through() {
     %a0, %b0 = qvec.pair rzz(%theta) %r0, %v2 : vector<1xf64>, vector<1x!qcc.qubit>
     %a1, %b1 = qvec.pair rzz(%theta) %r1, %v3 : vector<1xf64>, vector<1x!qcc.qubit>
 
-    %e0 = vector.extract %a0[0] : !qcc.qubit from vector<1x!qcc.qubit>
-    %e1 = vector.extract %b0[0] : !qcc.qubit from vector<1x!qcc.qubit>
-    %w = vector.from_elements %e0, %e1 : vector<2x!qcc.qubit>
-    %z = qvec.global zz(%angles) %w : vector<2x!qcc.qubit>, vector<2x2xf64>
-
     func.return
 }
 
@@ -36,4 +29,3 @@ func.func @parametrised_ops_pass_through() {
 // CHECK:         qvec.single rz(%{{.*}}) %{{.*}} : vector<1xf64>, vector<1x!qcc.qubit>
 // CHECK:         qvec.pair rzz(%{{.*}}) %{{.*}}, %{{.*}} : vector<1xf64>, vector<1x!qcc.qubit>
 // CHECK:         qvec.pair rzz(%{{.*}}) %{{.*}}, %{{.*}} : vector<1xf64>, vector<1x!qcc.qubit>
-// CHECK:         qvec.global zz(%{{.*}}) %{{.*}} : vector<2x!qcc.qubit>, vector<2x2xf64>
