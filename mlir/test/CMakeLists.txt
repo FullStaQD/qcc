@@ -1,3 +1,5 @@
+add_subdirectory(lib)
+
 set(MLIR_COMPILER_TEST_DEPENDS
     FileCheck
     count
