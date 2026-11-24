@@ -128,8 +128,7 @@ namespace {
 class Translator {
 public:
   /// `floatType` is the target's `float`, the type of the word size.
-  Translator(func::FuncOp entry, FloatType floatType)
-      : entry(entry), floatType(floatType), builder(entry.getContext()) {}
+  Translator(func::FuncOp entry, Type floatType) : entry(entry), floatType(floatType), builder(entry.getContext()) {}
 
   LogicalResult run();
 
@@ -162,7 +161,7 @@ private:
   std::string freshName(StringRef prefix);
 
   func::FuncOp entry;
-  FloatType floatType;
+  Type floatType;
   OpBuilder builder;
   llvm::DenseMap<Value, Value> values;
   llvm::DenseMap<Value, Value> storedBits;
@@ -683,7 +682,8 @@ protected:
       }
     }
 
-    const FloatType floatType = getFloatTypeOfWidth(
+    // NOLINTNEXTLINE(cppcoreguidelines-slicing)
+    const Type floatType = getFloatTypeOfWidth(
         context, static_cast<unsigned>(
                      DataLayout::closest(module).getTypeSizeInBits(UnsizedFloatType::get(context)).getFixedValue()));
     if (failed(Translator(entry, floatType).run())) {

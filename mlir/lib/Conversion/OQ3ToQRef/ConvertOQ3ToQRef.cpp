@@ -66,7 +66,7 @@ public:
   OQ3TypeConverter(MLIRContext* context, IntegerType intType, FloatType floatType) {
     addConversion([](Type type) { return type; });
     addConversion([intType](UnsizedIntType) -> Type { return intType; });
-    addConversion([floatType](UnsizedFloatType) -> Type { return floatType; });
+    addConversion([floatType](UnsizedFloatType) -> Type { return floatType; }); // NOLINT(cppcoreguidelines-slicing)
     // Gate parameters are `f64`, independent of the target. TODO: Change once angle type used in qref.
     addConversion([context](AngleType) -> Type { return Float64Type::get(context); });
     addConversion([context](BitType) -> Type { return IntegerType::get(context, 1); });
