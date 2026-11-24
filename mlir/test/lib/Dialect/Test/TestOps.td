@@ -33,8 +33,8 @@ def Test_SinkOp : Test_Op<"sink"> {
 
         Example:
         ```mlir
-        test.sink %a, %b : vector<1x!qcc.qubit>
-        test.sink %c, %d : vector<1x!qcc.qubit>, vector<3x!qcc.qubit>
+        test.sink %a, %b : !qcc.qubit
+        test.sink %c, %d : !qcc.qubit, i64
         ```
     }];
 
