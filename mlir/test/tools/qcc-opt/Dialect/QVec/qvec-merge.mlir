@@ -174,8 +174,12 @@ func.func @bases() {
 
 // -----
 
+func.func private @opaque_qubits() -> vector<2x!qcc.qubit>
+
 // CHECK-LABEL: func.func @qubits_maybe_not_disjoint
-func.func @qubits_maybe_not_disjoint(%qs: vector<2x!qcc.qubit>, %rs: vector<2x!qcc.qubit>) {
+func.func @qubits_maybe_not_disjoint() {
+    %qs = func.call @opaque_qubits() : () -> vector<2x!qcc.qubit>
+    %rs = func.call @opaque_qubits() : () -> vector<2x!qcc.qubit>
     %a = qvec.single h %qs : vector<2x!qcc.qubit>
     %b = qvec.single h %rs : vector<2x!qcc.qubit>
     func.return
@@ -249,11 +253,9 @@ func.func @no_merge_across_if(%cond: i1) {
     %v1 = vector.from_elements %q1 : vector<1x!qcc.qubit>
 
     %h1 = qvec.single h %v1 : vector<1x!qcc.qubit>
-    %x0 = scf.if %cond -> (vector<1x!qcc.qubit>) {
-      %x = qvec.single x %v0 : vector<1x!qcc.qubit>
-      scf.yield %x : vector<1x!qcc.qubit>
-    } else {
-      scf.yield %v0 : vector<1x!qcc.qubit>
+    %x0 = qcf.if %cond (%a = %v0) -> (vector<1x!qcc.qubit>) {
+      %x = qvec.single x %a : vector<1x!qcc.qubit>
+      qcf.yield %x : vector<1x!qcc.qubit>
     }
     %h0 = qvec.single h %x0 : vector<1x!qcc.qubit>
 
@@ -261,7 +263,7 @@ func.func @no_merge_across_if(%cond: i1) {
 }
 
 // CHECK:         qvec.single h %{{.*}} : vector<1x!qcc.qubit>
-// CHECK:         scf.if
+// CHECK:         qcf.if
 // CHECK:           qvec.single x
 // CHECK:         }
 // CHECK:         qvec.single h %{{.*}} : vector<1x!qcc.qubit>
@@ -279,17 +281,13 @@ func.func @merge_behind_ifs() {
     %m2, %bits = qvec.measure z %v2 : vector<1x!qcc.qubit> -> vector<1xi1>
     %cond = vector.extract %bits[0] : i1 from vector<1xi1>
 
-    %a0 = scf.if %cond -> (vector<1x!qcc.qubit>) {
-      %x = qvec.single x %h0 : vector<1x!qcc.qubit>
-      scf.yield %x : vector<1x!qcc.qubit>
-    } else {
-      scf.yield %h0 : vector<1x!qcc.qubit>
+    %a0 = qcf.if %cond (%a = %h0) -> (vector<1x!qcc.qubit>) {
+      %x = qvec.single x %a : vector<1x!qcc.qubit>
+      qcf.yield %x : vector<1x!qcc.qubit>
     }
-    %a1 = scf.if %cond -> (vector<1x!qcc.qubit>) {
-      %x = qvec.single x %v1 : vector<1x!qcc.qubit>
-      scf.yield %x : vector<1x!qcc.qubit>
-    } else {
-      scf.yield %v1 : vector<1x!qcc.qubit>
+    %a1 = qcf.if %cond (%a = %v1) -> (vector<1x!qcc.qubit>) {
+      %x = qvec.single x %a : vector<1x!qcc.qubit>
+      qcf.yield %x : vector<1x!qcc.qubit>
     }
 
     %y0 = qvec.single y %a0 : vector<1x!qcc.qubit>
@@ -298,8 +296,8 @@ func.func @merge_behind_ifs() {
     func.return
 }
 
-// CHECK:         %[[A0:.*]] = scf.if %{{.*}} -> (vector<1x!qcc.qubit>)
-// CHECK:         %[[A1:.*]] = scf.if %{{.*}} -> (vector<1x!qcc.qubit>)
+// CHECK:         %[[A0:.*]] = qcf.if %{{.*}} -> vector<1x!qcc.qubit>
+// CHECK:         %[[A1:.*]] = qcf.if %{{.*}} -> vector<1x!qcc.qubit>
 // CHECK:         %[[E0:.*]] = vector.extract %[[A0]][0]
 // CHECK:         %[[E1:.*]] = vector.extract %[[A1]][0]
 // CHECK:         %[[V:.*]] = vector.from_elements %[[E0]], %[[E1]] : vector<2x!qcc.qubit>
@@ -308,16 +306,24 @@ func.func @merge_behind_ifs() {
 
 // -----
 
-// `%v` is used twice, so both gates are in layer 0 although they act on the same qubit.
+// The regions of a `qcf.if` merge on their own. A binding is the qubit it binds.
 
-// CHECK-LABEL: func.func @no_merge_on_same_qubit
-func.func @no_merge_on_same_qubit() {
-    %q0 = qcc.static [0] : !qcc.qubit
-    %v = vector.from_elements %q0 : vector<1x!qcc.qubit>
-    %h1 = qvec.single h %v : vector<1x!qcc.qubit>
-    %h2 = qvec.single h %v : vector<1x!qcc.qubit>
+// CHECK-LABEL: func.func @merge_inside_if
+func.func @merge_inside_if(%cond: i1) {
+    %q0, %q1 = qcc.static [0, 1] : !qcc.qubit
+    %v0 = vector.from_elements %q0 : vector<1x!qcc.qubit>
+    %v1 = vector.from_elements %q1 : vector<1x!qcc.qubit>
+
+    %r0, %r1 = qcf.if %cond (%a = %v0, %b = %v1) -> (vector<1x!qcc.qubit>, vector<1x!qcc.qubit>) {
+      %ha = qvec.single h %a : vector<1x!qcc.qubit>
+      %hb = qvec.single h %b : vector<1x!qcc.qubit>
+      qcf.yield %ha, %hb : vector<1x!qcc.qubit>, vector<1x!qcc.qubit>
+    }
+
     func.return
 }
 
-// CHECK:         qvec.single h %{{.*}} : vector<1x!qcc.qubit>
-// CHECK:         qvec.single h %{{.*}} : vector<1x!qcc.qubit>
+// CHECK:         qcf.if
+// CHECK:           qvec.single h %{{.*}} : vector<2x!qcc.qubit>
+// CHECK-NOT:       qvec.single
+// CHECK:           qcf.yield

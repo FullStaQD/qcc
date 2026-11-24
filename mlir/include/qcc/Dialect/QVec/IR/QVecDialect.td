@@ -24,7 +24,7 @@ def QVec_Dialect : Dialect {
         independent gates costs one instruction. `qvec` is our abstraction to express such operations in an ISA-agnostic
         way. This parallels the upstream `vector` dialect, and in fact we use the builtin `vector` type.
 
-        The dialect has **value semantics** to ease optimization passes.
+        The dialect has **value semantics** to ease optimization passes. Qubit values are affine.
 
         The dialect does not model a global phase: gates are equal if they agree up to a global phase, and a lowering
         into `qvec` may drop one.

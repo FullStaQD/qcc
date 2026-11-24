@@ -2,7 +2,9 @@
 // RUN: qcc-opt %s --mlir-print-op-generic | qcc-opt | FileCheck %s
 
 // CHECK-LABEL: @single_gates
-func.func @single_gates(%qs: vector<2x!qcc.qubit>) {
+func.func @single_gates() {
+    %q0, %q1 = qcc.static [0, 1] : !qcc.qubit
+    %qs = vector.from_elements %q0, %q1 : vector<2x!qcc.qubit>
     // CHECK: %[[H:.*]] = qvec.single h %{{.*}} : vector<2x!qcc.qubit>
     %h = qvec.single h %qs : vector<2x!qcc.qubit>
     // CHECK: %[[X:.*]] = qvec.single x %[[H]]
@@ -19,7 +21,9 @@ func.func @single_gates(%qs: vector<2x!qcc.qubit>) {
 }
 
 // CHECK-LABEL: @parametrised_single_gates
-func.func @parametrised_single_gates(%qs: vector<2x!qcc.qubit>, %theta: vector<2xf64>) {
+func.func @parametrised_single_gates(%theta: vector<2xf64>) {
+    %q0, %q1 = qcc.static [0, 1] : !qcc.qubit
+    %qs = vector.from_elements %q0, %q1 : vector<2x!qcc.qubit>
     // CHECK: %[[RX:.*]] = qvec.single rx(%{{.*}}) %{{.*}} : vector<2xf64>, vector<2x!qcc.qubit>
     %rx = qvec.single rx(%theta) %qs : vector<2xf64>, vector<2x!qcc.qubit>
     // CHECK: %[[RY:.*]] = qvec.single ry(%{{.*}}) %[[RX]] : vector<2xf64>, vector<2x!qcc.qubit>
@@ -36,7 +40,10 @@ func.func @parametrised_single_gates(%qs: vector<2x!qcc.qubit>, %theta: vector<2
 }
 
 // CHECK-LABEL: @pair_gates
-func.func @pair_gates(%as: vector<2x!qcc.qubit>, %bs: vector<2x!qcc.qubit>, %theta: vector<2xf64>) {
+func.func @pair_gates(%theta: vector<2xf64>) {
+    %q0, %q1, %q2, %q3 = qcc.static [0, 1, 2, 3] : !qcc.qubit
+    %as = vector.from_elements %q0, %q1 : vector<2x!qcc.qubit>
+    %bs = vector.from_elements %q2, %q3 : vector<2x!qcc.qubit>
     // CHECK: %[[CA:.*]], %[[CB:.*]] = qvec.pair cx %{{.*}}, %{{.*}} : vector<2x!qcc.qubit>
     %ca, %cb = qvec.pair cx %as, %bs : vector<2x!qcc.qubit>
     // CHECK: %[[IA:.*]], %[[IB:.*]] = qvec.pair iswap %[[CA]], %[[CB]]
@@ -55,7 +62,9 @@ func.func @pair_gates(%as: vector<2x!qcc.qubit>, %bs: vector<2x!qcc.qubit>, %the
 }
 
 // CHECK-LABEL: @measure_and_reset
-func.func @measure_and_reset(%qs: vector<2x!qcc.qubit>) {
+func.func @measure_and_reset() {
+    %q0, %q1 = qcc.static [0, 1] : !qcc.qubit
+    %qs = vector.from_elements %q0, %q1 : vector<2x!qcc.qubit>
     // CHECK: %[[MZ:.*]], %{{.*}} = qvec.measure z %{{.*}} : vector<2x!qcc.qubit> -> vector<2xi1>
     %mz, %bits_z = qvec.measure z %qs : vector<2x!qcc.qubit> -> vector<2xi1>
     // CHECK: %[[RZ:.*]] = qvec.reset z %[[MZ]] : vector<2x!qcc.qubit>
