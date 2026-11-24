@@ -9,10 +9,10 @@
 
 #pragma once
 
-#include "mlir/IR/Dialect.h"
+#include "mlir/IR/Dialect.h" // IWYU pragma: keep
 #include "mlir/IR/DialectRegistry.h"
-#include "mlir/IR/OpDefinition.h"
-#include "mlir/IR/OpImplementation.h"
+#include "mlir/IR/OpDefinition.h"     // IWYU pragma: keep
+#include "mlir/IR/OpImplementation.h" // IWYU pragma: keep
 
 //===----------------------------------------------------------------------===//
 // Test Dialect

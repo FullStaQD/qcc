@@ -20,7 +20,7 @@ func.func @parametrised_ops_pass_through() {
     %a0, %b0 = qvec.pair rzz(%theta) %r0, %v2 : vector<1xf64>, vector<1x!qcc.qubit>
     %a1, %b1 = qvec.pair rzz(%theta) %r1, %v3 : vector<1xf64>, vector<1x!qcc.qubit>
 
-    test.observe %a0, %b0, %a1, %b1 : vector<1x!qcc.qubit>
+    test.sink %a0, %b0, %a1, %b1 : vector<1x!qcc.qubit>
     func.return
 }
 

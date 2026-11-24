@@ -11,14 +11,14 @@
 
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/DialectRegistry.h"
-#include "mlir/IR/ImplicitLocOpBuilder.h"
+#include "mlir/IR/ImplicitLocOpBuilder.h" // IWYU pragma: keep
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/TypeRange.h"
 #include "mlir/IR/Types.h"
+#include "mlir/IR/ValueRange.h"
 #include "mlir/Support/LLVM.h"
 
-#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/SMLoc.h"

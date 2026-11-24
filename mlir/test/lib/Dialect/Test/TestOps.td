@@ -20,19 +20,21 @@ include "mlir/IR/OpBase.td"
 
 class Test_Op<string mnemonic, list<Trait> traits = []> : Op<Test_Dialect, mnemonic, traits>;
 
-def Test_ObserveOp : Test_Op<"observe"> {
-  let summary = "observes its operands";
+def Test_SinkOp : Test_Op<"sink"> {
+  let summary = "a use of its operands that is never dead";
   let description = [{
-        Stands in for whatever a program does to make values observable, e.g. recording measurement results, without
-        adding operations the pass under test would transform as well. It declares no memory effects, so passes must
-        assume arbitrary side effects: they never erase it, and the values it observes stay alive.
+        Gives its operands a use that passes never erase as dead code, so the operations computing them are never dead
+        either. It does not declare its memory effects, so passes must assume arbitrary side effects.
+
+        It is no optimization barrier: passes may still replace its operands by equivalent values, e.g. by folding or
+        merging the operations that compute them.
 
         The operand types are written once if all operands share one type.
 
         Example:
         ```mlir
-        test.observe %a, %b : vector<1x!qcc.qubit>
-        test.observe %c, %d : vector<1x!qcc.qubit>, vector<3x!qcc.qubit>
+        test.sink %a, %b : vector<1x!qcc.qubit>
+        test.sink %c, %d : vector<1x!qcc.qubit>, vector<3x!qcc.qubit>
         ```
     }];
 

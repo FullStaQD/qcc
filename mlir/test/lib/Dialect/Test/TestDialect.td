@@ -21,7 +21,7 @@ def Test_Dialect : Dialect {
   let summary = "Test-only operations for the lit tests.";
   let description = [{
         Holds operations that lit tests need but programs never contain. Like upstream MLIR's `test` dialect, it is
-        registered only in the development tools (`qcc-opt`, `qcc-lsp-server`), never in `qcc`.
+        registered only in the development tools (e.g. `qcc-opt`, `qcc-lsp-server`), never in `qcc`.
     }];
   let cppNamespace = "::qcc::test";
 }
