@@ -3,6 +3,10 @@
 
 // Coverage for the `max-vf` option. The option has two regimes -- a cap of `k >= 1` and the unbounded `0`.
 
+// Each test passes its final qubits to the opaque `@observe`; without it, the pass would erase them as dead code.
+
+func.func private @observe(vector<1x!qcc.qubit>)
+
 // CHECK-CAPPED-LABEL: func.func @single_gates
 // CHECK-UNCAPPED-LABEL: func.func @single_gates
 func.func @single_gates() {
@@ -19,6 +23,11 @@ func.func @single_gates() {
     %h3 = qvec.single h %v3 : vector<1x!qcc.qubit>
     %h4 = qvec.single h %v4 : vector<1x!qcc.qubit>
 
+    func.call @observe(%h0) : (vector<1x!qcc.qubit>) -> ()
+    func.call @observe(%h1) : (vector<1x!qcc.qubit>) -> ()
+    func.call @observe(%h2) : (vector<1x!qcc.qubit>) -> ()
+    func.call @observe(%h3) : (vector<1x!qcc.qubit>) -> ()
+    func.call @observe(%h4) : (vector<1x!qcc.qubit>) -> ()
     func.return
 }
 
@@ -37,6 +46,8 @@ func.func @single_gates() {
 
 // -----
 
+func.func private @observe(vector<1x!qcc.qubit>, vector<3x!qcc.qubit>)
+
 // CHECK-CAPPED-LABEL: func.func @member_wider_than_cap
 // CHECK-UNCAPPED-LABEL: func.func @member_wider_than_cap
 func.func @member_wider_than_cap() {
@@ -47,6 +58,7 @@ func.func @member_wider_than_cap() {
     %h0 = qvec.single h %v0 : vector<1x!qcc.qubit>
     %h1 = qvec.single h %wide : vector<3x!qcc.qubit>
 
+    func.call @observe(%h0, %h1) : (vector<1x!qcc.qubit>, vector<3x!qcc.qubit>) -> ()
     func.return
 }
 
@@ -60,6 +72,8 @@ func.func @member_wider_than_cap() {
 // CHECK-UNCAPPED-NOT:   qvec.
 
 // -----
+
+func.func private @observe(vector<1x!qcc.qubit>)
 
 // CHECK-CAPPED-LABEL: func.func @pair_gates
 // CHECK-UNCAPPED-LABEL: func.func @pair_gates
@@ -76,6 +90,12 @@ func.func @pair_gates() {
     %c1, %d1 = qvec.pair cx %c0, %d0 : vector<1x!qcc.qubit>
     %e1, %f1 = qvec.pair cx %e0, %f0 : vector<1x!qcc.qubit>
 
+    func.call @observe(%a1) : (vector<1x!qcc.qubit>) -> ()
+    func.call @observe(%b1) : (vector<1x!qcc.qubit>) -> ()
+    func.call @observe(%c1) : (vector<1x!qcc.qubit>) -> ()
+    func.call @observe(%d1) : (vector<1x!qcc.qubit>) -> ()
+    func.call @observe(%e1) : (vector<1x!qcc.qubit>) -> ()
+    func.call @observe(%f1) : (vector<1x!qcc.qubit>) -> ()
     func.return
 }
 

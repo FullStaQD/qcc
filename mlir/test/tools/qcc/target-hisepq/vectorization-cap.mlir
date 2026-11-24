@@ -84,10 +84,92 @@ func.func @main() attributes { qcc.entry_point } {
     qc.h %q38 : !qc.qubit
     qc.h %q39 : !qc.qubit
 
+    %m0 = qc.measure %q0 : !qc.qubit -> i1
+    %m1 = qc.measure %q1 : !qc.qubit -> i1
+    %m2 = qc.measure %q2 : !qc.qubit -> i1
+    %m3 = qc.measure %q3 : !qc.qubit -> i1
+    %m4 = qc.measure %q4 : !qc.qubit -> i1
+    %m5 = qc.measure %q5 : !qc.qubit -> i1
+    %m6 = qc.measure %q6 : !qc.qubit -> i1
+    %m7 = qc.measure %q7 : !qc.qubit -> i1
+    %m8 = qc.measure %q8 : !qc.qubit -> i1
+    %m9 = qc.measure %q9 : !qc.qubit -> i1
+    %m10 = qc.measure %q10 : !qc.qubit -> i1
+    %m11 = qc.measure %q11 : !qc.qubit -> i1
+    %m12 = qc.measure %q12 : !qc.qubit -> i1
+    %m13 = qc.measure %q13 : !qc.qubit -> i1
+    %m14 = qc.measure %q14 : !qc.qubit -> i1
+    %m15 = qc.measure %q15 : !qc.qubit -> i1
+    %m16 = qc.measure %q16 : !qc.qubit -> i1
+    %m17 = qc.measure %q17 : !qc.qubit -> i1
+    %m18 = qc.measure %q18 : !qc.qubit -> i1
+    %m19 = qc.measure %q19 : !qc.qubit -> i1
+    %m20 = qc.measure %q20 : !qc.qubit -> i1
+    %m21 = qc.measure %q21 : !qc.qubit -> i1
+    %m22 = qc.measure %q22 : !qc.qubit -> i1
+    %m23 = qc.measure %q23 : !qc.qubit -> i1
+    %m24 = qc.measure %q24 : !qc.qubit -> i1
+    %m25 = qc.measure %q25 : !qc.qubit -> i1
+    %m26 = qc.measure %q26 : !qc.qubit -> i1
+    %m27 = qc.measure %q27 : !qc.qubit -> i1
+    %m28 = qc.measure %q28 : !qc.qubit -> i1
+    %m29 = qc.measure %q29 : !qc.qubit -> i1
+    %m30 = qc.measure %q30 : !qc.qubit -> i1
+    %m31 = qc.measure %q31 : !qc.qubit -> i1
+    %m32 = qc.measure %q32 : !qc.qubit -> i1
+    %m33 = qc.measure %q33 : !qc.qubit -> i1
+    %m34 = qc.measure %q34 : !qc.qubit -> i1
+    %m35 = qc.measure %q35 : !qc.qubit -> i1
+    %m36 = qc.measure %q36 : !qc.qubit -> i1
+    %m37 = qc.measure %q37 : !qc.qubit -> i1
+    %m38 = qc.measure %q38 : !qc.qubit -> i1
+    %m39 = qc.measure %q39 : !qc.qubit -> i1
+
+    aux.record_int %m0 : i1
+    aux.record_int %m1 : i1
+    aux.record_int %m2 : i1
+    aux.record_int %m3 : i1
+    aux.record_int %m4 : i1
+    aux.record_int %m5 : i1
+    aux.record_int %m6 : i1
+    aux.record_int %m7 : i1
+    aux.record_int %m8 : i1
+    aux.record_int %m9 : i1
+    aux.record_int %m10 : i1
+    aux.record_int %m11 : i1
+    aux.record_int %m12 : i1
+    aux.record_int %m13 : i1
+    aux.record_int %m14 : i1
+    aux.record_int %m15 : i1
+    aux.record_int %m16 : i1
+    aux.record_int %m17 : i1
+    aux.record_int %m18 : i1
+    aux.record_int %m19 : i1
+    aux.record_int %m20 : i1
+    aux.record_int %m21 : i1
+    aux.record_int %m22 : i1
+    aux.record_int %m23 : i1
+    aux.record_int %m24 : i1
+    aux.record_int %m25 : i1
+    aux.record_int %m26 : i1
+    aux.record_int %m27 : i1
+    aux.record_int %m28 : i1
+    aux.record_int %m29 : i1
+    aux.record_int %m30 : i1
+    aux.record_int %m31 : i1
+    aux.record_int %m32 : i1
+    aux.record_int %m33 : i1
+    aux.record_int %m34 : i1
+    aux.record_int %m35 : i1
+    aux.record_int %m36 : i1
+    aux.record_int %m37 : i1
+    aux.record_int %m38 : i1
+    aux.record_int %m39 : i1
+
     return
 }
 
 // Two instructions instead: a full one and the remainder.
 // CHECK:      llvm.call_intrinsic "llvm.riscv.qv.h"(%{{.*}}) : (vector<[32]xi16>, i32, i32, i32) -> ()
 // CHECK:      llvm.call_intrinsic "llvm.riscv.qv.h"(%{{.*}}) : (vector<[8]xi16>, i32, i32, i32) -> ()
-// CHECK-NOT:  llvm.call_intrinsic
+// CHECK-NOT:  llvm.call_intrinsic "llvm.riscv.qv.h"

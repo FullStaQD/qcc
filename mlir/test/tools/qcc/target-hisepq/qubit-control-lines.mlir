@@ -22,6 +22,8 @@
 func.func @main() attributes { qcc.entry_point } {
     %q8 = qc.static 8 : !qc.qubit
     qc.h %q8 : !qc.qubit
+    %m = qc.measure %q8 : !qc.qubit -> i1
+    aux.record_int %m : i1
     return
 }
 

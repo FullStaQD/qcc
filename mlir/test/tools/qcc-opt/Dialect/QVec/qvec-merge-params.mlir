@@ -1,6 +1,10 @@
 // RUN: qcc-opt %s -qvec-merge | FileCheck %s
 
+// Each test passes its final qubits to the opaque `@observe`; without it, the pass would erase them as dead code.
+
 // Parametrised gates are not merged (yet, see the pass description); the parameter-free gates next to them still are.
+
+func.func private @observe(vector<1x!qcc.qubit>)
 
 // CHECK-LABEL: func.func @parametrised_ops_pass_through
 func.func @parametrised_ops_pass_through() {
@@ -20,6 +24,10 @@ func.func @parametrised_ops_pass_through() {
     %a0, %b0 = qvec.pair rzz(%theta) %r0, %v2 : vector<1xf64>, vector<1x!qcc.qubit>
     %a1, %b1 = qvec.pair rzz(%theta) %r1, %v3 : vector<1xf64>, vector<1x!qcc.qubit>
 
+    func.call @observe(%a0) : (vector<1x!qcc.qubit>) -> ()
+    func.call @observe(%b0) : (vector<1x!qcc.qubit>) -> ()
+    func.call @observe(%a1) : (vector<1x!qcc.qubit>) -> ()
+    func.call @observe(%b1) : (vector<1x!qcc.qubit>) -> ()
     func.return
 }
 
