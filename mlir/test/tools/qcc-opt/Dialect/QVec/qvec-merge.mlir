@@ -1,9 +1,5 @@
 // RUN: qcc-opt %s -qvec-merge --split-input-file | FileCheck %s
 
-// Each test passes its final qubits to the opaque `@observe`; without it, the pass would erase them as dead code.
-
-func.func private @observe(vector<1x!qcc.qubit>)
-
 // CHECK-LABEL: func.func @example_1
 func.func @example_1() {
     %q0, %q1, %q2 = qcc.static [0, 1, 2] : !qcc.qubit
@@ -15,9 +11,7 @@ func.func @example_1() {
     %h1 = qvec.single h %v1 : vector<1x!qcc.qubit>
     %h2 = qvec.single h %v2 : vector<1x!qcc.qubit>
 
-    func.call @observe(%h0) : (vector<1x!qcc.qubit>) -> ()
-    func.call @observe(%h1) : (vector<1x!qcc.qubit>) -> ()
-    func.call @observe(%h2) : (vector<1x!qcc.qubit>) -> ()
+    test.sink %h0, %h1, %h2 : vector<1x!qcc.qubit>
     func.return
 }
 
@@ -27,8 +21,6 @@ func.func @example_1() {
 // CHECK-NOT:     qvec.
 
 // -----
-
-func.func private @observe(vector<1x!qcc.qubit>)
 
 // CHECK-LABEL: func.func @example_2
 func.func @example_2() {
@@ -46,10 +38,7 @@ func.func @example_2() {
     %t1 = vector.from_elements %q3 : vector<1x!qcc.qubit>
     %c1, %d1 = qvec.pair cx %h1, %t1 : vector<1x!qcc.qubit>
 
-    func.call @observe(%c0) : (vector<1x!qcc.qubit>) -> ()
-    func.call @observe(%d0) : (vector<1x!qcc.qubit>) -> ()
-    func.call @observe(%c1) : (vector<1x!qcc.qubit>) -> ()
-    func.call @observe(%d1) : (vector<1x!qcc.qubit>) -> ()
+    test.sink %c0, %d0, %c1, %d1 : vector<1x!qcc.qubit>
     func.return
 }
 
@@ -63,8 +52,6 @@ func.func @example_2() {
 
 // -----
 
-func.func private @observe(vector<1x!qcc.qubit>)
-
 // CHECK-LABEL: func.func @dependent_singles
 func.func @dependent_singles() {
     %q0 = qcc.static [0] : !qcc.qubit
@@ -74,7 +61,7 @@ func.func @dependent_singles() {
     %v2 = qvec.single h %v1 : vector<1x!qcc.qubit>
     %v3 = qvec.single h %v2 : vector<1x!qcc.qubit>
 
-    func.call @observe(%v3) : (vector<1x!qcc.qubit>) -> ()
+    test.sink %v3 : vector<1x!qcc.qubit>
     func.return
 }
 
@@ -85,8 +72,6 @@ func.func @dependent_singles() {
 
 // -----
 
-func.func private @observe(vector<1x!qcc.qubit>)
-
 // CHECK-LABEL: func.func @dependent_pairs
 func.func @dependent_pairs() {
     %q0, %q1 = qcc.static [0, 1] : !qcc.qubit
@@ -96,8 +81,7 @@ func.func @dependent_pairs() {
     %a1, %b1 = qvec.pair cx %a0, %b0 : vector<1x!qcc.qubit>
     %a2, %b2 = qvec.pair cx %a1, %b1 : vector<1x!qcc.qubit>
 
-    func.call @observe(%a2) : (vector<1x!qcc.qubit>) -> ()
-    func.call @observe(%b2) : (vector<1x!qcc.qubit>) -> ()
+    test.sink %a2, %b2 : vector<1x!qcc.qubit>
     func.return
 }
 
@@ -109,8 +93,6 @@ func.func @dependent_pairs() {
 
 // Measurements pack like gates do, and across both operands of the `pair` they follow: all four
 // qubits are measured by one instruction.
-
-func.func private @observe(vector<1x!qcc.qubit>)
 
 // CHECK-LABEL: func.func @measurements
 func.func @measurements() {
@@ -128,10 +110,7 @@ func.func @measurements() {
     %do, %c2 = qvec.measure z %c1 : vector<1x!qcc.qubit> -> vector<1xi1>
     %eo, %d2 = qvec.measure z %d1 : vector<1x!qcc.qubit> -> vector<1xi1>
 
-    func.call @observe(%ao) : (vector<1x!qcc.qubit>) -> ()
-    func.call @observe(%bo) : (vector<1x!qcc.qubit>) -> ()
-    func.call @observe(%do) : (vector<1x!qcc.qubit>) -> ()
-    func.call @observe(%eo) : (vector<1x!qcc.qubit>) -> ()
+    test.sink %ao, %bo, %do, %eo : vector<1x!qcc.qubit>
     func.return
 }
 
@@ -172,8 +151,6 @@ func.func @measurement_bits_extracted_for_user(%k: i1) -> i1 {
 
 // Measurements and resets merge per basis, and never with each other.
 
-func.func private @observe(vector<1x!qcc.qubit>)
-
 // CHECK-LABEL: func.func @bases
 func.func @bases() {
     %q0, %q1, %q2, %q3, %q4, %q5 = qcc.static [0, 1, 2, 3, 4, 5] : !qcc.qubit
@@ -191,12 +168,7 @@ func.func @bases() {
     %e = qvec.reset x %v4 : vector<1x!qcc.qubit>
     %f = qvec.reset z %v5 : vector<1x!qcc.qubit>
 
-    func.call @observe(%a) : (vector<1x!qcc.qubit>) -> ()
-    func.call @observe(%b) : (vector<1x!qcc.qubit>) -> ()
-    func.call @observe(%c) : (vector<1x!qcc.qubit>) -> ()
-    func.call @observe(%d) : (vector<1x!qcc.qubit>) -> ()
-    func.call @observe(%e) : (vector<1x!qcc.qubit>) -> ()
-    func.call @observe(%f) : (vector<1x!qcc.qubit>) -> ()
+    test.sink %a, %b, %c, %d, %e, %f : vector<1x!qcc.qubit>
     func.return
 }
 
@@ -209,7 +181,6 @@ func.func @bases() {
 // -----
 
 func.func private @opaque_qubits() -> vector<2x!qcc.qubit>
-func.func private @observe(vector<2x!qcc.qubit>)
 
 // CHECK-LABEL: func.func @qubits_maybe_not_disjoint
 func.func @qubits_maybe_not_disjoint() {
@@ -217,8 +188,7 @@ func.func @qubits_maybe_not_disjoint() {
     %rs = func.call @opaque_qubits() : () -> vector<2x!qcc.qubit>
     %a = qvec.single h %qs : vector<2x!qcc.qubit>
     %b = qvec.single h %rs : vector<2x!qcc.qubit>
-    func.call @observe(%a) : (vector<2x!qcc.qubit>) -> ()
-    func.call @observe(%b) : (vector<2x!qcc.qubit>) -> ()
+    test.sink %a, %b : vector<2x!qcc.qubit>
     func.return
 }
 
@@ -229,7 +199,6 @@ func.func @qubits_maybe_not_disjoint() {
 // -----
 
 func.func private @opaque_gate(!qcc.qubit) -> !qcc.qubit
-func.func private @observe(vector<1x!qcc.qubit>)
 
 // CHECK-LABEL: func.func @untraceable_producer
 func.func @untraceable_producer() {
@@ -248,9 +217,7 @@ func.func @untraceable_producer() {
     %w2 = vector.from_elements %o0 : vector<1x!qcc.qubit>
     %h2 = qvec.single h %w2 : vector<1x!qcc.qubit>
 
-    func.call @observe(%h0) : (vector<1x!qcc.qubit>) -> ()
-    func.call @observe(%h1) : (vector<1x!qcc.qubit>) -> ()
-    func.call @observe(%h2) : (vector<1x!qcc.qubit>) -> ()
+    test.sink %h0, %h1, %h2 : vector<1x!qcc.qubit>
     func.return
 }
 
@@ -261,8 +228,6 @@ func.func @untraceable_producer() {
 // CHECK-NOT:     qvec.
 
 // -----
-
-func.func private @observe(vector<2x!qcc.qubit>)
 
 // CHECK-LABEL: func.func @wide_member_slice_is_one_op
 func.func @wide_member_slice_is_one_op() {
@@ -277,8 +242,7 @@ func.func @wide_member_slice_is_one_op() {
     %a2 = qvec.single x %a1 : vector<2x!qcc.qubit> // layer 1
     %b2 = qvec.single y %b1 : vector<2x!qcc.qubit> // layer 1
 
-    func.call @observe(%a2) : (vector<2x!qcc.qubit>) -> ()
-    func.call @observe(%b2) : (vector<2x!qcc.qubit>) -> ()
+    test.sink %a2, %b2 : vector<2x!qcc.qubit>
     func.return
 }
 
@@ -290,8 +254,6 @@ func.func @wide_member_slice_is_one_op() {
 // CHECK:         qvec.single y %[[S1]] : vector<2x!qcc.qubit>
 
 // -----
-
-func.func private @observe(vector<1x!qcc.qubit>)
 
 // CHECK-LABEL: func.func @no_merge_across_if
 func.func @no_merge_across_if(%cond: i1) {
@@ -306,8 +268,7 @@ func.func @no_merge_across_if(%cond: i1) {
     }
     %h0 = qvec.single h %x0 : vector<1x!qcc.qubit>
 
-    func.call @observe(%h0) : (vector<1x!qcc.qubit>) -> ()
-    func.call @observe(%h1) : (vector<1x!qcc.qubit>) -> ()
+    test.sink %h0, %h1 : vector<1x!qcc.qubit>
     func.return
 }
 
@@ -318,8 +279,6 @@ func.func @no_merge_across_if(%cond: i1) {
 // CHECK:         qvec.single h %{{.*}} : vector<1x!qcc.qubit>
 
 // -----
-
-func.func private @observe(vector<1x!qcc.qubit>)
 
 // CHECK-LABEL: func.func @merge_behind_ifs
 func.func @merge_behind_ifs() {
@@ -344,8 +303,7 @@ func.func @merge_behind_ifs() {
     %y0 = qvec.single y %a0 : vector<1x!qcc.qubit>
     %y1 = qvec.single y %a1 : vector<1x!qcc.qubit>
 
-    func.call @observe(%y0) : (vector<1x!qcc.qubit>) -> ()
-    func.call @observe(%y1) : (vector<1x!qcc.qubit>) -> ()
+    test.sink %y0, %y1 : vector<1x!qcc.qubit>
     func.return
 }
 
@@ -361,8 +319,6 @@ func.func @merge_behind_ifs() {
 
 // The regions of a `qcf.if` merge on their own. A binding is the qubit it binds.
 
-func.func private @observe(vector<1x!qcc.qubit>)
-
 // CHECK-LABEL: func.func @merge_inside_if
 func.func @merge_inside_if(%cond: i1) {
     %q0, %q1 = qcc.static [0, 1] : !qcc.qubit
@@ -375,8 +331,7 @@ func.func @merge_inside_if(%cond: i1) {
       qcf.yield %ha, %hb : vector<1x!qcc.qubit>, vector<1x!qcc.qubit>
     }
 
-    func.call @observe(%r0) : (vector<1x!qcc.qubit>) -> ()
-    func.call @observe(%r1) : (vector<1x!qcc.qubit>) -> ()
+    test.sink %r0, %r1 : vector<1x!qcc.qubit>
     func.return
 }
 
