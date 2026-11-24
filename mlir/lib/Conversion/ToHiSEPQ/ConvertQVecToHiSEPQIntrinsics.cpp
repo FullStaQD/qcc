@@ -424,8 +424,6 @@ protected:
 
     const HiSEPQMachine machine(minVLen, numQubitControlLines);
 
-    // Lower with a driver that erases nothing. `qvec` ops have no memory effects, so a greedy driver would erase every
-    // one whose results are unused, and once the records are gone that is the whole program.
     Diagnostics diags;
     RewritePatternSet loweringPatterns(ctx);
     loweringPatterns.add<SingleOpLowering, PairOpLowering, MeasureOpLowering, ResetOpLowering>(ctx, &diags, machine);
@@ -435,8 +433,8 @@ protected:
       return signalPassFailure();
     }
 
-    // The intrinsics have side effects, so now the records can go, and with them what has become dead (`qcc.static`,
-    // the qubit vectors, the measurement results).
+    // We make the record op erasure (workaround) separately in a *greedy* driver which also eliminates dead code now.
+    // This can be done now because intrinsics (in contrast to qvec ops) have memory effects.
     RewritePatternSet cleanupPatterns(ctx);
     cleanupPatterns.add<RecordOpErasure<aux::RecordIntOp>, RecordOpErasure<aux::RecordMemRefOp>>(ctx);
     if (failed(applyPatternsGreedily(moduleOp, std::move(cleanupPatterns)))) {

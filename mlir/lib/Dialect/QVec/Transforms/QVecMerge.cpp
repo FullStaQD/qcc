@@ -334,9 +334,7 @@ static void mergeOpsInBlock(Block& block, int64_t limitVF) {
 /// Canonicalizes the `vector` ops in `moduleOp`. Merging takes a qubit vector apart element by element and immediately
 /// puts it back together again. This leads to verbose IR which we simplify here.
 ///
-/// Only `vector` ops go on the worklist: a greedy run over the whole module would also erase every `qvec` op whose
-/// results are unused, as `qvec` ops have no memory effects. Unlike the driver of a whole region, the driver of a list
-/// of ops sweeps only once, so a fold that enables another one may go unnoticed; hence the loop.
+/// We use a loop over the `applyOpPatternsGreedily` driver whose initial worklist is filled with all `vector` ops.
 static LogicalResult simplifyVectorOps(ModuleOp moduleOp) {
   MLIRContext* ctx = moduleOp.getContext();
   RewritePatternSet patterns(ctx);
