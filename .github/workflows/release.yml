@@ -9,7 +9,7 @@ on:
     paths:
       - third-party/llvm/**
       - .github/workflows/release.yml
-  # A dry run: the archives only become workflow artifacts, the version gets the suffix -dev.
+  # A dry run: the archives only become workflow artifacts (no release), the version gets the suffix -dev.
   workflow_dispatch:
   # A dry run twice a week keeps the LLVM cache of main from being evicted (after 7 days without use). Optimized for
   # European working hours. Minutes chosen arbitrarily on purpose (avoiding "crowded" times everybody is using).

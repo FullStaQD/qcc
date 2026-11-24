@@ -7,43 +7,26 @@
 //
 // ===----------------------------------------------------------------------===//
 
-#include "qcc/Dialect/Qcc/IR/Qcc.h"
-
 #include "qcc/Compiler/Compiler.h"
-#include "qcc/Dialect/Aux_/IR/Aux_.h"
-#include "qcc/Dialect/Jasp/IR/Jasp.h"
-#include "qcc/Dialect/Magic/IR/Magic.h"
-#include "qcc/Dialect/QCF/IR/QCF.h"
-#include "qcc/Dialect/QCirc/IR/QCirc.h"
-#include "qcc/Dialect/QRef/IR/QRef.h"
-#include "qcc/Dialect/QVec/IR/QVec.h"
 #include "qcc/QuantumDevice/QuantumDeviceRegistry.h"
+#include "qcc/RegisterAllDialects.h"
 #include "qcc/Support/Version.h"
 #include "qcc/Target/TargetRegistry.h"
 
 #include "mlir/Bytecode/BytecodeWriter.h"
 #include "mlir/Conversion/VectorToSCF/VectorToSCF.h"
-#include "mlir/Dialect/Arith/Transforms/BufferizableOpInterfaceImpl.h"
-#include "mlir/Dialect/Bufferization/Transforms/FuncBufferizableOpInterfaceImpl.h"
 #include "mlir/Dialect/Bufferization/Transforms/Passes.h"
-#include "mlir/Dialect/Func/Extensions/InlinerExtension.h"
-#include "mlir/Dialect/Linalg/Transforms/BufferizableOpInterfaceImpl.h"
-#include "mlir/Dialect/MemRef/Transforms/AllocationOpInterfaceImpl.h"
 #include "mlir/Dialect/MemRef/Transforms/Passes.h"
-#include "mlir/Dialect/QC/IR/QCDialect.h"
-#include "mlir/Dialect/SCF/Transforms/BufferizableOpInterfaceImpl.h"
-#include "mlir/Dialect/Tensor/Transforms/BufferizableOpInterfaceImpl.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/IR/MLIRContext.h"
-#include "mlir/InitAllDialects.h"
 #include "mlir/Parser/Parser.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Support/FileUtilities.h"
+#include "mlir/Support/Timing.h"
 #include "mlir/Target/LLVMIR/Dialect/Builtin/BuiltinToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/Export.h"
-#include "mlir/Tools/mlir-opt/MlirOptMain.h"
 
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
@@ -234,24 +217,7 @@ int main(int argc, char** argv) {
   const unsigned numQubitControlLines = mqcl.getNumOccurrences() > 0 ? mqcl : cpu->numQubitControlLines;
 
   mlir::DialectRegistry registry;
-
-  // Register all builtin dialects and their extensions/interfaces:
-  mlir::registerAllDialects(registry);
-
-  // Our dialects:
-  registry
-      .insert<jasp::JaspDialect, mlir::qc::QCDialect, qcc::aux::AuxDialect, qcc::magic::MagicDialect, qcc::QccDialect,
-              qcc::qcf::QCFDialect, qcc::qcirc::QCircDialect, qcc::qref::QRefDialect, qcc::qvec::QVecDialect>();
-
-  // Register the specific interface implementations for the pipeline
-  // Note: OneShotBufferize requires these for the "Standard" dialects
-  mlir::arith::registerBufferizableOpInterfaceExternalModels(registry);
-  mlir::linalg::registerBufferizableOpInterfaceExternalModels(registry);
-  mlir::scf::registerBufferizableOpInterfaceExternalModels(registry);
-  mlir::tensor::registerBufferizableOpInterfaceExternalModels(registry);
-  mlir::bufferization::func_ext::registerBufferizableOpInterfaceExternalModels(registry);
-  mlir::memref::registerAllocationOpInterfaceExternalModels(registry);
-  mlir::func::registerInlinerExtension(registry);
+  qcc::registerAllDialects(registry);
 
   // For emitting LLVM IR:
   mlir::registerBuiltinDialectTranslation(registry);
