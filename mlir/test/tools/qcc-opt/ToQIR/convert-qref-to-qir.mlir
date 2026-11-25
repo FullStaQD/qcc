@@ -1,6 +1,6 @@
 // RUN: qcc-opt %s -convert-qref-to-qir | FileCheck %s
 
-// CHECK-LABEL:   func.func @test() -> i64 attributes {
+// CHECK-LABEL:   func.func @gates() attributes {
 // CHECK-SAME:        passthrough = [
 // CHECK-SAME:          "entry_point",
 // CHECK-SAME:          ["output_labeling_schema", "schema_id"],
@@ -10,10 +10,9 @@
 // CHECK-SAME:        ],
 // CHECK-SAME:        qcc.entry_point
 // CHECK-SAME:      } {
-func.func @test() -> i64 attributes { qcc.entry_point } {
-    // CHECK:           %[[ZERO_PTR:.*]] = llvm.mlir.zero : !llvm.ptr
-    // CHECK:           llvm.call @__quantum__rt__initialize(%[[ZERO_PTR]]) : (!llvm.ptr) -> ()
-
+// CHECK:           %[[ZERO_PTR:.*]] = llvm.mlir.zero : !llvm.ptr
+// CHECK:           llvm.call @__quantum__rt__initialize(%[[ZERO_PTR]]) : (!llvm.ptr) -> ()
+func.func @gates() attributes { qcc.entry_point } {
     // Physical qubits: the pointer of a static qubit is its index.
     %q5, %q7 = qcc.static_ref [5, 7] : !qcc.qubit_ref
     // CHECK:           %[[QC5:.*]] = llvm.mlir.constant(5 : i64) : i64
@@ -40,40 +39,46 @@ func.func @test() -> i64 attributes { qcc.entry_point } {
     qref.single rz(%rz_angle) %q5 : f64, !qcc.qubit_ref
     // CHECK:           %[[ANGLE:.*]] = arith.constant {{.*}} : f64
     // CHECK:           llvm.call @__quantum__qis__rz__body(%[[ANGLE]], %[[QP5]]) : (f64, !llvm.ptr) -> ()
-
-    // Supported measurement operations. The result pointer equals the qubit pointer.
-    %m5 = qref.measure z %q5 : !qcc.qubit_ref -> i1
-    // CHECK:           llvm.call @__quantum__qis__mz__body(%[[QP5]], %[[QP5]]) : (!llvm.ptr, !llvm.ptr) -> ()
-    // CHECK:           %[[MR5:.*]] = llvm.call @__quantum__rt__read_result(%[[QP5]]) : (!llvm.ptr) -> i1
-    %m7 = qref.measure z %q7 : !qcc.qubit_ref -> i1
-    // CHECK:           llvm.call @__quantum__qis__mz__body
-    // CHECK:           llvm.call @__quantum__rt__read_result
-
-    qref.reset z %q7 : !qcc.qubit_ref
-    // CHECK:           llvm.call @__quantum__qis__reset__body(%[[QP7]]) : (!llvm.ptr) -> ()
-
-    aux.record_int %m5 : i1
-    // CHECK:           %[[LLVM_CONST:.*]] = llvm.mlir.constant(3 : i64) : i64
-    // CHECK:           %[[LABEL_PTR_0:.*]] = llvm.mlir.addressof @".qir_dummy_label" : !llvm.ptr
-    // CHECK:           llvm.call @__quantum__rt__tuple_record_output(%[[LLVM_CONST]], %[[LABEL_PTR_0]]) : (i64, !llvm.ptr) -> ()
-    // CHECK:           %[[LABEL_PTR:.*]] = llvm.mlir.addressof @".qir_dummy_label" : !llvm.ptr
-    // CHECK:           llvm.call @__quantum__rt__bool_record_output(%[[MR5]], %[[LABEL_PTR]]) : (i1, !llvm.ptr) -> ()
-    aux.record_int %m7 : i1
-    // CHECK:           llvm.call @__quantum__rt__bool_record_output
-    %record_int = arith.constant 42 : i64
-    // CHECK:           %[[CONST_INT:.*]] = arith.constant 42 : i64
-    aux.record_int %record_int : i64
-    // CHECK:           %[[LABEL_PTR_1:.*]] = llvm.mlir.addressof @".qir_dummy_label" : !llvm.ptr
-    // CHECK:           llvm.call @__quantum__rt__int_record_output(%[[CONST_INT]], %[[LABEL_PTR_1]]) : (i64, !llvm.ptr) -> ()
-
-    %exit_code = arith.constant 0 : i64
-    return %exit_code : i64
-    // CHECK:           %[[EXIT_CODE:.*]] = arith.constant 0 : i64
-    // CHECK:           return %[[EXIT_CODE]] : i64
+    return
 }
 
-// CHECK-LABEL:  func.func @test_memref_lowering()
-func.func @test_memref_lowering() -> i64 attributes { qcc.entry_point } {
+// CHECK-LABEL:   func.func @measure_and_reset()
+func.func @measure_and_reset() attributes { qcc.entry_point } {
+    %q5 = qcc.static_ref [5] : !qcc.qubit_ref
+    // CHECK:           %[[QC5:.*]] = llvm.mlir.constant(5 : i64) : i64
+    // CHECK:           %[[QP5:.*]] = llvm.inttoptr %[[QC5]] : i64 to !llvm.ptr
+
+    // The result pointer equals the qubit pointer.
+    %m5 = qref.measure z %q5 : !qcc.qubit_ref -> i1
+    // CHECK:           llvm.call @__quantum__qis__mz__body(%[[QP5]], %[[QP5]]) : (!llvm.ptr, !llvm.ptr) -> ()
+    // CHECK:           llvm.call @__quantum__rt__read_result(%[[QP5]]) : (!llvm.ptr) -> i1
+    qref.reset z %q5 : !qcc.qubit_ref
+    // CHECK:           llvm.call @__quantum__qis__reset__body(%[[QP5]]) : (!llvm.ptr) -> ()
+    return
+}
+
+// CHECK-LABEL:   func.func @record_int()
+func.func @record_int() attributes { qcc.entry_point } {
+    %bit = arith.constant true
+    // CHECK:           %[[BIT:.*]] = arith.constant true
+    %int = arith.constant 42 : i64
+    // CHECK:           %[[INT:.*]] = arith.constant 42 : i64
+
+    // Several records are wrapped in a tuple, announced at the first record.
+    aux.record_int %bit : i1
+    // CHECK:           %[[COUNT:.*]] = llvm.mlir.constant(2 : i64) : i64
+    // CHECK:           %[[LABEL_PTR_0:.*]] = llvm.mlir.addressof @".qir_dummy_label" : !llvm.ptr
+    // CHECK:           llvm.call @__quantum__rt__tuple_record_output(%[[COUNT]], %[[LABEL_PTR_0]]) : (i64, !llvm.ptr) -> ()
+    // CHECK:           %[[LABEL_PTR_1:.*]] = llvm.mlir.addressof @".qir_dummy_label" : !llvm.ptr
+    // CHECK:           llvm.call @__quantum__rt__bool_record_output(%[[BIT]], %[[LABEL_PTR_1]]) : (i1, !llvm.ptr) -> ()
+    aux.record_int %int : i64
+    // CHECK:           %[[LABEL_PTR_2:.*]] = llvm.mlir.addressof @".qir_dummy_label" : !llvm.ptr
+    // CHECK:           llvm.call @__quantum__rt__int_record_output(%[[INT]], %[[LABEL_PTR_2]]) : (i64, !llvm.ptr) -> ()
+    return
+}
+
+// CHECK-LABEL:  func.func @record_memref()
+func.func @record_memref() -> i64 attributes { qcc.entry_point } {
     %t = memref.alloc() : memref<3xi64>
     aux.record_memref %t : memref<3xi64>
     %exit_code = arith.constant 0 : i64
@@ -102,11 +107,11 @@ func.func @test_memref_lowering() -> i64 attributes { qcc.entry_point } {
 // CHECK:     return %[[const]] : i64
 // CHECK:  }
 
-// CHECK-LABEL:   func.func @test_lowering_of_structured_output_recording
-func.func @test_lowering_of_structured_output_recording() -> i64 attributes { qcc.entry_point } {
+// CHECK-LABEL:   func.func @structured_output_recording
+func.func @structured_output_recording() -> i64 attributes { qcc.entry_point } {
     %ref = memref.alloc() : memref<3xi64>
 
-   // Supported measurement operations.
+    // Supported measurement operations.
     %q = qcc.static_ref [5] : !qcc.qubit_ref
     %m = qref.measure z %q : !qcc.qubit_ref -> i1
     // CHECK:           %[[MR5:.*]] = llvm.call @__quantum__rt__read_result(%[[RP5:.*]]) : (!llvm.ptr) -> i1
