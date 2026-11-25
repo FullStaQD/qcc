@@ -110,8 +110,7 @@ def MagicCompileActiveZZTrivially : Pass<"magic-compile-active-zz-trivially", "m
       4. Do the X-flip again if it was needed in step 2 and recode back.
 
       `J` is the device's coupling matrix for the number of ions present in the trap (active and inactive), indexed by
-      the chain positions of the pair. A delay acts with the opposite sign of `active_zz` (see `magic.delay`), hence
-      the X-flip for positive angles.
+      the chain positions of the pair.
   }];
 
   let dependentDialects = ["qcc::magic::MagicDialect"];

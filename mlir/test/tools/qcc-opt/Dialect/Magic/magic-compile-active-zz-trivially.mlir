@@ -1,8 +1,7 @@
 // RUN: qcc-opt %s --qcc-attach-device=file=%S/Inputs/device-2x3.mlir --magic-compile-active-zz-trivially --split-input-file | FileCheck %s
 
 // The device: time unit 1 us; J = 1.0 rad/s for two ions; for three ions 1.0 between neighbours, 0.5 for the outer
-// pair. The tick counts pin the assumed delay convention t = |angle| / |J|: a change of it shows up here. A delay
-// couples with the opposite sign of `active_zz`, so a positive angle comes with an X flip on the first ion.
+// pair. The tick counts pin the assumed delay convention t = |angle| / |J|: a change of it shows up here.
 
 // Two active ions, rzz(pi/2): t = pi/2 s = 1570796 us. No other ion to switch off.
 // CHECK-LABEL: func.func @pair
@@ -15,6 +14,7 @@ func.func @pair() {
 }
 
 // CHECK:      %[[C0:.*]] = magic.init
+// X-flip sandwich around delay to account for the sign flip:
 // CHECK-NEXT: %[[C1:.*]] = magic.sym_zxz %[[C0]] ions [0] {x = [3.1415926535897931], z = [0.000000e+00]} : !chain
 // CHECK-NEXT: %[[C2:.*]] = magic.delay %[[C1]] {ticks = 1570796 : i64} : !chain
 // CHECK-NEXT: %[[C3:.*]] = magic.sym_zxz %[[C2]] ions [0] {x = [3.1415926535897931], z = [0.000000e+00]} : !chain
@@ -22,7 +22,7 @@ func.func @pair() {
 
 // -----
 
-// Three active ions, two couplings with different strengths. Only the positive angle needs the X flip.
+// Three active ions, two couplings with different strengths.
 // CHECK-LABEL: func.func @three_ions
 func.func @three_ions() {
   %c0 = magic.init : !magic.ion_chain<0, [0:1, 1:1, 2:1]>
@@ -51,17 +51,15 @@ func.func @three_ions() {
 func.func @inactive_ion() {
   %c = magic.init : !magic.ion_chain<0, [0:1, 1:1, 2:1]>
   %c0 = magic.recode %c : !magic.ion_chain<0, [0:1, 1:1, 2:1]> -> !magic.ion_chain<0, [0:1, 1:0, 2:1]>
-  %c1 = magic.active_zz %c0 {angles = dense<[[0.0, 1.5707963267948966],
-                                             [1.5707963267948966, 0.0]]> : tensor<2x2xf64>} : !magic.ion_chain<0, [0:1, 1:0, 2:1]>
+  %c1 = magic.active_zz %c0 {angles = dense<[[0.0, -1.5707963267948966],
+                                             [-1.5707963267948966, 0.0]]> : tensor<2x2xf64>} : !magic.ion_chain<0, [0:1, 1:0, 2:1]>
   %m0, %m1, %m2 = magic.mzd %c1 : !magic.ion_chain<0, [0:1, 1:0, 2:1]> -> i1, i1, i1
   return
 }
 
 // CHECK:      %[[C0:.*]] = magic.recode
-// CHECK-NEXT: %[[C1:.*]] = magic.sym_zxz %[[C0]] ions [0] {x = [3.1415926535897931], z = [0.000000e+00]} : !chain1
-// CHECK-NEXT: %[[C2:.*]] = magic.delay %[[C1]] {ticks = 3141593 : i64} : !chain1
-// CHECK-NEXT: %[[C3:.*]] = magic.sym_zxz %[[C2]] ions [0] {x = [3.1415926535897931], z = [0.000000e+00]} : !chain1
-// CHECK-NEXT: magic.mzd %[[C3]]
+// CHECK-NEXT: %[[C1:.*]] = magic.delay %[[C0]] {ticks = 3141593 : i64} : !chain1
+// CHECK-NEXT: magic.mzd %[[C1]]
 
 // -----
 
