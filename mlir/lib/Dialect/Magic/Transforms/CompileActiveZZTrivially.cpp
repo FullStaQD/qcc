@@ -47,7 +47,7 @@ static void compileTrivially(ActiveZZOp op, const MagicDevice& device) {
   const Location loc = op.getLoc();
   Value chain = op.getChainIn();
 
-  // The X sandwich for negative angles: X_i (Z_i Z_j) X_i = -Z_i Z_j.
+  // The X sandwich for positive angles: X_i (Z_i Z_j) X_i = -Z_i Z_j.
   auto flip = [&](int64_t ion) { chain = SymZXZOp::create(builder, loc, chain, {ion}, {0.0}, {std::numbers::pi}); };
 
   for (size_t a = 0; a < numActive; ++a) {
@@ -70,15 +70,15 @@ static void compileTrivially(ActiveZZOp op, const MagicDevice& device) {
         chain = RecodeOp::create(builder, loc, chain, others);
       }
 
-      // A delay of t seconds is an `active_zz` with angles t*J.
-      const bool negative = angle < 0.0;
+      // A delay of t seconds is an `active_zz` with angles -t*J.
+      const bool positive = angle > 0.0;
       const double seconds = std::abs(angle) / coupling;
-      if (negative) {
+      if (positive) {
         flip(ionA);
       }
       chain = DelayOp::create(builder, loc, chain.getType(), chain,
                               builder.getI64IntegerAttr(device.microsecondsToTicks(seconds * 1e6)));
-      if (negative) {
+      if (positive) {
         flip(ionA);
       }
 

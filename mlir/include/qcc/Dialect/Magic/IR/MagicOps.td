@@ -208,12 +208,12 @@ def Magic_DelayOp : Magic_SameChainOp<"delay", [Magic_Native]> {
   let summary = "lets the permanent coupling act between the active ions for a while";
   let description = [{
         Waits `ticks` times the device's time unit. During that time the ZZ coupling acts between all active ions of
-        the chain: a delay of `t` seconds applies `exp(-i t/4 Σ_{i≠j} J_ij Z_i Z_j)` over the active ions, where `J`
-        is the device's coupling matrix for the ions present in the trap (active or not), in rad/s. That is
-        `active_zz` with `angles = t * J`, restricted to the active ions.
+        the chain: a delay of `t` seconds applies `exp(i t/2 Σ_{i<j} J_ij Z_i Z_j) = exp(i t/4 Σ_{i≠j} J_ij Z_i Z_j)`
+        over the active ions, where `J` is the device's coupling matrix for the ions present in the trap (active or
+        not), in rad/s. That is `active_zz` with `angles = -t * J`, restricted to the active ions: note the opposite
+        sign, `active_zz` keeps the convention of `rzz`.
 
-        TODO: the prefactor 1/4, the sign of the exponent and the unit of `J` are assumptions. Confirm them with the
-        hardware vendor.
+        TODO: the unit of `J` is an assumption. Confirm it with the hardware vendor.
 
         Example:
         ```mlir
