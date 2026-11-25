@@ -2,8 +2,8 @@
 
 // A Bell pair after `qcirc-to-rzz` and `qcirc-to-u-zxz` (h q0; cx q0, q1 = h q0; h q1; cz; h q1), compiled for a
 // single trap with two ions (J = 1.0 rad/s, time unit 1 us): only native ops remain. The coupling rzz(pi/2) becomes one
-// delay of (pi/2) / J s = 1570796 us between X flips of ion 0 (a delay couples with the opposite sign), the residual Z
-// rotations before the measurement are dropped.
+// delay of (pi/2) / J s = 1570796 us , conjugated by X-flips to account for the opposite sign, the residual Z rotations
+// before the measurement are dropped.
 // CHECK-LABEL: func.func @bell
 func.func @bell() {
     %q:2 = qcc.static [0, 1] : !qcc.qubit
