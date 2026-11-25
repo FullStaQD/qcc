@@ -1,20 +1,20 @@
-// RUN: qcc-opt %s -pass-pipeline="builtin.module(prep-to-qir,func.func(convert-arith-to-llvm,convert-qc-to-qir),convert-cf-to-llvm,finalize-to-qir)" | mlir-translate -mlir-to-llvmir | FileCheck %s
+// RUN: qcc-opt %s -pass-pipeline="builtin.module(prep-to-qir,func.func(convert-arith-to-llvm,convert-qref-to-qir),convert-cf-to-llvm,finalize-to-qir)" | mlir-translate -mlir-to-llvmir | FileCheck %s
 
 func.func @simple_quantum_with_branching() -> i64 attributes { qcc.entry_point } {
-    %0 = qc.static 1 : !qc.qubit
+    %0 = qcc.static_ref [1] : !qcc.qubit_ref
 
-    qc.h %0 : !qc.qubit
-    qc.x %0 : !qc.qubit
+    qref.single h %0 : !qcc.qubit_ref
+    qref.single x %0 : !qcc.qubit_ref
 
-    %m0 = qc.measure %0 : !qc.qubit -> i1
+    %m0 = qref.measure z %0 : !qcc.qubit_ref -> i1
 
     cf.cond_br %m0, ^bb_true, ^bb_exit
     ^bb_true:
-      qc.x %0 : !qc.qubit
+      qref.single x %0 : !qcc.qubit_ref
       cf.br ^bb_exit
     ^bb_exit:
 
-    %m1 = qc.measure %0 : !qc.qubit -> i1
+    %m1 = qref.measure z %0 : !qcc.qubit_ref -> i1
     aux.record_int %m1 : i1
 
     %exit_code = func.call @zero() : () -> i64

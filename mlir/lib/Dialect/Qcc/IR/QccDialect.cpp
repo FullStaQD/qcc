@@ -88,7 +88,7 @@ LogicalResult QccDialect::verifyOperationAttribute(Operation* op, NamedAttribute
 }
 
 // TODO(#189): Use `isEntryPoint` / `getEntryPoints` where the code still checks `entryPointAttrName` by hand:
-// `AuxOutputRecording`, `ConvertQCToQIR`, `FinalizeToQIR`, `EmitHiSEPQStart`, and the Magic exporter.
+// `AuxOutputRecording`, `FinalizeToQIR`, `EmitHiSEPQStart`, and the Magic exporter.
 bool qcc::isEntryPoint(Operation* op) {
   return isa_and_present<FunctionOpInterface>(op) && op->hasAttr(QccDialect::EntryPointAttrHelper::getNameStr());
 }
@@ -115,6 +115,11 @@ bool qcc::isQubitOrQubitVector(Type type) {
 bool qcc::isQubitVector(Type type) {
   auto vectorType = dyn_cast<VectorType>(type);
   return vectorType && isa<QubitType>(vectorType.getElementType());
+}
+
+bool qcc::isQubitRefOrArray(Type type) {
+  auto tensorType = dyn_cast<TensorType>(type);
+  return isa<QubitRefType>(tensorType ? tensorType.getElementType() : type);
 }
 
 bool qcc::isClassicalType(Type type) {

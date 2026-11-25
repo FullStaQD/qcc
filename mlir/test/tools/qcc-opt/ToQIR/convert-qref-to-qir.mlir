@@ -1,63 +1,56 @@
-// RUN: qcc-opt %s -convert-qc-to-qir | FileCheck %s
+// RUN: qcc-opt %s -convert-qref-to-qir | FileCheck %s
 
+// CHECK-LABEL:   func.func @test() -> i64 attributes {
+// CHECK-SAME:        passthrough = [
+// CHECK-SAME:          "entry_point",
+// CHECK-SAME:          ["output_labeling_schema", "schema_id"],
+// CHECK-SAME:          ["qir_profiles", "adaptive_profile"],
+// CHECK-SAME:          ["required_num_qubits", "8"],
+// CHECK-SAME:          ["required_num_results", "8"]
+// CHECK-SAME:        ],
+// CHECK-SAME:        qcc.entry_point
+// CHECK-SAME:      } {
 func.func @test() -> i64 attributes { qcc.entry_point } {
-    // CHECK-LABEL:   func.func @test() -> i64 attributes {
-    // CHECK-SAME:        passthrough = [
-    // CHECK-SAME:          "entry_point",
-    // CHECK-SAME:          ["output_labeling_schema", "schema_id"],
-    // CHECK-SAME:          ["qir_profiles", "adaptive_profile"],
-    // CHECK-SAME:          ["required_num_qubits", "8"],
-    // CHECK-SAME:          ["required_num_results", "8"]
-    // CHECK-SAME:        ],
-    // CHECK-SAME:        qcc.entry_point
-    // CHECK-SAME:      } {
-
     // CHECK:           %[[ZERO_PTR:.*]] = llvm.mlir.zero : !llvm.ptr
     // CHECK:           llvm.call @__quantum__rt__initialize(%[[ZERO_PTR]]) : (!llvm.ptr) -> ()
 
-    // Physical qubits.
-    %q5 = qc.static 5 : !qc.qubit
-    %q7 = qc.static 7 : !qc.qubit
-    // NOTE: static allocations are not directly translated to QIR.
+    // Physical qubits: the pointer of a static qubit is its index.
+    %q5, %q7 = qcc.static_ref [5, 7] : !qcc.qubit_ref
+    // CHECK:           %[[QC5:.*]] = llvm.mlir.constant(5 : i64) : i64
+    // CHECK:           %[[QP5:.*]] = llvm.inttoptr %[[QC5]] : i64 to !llvm.ptr
+    // CHECK:           %[[QC7:.*]] = llvm.mlir.constant(7 : i64) : i64
+    // CHECK:           %[[QP7:.*]] = llvm.inttoptr %[[QC7]] : i64 to !llvm.ptr
 
-    // Supported unitary operations.
-    qc.h %q5 : !qc.qubit
-    // CHECK:           %[[QC5:.*]] = llvm.mlir.constant(5 : i64) : i64
-    // CHECK:           %[[QP5:.*]] = llvm.inttoptr %[[QC5]] : i64 to !llvm.ptr
-    // CHECK:           llvm.call @__quantum__qis__h__body(%[[QP5]]) : (!llvm.ptr) -> ()
-    qc.x %q5 : !qc.qubit
-    // CHECK:           %[[QC5:.*]] = llvm.mlir.constant(5 : i64) : i64
-    // CHECK:           %[[QP5:.*]] = llvm.inttoptr %[[QC5]] : i64 to !llvm.ptr
+    // Supported gates.
+    qref.single x %q5 : !qcc.qubit_ref
     // CHECK:           llvm.call @__quantum__qis__x__body(%[[QP5]]) : (!llvm.ptr) -> ()
-    qc.ctrl(%q5) targets(%t7 = %q7) {
-      qc.x %t7 : !qc.qubit
-      qc.yield
-    } : {!qc.qubit}, {!qc.qubit}
-    // CHECK-DAG:       %[[QC3:.*]] = llvm.mlir.constant(5 : i64) : i64
-    // CHECK-DAG:       %[[QP3:.*]] = llvm.inttoptr %[[QC3]] : i64 to !llvm.ptr
-    // CHECK-DAG:       %[[QC7:.*]] = llvm.mlir.constant(7 : i64) : i64
-    // CHECK-DAG:       %[[QP7:.*]] = llvm.inttoptr %[[QC7]] : i64 to !llvm.ptr
-    // CHECK:           llvm.call @__quantum__qis__cx__body(%[[QP3]], %[[QP7]]) : (!llvm.ptr, !llvm.ptr) -> ()
-
-    // Supported rz rotations.
+    qref.single h %q5 : !qcc.qubit_ref
+    // CHECK:           llvm.call @__quantum__qis__h__body(%[[QP5]]) : (!llvm.ptr) -> ()
+    qref.single s %q5 : !qcc.qubit_ref
+    // CHECK:           llvm.call @__quantum__qis__s__body(%[[QP5]]) : (!llvm.ptr) -> ()
+    qref.single sdg %q5 : !qcc.qubit_ref
+    // CHECK:           llvm.call @__quantum__qis__s__adj(%[[QP5]]) : (!llvm.ptr) -> ()
+    qref.single t %q5 : !qcc.qubit_ref
+    // CHECK:           llvm.call @__quantum__qis__t__body(%[[QP5]]) : (!llvm.ptr) -> ()
+    qref.single tdg %q5 : !qcc.qubit_ref
+    // CHECK:           llvm.call @__quantum__qis__t__adj(%[[QP5]]) : (!llvm.ptr) -> ()
+    qref.pair cx %q5, %q7 : !qcc.qubit_ref
+    // CHECK:           llvm.call @__quantum__qis__cx__body(%[[QP5]], %[[QP7]]) : (!llvm.ptr, !llvm.ptr) -> ()
     %rz_angle = arith.constant 1.5707963267948966 : f64
-    qc.rz(%rz_angle) %q5 : !qc.qubit
+    qref.single rz(%rz_angle) %q5 : f64, !qcc.qubit_ref
     // CHECK:           %[[ANGLE:.*]] = arith.constant {{.*}} : f64
-    // CHECK-DAG:       %[[QC5_RZ:.*]] = llvm.mlir.constant(5 : i64) : i64
-    // CHECK-DAG:       %[[QP5_RZ:.*]] = llvm.inttoptr %[[QC5_RZ]] : i64 to !llvm.ptr
-    // CHECK:           llvm.call @__quantum__qis__rz__body(%[[ANGLE]], %[[QP5_RZ]]) : (f64, !llvm.ptr) -> ()
+    // CHECK:           llvm.call @__quantum__qis__rz__body(%[[ANGLE]], %[[QP5]]) : (f64, !llvm.ptr) -> ()
 
-    // Supported measurement operations.
-    %m5 = qc.measure %q5 : !qc.qubit -> i1
-    // CHECK-DAG:       %[[QC5:.*]] = llvm.mlir.constant(5 : i64) : i64
-    // CHECK-DAG:       %[[QP5:.*]] = llvm.inttoptr %[[QC5]] : i64 to !llvm.ptr
-    // CHECK-DAG:       %[[RC5:.*]] = llvm.mlir.constant(5 : i64) : i64
-    // CHECK-DAG:       %[[RP5:.*]] = llvm.inttoptr %[[RC5]] : i64 to !llvm.ptr
-    // CHECK:           llvm.call @__quantum__qis__mz__body(%[[QP5]], %[[RP5]]) : (!llvm.ptr, !llvm.ptr) -> ()
-    // CHECK:           %[[MR5:.*]] = llvm.call @__quantum__rt__read_result(%[[RP5]]) : (!llvm.ptr) -> i1
-    %m7 = qc.measure %q7 : !qc.qubit -> i1
+    // Supported measurement operations. The result pointer equals the qubit pointer.
+    %m5 = qref.measure z %q5 : !qcc.qubit_ref -> i1
+    // CHECK:           llvm.call @__quantum__qis__mz__body(%[[QP5]], %[[QP5]]) : (!llvm.ptr, !llvm.ptr) -> ()
+    // CHECK:           %[[MR5:.*]] = llvm.call @__quantum__rt__read_result(%[[QP5]]) : (!llvm.ptr) -> i1
+    %m7 = qref.measure z %q7 : !qcc.qubit_ref -> i1
     // CHECK:           llvm.call @__quantum__qis__mz__body
     // CHECK:           llvm.call @__quantum__rt__read_result
+
+    qref.reset z %q7 : !qcc.qubit_ref
+    // CHECK:           llvm.call @__quantum__qis__reset__body(%[[QP7]]) : (!llvm.ptr) -> ()
 
     aux.record_int %m5 : i1
     // CHECK:           %[[LLVM_CONST:.*]] = llvm.mlir.constant(3 : i64) : i64
@@ -79,6 +72,7 @@ func.func @test() -> i64 attributes { qcc.entry_point } {
     // CHECK:           return %[[EXIT_CODE]] : i64
 }
 
+// CHECK-LABEL:  func.func @test_memref_lowering()
 func.func @test_memref_lowering() -> i64 attributes { qcc.entry_point } {
     %t = memref.alloc() : memref<3xi64>
     aux.record_memref %t : memref<3xi64>
@@ -86,7 +80,6 @@ func.func @test_memref_lowering() -> i64 attributes { qcc.entry_point } {
     return %exit_code : i64
 }
 
-// CHECK-LABEL:  func.func @test_memref_lowering()
 // CHECK:     %[[zero:.*]] = llvm.mlir.zero : !llvm.ptr
 // CHECK:     llvm.call @__quantum__rt__initialize(%[[zero]])
 // CHECK:     %[[label:.*]] = llvm.mlir.addressof @".qir_dummy_label"
@@ -109,13 +102,13 @@ func.func @test_memref_lowering() -> i64 attributes { qcc.entry_point } {
 // CHECK:     return %[[const]] : i64
 // CHECK:  }
 
+// CHECK-LABEL:   func.func @test_lowering_of_structured_output_recording
 func.func @test_lowering_of_structured_output_recording() -> i64 attributes { qcc.entry_point } {
-    // CHECK-LABEL:   func.func @test_lowering_of_structured_output_recording
     %ref = memref.alloc() : memref<3xi64>
 
    // Supported measurement operations.
-    %q = qc.static 5 : !qc.qubit
-    %m = qc.measure %q : !qc.qubit -> i1
+    %q = qcc.static_ref [5] : !qcc.qubit_ref
+    %m = qref.measure z %q : !qcc.qubit_ref -> i1
     // CHECK:           %[[MR5:.*]] = llvm.call @__quantum__rt__read_result(%[[RP5:.*]]) : (!llvm.ptr) -> i1
     aux.record_int %m : i1
     // CHECK:           %[[LLVM_CONST:.*]] = llvm.mlir.constant(2 : i64) : i64
@@ -152,8 +145,13 @@ llvm.func @__quantum__rt__tuple_record_output(i64, !llvm.ptr)
 llvm.func @__quantum__rt__array_record_output(i64, !llvm.ptr)
 llvm.func @__quantum__rt__read_result(!llvm.ptr {llvm.readonly}) -> i1
 llvm.func @__quantum__qis__mz__body(!llvm.ptr, !llvm.ptr {llvm.writeonly}) attributes {passthrough = ["irreversible"]}
+llvm.func @__quantum__qis__reset__body(!llvm.ptr) attributes {passthrough = ["irreversible"]}
 llvm.func @__quantum__qis__h__body(!llvm.ptr)
 llvm.func @__quantum__qis__x__body(!llvm.ptr)
+llvm.func @__quantum__qis__s__body(!llvm.ptr)
+llvm.func @__quantum__qis__s__adj(!llvm.ptr)
+llvm.func @__quantum__qis__t__body(!llvm.ptr)
+llvm.func @__quantum__qis__t__adj(!llvm.ptr)
 llvm.func @__quantum__qis__cx__body(!llvm.ptr, !llvm.ptr)
 llvm.func @__quantum__qis__rz__body(f64, !llvm.ptr)
 

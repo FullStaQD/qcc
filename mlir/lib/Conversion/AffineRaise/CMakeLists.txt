@@ -10,5 +10,3 @@ add_mlir_conversion_library(
   MLIRIR
   MLIRPass
   MLIRTransforms)
-
-mqt_mlir_target_use_project_options(QCCAffineRaise)

@@ -63,7 +63,7 @@ int main(int argc, char** argv) {
   qcc::registerTmpRaiseSCFToAffinePass();
   qcc::registerWhileToFor();
   qcc::registerJaspToQC();
-  qcc::registerConvertQCToQIR();
+  qcc::registerConvertQRefToQIR();
   qcc::registerPrepToQIR();
   qcc::registerFinalizeToQIR();
   qcc::registerAuxOutputRecording();

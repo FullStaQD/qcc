@@ -44,9 +44,6 @@ static bool holds(Operation* op, function_ref<bool(Type)> predicate) {
   return llvm::any_of(op->getOperandTypes(), predicate) || llvm::any_of(op->getResultTypes(), predicate);
 }
 
-/// Whether `type` is `!qcc.qubit_ref` or a shaped type of them.
-static bool isQubitRefOrArray(Type type) { return isa<QubitRefType>(getElementTypeOrSelf(type)); }
-
 namespace {
 
 /// Converts `!qcc.qubit` into `!qcc.qubit_ref`.

@@ -9,116 +9,128 @@
 
 #include "qcc/Constants.h"
 #include "qcc/Conversion/ToQIR/Constants.h"
+#include "qcc/Conversion/ToQIR/ToQIR.h" // IWYU pragma: keep
 #include "qcc/Dialect/Aux_/IR/Aux_.h"
+#include "qcc/Dialect/QRef/IR/QRef.h"
+#include "qcc/Dialect/Qcc/IR/Qcc.h"
 
 #include "mlir/Conversion/LLVMCommon/TypeConverter.h"
-#include "mlir/Conversion/MemRefToLLVM/MemRefToLLVM.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
-#include "mlir/Dialect/QC/IR/QCDialect.h"
-#include "mlir/Dialect/QC/IR/QCInterfaces.h"
-#include "mlir/Dialect/QC/IR/QCOps.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Diagnostics.h"
+#include "mlir/IR/Location.h"
+#include "mlir/IR/Operation.h"
+#include "mlir/IR/TypeRange.h"
 #include "mlir/IR/Types.h"
 #include "mlir/IR/Value.h"
 #include "mlir/IR/ValueRange.h"
+#include "mlir/IR/Visitors.h"
+#include "mlir/Pass/Pass.h"
+#include "mlir/Support/LLVM.h"
 #include "mlir/Support/LogicalResult.h"
-#include "mlir/Support/WalkResult.h"
 #include "mlir/Transforms/DialectConversion.h"
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/TypeSwitch.h"
 
-#include <mlir/Dialect/Arith/IR/Arith.h>
-#include <mlir/Dialect/MemRef/IR/MemRef.h>
-#include <mlir/Dialect/SCF/IR/SCF.h>
-#include <mlir/Pass/Pass.h>
+#include <algorithm>
+#include <cassert>
+#include <cstdint>
+#include <string>
+#include <tuple>
 
 using namespace mlir;
 using namespace qcc;
 
-/// Maps any of the (unitary) gate-ops to their QIR QIS function declaration if possible.
-///
-/// Returns an empty string upon failure. Succeeds iff the gate is among the supported native gate set.
+/// Returns the QIR QIS function of a single-qubit gate of `kind`, or an empty string if the gate is not among the
+/// supported native gate set.
 ///
 /// TODO: The native gate set is currently hardcoded.
-static StringRef mapUnitaryToQIS(qc::UnitaryOpInterface unitaryOp) {
-  if (unitaryOp.getNumControls() == 0) {
-    return llvm::TypeSwitch<Operation*, StringRef>(unitaryOp)
-        .Case<qc::XOp>([](auto) { return qcc::qirQisX; })
-        .Case<qc::HOp>([](auto) { return qcc::qirQisH; })
-        .Case<qc::RZOp>([](auto) { return qcc::qirQisRZ; })
-        // The phase gate P(θ) differs from RZ(θ) only by a global phase,
-        // which does not affect measurement outcomes. QIR has no native
-        // phase gate, so we lower P to RZ.
-        .Case<qc::POp>([](auto) { return qcc::qirQisRZ; })
-        .Case<qc::TOp>([](auto) { return qcc::qirQisT; })
-        .Case<qc::TdgOp>([](auto) { return qcc::qirQisTdg; })
-        .Case<qc::SOp>([](auto) { return qcc::qirQisS; })
-        .Case<qc::SdgOp>([](auto) { return qcc::qirQisSdg; })
-        .Default([](auto) { return ""; });
+static StringRef getQISFunction(SingleGateKind kind) {
+  switch (kind) {
+  case SingleGateKind::X:
+    return qcc::qirQisX;
+  case SingleGateKind::H:
+    return qcc::qirQisH;
+  case SingleGateKind::RZ:
+    return qcc::qirQisRZ;
+  case SingleGateKind::S:
+    return qcc::qirQisS;
+  case SingleGateKind::Sdg:
+    return qcc::qirQisSdg;
+  case SingleGateKind::T:
+    return qcc::qirQisT;
+  case SingleGateKind::Tdg:
+    return qcc::qirQisTdg;
+  default:
+    return "";
   }
-
-  if (unitaryOp.getNumControls() == 1) {
-    auto ctrlOp = cast<qc::CtrlOp>(unitaryOp);
-    if (ctrlOp.getNumBodyUnitaries() != 1) {
-      return "";
-    }
-    auto bodyOp = ctrlOp.getBodyUnitary(0);
-
-    return llvm::TypeSwitch<Operation*, StringRef>(bodyOp)
-        .Case<qc::XOp>([](auto) { return qcc::qirQisCX; })
-        .Default([](auto) { return ""; });
-  }
-
-  return "";
 }
 
-/// Converts a qubit to an llvm ptr.
+/// Returns the QIR QIS function of a two-qubit gate of `kind`, or an empty string if the gate is not among the
+/// supported native gate set.
 ///
-/// We assume that it was created by a static op, like this:
+/// TODO: The native gate set is currently hardcoded.
+static StringRef getQISFunction(PairGateKind kind) { return kind == PairGateKind::CX ? qcc::qirQisCX : ""; }
+
+/// Whether an operand or a result of `op` holds qubit references.
+static bool holdsQubitRefs(Operation* op) {
+  return llvm::any_of(op->getOperandTypes(), isQubitRefOrArray) ||
+         llvm::any_of(op->getResultTypes(), isQubitRefOrArray);
+}
+
+/// Checks that the qref op `op` has a counterpart among the QIR QIS functions.
+static LogicalResult checkSupported(Operation* op, StringRef passName) {
+  return llvm::TypeSwitch<Operation*, LogicalResult>(op)
+      .Case([&](qref::SingleOp single) -> LogicalResult {
+        if (getQISFunction(single.getGateKind()).empty()) {
+          return single.emitOpError() << "applies gate '" << stringifySingleGateKind(single.getGateKind())
+                                      << "', which " << passName << " does not support";
+        }
+        return success();
+      })
+      .Case([&](qref::PairOp pair) -> LogicalResult {
+        if (getQISFunction(pair.getGateKind()).empty()) {
+          return pair.emitOpError() << "applies gate '" << stringifyPairGateKind(pair.getGateKind()) << "', which "
+                                    << passName << " does not support";
+        }
+        return success();
+      })
+      .Case([&](qref::MeasureOp measure) -> LogicalResult {
+        if (measure.getBasis() != Basis::Z) {
+          return measure.emitOpError() << "measures in basis '" << stringifyBasis(measure.getBasis()) << "', which "
+                                       << passName << " does not support";
+        }
+        return success();
+      })
+      .Case([&](qref::ResetOp reset) -> LogicalResult {
+        if (reset.getBasis() != Basis::Z) {
+          return reset.emitOpError() << "resets in basis '" << stringifyBasis(reset.getBasis()) << "', which "
+                                     << passName << " does not support";
+        }
+        return success();
+      })
+      .Default([&](Operation* other) { return other->emitOpError() << "is not supported by " << passName; });
+}
+
+/// Creates the QIR pointer of the static qubit `index` at the current insertion point:
 ///
 /// ```mlir
-/// %0 = qc.static 42 : !qc.qubit
+/// %0 = llvm.mlir.constant(42 : i64) : i64
+/// %1 = llvm.inttoptr %0 : i64 to !llvm.ptr
 /// ```
-///
-/// it then adds the following for each qubit at the current insertion point (and leaves the `qc.static` as is):
-///
-/// ```mlir
-/// %1 = llvm.mlir.constant(42 : i64) : i64
-/// %2 = llvm.inttoptr %1 : i64 to !llvm.ptr
-/// ```
-static Value qubitToPtr(OpBuilder& builder, Value qubitValue) {
-  auto* defOp = qubitValue.getDefiningOp();
-  assert(defOp && isa<qc::StaticOp>(defOp) &&
-         "The pass assumes that all qubits come from static allocations (in particular no function args).");
-  auto alloc = cast<qc::StaticOp>(defOp);
-
-  auto index = static_cast<int64_t>(alloc.getIndex());
-
+static Value createQubitPtr(OpBuilder& builder, Location loc, int64_t index) {
   auto i64Type = builder.getI64Type();
   auto ptrType = LLVM::LLVMPointerType::get(builder.getContext());
 
-  auto constantOp = LLVM::ConstantOp::create(builder, defOp->getLoc(), i64Type, builder.getI64IntegerAttr(index));
-  auto ptrOp = LLVM::IntToPtrOp::create(builder, defOp->getLoc(), ptrType, {constantOp});
-
-  return ptrOp;
-}
-
-/// Applies `qubitToPtr` to each qubit of the given list and returns the result.
-static SmallVector<Value> qubitsToPtrs(OpBuilder& builder, ValueRange qubitValues) {
-  SmallVector<Value> ptrValues;
-  ptrValues.reserve(qubitValues.size());
-
-  for (auto qubitValue : qubitValues) {
-    auto ptrOp = qubitToPtr(builder, qubitValue);
-    ptrValues.push_back(ptrOp);
-  }
-
-  return ptrValues;
+  auto constantOp = LLVM::ConstantOp::create(builder, loc, i64Type, builder.getI64IntegerAttr(index));
+  return LLVM::IntToPtrOp::create(builder, loc, ptrType, {constantOp});
 }
 
 /// To be used in a rewrite pattern.
@@ -154,19 +166,71 @@ static void insertRtTupleRecord(func::FuncOp funcOp, Operation* firstRecordOp, i
   LLVM::CallOp::create(builder, loc, TypeRange(), qirRtTupleRecordOutput, ValueRange{countVal, addressOf});
 }
 
+/// Replaces the gate `op` by a call of the QIR QIS function `qisName`. We rely on the fact that the signature of the
+/// QIS function fits: the angles first, then the qubits in the order of the gate (the control first).
+static LogicalResult replaceByQISCall(Operation* op, StringRef qisName, ValueRange params, ValueRange qubitPtrs,
+                                      ConversionPatternRewriter& rewriter) {
+  assert(!qisName.empty() && "the preconditions reject gates outside the native gate set");
+  auto fnDecl = op->getParentOfType<ModuleOp>().lookupSymbol<LLVM::LLVMFuncOp>(qisName);
+  if (!fnDecl) {
+    return emitMissingQIRDeclError(op, qisName);
+  }
+
+  SmallVector<Value> args(params);
+  llvm::append_range(args, qubitPtrs);
+  LLVM::CallOp::create(rewriter, op->getLoc(), fnDecl, args);
+  rewriter.eraseOp(op);
+  return success();
+}
+
 namespace {
 
-struct QCToQIRTypeConverter final : LLVMTypeConverter {
-  explicit QCToQIRTypeConverter(MLIRContext* ctx) : LLVMTypeConverter(ctx) {
-    addConversion([ctx](qc::QubitType) { return LLVM::LLVMPointerType::get(ctx); });
+struct QRefToQIRTypeConverter final : LLVMTypeConverter {
+  explicit QRefToQIRTypeConverter(MLIRContext* ctx) : LLVMTypeConverter(ctx) {
+    addConversion([ctx](QubitRefType) { return LLVM::LLVMPointerType::get(ctx); });
   }
 };
 
-struct MeasureLowering : public OpConversionPattern<qc::MeasureOp> {
-  using OpConversionPattern<qc::MeasureOp>::OpConversionPattern;
+/// Replaces each reference by the QIR pointer of its static qubit.
+struct StaticRefLowering final : OpConversionPattern<StaticRefOp> {
+  using OpConversionPattern::OpConversionPattern;
 
-  LogicalResult matchAndRewrite(qc::MeasureOp op, OpAdaptor /*adaptor*/,
+  LogicalResult matchAndRewrite(StaticRefOp op, OpAdaptor /*adaptor*/,
                                 ConversionPatternRewriter& rewriter) const override {
+    SmallVector<Value> ptrs;
+    for (const int64_t index : op.getIndices()) {
+      ptrs.push_back(createQubitPtr(rewriter, op.getLoc(), index));
+    }
+    rewriter.replaceOp(op, ptrs);
+    return success();
+  }
+};
+
+struct SingleLowering final : OpConversionPattern<qref::SingleOp> {
+  using OpConversionPattern::OpConversionPattern;
+
+  LogicalResult matchAndRewrite(qref::SingleOp op, OpAdaptor adaptor,
+                                ConversionPatternRewriter& rewriter) const override {
+    return replaceByQISCall(op, getQISFunction(op.getGateKind()), adaptor.getParams(), adaptor.getQubit(), rewriter);
+  }
+};
+
+struct PairLowering final : OpConversionPattern<qref::PairOp> {
+  using OpConversionPattern::OpConversionPattern;
+
+  LogicalResult matchAndRewrite(qref::PairOp op, OpAdaptor adaptor,
+                                ConversionPatternRewriter& rewriter) const override {
+    return replaceByQISCall(op, getQISFunction(op.getGateKind()), adaptor.getParams(),
+                            ValueRange{adaptor.getLhs(), adaptor.getRhs()}, rewriter);
+  }
+};
+
+struct MeasureLowering final : OpConversionPattern<qref::MeasureOp> {
+  using OpConversionPattern::OpConversionPattern;
+
+  LogicalResult matchAndRewrite(qref::MeasureOp op, OpAdaptor adaptor,
+                                ConversionPatternRewriter& rewriter) const override {
+    assert(op.getBasis() == Basis::Z && "the preconditions reject other bases");
     auto moduleOp = op->getParentOfType<ModuleOp>();
 
     auto mzFnDecl = moduleOp.lookupSymbol<LLVM::LLVMFuncOp>(qcc::qirQisMZ);
@@ -181,23 +245,23 @@ struct MeasureLowering : public OpConversionPattern<qc::MeasureOp> {
 
     // TODO: This holds only for HiSEP-Q.
     // NOTE: Qubit and result pointer share the same index.
-    auto qubit = op.getQubit();
-    auto qubitPtr = qubitToPtr(rewriter, qubit);
-    auto resultPtr = qubitToPtr(rewriter, qubit);
+    Value qubitPtr = adaptor.getQubit();
+    Value resultPtr = qubitPtr;
 
-    LLVM::CallOp::create(rewriter, op.getLoc(), mzFnDecl, {qubitPtr, resultPtr});
-    auto callReadOp = LLVM::CallOp::create(rewriter, op.getLoc(), readFnDecl, {resultPtr});
+    LLVM::CallOp::create(rewriter, op.getLoc(), mzFnDecl, ValueRange{qubitPtr, resultPtr});
+    auto callReadOp = LLVM::CallOp::create(rewriter, op.getLoc(), readFnDecl, ValueRange{resultPtr});
 
     rewriter.replaceOp(op, callReadOp);
     return success();
   }
 };
 
-struct ResetLowering : public OpConversionPattern<qc::ResetOp> {
-  using OpConversionPattern<qc::ResetOp>::OpConversionPattern;
+struct ResetLowering final : OpConversionPattern<qref::ResetOp> {
+  using OpConversionPattern::OpConversionPattern;
 
-  LogicalResult matchAndRewrite(qc::ResetOp op, OpAdaptor /*adaptor*/,
+  LogicalResult matchAndRewrite(qref::ResetOp op, OpAdaptor adaptor,
                                 ConversionPatternRewriter& rewriter) const override {
+    assert(op.getBasis() == Basis::Z && "the preconditions reject other bases");
     auto moduleOp = op->getParentOfType<ModuleOp>();
 
     auto resetFnDecl = moduleOp.lookupSymbol<LLVM::LLVMFuncOp>(qcc::qirQisReset);
@@ -205,8 +269,7 @@ struct ResetLowering : public OpConversionPattern<qc::ResetOp> {
       return emitMissingQIRDeclError(op, qcc::qirQisReset);
     }
 
-    auto qubitPtr = qubitToPtr(rewriter, op.getQubit());
-    LLVM::CallOp::create(rewriter, op.getLoc(), resetFnDecl, ValueRange{qubitPtr});
+    LLVM::CallOp::create(rewriter, op.getLoc(), resetFnDecl, ValueRange{adaptor.getQubit()});
     rewriter.eraseOp(op);
     return success();
   }
@@ -237,44 +300,6 @@ struct RecordIntLowering : public OpConversionPattern<aux::RecordIntOp> {
     LLVM::CallOp::create(rewriter, loc, TypeRange(), callee, ValueRange{adaptor.getValue(), addressOf});
 
     rewriter.eraseOp(op);
-    return success();
-  }
-};
-
-/// We rely on the fact that the signature of qc gates and the corresponding QIR QIS function fits.
-struct UnitaryLowering : public ConversionPattern {
-  UnitaryLowering(TypeConverter& converter, MLIRContext* ctx)
-      : ConversionPattern(converter, MatchAnyOpTypeTag(), 1, ctx) {}
-
-  LogicalResult matchAndRewrite(Operation* op, ArrayRef<Value> /*operands*/,
-                                ConversionPatternRewriter& rewriter) const override {
-    auto unitaryOp = dyn_cast<qc::UnitaryOpInterface>(op);
-    if (!unitaryOp || !isa<qc::QCDialect>(op->getDialect())) {
-      return failure();
-    }
-
-    auto moduleOp = op->getParentOfType<ModuleOp>();
-
-    auto qisName = mapUnitaryToQIS(unitaryOp);
-    if (qisName.empty()) {
-      return failure(); // diagnostic handled by legalizer
-    }
-
-    auto fnDecl = moduleOp.lookupSymbol<LLVM::LLVMFuncOp>(qisName);
-    if (!fnDecl) {
-      return emitMissingQIRDeclError(unitaryOp, qisName);
-    }
-
-    auto args = llvm::to_vector(unitaryOp.getParameters());
-
-    auto controlPtrs = qubitsToPtrs(rewriter, unitaryOp.getControls());
-    auto targetPtrs = qubitsToPtrs(rewriter, unitaryOp.getTargets());
-    args.append(controlPtrs);
-    args.append(targetPtrs);
-
-    LLVM::CallOp::create(rewriter, op->getLoc(), fnDecl, args);
-    rewriter.eraseOp(op);
-
     return success();
   }
 };
@@ -332,21 +357,25 @@ struct RecordMemrefLowering : public OpConversionPattern<aux::RecordMemRefOp> {
 
 namespace qcc {
 
-#define GEN_PASS_DEF_CONVERTQCTOQIR
+#define GEN_PASS_DEF_CONVERTQREFTOQIR
 #include "qcc/Conversion/ToQIR/ToQIR.h.inc"
 
 namespace {
 
-struct ConvertQCToQIR final : impl::ConvertQCToQIRBase<ConvertQCToQIR> {
-  using ConvertQCToQIRBase::ConvertQCToQIRBase;
+struct ConvertQRefToQIR final : impl::ConvertQRefToQIRBase<ConvertQRefToQIR> {
+  using ConvertQRefToQIRBase::ConvertQRefToQIRBase;
 
 protected:
   void runOnOperation() override {
     func::FuncOp funcOp = getOperation();
     auto* ctx = funcOp.getContext();
 
-    // TODO: assume that only entrypoints contain quantum ops.
-    if (!funcOp->hasAttr(qcc::entryPointAttrName)) {
+    if (failed(checkPreconditions())) {
+      return signalPassFailure();
+    }
+
+    // TODO: assume that only entrypoints contain quantum ops (checked above).
+    if (!isEntryPoint(funcOp)) {
       return;
     }
 
@@ -365,14 +394,14 @@ protected:
 
     ConversionTarget target(*ctx);
     target.addLegalDialect<LLVM::LLVMDialect>();
-    target.addIllegalDialect<qc::QCDialect>();
+    target.addIllegalDialect<qref::QRefDialect>();
     target.addIllegalDialect<qcc::aux::AuxDialect>();
-    target.addLegalOp<qc::StaticOp>(); // take care of slightly later.
+    target.addIllegalOp<StaticRefOp>();
 
-    QCToQIRTypeConverter typeConverter(ctx);
+    QRefToQIRTypeConverter typeConverter(ctx);
     RewritePatternSet patterns(ctx);
-    patterns.add<UnitaryLowering, MeasureLowering, RecordIntLowering, RecordMemrefLowering, ResetLowering>(
-        typeConverter, ctx);
+    patterns.add<StaticRefLowering, SingleLowering, PairLowering, MeasureLowering, ResetLowering, RecordIntLowering,
+                 RecordMemrefLowering>(typeConverter, ctx);
 
     // TODO: This used to reconcile unrealized conversion casts for us. But it
     // seems wrong to run it at the function scope. See issue
@@ -382,11 +411,39 @@ protected:
     if (failed(applyPartialConversion(funcOp, target, std::move(patterns)))) {
       return signalPassFailure();
     }
-
-    removeQCStaticOps();
   }
 
 private:
+  /// Checks that only entry points hold qubit references, that every qubit is a static qubit used only by qref ops,
+  /// and that these ops have QIR counterparts.
+  LogicalResult checkPreconditions() {
+    func::FuncOp funcOp = getOperation();
+    if (llvm::any_of(funcOp.getArgumentTypes(), isQubitRefOrArray)) {
+      return funcOp.emitOpError() << "has a qubit reference argument, which " << getArgument() << " does not support";
+    }
+
+    const bool entryPoint = isEntryPoint(funcOp);
+    const WalkResult result = funcOp.walk<WalkOrder::PreOrder>([&](Operation* op) {
+      if (!holdsQubitRefs(op)) {
+        return WalkResult::advance();
+      }
+      if (!entryPoint) {
+        op->emitOpError() << "uses qubit references outside an entry point, which " << getArgument()
+                          << " does not support";
+        return WalkResult::interrupt();
+      }
+      if (isa<StaticRefOp>(op)) {
+        return WalkResult::advance();
+      }
+      if (isa_and_present<qref::QRefDialect>(op->getDialect())) {
+        return succeeded(checkSupported(op, getArgument())) ? WalkResult::advance() : WalkResult::interrupt();
+      }
+      op->emitOpError() << "is not supported by " << getArgument() << " on qubit references";
+      return WalkResult::interrupt();
+    });
+    return failure(result.wasInterrupted());
+  }
+
   LogicalResult insertRtInit() {
     func::FuncOp funcOp = getOperation();
     auto moduleOp = funcOp->getParentOfType<ModuleOp>();
@@ -409,12 +466,14 @@ private:
     return llvm::success();
   }
 
-  uint64_t getRequiredNumQubits() {
+  /// The highest index of a static qubit plus one.
+  int64_t getRequiredNumQubits() {
     const func::FuncOp funcOp = getOperation();
-    uint64_t numQubits = 0;
-    funcOp->walk([&](qc::StaticOp op) -> void {
-      auto index = op.getIndex();
-      numQubits = std::max(numQubits, index + 1);
+    int64_t numQubits = 0;
+    funcOp->walk([&](StaticRefOp op) -> void {
+      for (const int64_t index : op.getIndices()) {
+        numQubits = std::max(numQubits, index + 1);
+      }
     });
     return numQubits;
   }
@@ -442,10 +501,6 @@ private:
     funcOp->setAttr("llvm." + qcc::passthroughAttrName.str(), builder.getArrayAttr(passthrough));
 
     return success();
-  }
-
-  void removeQCStaticOps() {
-    getOperation()->walk([](qc::StaticOp op) { op.erase(); });
   }
 };
 

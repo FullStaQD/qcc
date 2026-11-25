@@ -26,7 +26,6 @@
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/Block.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/BuiltinTypeInterfaces.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/Region.h"
@@ -52,17 +51,9 @@ namespace qcc {
 
 using namespace mlir;
 
-/// Whether `type` is a qubit reference or holds them, e.g. an array of qubits.
-static bool holdsQubitRefs(Type type) {
-  if (auto shaped = dyn_cast<ShapedType>(type)) {
-    type = shaped.getElementType();
-  }
-  return isa<QubitRefType>(type);
-}
-
 /// Whether an operand, a result or a block argument of a region of `op` holds qubit references.
 static bool holdsQubitRefs(Operation* op) {
-  auto holds = [](Value value) { return holdsQubitRefs(value.getType()); };
+  auto holds = [](Value value) { return isQubitRefOrArray(value.getType()); };
   return llvm::any_of(op->getOperands(), holds) || llvm::any_of(op->getResults(), holds) ||
          llvm::any_of(op->getRegions(), [&](Region& region) {
            return llvm::any_of(region, [&](Block& block) { return llvm::any_of(block.getArguments(), holds); });
@@ -146,7 +137,7 @@ private:
     if (!body.hasOneBlock()) {
       return func.emitOpError() << "has multiple blocks, which " << passName << " does not support";
     }
-    if (llvm::any_of(func.getArgumentTypes(), [](Type type) { return holdsQubitRefs(type); })) {
+    if (llvm::any_of(func.getArgumentTypes(), isQubitRefOrArray)) {
       return func.emitOpError() << "has a qubit reference argument, which " << passName << " does not support";
     }
 
