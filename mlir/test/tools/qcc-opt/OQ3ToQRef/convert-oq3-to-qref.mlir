@@ -239,7 +239,7 @@ module attributes {oq3.version = #oq3.version<3, 1>} {
 
 // -----
 
-// Without a `dlti.dl_spec`, the unsized `int` is `i64` and `float` is `f64`.
+// Without a `dlti.dl_spec`, the native `int` is `i64` and `float` is `f64`.
 
 // CHECK-LABEL: func.func @default_word_size
 module attributes {oq3.version = #oq3.version<3, 1>} {
@@ -255,11 +255,11 @@ module attributes {oq3.version = #oq3.version<3, 1>} {
 
 // -----
 
-// The unsized `int` and `float` have the target's word size (32 in this case).
+// The native `int` and `float` have the widths that the data layout gives them (32 bits each in this case).
 // An angle stays `f64`, the type of gate parameters.
 
 // CHECK-LABEL: func.func @data_layout_word_size
-module attributes {dlti.dl_spec = #dlti.dl_spec<index = 32>} {
+module attributes {dlti.dl_spec = #dlti.dl_spec<!oq3.int = 32, !oq3.float = 32>} {
   func.func @data_layout_word_size() attributes {qcc.entry_point} {
     %int = oq3.constant #oq3.int<2> : !oq3.int
     %float = oq3.constant #oq3.float<"0.5"> : !oq3.float
@@ -271,6 +271,38 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<index = 32>} {
 // CHECK:         arith.constant 2 : i32
 // CHECK-NEXT:    %[[F:.*]] = arith.constant 5.000000e-01 : f32
 // CHECK-NEXT:    arith.extf %[[F]] : f32 to f64
+
+// -----
+
+// `int` and `float` have independent widths: a 32-bit integer next to a 64-bit float.
+
+// CHECK-LABEL: func.func @independent_widths
+module attributes {dlti.dl_spec = #dlti.dl_spec<!oq3.int = 32, !oq3.float = 64>} {
+  func.func @independent_widths() attributes {qcc.entry_point} {
+    %int = oq3.constant #oq3.int<2> : !oq3.int
+    %float = oq3.constant #oq3.float<"0.5"> : !oq3.float
+    return
+  }
+}
+
+// CHECK:         arith.constant 2 : i32
+// CHECK-NEXT:    arith.constant 5.000000e-01 : f64
+
+// -----
+
+// Without an entry for `!oq3.int`, its width is that of `index`. `float` does not follow `index`.
+
+// CHECK-LABEL: func.func @index_fallback
+module attributes {dlti.dl_spec = #dlti.dl_spec<index = 32>} {
+  func.func @index_fallback() attributes {qcc.entry_point} {
+    %int = oq3.constant #oq3.int<2> : !oq3.int
+    %float = oq3.constant #oq3.float<"0.5"> : !oq3.float
+    return
+  }
+}
+
+// CHECK:         arith.constant 2 : i32
+// CHECK-NEXT:    arith.constant 5.000000e-01 : f64
 
 // -----
 

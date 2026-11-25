@@ -265,7 +265,7 @@ module attributes {oq3.version = #oq3.version<3, 1>} {
   func.func @main() attributes {qcc.entry_point} {
     %c = oq3.declare "c" : !qcc.ref<!oq3.bit>
     %bit = qcc.ref.load %c : !qcc.ref<!oq3.bit>
-    // expected-error @below {{'oq3.qubit_decl' op designator must be an unsized integer, got '!oq3.bit'}}
+    // expected-error @below {{'oq3.qubit_decl' op designator must be a native integer, got '!oq3.bit'}}
     %q = oq3.qubit_decl "q" [%bit : !oq3.bit] : !oq3.qreg<1>
     return
   }
@@ -453,7 +453,7 @@ module attributes {oq3.version = #oq3.version<3, 1>} {
     %two = oq3.constant #oq3.int<2> : !oq3.int
     %q = oq3.qubit_decl "q" [%two : !oq3.int] : !oq3.qreg<2>
     %zero = oq3.constant #oq3.float<"0.0"> : !oq3.float
-    // expected-error @below {{'oq3.qubit_index' op index must be an unsized integer, got '!oq3.float'}}
+    // expected-error @below {{'oq3.qubit_index' op index must be a native integer, got '!oq3.float'}}
     %q0 = oq3.qubit_index %q[%zero] : !oq3.qreg<2>, !oq3.float
     return
   }
@@ -531,3 +531,22 @@ module attributes {oq3.version = #oq3.version<3, 1>} {
 
 // expected-error @below {{size must be non-negative, got -1}}
 func.func private @f() -> !oq3.qreg<-1>
+
+//===----------------------------------------------------------------------===//
+// Data layout of the native types
+//===----------------------------------------------------------------------===//
+
+// -----
+
+// expected-error @below {{the data layout entry for '!oq3.int' must be a positive integer}}
+module attributes {dlti.dl_spec = #dlti.dl_spec<!oq3.int = 0>} {}
+
+// -----
+
+// expected-error @below {{the data layout entry for '!oq3.int' must be a positive integer}}
+module attributes {dlti.dl_spec = #dlti.dl_spec<!oq3.int = "wide">} {}
+
+// -----
+
+// expected-error @below {{the data layout entry for '!oq3.float' must be 16, 32, 64 or 128}}
+module attributes {dlti.dl_spec = #dlti.dl_spec<!oq3.float = 48>} {}

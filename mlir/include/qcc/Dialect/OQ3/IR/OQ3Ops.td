@@ -216,7 +216,7 @@ def OQ3_ConstantOp : OQ3_Op<"constant", [Pure, AllTypesMatch<["value", "result"]
   let summary = "literal";
   let description = [{
         An integer (`#oq3.int`), floating-point (`#oq3.float`), or bitstring (`#oq3.bitstring`) literal. Integer and
-        floating-point literals have the unsized types `!oq3.int` and `!oq3.float`, a bitstring of `n` bits has type
+        floating-point literals have the native types `!oq3.int` and `!oq3.float`, a bitstring of `n` bits has type
         `!oq3.bits<n>`.
 
         Example:
@@ -245,7 +245,7 @@ def OQ3_MathConstantOp : OQ3_Op<"math_constant", [Pure]> {
     }];
 
   let arguments = (ins OQ3_MathConstantKindAttr:$kind);
-  let results = (outs OQ3_UnsizedFloatType:$result);
+  let results = (outs OQ3_NativeFloatType:$result);
   let assemblyFormat = "$kind attr-dict `:` qualified(type($result))";
 }
 

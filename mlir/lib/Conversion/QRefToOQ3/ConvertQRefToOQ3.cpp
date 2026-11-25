@@ -221,7 +221,7 @@ FailureOr<Value> Translator::lookupAngle(Value value, Operation* user) {
   if (failed(translatedValue)) {
     return failure();
   }
-  if (!isa<UnsizedFloatType>(translatedValue->getType())) {
+  if (!isa<NativeFloatType>(translatedValue->getType())) {
     return user->emitError() << "expected a floating-point angle, got " << translatedValue->getType();
   }
   return createAngle(user->getLoc(), *translatedValue);
@@ -230,17 +230,17 @@ FailureOr<Value> Translator::lookupAngle(Value value, Operation* user) {
 Value Translator::createInt(Location loc, const llvm::APInt& value) {
   MLIRContext* context = builder.getContext();
   if (value.isNegative()) {
-    Value magnitude = ConstantOp::create(builder, loc, IntLiteralAttr::get(-value, UnsizedIntType::get(context)));
+    Value magnitude = ConstantOp::create(builder, loc, IntLiteralAttr::get(-value, NativeIntType::get(context)));
     return UnaryOp::create(builder, loc, UnaryKind::Neg, magnitude);
   }
-  return ConstantOp::create(builder, loc, IntLiteralAttr::get(value, UnsizedIntType::get(context)));
+  return ConstantOp::create(builder, loc, IntLiteralAttr::get(value, NativeIntType::get(context)));
 }
 
 Value Translator::createFloat(Location loc, const llvm::APFloat& value) {
   MLIRContext* context = builder.getContext();
   const std::string text = formatFloat(llvm::abs(value));
   Value magnitude =
-      ConstantOp::create(builder, loc, FloatLiteralAttr::get(context, text, UnsizedFloatType::get(context)));
+      ConstantOp::create(builder, loc, FloatLiteralAttr::get(context, text, NativeFloatType::get(context)));
   if (value.isNegative()) {
     return UnaryOp::create(builder, loc, UnaryKind::Neg, magnitude);
   }
@@ -253,8 +253,8 @@ Value Translator::createAngle(Location loc, Value floatValue) {
 
 Value Translator::createNegHalfPi(Location loc) {
   MLIRContext* context = builder.getContext();
-  Value pi = MathConstantOp::create(builder, loc, UnsizedFloatType::get(context), MathConstantKind::Pi);
-  Value two = CastOp::create(builder, loc, UnsizedFloatType::get(context), createInt(loc, llvm::APInt(64, 2)),
+  Value pi = MathConstantOp::create(builder, loc, NativeFloatType::get(context), MathConstantKind::Pi);
+  Value two = CastOp::create(builder, loc, NativeFloatType::get(context), createInt(loc, llvm::APInt(64, 2)),
                              /*implicit=*/true);
   Value half = BinaryOp::create(builder, loc, pi.getType(), BinaryKind::Div, pi, two);
   return createAngle(loc, UnaryOp::create(builder, loc, UnaryKind::Neg, half));
@@ -324,7 +324,7 @@ LogicalResult Translator::translate(Operation* op) {
           return failure();
         }
         values[convert.getResult()] =
-            CastOp::create(builder, loc, UnsizedFloatType::get(context), *operand, /*implicit=*/true);
+            CastOp::create(builder, loc, NativeFloatType::get(context), *operand, /*implicit=*/true);
         return success();
       })
       .Case<arith::IndexCastOp, arith::ExtSIOp>([&](Operation*) { return forward(); })
@@ -646,22 +646,6 @@ LogicalResult Translator::translateMeasure(qref::MeasureOp op) {
 // Pass
 //===----------------------------------------------------------------------===//
 
-/// The IEEE 754 binary floating-point type of `width` bits, the target's `float`, or null if there is none.
-static Type getFloatType(MLIRContext* context, unsigned width) {
-  switch (width) {
-  case 16:
-    return Float16Type::get(context);
-  case 32:
-    return Float32Type::get(context);
-  case 64:
-    return Float64Type::get(context);
-  case 128:
-    return Float128Type::get(context);
-  default:
-    return {};
-  }
-}
-
 namespace {
 
 struct ConvertQRefToOQ3 final : qcc::impl::ConvertQRefToOQ3Base<ConvertQRefToOQ3> {
@@ -698,14 +682,10 @@ protected:
       }
     }
 
-    const unsigned wordSize =
-        static_cast<unsigned>(DataLayout::closest(module).getTypeSizeInBits(IndexType::get(context)).getFixedValue());
-    Type floatType = getFloatType(context, wordSize);
-    if (floatType == nullptr) {
-      module.emitError() << "there is no " << wordSize << "-bit 'float' for the target's word size";
-      signalPassFailure();
-      return;
-    }
+    // NOLINTNEXTLINE(cppcoreguidelines-slicing)
+    const Type floatType = getFloatTypeOfWidth(
+        context, static_cast<unsigned>(
+                     DataLayout::closest(module).getTypeSizeInBits(NativeFloatType::get(context)).getFixedValue()));
     if (failed(Translator(entry, floatType).run())) {
       signalPassFailure();
       return;

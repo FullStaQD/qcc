@@ -19,6 +19,7 @@
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/SymbolTable.h"
 #include "mlir/IR/Visitors.h"
+#include "mlir/Interfaces/DataLayoutInterfaces.h"
 
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/DenseMap.h"
@@ -27,6 +28,8 @@
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/TypeSwitch.h" // IWYU pragma: keep
 #include "llvm/Support/Error.h"
+#include "llvm/Support/MathExtras.h"
+#include "llvm/Support/TypeSize.h"
 
 #include <optional>
 #include <string>
@@ -43,6 +46,86 @@ using namespace qcc::oq3;
 
 #define GET_ATTRDEF_CLASSES
 #include "qcc/Dialect/OQ3/IR/OQ3Attrs.cpp.inc"
+
+//===----------------------------------------------------------------------===//
+// Data layout of the native types
+//===----------------------------------------------------------------------===//
+
+FloatType qcc::oq3::getFloatTypeOfWidth(MLIRContext* context, unsigned width) {
+  switch (width) {
+  case 16:
+    return Float16Type::get(context);
+  case 32:
+    return Float32Type::get(context);
+  case 64:
+    return Float64Type::get(context);
+  case 128:
+    return Float128Type::get(context);
+  default:
+    return {};
+  }
+}
+
+static std::optional<uint64_t> getEntryWidth(DataLayoutEntryListRef params) {
+  for (DataLayoutEntryInterface entry : params) {
+    if (auto width = dyn_cast<IntegerAttr>(entry.getValue())) {
+      return width.getValue().getZExtValue();
+    }
+  }
+  return std::nullopt;
+}
+
+template <typename IsValid>
+static LogicalResult verifyWidthEntries(DataLayoutEntryListRef entries, Location loc, StringRef requirement,
+                                        IsValid isValid) {
+  for (DataLayoutEntryInterface entry : entries) {
+    if (!entry.isTypeEntry()) {
+      continue;
+    }
+    auto width = dyn_cast<IntegerAttr>(entry.getValue());
+    if (!width || !isValid(width.getValue())) {
+      return emitError(loc) << "the data layout entry for " << cast<Type>(entry.getKey()) << " must be " << requirement;
+    }
+  }
+  return success();
+}
+
+/// The number of bytes used to store `bits` many bits.
+static uint64_t getScalarAlignment(uint64_t bits) { return llvm::PowerOf2Ceil(llvm::divideCeil(bits, 8)); }
+
+llvm::TypeSize NativeIntType::getTypeSizeInBits(const DataLayout& dataLayout, DataLayoutEntryListRef params) const {
+  if (const std::optional<uint64_t> width = getEntryWidth(params)) {
+    return llvm::TypeSize::getFixed(*width);
+  }
+  return dataLayout.getTypeSizeInBits(IndexType::get(getContext()));
+}
+
+uint64_t NativeIntType::getABIAlignment(const DataLayout& dataLayout, DataLayoutEntryListRef params) const {
+  return getScalarAlignment(getTypeSizeInBits(dataLayout, params).getFixedValue());
+}
+
+// NOLINTNEXTLINE(readability-convert-member-functions-to-static): signature is declared by TableGen
+LogicalResult NativeIntType::verifyEntries(DataLayoutEntryListRef entries, Location loc) const {
+  return verifyWidthEntries(entries, loc, "a positive integer", [](const APInt& width) {
+    return width.isStrictlyPositive() && width.getActiveBits() <= IntegerType::kMaxWidth;
+  });
+}
+
+// NOLINTNEXTLINE(readability-convert-member-functions-to-static): signature is declared by TableGen
+llvm::TypeSize NativeFloatType::getTypeSizeInBits(const DataLayout& /*dataLayout*/,
+                                                  DataLayoutEntryListRef params) const {
+  return llvm::TypeSize::getFixed(getEntryWidth(params).value_or(defaultWidth));
+}
+
+uint64_t NativeFloatType::getABIAlignment(const DataLayout& dataLayout, DataLayoutEntryListRef params) const {
+  return getScalarAlignment(getTypeSizeInBits(dataLayout, params).getFixedValue());
+}
+
+LogicalResult NativeFloatType::verifyEntries(DataLayoutEntryListRef entries, Location loc) const {
+  return verifyWidthEntries(entries, loc, "16, 32, 64 or 128", [&](const APInt& width) {
+    return width.getActiveBits() <= 32 && getFloatTypeOfWidth(getContext(), width.getZExtValue()) != nullptr;
+  });
+}
 
 //===----------------------------------------------------------------------===//
 // Dialect
@@ -393,7 +476,7 @@ void IntLiteralAttr::print(AsmPrinter& printer) const {
 // The signature is generated, so the parameter cannot be taken by reference.
 // NOLINTNEXTLINE(performance-unnecessary-value-param)
 LogicalResult IntLiteralAttr::verify(function_ref<InFlightDiagnostic()> emitError, APInt /*value*/, Type type) {
-  if (!isa<UnsizedIntType>(type)) {
+  if (!isa<NativeIntType>(type)) {
     return emitError() << "an integer literal has type '!oq3.int', got " << type;
   }
   return success();
@@ -408,7 +491,7 @@ LogicalResult FloatLiteralAttr::verify(function_ref<InFlightDiagnostic()> emitEr
   if (!decimal || !parses) {
     return emitError() << "expected the text of a floating-point literal, got '" << text << "'";
   }
-  if (!isa<UnsizedFloatType>(type)) {
+  if (!isa<NativeFloatType>(type)) {
     return emitError() << "a floating-point literal has type '!oq3.float', got " << type;
   }
   return success();

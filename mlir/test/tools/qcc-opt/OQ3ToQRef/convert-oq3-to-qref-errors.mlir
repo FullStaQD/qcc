@@ -25,8 +25,8 @@ func.func @lower_float() attributes {qcc.entry_point} {
 
 // -----
 
-// The target's word size defines the width of `int`.
-module attributes {dlti.dl_spec = #dlti.dl_spec<index = 32>} {
+// The data layout defines the width of `int`.
+module attributes {dlti.dl_spec = #dlti.dl_spec<!oq3.int = 32, !oq3.float = 32>} {
   func.func @lower_int_32() attributes {qcc.entry_point} {
     %r = oq3.declare "r" : !qcc.ref<!oq3.bit>
     // expected-error @+1 {{the integer literal does not fit into the 32 bits of 'int'}}
@@ -40,7 +40,7 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<index = 32>} {
 // -----
 
 // ... and of `float`.
-module attributes {dlti.dl_spec = #dlti.dl_spec<index = 32>} {
+module attributes {dlti.dl_spec = #dlti.dl_spec<!oq3.int = 32, !oq3.float = 32>} {
   func.func @lower_float_32() attributes {qcc.entry_point} {
     %q = oq3.qubit_decl "q" : !qcc.qubit_ref
     // expected-error @+1 {{the floating-point literal does not fit into the 32 bits of 'float'}}
@@ -53,8 +53,8 @@ module attributes {dlti.dl_spec = #dlti.dl_spec<index = 32>} {
 
 // -----
 
-// expected-error @+1 {{there is no 24-bit 'float' for the target's word size}}
-module attributes {dlti.dl_spec = #dlti.dl_spec<index = 24>} {
+// expected-error @+1 {{the data layout entry for '!oq3.float' must be 16, 32, 64 or 128}}
+module attributes {dlti.dl_spec = #dlti.dl_spec<!oq3.float = 24>} {
   func.func @lower_float_24() attributes {qcc.entry_point} {
     return
   }

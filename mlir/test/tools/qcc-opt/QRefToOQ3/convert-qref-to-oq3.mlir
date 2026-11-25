@@ -117,8 +117,8 @@ func.func @negative_constants() attributes {qcc.entry_point} {
 // The module keeps the target's data layout. An existing OpenQASM version is not replaced.
 // The `f32` widened to an `f64` gate parameter is the target's `float`, cast to an angle implicitly.
 
-// CHECK-LABEL: module attributes {dlti.dl_spec = #dlti.dl_spec<index = 32 : i64>, oq3.version = #oq3.version<3, 0>}
-module attributes {oq3.version = #oq3.version<3, 0>, dlti.dl_spec = #dlti.dl_spec<index = 32>} {
+// CHECK-LABEL: module attributes {dlti.dl_spec = #dlti.dl_spec<!oq3.int = 32 : i64, !oq3.float = 32 : i64>, oq3.version = #oq3.version<3, 0>}
+module attributes {oq3.version = #oq3.version<3, 0>, dlti.dl_spec = #dlti.dl_spec<!oq3.int = 32, !oq3.float = 32>} {
   func.func @kept_module_attributes() attributes {qcc.entry_point} {
     %q = qcc.alloc : !qcc.qubit_ref
     %a = arith.constant 0.1 : f32
