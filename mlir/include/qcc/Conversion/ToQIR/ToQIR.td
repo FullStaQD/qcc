@@ -42,12 +42,11 @@ def ConvertQRefToQIR : Pass<"convert-qref-to-qir", "mlir::func::FuncOp"> {
       - TODO: To support some kind of output recording: We lower `aux.record_bool` to the
         bool recording function. Currently no other output recording function are in use.
 
-      The pass does not decompose gates. It supports the gates `x`, `h`, `rz`, `s`, `sdg`, `t`, `tdg` and `cx`, and
-      measurements and resets in basis `z`; anything else makes it fail.
+      The pass only translates gates 1:1 and never decomposes them. It fails if this is not possible.
 
       Preconditions:
-      - Every qubit is a static qubit: it comes from `qcc.static_ref`, not from `qcc.alloc`, an argument or an array.
-        Only gates, measurements and resets use it.
+      - Every qubit is a static qubit: it comes from `qcc.static_ref` an argument or an array. Only gates, measurements
+        and resets use it.
       - Only entry points (functions marked `qcc.entry_point`) use qubits; the pass leaves other functions alone.
         TODO: Before we extend support we have to figure out how to do qubit mapping across function calls.
 

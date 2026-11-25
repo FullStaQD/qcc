@@ -374,7 +374,7 @@ protected:
       return signalPassFailure();
     }
 
-    // TODO: assume that only entrypoints contain quantum ops (checked above).
+    // The precondition check above ensures that only entry point functions hold qubits.
     if (!isEntryPoint(funcOp)) {
       return;
     }
