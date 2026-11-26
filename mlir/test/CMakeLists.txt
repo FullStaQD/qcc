@@ -12,8 +12,7 @@ set(MLIR_COMPILER_TEST_DEPENDS
 
 if(QCC_ENABLE_HISEPQ)
   set(QCC_ENABLE_HISEPQ_PY True) # for lit config
-  # Testing HiSEP-Q links with `ld.lld` and runs the program on the RTL testbench `sim_hisepq`. Only a build that cannot
-  # provide them (the release build) opts out, which skips the tests that need them.
+  # HiSEP-Q tests need `ld.lld` and `sim_hisepq`. Builds that can't provide them, like the release build, turn this off.
   option(QCC_HISEPQ_SIM_TESTS "Run the HiSEP-Q tests that need ld.lld and sim_hisepq (then both are required)" ON)
   if(QCC_HISEPQ_SIM_TESTS)
     set(QCC_HISEPQ_SIM_TESTS_PY True) # for lit config

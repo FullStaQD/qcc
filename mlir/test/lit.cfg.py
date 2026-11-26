@@ -79,12 +79,11 @@ if not found:
 if config.enable_hisepq:
     llvm_config.add_tool_substitutions(["hisepq-elf2mem"], [str(candidate_dir)])
 
-    # Testing HiSEP-Q links with `ld.lld` and runs the program on the prebuilt RTL
-    # testbench `sim_hisepq`, so both are required. Provision the testbench with
-    # `utils/provision-sim-hisepq`, or point CMake at your own build via
-    # `-DQCC_SIM_HISEPQ_EXECUTABLE=...`. Only a build that cannot provide them
-    # (the release build) opts out with `-DQCC_HISEPQ_SIM_TESTS=OFF`, which
-    # skips the tests that need them (`REQUIRES: hisepq-sim`).
+    # HiSEP-Q tests link with `ld.lld` and run on the testbench `sim_hisepq`, so
+    # both are required. Get the testbench with `utils/provision-sim-hisepq`, or
+    # set `-DQCC_SIM_HISEPQ_EXECUTABLE`. Builds that can't provide them, like
+    # the release build, set `-DQCC_HISEPQ_SIM_TESTS=OFF`. That skips the tests
+    # with `REQUIRES: hisepq-sim`.
     if config.hisepq_sim_tests:
         opt_out = "or configure with -DQCC_HISEPQ_SIM_TESTS=OFF to skip the tests that need it"
         sim_hisepq = config.sim_hisepq_executable

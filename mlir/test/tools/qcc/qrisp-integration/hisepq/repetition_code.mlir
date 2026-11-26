@@ -1,6 +1,6 @@
 // RUN: qcc --target=hisepq --compile-to=native %s | FileCheck %s
 
-// The program also runs on the simulator, see `target-hisepq/simulate-repetition-code.mlir`.
+// `target-hisepq/simulate-repetition-code.mlir` runs this program on the simulator.
 
 // GENERATED FROM QRISP VERSION 0.9.6
 

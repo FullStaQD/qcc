@@ -1,9 +1,7 @@
 // REQUIRES: hisepq-sim
 
-// Runs `qrisp-integration/hisepq/repetition_code.mlir` on the simulator, with the outcomes of an ideal device:
-// syndrome 11 in round 1, both ancillas still 1 when reset, syndrome 00 in round 2 and 000 for the data qubits. The
-// testbench fails unless the pulses are those listed: the error, two rounds of four CX, the correction of qubit 1, the
-// ancilla resets and the measurements. For the plusargs and the file formats see `mlir/lib/Target/HiSEPQ/README.md`.
+// Runs `qrisp-integration/hisepq/repetition_code.mlir` with the outcomes of an ideal device and checks the pulses.
+// The file formats are described in `mlir/lib/Target/HiSEPQ/README.md`.
 
 // RUN: qcc --target=hisepq --compile-to=native --binary %S/../qrisp-integration/hisepq/repetition_code.mlir -o %t.o
 // RUN: ld.lld -T %project_source_dir/mlir/lib/Target/HiSEPQ/Scripts/hisepq.ld %t.o -o %t.elf

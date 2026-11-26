@@ -1,8 +1,8 @@
 // REQUIRES: hisepq-sim
 
-// The program branches on a measurement outcome, which the testbench injects via `+MEASURE_RESULT=0|1`. The testbench
-// also compares the pulses with those in `+AWG_EXPECT`, in any order, and fails on any missing or unexpected one. Only
-// outcome 1 adds the X. For the plusargs and the file format see `mlir/lib/Target/HiSEPQ/README.md`.
+// The program branches on a measurement outcome, which the testbench injects via `+MEASURE_RESULT=0|1`. Only outcome
+// 1 fires the X. The testbench fails on missing or extra pulses, but doesn't check their order. The file format is
+// described in `mlir/lib/Target/HiSEPQ/README.md`.
 
 // RUN: qcc --target=hisepq --compile-to=native --binary %s -o %t.o
 // RUN: ld.lld -T %project_source_dir/mlir/lib/Target/HiSEPQ/Scripts/hisepq.ld %t.o -o %t.elf

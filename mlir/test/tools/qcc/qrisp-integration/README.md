@@ -56,11 +56,9 @@ The tests simulate the compiled program with `mlir/utils/magic-runner` (see its 
 
 ### Notes for `hisepq/`
 
-These tests run only in builds with the HiSEP-Q target, and they check the generated instructions. A test in
-`target-hisepq/` can also run such a program on the RTL testbench `sim_hisepq` (`REQUIRES: hisepq-sim`), as
-`simulate-repetition-code.mlir` does. It has no quantum state, so the test supplies the measurement outcomes and checks
-how the program reacts to them, not which outcomes it produces. See
-[the HiSEP-Q docs](../../../../lib/Target/HiSEPQ/README.md#simulating-with-sim_hisepq) for how to run it.
+These tests run only in builds with the HiSEP-Q target and check the generated instructions. Tests in `target-hisepq/`
+can also run these programs on the testbench `sim_hisepq`, like `simulate-repetition-code.mlir` does. How that works is
+described in [the HiSEP-Q docs](../../../../lib/Target/HiSEPQ/README.md#simulating-with-sim_hisepq).
 
 ## Performance considerations for simulation
 
