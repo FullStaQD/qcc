@@ -15,6 +15,7 @@
 
 #include "qcc/Target/HiSEPQ/HiSEPQTarget.h"
 
+#include "qcc/Conversion/Aux_/AuxOutputRecording.h"
 #include "qcc/Conversion/QCToQRef/QCToQRef.h"
 #include "qcc/Conversion/QCircToQVec/QCircToQVec.h"
 #include "qcc/Conversion/QRefToQCirc/QRefToQCirc.h"
@@ -161,6 +162,10 @@ mlir::LogicalResult addLoweringPassesHiSEPQ(mlir::PassManager& pm, llvm::ArrayRe
   if (!machine) {
     return mlir::failure();
   }
+
+  // The results of the entry point become `aux.record_*`, as for the QIR target, so that it returns nothing.
+  // TODO: `convert-qvec-to-hisepq-intrinsics` erases them until HiSEP-Q specifies how a program reports its results.
+  pm.addPass(qcc::createAuxOutputRecording());
 
   // qc -> qref -> qcirc -> qvec -> QV intrinsics
   mlir::OpPassManager& toQVec = pm.nest<mlir::func::FuncOp>();

@@ -37,16 +37,15 @@ builtin.module @jasp_module {
 
 // On HiSEP-Q the `scf.while` above is unrolled into the two `cx` gates, one per qubit index vector, and the three
 // measurements -- being independent of each other -- are packed into as few instructions as the ordering allows.
-// Each instruction's outcomes are read from `qv.mres` right after it, and `main` returns them as one integer.
 
 // CHECK-LABEL: main:
 // CHECK:         qv.h  [[Q0:v[0-9]+]], zero, 0
 // CHECK:         qv.cx [[Q0]], [[Q1:v[0-9]+]], 0
 // CHECK:         qv.cx [[Q1]], {{v[0-9]+}}, 0
 // CHECK:         qv.mz [[Q0]], zero, 0
-// CHECK:         csrr {{a[0-9]+}}, qv.mres
+// CHECK-NEXT:    csrr {{[a-z0-9]+}}, qv.mres
 // Qubits 1 and 2 measured by a single instruction -- note the `vl` of 2.
 // CHECK:         vsetivli zero, 2, e8, mf4, ta, ma
 // CHECK:         qv.mz {{v[0-9]+}}, zero, 0
-// CHECK:         csrr {{a[0-9]+}}, qv.mres
+// CHECK-NEXT:    csrr {{[a-z0-9]+}}, qv.mres
 // CHECK:         ret

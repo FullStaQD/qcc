@@ -65,7 +65,12 @@ def EmitHiSEPQStart : Pass<"emit-hisepq-start", "mlir::ModuleOp"> {
       (`hisepq.ld`), which declares `ENTRY(_start)`, pulls `.text._start` to
       the boot address and provides `__stack_top`.
 
-      Assumes that *exactly* one function is tagged entry point.
+      Assumes that *exactly* one function is tagged entry point. `_start`
+      calls it from inline assembly without following the calling convention,
+      so it must take no arguments and return at most an exit code in
+      registers, i.e. an integer of up to 64 bits, which `_start` ignores.
+      The results of a Qrisp program are recorded instead (see
+      `convert-return-to-output-recording`).
 
       TODO: Drop this pass once HiSEP-Q ships a crt0. Then qcc can emit a plain
       `main` and leave the startup code to the runtime.

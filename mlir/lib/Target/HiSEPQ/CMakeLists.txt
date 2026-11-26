@@ -27,6 +27,7 @@ add_mlir_library(
   # files which then cause unknown symbols errors during linking if we do not add the openmp dialect library.
   MLIROpenMPDialect
   QCCTargetQIR
+  QCCAuxOutputRecording
   QCCQCToQRef
   QCCQCircToQVec
   QCCQRefToQCirc
