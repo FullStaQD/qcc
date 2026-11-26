@@ -170,7 +170,7 @@ static void insertRtTupleRecord(func::FuncOp funcOp, Operation* firstRecordOp, i
 /// QIS function fits: the angles first, then the qubits in the order of the gate (the control first).
 static LogicalResult replaceByQISCall(Operation* op, StringRef qisName, ValueRange params, ValueRange qubitPtrs,
                                       ConversionPatternRewriter& rewriter) {
-  assert(!qisName.empty() && "the preconditions reject gates outside the native gate set");
+  assert(!qisName.empty() && "the preconditions rule out gates outside the native gate set");
   auto fnDecl = op->getParentOfType<ModuleOp>().lookupSymbol<LLVM::LLVMFuncOp>(qisName);
   if (!fnDecl) {
     return emitMissingQIRDeclError(op, qisName);
@@ -230,7 +230,7 @@ struct MeasureLowering final : OpConversionPattern<qref::MeasureOp> {
 
   LogicalResult matchAndRewrite(qref::MeasureOp op, OpAdaptor adaptor,
                                 ConversionPatternRewriter& rewriter) const override {
-    assert(op.getBasis() == Basis::Z && "the preconditions reject other bases");
+    assert(op.getBasis() == Basis::Z && "the preconditions rule out other bases");
     auto moduleOp = op->getParentOfType<ModuleOp>();
 
     auto mzFnDecl = moduleOp.lookupSymbol<LLVM::LLVMFuncOp>(qcc::qirQisMZ);
@@ -261,7 +261,7 @@ struct ResetLowering final : OpConversionPattern<qref::ResetOp> {
 
   LogicalResult matchAndRewrite(qref::ResetOp op, OpAdaptor adaptor,
                                 ConversionPatternRewriter& rewriter) const override {
-    assert(op.getBasis() == Basis::Z && "the preconditions reject other bases");
+    assert(op.getBasis() == Basis::Z && "the preconditions rule out other bases");
     auto moduleOp = op->getParentOfType<ModuleOp>();
 
     auto resetFnDecl = moduleOp.lookupSymbol<LLVM::LLVMFuncOp>(qcc::qirQisReset);
