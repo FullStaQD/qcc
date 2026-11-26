@@ -28,22 +28,27 @@ def PrepToQIR : Pass<"prep-to-qir", "mlir::ModuleOp"> {
   ];
 }
 
-def ConvertQCToQIR : Pass<"convert-qc-to-qir", "mlir::func::FuncOp"> {
-  let summary = "Lowers the QC dialect into QIR (adaptive) conforming LLVM dialect.";
+def ConvertQRefToQIR : Pass<"convert-qref-to-qir", "mlir::func::FuncOp"> {
+  let summary = "Lowers the qref dialect into QIR (adaptive) conforming LLVM dialect.";
 
   let description = [{
       The pass anchors to a function and guarantees the following:
 
       - The QIR initialization function is inserted at the start of the function.
       - Required QIR attributes (like `required_num_qubits`) are added to the function. Via `passthrough`.
-      - `qc` gate and measurement ops are translated to QIR QIS function calls.
+      - `qref` gates, measurements and resets are translated to QIR QIS function calls. A static qubit becomes the
+        pointer whose address is its index.
       - Only the llvm dialect (in the function body) is considered legal after this pass.
       - TODO: To support some kind of output recording: We lower `aux.record_bool` to the
         bool recording function. Currently no other output recording function are in use.
 
-      TODO: For simplicity we assume that only entry point functions have
-      quantum operations. Before we extend support we have to figure out how to
-      do qubit mapping across function calls.
+      The pass only translates gates 1:1 and never decomposes them. It fails if this is not possible.
+
+      Preconditions:
+      - Every qubit is a static qubit: it comes from `qcc.static_ref` an argument or an array. Only gates, measurements
+        and resets use it.
+      - Only entry points (functions marked `qcc.entry_point`) use qubits; the pass leaves other functions alone.
+        TODO: Before we extend support we have to figure out how to do qubit mapping across function calls.
 
       TODO: We hardcode hardware capabilities for now as we have no way to query
       those. It is currently tailored towards HiSEP-Q. In particular we use

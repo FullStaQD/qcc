@@ -8,8 +8,8 @@ add_mlir_library(
   MLIRFuncDialect
   MLIRArithDialect
   QCCAuxDialect
-  MLIRQCDialect
   # Passes
   MLIRArithTransforms
   QCCAuxOutputRecording
+  QCCQCToQRef
   QCCToQIR)

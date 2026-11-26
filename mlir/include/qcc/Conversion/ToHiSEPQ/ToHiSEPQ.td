@@ -38,10 +38,10 @@ def ConvertQIRToHiSEPQIntrinsics : Pass<"convert-qir-to-hisepq-intrinsics", "mli
 
       Assumptions:
       - The module has been fully lowered by the ToQIR pipeline
-        (`prep-to-qir`, `convert-qc-to-qir`, `finalize-to-qir`) so all gate
+        (`prep-to-qir`, `convert-qref-to-qir`, `finalize-to-qir`) so all gate
         ops appear as `llvm.call` with a statically-known callee symbol.
       - Qubit pointers were produced by `llvm.inttoptr(llvm.mlir.constant(N : i64))`,
-        i.e. the static qubit management scheme used by `convert-qc-to-qir`.
+        i.e. the static qubit management scheme used by `convert-qref-to-qir`.
    }];
 
   let dependentDialects = [

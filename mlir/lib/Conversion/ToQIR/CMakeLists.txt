@@ -5,10 +5,11 @@ add_mlir_conversion_library(
   ${CONVERSION_SOURCES}
   LINK_LIBS
   # Dialects
-  MLIRQCDialect
   MLIRFuncDialect
   MLIRLLVMDialect
   QCCAuxDialect
+  QCCQccDialect
+  QCCQRefDialect
   # Conversion infra
   MLIRLLVMCommonConversion
   MLIRTransforms

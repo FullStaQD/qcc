@@ -99,10 +99,10 @@ cmake --build build/dev
 To make sure that the build procedure worked correctly, run the following:
 
 ```shell
-./build/dev/bin/qcc-opt mlir/test/tools/qcc-opt/mqt-core-integration-test.mlir
+./build/dev/bin/qcc mlir/test/tools/qcc/qrisp-integration/qir/bell_state.mlir
 ```
 
-and it should output some plain MLIR source.
+and it should output a QIR program (LLVM IR).
 
 ### Support for Quantum ISAs
 

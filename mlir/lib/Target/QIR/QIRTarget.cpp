@@ -10,6 +10,7 @@
 #include "qcc/Target/QIR/QIRTarget.h"
 
 #include "qcc/Conversion/Aux_/AuxOutputRecording.h"
+#include "qcc/Conversion/QCToQRef/QCToQRef.h"
 #include "qcc/Conversion/ToQIR/ToQIR.h"
 
 #include "mlir/Conversion/ArithToLLVM/ArithToLLVM.h"
@@ -21,11 +22,14 @@
 namespace qcc {
 
 void addLoweringPassesQIR(mlir::PassManager& pm) {
+  // qc -> qref
+  pm.addNestedPass<mlir::func::FuncOp>(qcc::createConvertQCToQRef());
+
   pm.addPass(qcc::createAuxOutputRecording());
   pm.addPass(qcc::createPrepToQIR());
   mlir::OpPassManager& fpm = pm.nest<mlir::func::FuncOp>();
   fpm.addPass(mlir::createArithToLLVMConversionPass());
-  fpm.addPass(qcc::createConvertQCToQIR());
+  fpm.addPass(qcc::createConvertQRefToQIR());
   pm.addPass(mlir::createConvertControlFlowToLLVMPass());
   pm.addPass(qcc::createFinalizeToQIR());
 
