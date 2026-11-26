@@ -1,0 +1,14 @@
+# Round 1: syndrome extraction, measuring ancillas q3 and q4.
+00000001 20  # q3 -> s0 = 1
+00000001 20  # q4 -> s1 = 1, syndrome s0 + 2*s1 = 3: flip data qubit 1
+
+# Between the rounds: reset of the ancillas for reuse (not visible in the Qrisp program).
+00000001 20  # q3 still 1 -> X
+00000001 20  # q4 still 1 -> X
+
+# Round 2: syndrome extraction again.
+00000000 20  # q3
+00000000 20  # q4 -> syndrome 0: no correction
+
+# Final measurement of the data qubits q0..q2: one instruction, bit i = qi.
+00000000 20

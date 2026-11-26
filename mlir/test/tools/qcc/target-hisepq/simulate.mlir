@@ -1,4 +1,4 @@
-// REQUIRES: lld, sim-hisepq
+// REQUIRES: hisepq-sim
 
 // Full HiSEP-Q integration test: compile, link, convert to a memory image, then actually execute that image on the
 // prebuilt RTL testbench.

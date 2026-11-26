@@ -111,7 +111,9 @@ Quantum ISA (QISA) as `--target` can be accomplished by setting the cmake option
 `QCC_ENABLE_HISEPQ=ON` (for HiSEP-Q in this case). This however needs a patched
 LLVM. So in order to work with that you should be willing to build LLVM from
 source. Details on what to do exactly can be found in
-[third-party/llvm/](./third-party/llvm/README.md).
+[third-party/llvm/](./third-party/llvm/README.md). Testing such a build also
+requires `ld.lld` and the HiSEP-Q simulator, see
+[mlir/lib/Target/HiSEPQ/](./mlir/lib/Target/HiSEPQ/README.md#simulating-with-sim_hisepq).
 
 ---
 

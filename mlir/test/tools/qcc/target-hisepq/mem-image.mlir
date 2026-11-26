@@ -1,4 +1,4 @@
-// REQUIRES: lld
+// REQUIRES: hisepq-sim
 
 // Smoke test for the full HiSEP-Q pipeline (see README next to `hisepq.ld`).
 
