@@ -61,7 +61,13 @@ builtin.module @jasp_module {
 // CHECK-TXT-NEXT: rz({{-?[0-9.]+}}) q[0];
 // CHECK-TXT:      shuttle(0,1) q[0];
 // CHECK-TXT-NEXT: recode q[2];
+// CHECK-TXT-NEXT: rz({{-?[0-9.]+}}) q[0];
+// CHECK-TXT-NEXT: rx({{-?[0-9.]+}}) q[0];
+// CHECK-TXT-NEXT: rz({{-?[0-9.]+}}) q[0];
 // CHECK-TXT-NEXT: delay[[[T:[0-9.]+]]us] q[0],q[1],q[2];
+// CHECK-TXT-NEXT: rz({{-?[0-9.]+}}) q[0];
+// CHECK-TXT-NEXT: rx({{-?[0-9.]+}}) q[0];
+// CHECK-TXT-NEXT: rz({{-?[0-9.]+}}) q[0];
 // CHECK-TXT-NEXT: recode q[2];
 // The format has no delay without qubits, so the wait of the empty trap is a comment.
 // CHECK-TXT-NEXT: // delay[[[T]]us] <empty trap 0>

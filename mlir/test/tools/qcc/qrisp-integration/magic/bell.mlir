@@ -25,9 +25,11 @@ builtin.module @jasp_module {
 // CHECK-MLIR:      func.func public @main() attributes {qcc.entry_point}
 // CHECK-MLIR-NEXT:   %[[C0:.*]] = magic.init : !chain
 // CHECK-MLIR-NEXT:   %[[C1:.*]] = magic.sym_zxz %[[C0]] ions [0, 1]
-// CHECK-MLIR-NEXT:   %[[C2:.*]] = magic.delay %[[C1]] {ticks = {{[0-9]+}} : i64} : !chain
-// CHECK-MLIR-NEXT:   %[[C3:.*]] = magic.sym_zxz %[[C2]] ions [1]
-// CHECK-MLIR-NEXT:   %[[M:.*]]:2 = magic.mzd %[[C3]] : !chain -> i1, i1
+// CHECK-MLIR-NEXT:   %[[C2:.*]] = magic.sym_zxz %[[C1]] ions [0]
+// CHECK-MLIR-NEXT:   %[[C3:.*]] = magic.delay %[[C2]] {ticks = {{[0-9]+}} : i64} : !chain
+// CHECK-MLIR-NEXT:   %[[C4:.*]] = magic.sym_zxz %[[C3]] ions [0]
+// CHECK-MLIR-NEXT:   %[[C5:.*]] = magic.sym_zxz %[[C4]] ions [1]
+// CHECK-MLIR-NEXT:   %[[M:.*]]:2 = magic.mzd %[[C5]] : !chain -> i1, i1
 // CHECK-MLIR-NEXT:   aux.record_int %[[M]]#0 : i1
 // CHECK-MLIR-NEXT:   aux.record_int %[[M]]#1 : i1
 // CHECK-MLIR-NEXT:   return
@@ -50,7 +52,13 @@ builtin.module @jasp_module {
 // CHECK-TXT-NEXT: rz({{-?[0-9.]+}}) q[1];
 // CHECK-TXT-NEXT: rx({{-?[0-9.]+}}) q[1];
 // CHECK-TXT-NEXT: rz({{-?[0-9.]+}}) q[1];
+// CHECK-TXT-NEXT: rz({{-?[0-9.]+}}) q[0];
+// CHECK-TXT-NEXT: rx({{-?[0-9.]+}}) q[0];
+// CHECK-TXT-NEXT: rz({{-?[0-9.]+}}) q[0];
 // CHECK-TXT-NEXT: delay[{{[0-9.]+}}us] q[0],q[1];
+// CHECK-TXT-NEXT: rz({{-?[0-9.]+}}) q[0];
+// CHECK-TXT-NEXT: rx({{-?[0-9.]+}}) q[0];
+// CHECK-TXT-NEXT: rz({{-?[0-9.]+}}) q[0];
 // CHECK-TXT-NEXT: rz({{-?[0-9.]+}}) q[1];
 // CHECK-TXT-NEXT: rx({{-?[0-9.]+}}) q[1];
 // CHECK-TXT-NEXT: rz({{-?[0-9.]+}}) q[1];

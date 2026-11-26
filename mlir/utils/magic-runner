@@ -124,10 +124,10 @@ class Machine:
         if chain not in self.chains:
             raise RunnerError(f"expected all ions of one trap, front to back (the traps hold {self.chains})")
         coupling = self.traps[self.chains.index(chain)][len(chain) - 1]
-        # exp(-i t/4 sum_{i != j} J_ij Z_i Z_j) = prod_{i < j} exp(-i t/2 J_ij Z_i Z_j), with t in seconds.
+        # exp(i t/4 sum_{i != j} J_ij Z_i Z_j) = prod_{i < j} exp(i t/2 J_ij Z_i Z_j), with t in seconds.
         for (i, a), (j, b) in itertools.combinations(enumerate(chain), 2):
             if self.active[a] and self.active[b]:
-                self._rotate_z(0.5e-6 * microseconds * coupling[i][j], a, b)
+                self._rotate_z(-0.5e-6 * microseconds * coupling[i][j], a, b)
 
     def recode(self, ion):
         self.active[ion] = not self.active[ion]

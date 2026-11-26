@@ -2,7 +2,8 @@
 
 // A Bell pair after `qcirc-to-rzz` and `qcirc-to-u-zxz` (h q0; cx q0, q1 = h q0; h q1; cz; h q1), compiled for a
 // single trap with two ions (J = 1.0 rad/s, time unit 1 us): only native ops remain. The coupling rzz(pi/2) becomes one
-// delay of (pi/2) / J s = 1570796 us, the residual Z rotations before the measurement are dropped.
+// delay of (pi/2) / J s = 1570796 us , conjugated by X-flips to account for the opposite sign, the residual Z rotations
+// before the measurement are dropped.
 // CHECK-LABEL: func.func @bell
 func.func @bell() {
     %q:2 = qcc.static [0, 1] : !qcc.qubit
@@ -23,9 +24,11 @@ func.func @bell() {
 
 // CHECK:      %[[C0:.*]] = magic.init : !chain
 // CHECK-NEXT: %[[C1:.*]] = magic.sym_zxz %[[C0]] ions [0, 1] {x = [1.57079632679489{{[0-9]+}}, 1.57079632679489{{[0-9]+}}], z = [1.57079632679489{{[0-9]+}}, 1.57079632679489{{[0-9]+}}]} : !chain
-// CHECK-NEXT: %[[C2:.*]] = magic.delay %[[C1]] {ticks = 1570796 : i64} : !chain
-// CHECK-NEXT: %[[C3:.*]] = magic.sym_zxz %[[C2]] ions [1] {x = [1.57079632679489{{[0-9]+}}], z = [3.14159265358979{{[0-9]+}}]} : !chain
-// CHECK-NEXT: %[[M:.*]]:2 = magic.mzd %[[C3]] : !chain -> i1, i1
+// CHECK-NEXT: %[[C2:.*]] = magic.sym_zxz %[[C1]] ions [0] {x = [3.14159265358979{{[0-9]+}}], z = [1.57079632679489{{[0-9]+}}]} : !chain
+// CHECK-NEXT: %[[C3:.*]] = magic.delay %[[C2]] {ticks = 1570796 : i64} : !chain
+// CHECK-NEXT: %[[C4:.*]] = magic.sym_zxz %[[C3]] ions [0] {x = [3.14159265358979{{[0-9]+}}], z = [1.57079632679489{{[0-9]+}}]} : !chain
+// CHECK-NEXT: %[[C5:.*]] = magic.sym_zxz %[[C4]] ions [1] {x = [1.57079632679489{{[0-9]+}}], z = [3.14159265358979{{[0-9]+}}]} : !chain
+// CHECK-NEXT: %[[M:.*]]:2 = magic.mzd %[[C5]] : !chain -> i1, i1
 // CHECK-NEXT: aux.record_int %[[M]]#0 : i1
 // CHECK-NEXT: aux.record_int %[[M]]#1 : i1
 // CHECK-NEXT: return

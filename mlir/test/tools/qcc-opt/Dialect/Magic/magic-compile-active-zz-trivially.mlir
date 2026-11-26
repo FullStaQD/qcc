@@ -14,12 +14,15 @@ func.func @pair() {
 }
 
 // CHECK:      %[[C0:.*]] = magic.init
-// CHECK-NEXT: %[[C1:.*]] = magic.delay %[[C0]] {ticks = 1570796 : i64} : !chain
-// CHECK-NEXT: magic.mzd %[[C1]]
+// X-flip sandwich around delay to account for the sign flip:
+// CHECK-NEXT: %[[C1:.*]] = magic.sym_zxz %[[C0]] ions [0] {x = [3.1415926535897931], z = [0.000000e+00]} : !chain
+// CHECK-NEXT: %[[C2:.*]] = magic.delay %[[C1]] {ticks = 1570796 : i64} : !chain
+// CHECK-NEXT: %[[C3:.*]] = magic.sym_zxz %[[C2]] ions [0] {x = [3.1415926535897931], z = [0.000000e+00]} : !chain
+// CHECK-NEXT: magic.mzd %[[C3]]
 
 // -----
 
-// Three active ions, two couplings with different strengths. X flip to account for the sign.
+// Three active ions, two couplings with different strengths.
 // CHECK-LABEL: func.func @three_ions
 func.func @three_ions() {
   %c0 = magic.init : !magic.ion_chain<0, [0:1, 1:1, 2:1]>
@@ -32,12 +35,12 @@ func.func @three_ions() {
 
 // CHECK:      %[[C0:.*]] = magic.init : !chain
 // CHECK-NEXT: %[[C1:.*]] = magic.recode %[[C0]] : !chain -> !chain1
-// CHECK-NEXT: %[[C2:.*]] = magic.delay %[[C1]] {ticks = 1570796 : i64} : !chain1
-// CHECK-NEXT: %[[C3:.*]] = magic.recode %[[C2]] : !chain1 -> !chain
-// CHECK-NEXT: %[[C4:.*]] = magic.recode %[[C3]] : !chain -> !chain2
-// CHECK-NEXT: %[[C5:.*]] = magic.sym_zxz %[[C4]] ions [0] {x = [3.1415926535897931], z = [0.000000e+00]} : !chain2
-// CHECK-NEXT: %[[C6:.*]] = magic.delay %[[C5]] {ticks = 3141593 : i64} : !chain2
-// CHECK-NEXT: %[[C7:.*]] = magic.sym_zxz %[[C6]] ions [0] {x = [3.1415926535897931], z = [0.000000e+00]} : !chain2
+// CHECK-NEXT: %[[C2:.*]] = magic.sym_zxz %[[C1]] ions [0] {x = [3.1415926535897931], z = [0.000000e+00]} : !chain1
+// CHECK-NEXT: %[[C3:.*]] = magic.delay %[[C2]] {ticks = 1570796 : i64} : !chain1
+// CHECK-NEXT: %[[C4:.*]] = magic.sym_zxz %[[C3]] ions [0] {x = [3.1415926535897931], z = [0.000000e+00]} : !chain1
+// CHECK-NEXT: %[[C5:.*]] = magic.recode %[[C4]] : !chain1 -> !chain
+// CHECK-NEXT: %[[C6:.*]] = magic.recode %[[C5]] : !chain -> !chain2
+// CHECK-NEXT: %[[C7:.*]] = magic.delay %[[C6]] {ticks = 3141593 : i64} : !chain2
 // CHECK-NEXT: %[[C8:.*]] = magic.recode %[[C7]] : !chain2 -> !chain
 // CHECK-NEXT: magic.mzd %[[C8]]
 
@@ -48,8 +51,8 @@ func.func @three_ions() {
 func.func @inactive_ion() {
   %c = magic.init : !magic.ion_chain<0, [0:1, 1:1, 2:1]>
   %c0 = magic.recode %c : !magic.ion_chain<0, [0:1, 1:1, 2:1]> -> !magic.ion_chain<0, [0:1, 1:0, 2:1]>
-  %c1 = magic.active_zz %c0 {angles = dense<[[0.0, 1.5707963267948966],
-                                             [1.5707963267948966, 0.0]]> : tensor<2x2xf64>} : !magic.ion_chain<0, [0:1, 1:0, 2:1]>
+  %c1 = magic.active_zz %c0 {angles = dense<[[0.0, -1.5707963267948966],
+                                             [-1.5707963267948966, 0.0]]> : tensor<2x2xf64>} : !magic.ion_chain<0, [0:1, 1:0, 2:1]>
   %m0, %m1, %m2 = magic.mzd %c1 : !magic.ion_chain<0, [0:1, 1:0, 2:1]> -> i1, i1, i1
   return
 }
