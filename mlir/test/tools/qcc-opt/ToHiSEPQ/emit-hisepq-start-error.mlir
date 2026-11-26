@@ -28,7 +28,7 @@ llvm.func @takes_arguments(%arg0: i64) attributes { qcc.entry_point } {
 
 // -----
 
-// Results returned in memory would need a pointer from the caller, which `_start` does not provide.
+// Too large to return in registers.
 
 // expected-error @+1 {{expected the entry point to return nothing or an integer exit code of at most 64 bits, got '!llvm.struct<(i64, i64)>'}}
 llvm.func @returns_results() -> !llvm.struct<(i64, i64)> attributes { qcc.entry_point } {

@@ -66,11 +66,10 @@ def EmitHiSEPQStart : Pass<"emit-hisepq-start", "mlir::ModuleOp"> {
       the boot address and provides `__stack_top`.
 
       Assumes that *exactly* one function is tagged entry point. `_start`
-      calls it from inline assembly without following the calling convention,
-      so it must take no arguments and return at most an exit code in
-      registers, i.e. an integer of up to 64 bits, which `_start` ignores.
-      The results of a Qrisp program are recorded instead (see
-      `convert-return-to-output-recording`).
+      calls it from inline assembly and ignores the calling convention, so the
+      entry point must take no arguments and return nothing or an integer of
+      at most 64 bits. `convert-return-to-output-recording` turns the results
+      of a Qrisp program into records.
 
       TODO: Drop this pass once HiSEP-Q ships a crt0. Then qcc can emit a plain
       `main` and leave the startup code to the runtime.
@@ -116,12 +115,11 @@ def ConvertQVecToHiSEPQIntrinsics : Pass<"convert-qvec-to-hisepq-intrinsics", "m
       example `qvec.reset z` becomes a measurement followed by an `llvm.riscv.qv.x` on each qubit measured in |1⟩. This
       is because HiSEP-Q has no reset operation.
 
-      The outcomes of a measurement are read back with `llvm.riscv.qv.mres` from CSR `qv.mres` right after its
-      `llvm.riscv.qv.mz`. Bit `k` is the outcome of element `k`.
-      TODO: `qv.mres` is a stopgap that HiSEP-Q added only to make measurement feedback work at all. It holds the
-      outcomes of just 32 qubits and silently drops the rest. `qvec-merge` merges measurements regardless, so a
-      measurement of more qubits is split into several `llvm.riscv.qv.mz` of at most 32 qubits each. Revisit once
-      HiSEP-Q provides a proper readback, see `mlir/lib/Target/HiSEPQ/README.md`.
+      Measurement outcomes are read from CSR `qv.mres` with `llvm.riscv.qv.mres` right after each `llvm.riscv.qv.mz`.
+      Bit `k` is the outcome of element `k`.
+      TODO: `qv.mres` is a workaround that HiSEP-Q added to make measurement feedback possible. It holds only 32
+      outcomes and drops the rest without warning. So larger measurements, which `qvec-merge` may create, are split
+      into chunks of at most 32 qubits. Revisit once HiSEP-Q has a proper readback.
 
       `aux.record_int` and `aux.record_memref` are erased, so the program produces no output.
       TODO: Support them once HiSEP-Q specifies the corresponding QISA operations.

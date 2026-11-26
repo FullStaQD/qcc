@@ -216,13 +216,10 @@ static void createQubitsIntrinsic(OpBuilder& builder, Location loc, StringRef in
   LLVM::CallIntrinsicOp::create(builder, loc, builder.getStringAttr(intrinsic), args);
 }
 
-/// Measures `qubits` in the Z basis and returns the outcome of each of them as an `i1`, in order.
+/// Measures `qubits` in the Z basis and returns one `i1` outcome per qubit.
 ///
-/// The outcomes are read back from CSR `qv.mres` with `llvm.riscv.qv.mres` right after the `llvm.riscv.qv.mz`, as the
-/// next measurement overwrites it. Bit `k` is the outcome of element `k`.
-///
-/// TODO: `qv.mres` is a stopgap (see `HiSEPQMachine::maxMeasuredQubits`). It holds the outcomes of only 32 qubits, so
-/// more qubits are measured by several `llvm.riscv.qv.mz` of at most 32 qubits each.
+/// The outcomes are read from CSR `qv.mres` right after each `qv.mz`, because the next measurement overwrites them. Bit
+/// `k` is the outcome of element `k`. `qv.mres` holds only 32 outcomes, so larger measurements are split into chunks.
 static SmallVector<Value> createMeasurement(OpBuilder& builder, Location loc, const ResolvedQubits& qubits,
                                             const HiSEPQMachine& machine) {
   auto i32Type = builder.getI32Type();
@@ -232,7 +229,7 @@ static SmallVector<Value> createMeasurement(OpBuilder& builder, Location loc, co
     ArrayRef<int64_t> chunk = remaining.take_front(HiSEPQMachine::maxMeasuredQubits());
     remaining = remaining.drop_front(chunk.size());
     auto numQubits = static_cast<unsigned>(chunk.size());
-    // A chunk is never larger than `qubits`, so its indices fit into a vector too.
+    // A chunk is never larger than `qubits`, so it fits into a vector too.
     const ResolvedQubits chunkQubits{.indices = llvm::to_vector(chunk),
                                      .qvType = *machine.qubitVectorType(builder.getContext(), numQubits)};
     createQubitsIntrinsic(builder, loc, "llvm.riscv.qv.mz", chunkQubits);
@@ -315,8 +312,7 @@ struct PairOpLowering : public OpRewritePattern<PairOp> {
   HiSEPQMachine machine;
 };
 
-/// Rewrites `qvec.measure z` into `llvm.call_intrinsic "llvm.riscv.qv.mz"`, with the outcomes read back from CSR
-/// `qv.mres` (see `createMeasurement`).
+/// Rewrites `qvec.measure z` into `llvm.riscv.qv.mz` and reads the outcomes back from `qv.mres`.
 struct MeasureOpLowering : public OpRewritePattern<MeasureOp> {
   MeasureOpLowering(MLIRContext* ctx, Diagnostics* diags, HiSEPQMachine machine)
       : OpRewritePattern(ctx), diags(diags), machine(machine) {}
@@ -341,8 +337,8 @@ struct MeasureOpLowering : public OpRewritePattern<MeasureOp> {
   HiSEPQMachine machine;
 };
 
-/// Rewrites `qvec.reset z`, which has no instruction of its own, into a measurement (see `createMeasurement`)
-/// followed by an `llvm.riscv.qv.x` on each qubit measured in |1⟩.
+/// Rewrites `qvec.reset z` into a measurement followed by an `llvm.riscv.qv.x` on each qubit measured in |1⟩, since
+/// HiSEP-Q has no reset instruction.
 struct ResetOpLowering : public OpRewritePattern<ResetOp> {
   ResetOpLowering(MLIRContext* ctx, Diagnostics* diags, HiSEPQMachine machine)
       : OpRewritePattern(ctx), diags(diags), machine(machine) {}
@@ -360,7 +356,7 @@ struct ResetOpLowering : public OpRewritePattern<ResetOp> {
     Location loc = op.getLoc();
     SmallVector<Value> outcomes = createMeasurement(rewriter, loc, *qubits, machine);
 
-    // Each qubit has an outcome of its own, hence a flip of its own.
+    // Flip each qubit that measured 1.
     const VectorType singleType = *machine.qubitVectorType(rewriter.getContext(), 1);
     for (auto [outcome, index] : llvm::zip_equal(outcomes, qubits->indices)) {
       scf::IfOp::create(rewriter, loc, outcome, [&](OpBuilder& builder, Location thenLoc) {

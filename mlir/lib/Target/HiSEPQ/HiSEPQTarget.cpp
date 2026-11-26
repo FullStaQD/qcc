@@ -163,8 +163,8 @@ mlir::LogicalResult addLoweringPassesHiSEPQ(mlir::PassManager& pm, llvm::ArrayRe
     return mlir::failure();
   }
 
-  // The results of the entry point become `aux.record_*`, as for the QIR target, so that it returns nothing.
-  // TODO: `convert-qvec-to-hisepq-intrinsics` erases them until HiSEP-Q specifies how a program reports its results.
+  // Turn the results of the entry point into `aux.record_*`, like the QIR target does.
+  // TODO: `convert-qvec-to-hisepq-intrinsics` erases them until HiSEP-Q defines how a program reports results.
   pm.addPass(qcc::createAuxOutputRecording());
 
   // qc -> qref -> qcirc -> qvec -> QV intrinsics

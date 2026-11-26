@@ -59,7 +59,7 @@ func.func @pair_gates() {
 
 // -----
 
-// Bit `k` of what `llvm.riscv.qv.mres` reads is the outcome of element `k`.
+// Bit `k` of `qv.mres` is the outcome of element `k`.
 
 // CHECK-LABEL: func.func @measurement
 func.func @measurement() -> vector<2xi1> {
@@ -125,8 +125,8 @@ func.func @reset() {
 
 // -----
 
-// `qv.mres` holds the outcomes of only 32 qubits, a stopgap explained in `mlir/lib/Target/HiSEPQ/README.md`. So the
-// measurement of 33 qubits is split into one of the first 32 qubits and one of the last, each read back on its own.
+// `qv.mres` holds only 32 outcomes, so the 33 qubits are measured in two chunks, each read back on its own. This
+// workaround is explained in `mlir/lib/Target/HiSEPQ/README.md`.
 
 // CHECK-LABEL: func.func @measurement_over_32_qubits
 func.func @measurement_over_32_qubits() -> vector<33xi1> {

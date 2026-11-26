@@ -82,8 +82,8 @@ private:
       return moduleOp->emitError("did not find any entry point");
     }
 
-    // `_start` calls the entry point from inline assembly without following the calling convention, so it provides no
-    // arguments and no memory for results returned indirectly.
+    // `_start` calls the entry point from inline assembly and ignores the calling convention. So it can't pass
+    // arguments or provide memory for results that don't fit into registers.
     if (entryPoint.getNumArguments() != 0) {
       return entryPoint.emitOpError("expected the entry point to take no arguments");
     }

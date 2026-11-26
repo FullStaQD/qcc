@@ -28,22 +28,19 @@ gains a `--sysroot`-style override so an external BSP can take over.
 
 ## Reading measurement outcomes back
 
-The QISA has no instruction that returns the outcomes of a `qv.mz`. As a stopgap
-to make measurement feedback work at all, HiSEP-Q exposes the outcomes of the
-latest measurement in the read-only CSR `qv.mres` (`qmres`): bit `k` is the
-outcome of element `k` of the measured qubit vector. qcc reads it with
-`llvm.riscv.qv.mres` right after each `qv.mz`, as the next measurement
-overwrites it.
+The QISA has no instruction that returns the outcomes of a `qv.mz`. As a
+workaround, HiSEP-Q puts the outcomes of the latest measurement into the
+read-only CSR `qv.mres` (`qmres`), where bit `k` is the outcome of element `k`.
+qcc reads it right after each `qv.mz`, because the next measurement overwrites
+it.
 
-The CSR holds 32 bits, and HiSEP-Q silently drops the outcomes beyond bit 31.
-`qvec-merge` merges measurements regardless, so
-`convert-qvec-to-hisepq-intrinsics` splits a measurement of more than 32 qubits
-into several `qv.mz` of at most 32 qubits each (see
-`HiSEPQMachine::maxMeasuredQubits`). This split is all that keeps us from
-reading wrong outcomes, and it costs instructions a proper readback would not
-need.
+The CSR holds only 32 bits, and HiSEP-Q drops the outcomes beyond bit 31 without
+warning. `qvec-merge` can create larger measurements, so
+`convert-qvec-to-hisepq-intrinsics` splits them into chunks of at most 32
+qubits. This is the only thing that prevents wrong outcomes, and it costs extra
+instructions.
 
-TODO: Revisit once HiSEP-Q provides a proper readback.
+TODO: Revisit once HiSEP-Q has a proper readback.
 
 ## Simulating
 
