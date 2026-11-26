@@ -55,6 +55,9 @@ def Qcc_Dialect : Dialect {
     let name = "qcc";
     let cppNamespace = "::qcc";
 
+    // Arrays of qubits are tensors, and canonicalization creates `tensor.cast` ops.
+    let dependentDialects = ["::mlir::tensor::TensorDialect"];
+
     let useDefaultTypePrinterParser = 1;
     let useDefaultAttributePrinterParser = 1;
 

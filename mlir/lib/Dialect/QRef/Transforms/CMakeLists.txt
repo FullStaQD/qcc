@@ -1,0 +1,12 @@
+add_mlir_dialect_library(
+  QCCQRefTransforms
+  AssignQubits.cpp
+  LINK_LIBS
+  PRIVATE
+  MLIRIR
+  MLIRPass
+  MLIRSupport
+  MLIRFuncDialect
+  MLIRTensorDialect
+  QCCQccDialect
+  QCCQRefDialect)

@@ -11,6 +11,7 @@
 #include "qcc/Conversion/Aux_/AuxOutputRecording.h"
 #include "qcc/Conversion/Aux_/AuxUnpackRecordInt.h"
 #include "qcc/Conversion/JaspToQC/JaspToQC.h"
+#include "qcc/Conversion/JaspToQRef/JaspToQRef.h"
 #include "qcc/Conversion/OQ3ToQRef/OQ3ToQRef.h"
 #include "qcc/Conversion/QCToQRef/QCToQRef.h"
 #include "qcc/Conversion/QCircToMagic/QCircToMagic.h"
@@ -22,6 +23,7 @@
 #include "qcc/Conversion/ToQIR/ToQIR.h"
 #include "qcc/Dialect/Magic/Transforms/Passes.h"
 #include "qcc/Dialect/QCirc/Transforms/Passes.h"
+#include "qcc/Dialect/QRef/Transforms/Passes.h"
 #include "qcc/Dialect/QVec/Transforms/Passes.h"
 #include "qcc/Dialect/Qcc/Transforms/Passes.h"
 #include "qcc/RegisterAllDialects.h"
@@ -68,6 +70,7 @@ int main(int argc, char** argv) {
   qcc::registerTmpRaiseSCFToAffinePass();
   qcc::registerWhileToFor();
   qcc::registerJaspToQC();
+  qcc::registerConvertJaspToQRef();
   qcc::registerConvertQRefToQIR();
   qcc::registerPrepToQIR();
   qcc::registerFinalizeToQIR();
@@ -88,8 +91,10 @@ int main(int argc, char** argv) {
   qcc::registerConvertQVecToHiSEPQIntrinsics();
   qcc::registerQVecMerge();
   qcc::registerQCircPasses();
+  qcc::registerQRefPasses();
   qcc::magic::registerMagicPasses();
   qcc::registerQccAttachDevice();
+  qcc::registerQccOneShotBufferize();
 
   return mlir::asMainReturnCode(mlir::MlirOptMain(argc, argv, "qcc optimizer", registry));
 }
