@@ -313,7 +313,8 @@ struct QuantumGateConversion final : OpConversionPattern<jasp::QuantumGateOp> {
 /// Converts `jasp.measure` into `qref.measure z`.
 ///
 /// On an array, measures each qubit in an `scf.for` and packs the outcomes into an `i64`, the one of qubit `i` into
-/// bit `i`. A single outcome is zero-extended if the result is wider than `i1`.
+/// bit `i`. As in Qrisp, the outcomes of qubits 64 and up are dropped. A single outcome is zero-extended if the result
+/// is wider than `i1`.
 struct MeasureConversion final : OpConversionPattern<jasp::MeasureOp> {
   using OpConversionPattern::OpConversionPattern;
 
@@ -339,6 +340,7 @@ struct MeasureConversion final : OpConversionPattern<jasp::MeasureOp> {
     Value c0Index = arith::ConstantIndexOp::create(rewriter, loc, 0);
     Value c1Index = arith::ConstantIndexOp::create(rewriter, loc, 1);
     Value c0I64 = arith::ConstantIntOp::create(rewriter, loc, i64Type, 0);
+    Value c64I64 = arith::ConstantIntOp::create(rewriter, loc, i64Type, 64);
     Value size = tensor::DimOp::create(rewriter, loc, qubits, c0Index);
     auto forOp = scf::ForOp::create(rewriter, loc, c0Index, size, c1Index, ValueRange{c0I64});
 
@@ -348,8 +350,12 @@ struct MeasureConversion final : OpConversionPattern<jasp::MeasureOp> {
     Value bit = qref::MeasureOp::create(rewriter, loc, Basis::Z, qubit);
     Value bitI64 = arith::ExtUIOp::create(rewriter, loc, i64Type, bit);
     Value ivI64 = arith::IndexCastOp::create(rewriter, loc, i64Type, iv);
-    Value shifted = arith::ShLIOp::create(rewriter, loc, bitI64, ivI64);
-    Value packed = arith::OrIOp::create(rewriter, loc, forOp.getRegionIterArg(0), shifted);
+    // Qrisp shifts in JAX, where a shift by 64 or more gives 0. In `arith` it gives poison, so clamp the amount.
+    Value inRange = arith::CmpIOp::create(rewriter, loc, arith::CmpIPredicate::ult, ivI64, c64I64);
+    Value amount = arith::SelectOp::create(rewriter, loc, inRange, ivI64, c0I64);
+    Value shifted = arith::ShLIOp::create(rewriter, loc, bitI64, amount);
+    Value kept = arith::SelectOp::create(rewriter, loc, inRange, shifted, c0I64);
+    Value packed = arith::OrIOp::create(rewriter, loc, forOp.getRegionIterArg(0), kept);
     scf::YieldOp::create(rewriter, loc, packed);
 
     rewriter.replaceOpWithMultiple(op, {forOp.getResult(0), ValueRange()});

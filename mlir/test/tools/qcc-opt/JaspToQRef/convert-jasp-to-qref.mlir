@@ -51,13 +51,17 @@ func.func @array(%q: !jasp.QubitArray, %s0: !jasp.QuantumState) -> (tensor<i64>,
 // CHECK-NEXT:   qref.reset z %[[QI]] : !qcc.qubit_ref
 // CHECK-NEXT: }
 // CHECK:      %[[ZERO:.*]] = arith.constant 0 : i64
+// CHECK-NEXT: %[[C64:.*]] = arith.constant 64 : i64
 // CHECK:      %[[BITS:.*]] = scf.for %[[IV:.*]] = %{{.*}} to %{{.*}} step %{{.*}} iter_args(%[[ACC:.*]] = %[[ZERO]]) -> (i64) {
 // CHECK-NEXT:   %[[QI:.*]] = tensor.extract %[[Q]][%[[IV]]] : tensor<?x!qcc.qubit_ref>
 // CHECK-NEXT:   %[[BIT:.*]] = qref.measure z %[[QI]] : !qcc.qubit_ref -> i1
 // CHECK-NEXT:   %[[BIT_I64:.*]] = arith.extui %[[BIT]] : i1 to i64
 // CHECK-NEXT:   %[[IV_I64:.*]] = arith.index_cast %[[IV]] : index to i64
-// CHECK-NEXT:   %[[SHIFTED:.*]] = arith.shli %[[BIT_I64]], %[[IV_I64]] : i64
-// CHECK-NEXT:   %[[NEW_ACC:.*]] = arith.ori %[[ACC]], %[[SHIFTED]] : i64
+// CHECK-NEXT:   %[[IN_RANGE:.*]] = arith.cmpi ult, %[[IV_I64]], %[[C64]] : i64
+// CHECK-NEXT:   %[[AMOUNT:.*]] = arith.select %[[IN_RANGE]], %[[IV_I64]], %[[ZERO]] : i64
+// CHECK-NEXT:   %[[SHIFTED:.*]] = arith.shli %[[BIT_I64]], %[[AMOUNT]] : i64
+// CHECK-NEXT:   %[[KEPT:.*]] = arith.select %[[IN_RANGE]], %[[SHIFTED]], %[[ZERO]] : i64
+// CHECK-NEXT:   %[[NEW_ACC:.*]] = arith.ori %[[ACC]], %[[KEPT]] : i64
 // CHECK-NEXT:   scf.yield %[[NEW_ACC]] : i64
 // CHECK-NEXT: }
 // CHECK-NEXT: return %[[SIZE]], %[[BITS]] : i64, i64
