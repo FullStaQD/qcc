@@ -16,19 +16,22 @@ def ConvertJaspToQRef : Pass<"convert-jasp-to-qref", "mlir::ModuleOp"> {
       Converts the `jasp` ops (see https://qrisp.eu/reference/Jasp/MLIR%20Interface.html) into `qref`, `qcc` and
       builtin ops. Both act on qubits in place, so the ops map essentially one to one:
 
-      - `!jasp.Qubit` becomes `!qcc.qubit_ref` and `!jasp.QubitArray` an array `tensor<?x!qcc.qubit_ref>`.
-        `!jasp.QuantumState` is dropped, also from function signatures, and so are `jasp.create_quantum_kernel` and
+      - `!jasp.Qubit` becomes `!qcc.qubit_ref` and `!jasp.QubitArray` a tensor thereof.
+      - A gate becomes the corresponding `qref.single` or `qref.pair`. `id` and `gphase` are dropped.
+      - `jasp.measure` and `jasp.reset` become `qref.measure z` and `qref.reset z`. On an array they become an `scf.for`
+        over its qubits, and the measurement packs the outcomes into an `i64` (result `i` into bit `i`).
+      - Dropped: `!jasp.QuantumState` as well as its creator `jasp.create_quantum_kernel` and consumer
         `jasp.consume_quantum_kernel` (its result becomes `true`).
-      - A rank-0 tensor, e.g. `tensor<i64>`, becomes its element type wherever possible.
+      - A rank-0 tensor `tensor<SCALAR>` becomes `SCALAR` (e.g. `i64`) wherever possible.
       - `jasp.create_qubits` becomes `qcc.alloc`, `jasp.delete_qubits` `qcc.dealloc`, `jasp.get_qubit`
         `tensor.extract`, and `jasp.get_size` `tensor.dim`.
-      - A gate becomes the `qref.single` or `qref.pair` of the same name, `s_dg` and `t_dg` become `sdg` and `tdg`.
-        `p` becomes `rz`, and `u3(theta, phi, lambda)` becomes `u_zyz(lambda, theta, phi)`: they agree up to a global
-        phase. `id` and `gphase` are dropped.
-      - `jasp.measure` and `jasp.reset` become `qref.measure z` and `qref.reset z`. On an array they become an `scf.for`
-        over its qubits, and the measurement packs the outcomes into an `i64`, the one of qubit `i` into bit `i`.
 
-      Any other gate, e.g. `xxyy`, and any other `jasp` op make the pass fail: it does not decompose gates.
+      Unknown gates and `jasp` ops make the pass fail. Gates are not decomposed.
+
+      TODO: Yes more than 64 qubits being measured silently discards measurement results. This is a known issue of
+      Qrisp's semantics. We have to find a way to deal with this: User warning, error, etc. There is a way to handle
+      more than 64 qubits but it requires the user to use big integers (see
+      https://qrisp.eu/reference/Jasp/Scalable%20Integer%20Type.html).
 
       Example:
 
