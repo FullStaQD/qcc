@@ -21,13 +21,15 @@ def QRefAssignQubits : Pass<"qref-assign-qubits", "mlir::func::FuncOp"> {
 
       The qubits get the indices 0, 1, 2, ... in walk order. An index that a `qcc.static_ref` of the function names
       already is never handed out. An allocation reuses the qubits of a dealloc that dominates it, and resets them with
-      `qref.reset z`; the most recent such dealloc comes first, and its qubits in array order.
+      `qref.reset z`; the most recent such dealloc comes first, and its qubits in array order. An allocation in a
+      sequential loop (e.g. `scf.for`, `scf.while`) resets all its qubits.
 
       Each function is taken to be a program on its own.
 
       Preconditions:
       - Each allocation has a constant size.
       - Each `qcc.dealloc` frees the result of a `qcc.alloc`, possibly through `tensor.cast`.
+      - An allocation in a sequential loop is freed by a `qcc.dealloc` in its block.
 
       Example:
 

@@ -100,3 +100,64 @@ func.func @dominance(%cond: i1) {
 // CHECK-NEXT: }
 // CHECK-NEXT: %[[C:.*]] = qcc.static_ref [1] : !qcc.qubit_ref
 // CHECK-NEXT: qref.single y %[[C]] : !qcc.qubit_ref
+
+// -----
+
+// An allocation in a loop resets its qubits, even fresh ones: the previous iteration leaves them in an unknown state.
+// CHECK-LABEL: func.func @loop
+func.func @loop(%n: index) {
+  %c0 = arith.constant 0 : index
+  %c1 = arith.constant 1 : index
+  scf.for %i = %c0 to %n step %c1 {
+    %q = qcc.alloc : !qcc.qubit_ref
+    qref.single x %q : !qcc.qubit_ref
+    qcc.dealloc %q : !qcc.qubit_ref
+  }
+  return
+}
+
+// CHECK:      scf.for
+// CHECK-NEXT:   %[[Q:.*]] = qcc.static_ref [0] : !qcc.qubit_ref
+// CHECK-NEXT:   qref.reset z %[[Q]] : !qcc.qubit_ref
+// CHECK-NEXT:   qref.single x %[[Q]] : !qcc.qubit_ref
+// CHECK-NEXT: }
+
+// -----
+
+// CHECK-LABEL: func.func @while
+func.func @while(%cond: i1) {
+  scf.while : () -> () {
+    scf.condition(%cond)
+  } do {
+    %q = qcc.alloc : !qcc.qubit_ref
+    qref.single x %q : !qcc.qubit_ref
+    qcc.dealloc %q : !qcc.qubit_ref
+    scf.yield
+  }
+  return
+}
+
+// CHECK:      } do {
+// CHECK-NEXT:   %[[Q:.*]] = qcc.static_ref [0] : !qcc.qubit_ref
+// CHECK-NEXT:   qref.reset z %[[Q]] : !qcc.qubit_ref
+// CHECK-NEXT:   qref.single x %[[Q]] : !qcc.qubit_ref
+
+// -----
+
+// A block on a cycle of branches runs repeatedly, too.
+// CHECK-LABEL: func.func @branch_cycle
+func.func @branch_cycle(%cond: i1) {
+  cf.br ^bb1
+^bb1:
+  %q = qcc.alloc : !qcc.qubit_ref
+  qref.single x %q : !qcc.qubit_ref
+  qcc.dealloc %q : !qcc.qubit_ref
+  cf.cond_br %cond, ^bb1, ^bb2
+^bb2:
+  return
+}
+
+// CHECK:      ^bb1:
+// CHECK-NEXT:   %[[Q:.*]] = qcc.static_ref [0] : !qcc.qubit_ref
+// CHECK-NEXT:   qref.reset z %[[Q]] : !qcc.qubit_ref
+// CHECK-NEXT:   qref.single x %[[Q]] : !qcc.qubit_ref

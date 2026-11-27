@@ -17,14 +17,19 @@
 #include "qcc/Dialect/Qcc/IR/Qcc.h"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Utils/StaticValueUtils.h"
+#include "mlir/IR/Block.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/IR/Operation.h"
+#include "mlir/IR/Region.h"
 #include "mlir/IR/Value.h"
 #include "mlir/IR/Visitors.h"
+#include "mlir/Interfaces/ControlFlowInterfaces.h"
+#include "mlir/Interfaces/LoopLikeInterface.h"
 #include "mlir/Support/LLVM.h"
 
 #include "llvm/ADT/DenseSet.h"
@@ -49,8 +54,9 @@ namespace {
 /// The static qubit for one qubit of an allocation.
 struct AssignedQubit {
   int64_t index;
-  /// Whether a dealloc freed the qubit before, so that it must be reset.
-  bool reused;
+  /// Whether the qubit may be in a state other than |0⟩, so that it must be reset: a dealloc freed it before, or the
+  /// allocation may run repeatedly.
+  bool needsReset;
 };
 
 /// The qubits that one dealloc frees, in array order.
@@ -90,7 +96,8 @@ private:
   // Analysis
   //===--------------------------------------------------------------------===//
 
-  /// Decides on the static qubits of `alloc`. Fails if its size is not a non-negative constant.
+  /// Decides on the static qubits of `alloc`. Fails if its size is not a non-negative constant, if it may run in
+  /// parallel with itself, or if it may run repeatedly but its block does not free it.
   LogicalResult assign(AllocOp alloc) {
     std::optional<int64_t> size = 1;
     if (auto arrayType = dyn_cast<RankedTensorType>(alloc.getType())) {
@@ -103,19 +110,76 @@ private:
     if (*size < 0) {
       return alloc.emitOpError() << "allocates a negative number of qubits: " << *size;
     }
+    // A run of a repeated allocation gets the same qubits as the previous run, so that run must have freed them.
+    const FailureOr<bool> repeated = mayRunRepeatedly(alloc);
+    if (failed(repeated)) {
+      return failure();
+    }
+    if (*repeated && !isFreedInItsBlock(alloc)) {
+      return alloc.emitOpError() << "may run repeatedly, but " << passName
+                                 << " expects such an allocation to be freed by a 'qcc.dealloc' in its block";
+    }
 
     SmallVector<AssignedQubit>& qubits = assignments[alloc];
     for (int64_t i = 0; i < *size; ++i) {
       if (const std::optional<int64_t> index = takeFreed(alloc)) {
-        qubits.push_back({.index = *index, .reused = true});
+        qubits.push_back({.index = *index, .needsReset = true});
         continue;
       }
       while (reserved.contains(nextIndex)) {
         ++nextIndex;
       }
-      qubits.push_back({.index = nextIndex++, .reused = false});
+      qubits.push_back({.index = nextIndex++, .needsReset = *repeated});
     }
     return success();
+  }
+
+  /// Whether `alloc` may run more than once in one run of the function, one run after the other. Fails if it may run in
+  /// parallel with itself: we *could* hand out distinct qubits for each iteration but this is impractical for hardware.
+  ///
+  /// Only a cycle of branches, `scf.for` and `scf.while` run their blocks repeatedly but one run after the other. Any
+  /// other region must be known to run at most once: a region of a `RegionBranchOpInterface` op that is not a loop and
+  /// does not repeat the region. The loop check is needed for `scf.forall`: it runs its body once per iteration, but in
+  /// parallel, so the interface sees no cycle.
+  FailureOr<bool> mayRunRepeatedly(AllocOp alloc) const {
+    bool repeated = false;
+    Operation* op = alloc;
+    while (true) {
+      Block* block = op->getBlock();
+      if (block->isReachable(block)) {
+        repeated = true;
+      }
+      op = op->getParentOp();
+      if (op == func) {
+        return repeated;
+      }
+      if (isa<scf::ForOp, scf::WhileOp>(op)) {
+        repeated = true;
+        continue;
+      }
+      auto branch = dyn_cast<RegionBranchOpInterface>(op);
+      if (!branch || isa<LoopLikeOpInterface>(op) || branch.isRepetitiveRegion(block->getParent()->getRegionNumber())) {
+        return alloc.emitOpError() << "may run in parallel with itself in '" << op->getName() << "', which " << passName
+                                   << " does not support";
+      }
+    }
+  }
+
+  /// Whether a dealloc in the block of `alloc` frees it, possibly through `tensor.cast`.
+  static bool isFreedInItsBlock(AllocOp alloc) {
+    SmallVector<Value> worklist = {alloc.getResult()};
+    while (!worklist.empty()) {
+      const Value qubits = worklist.pop_back_val();
+      for (Operation* user : qubits.getUsers()) {
+        if (isa<DeallocOp>(user) && user->getBlock() == alloc->getBlock()) {
+          return true;
+        }
+        if (auto cast = dyn_cast<tensor::CastOp>(user)) {
+          worklist.push_back(cast.getResult());
+        }
+      }
+    }
+    return false;
   }
 
   /// Takes a qubit that a dealloc dominating `alloc` freed, from the most recent such dealloc.
@@ -169,7 +233,7 @@ private:
       SmallVector<Value> refs;
       for (const AssignedQubit& qubit : qubits) {
         Value ref = StaticRefOp::create(builder, loc, ArrayRef(qubit.index)).getQubits().front();
-        if (qubit.reused) {
+        if (qubit.needsReset) {
           qref::ResetOp::create(builder, loc, Basis::Z, ref);
         }
         refs.push_back(ref);

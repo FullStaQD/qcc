@@ -3,10 +3,13 @@ add_mlir_dialect_library(
   AssignQubits.cpp
   LINK_LIBS
   PRIVATE
+  MLIRControlFlowInterfaces
   MLIRIR
+  MLIRLoopLikeInterface
   MLIRPass
   MLIRSupport
   MLIRFuncDialect
+  MLIRSCFDialect
   MLIRTensorDialect
   QCCQccDialect
   QCCQRefDialect)
