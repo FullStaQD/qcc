@@ -357,7 +357,8 @@ struct MeasureConversion final : OpConversionPattern<jasp::MeasureOp> {
   }
 };
 
-/// Converts `jasp.reset` into `qref.reset z`. On an array, resets each qubit in an `scf.for`.
+/// Converts `jasp.reset` into `qref.reset z`. On an array, resets each qubit in an `scf.parallel`: the resets act on
+/// distinct qubits, so their order does not matter.
 struct ResetConversion final : OpConversionPattern<jasp::ResetOp> {
   using OpConversionPattern::OpConversionPattern;
 
@@ -375,13 +376,11 @@ struct ResetConversion final : OpConversionPattern<jasp::ResetOp> {
     Value c0Index = arith::ConstantIndexOp::create(rewriter, loc, 0);
     Value c1Index = arith::ConstantIndexOp::create(rewriter, loc, 1);
     Value size = tensor::DimOp::create(rewriter, loc, qubits, c0Index);
-    auto forOp = scf::ForOp::create(rewriter, loc, c0Index, size, c1Index);
-
-    rewriter.setInsertionPointToStart(forOp.getBody());
-    Value qubit = tensor::ExtractOp::create(rewriter, loc, qubits, forOp.getInductionVar());
-    qref::ResetOp::create(rewriter, loc, Basis::Z, qubit);
-
-    rewriter.setInsertionPointAfter(forOp);
+    scf::ParallelOp::create(rewriter, loc, c0Index, size, c1Index,
+                            [&](OpBuilder& builder, Location bodyLoc, ValueRange ivs) {
+                              Value qubit = tensor::ExtractOp::create(builder, bodyLoc, qubits, ivs.front());
+                              qref::ResetOp::create(builder, bodyLoc, Basis::Z, qubit);
+                            });
     rewriter.eraseOp(op);
     return success();
   }

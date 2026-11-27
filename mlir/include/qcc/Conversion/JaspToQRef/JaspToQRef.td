@@ -18,8 +18,8 @@ def ConvertJaspToQRef : Pass<"convert-jasp-to-qref", "mlir::ModuleOp"> {
 
       - `!jasp.Qubit` becomes `!qcc.qubit_ref` and `!jasp.QubitArray` a tensor thereof.
       - A gate becomes the corresponding `qref.single` or `qref.pair`. `id` and `gphase` are dropped.
-      - `jasp.measure` and `jasp.reset` become `qref.measure z` and `qref.reset z`. On an array they become an `scf.for`
-        over its qubits, and the measurement packs the outcomes into an `i64` (result `i` into bit `i`).
+      - `jasp.measure` and `jasp.reset` become `qref.measure z` and `qref.reset z`. On an array they become a loop over
+        its qubits.
       - Dropped: `!jasp.QuantumState` as well as its creator `jasp.create_quantum_kernel` and consumer
         `jasp.consume_quantum_kernel` (its result becomes `true`).
       - A rank-0 tensor `tensor<SCALAR>` becomes `SCALAR` (e.g. `i64`) wherever possible.

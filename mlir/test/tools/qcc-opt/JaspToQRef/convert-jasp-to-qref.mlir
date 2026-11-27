@@ -115,9 +115,10 @@ func.func @reset(%q0: !jasp.Qubit, %q: !jasp.QubitArray, %s0: !jasp.QuantumState
 }
 
 // CHECK-NEXT: qref.reset z %[[Q0]] : !qcc.qubit_ref
-// CHECK:      scf.for %[[IV:.*]] =
+// CHECK:      scf.parallel (%[[IV:.*]]) =
 // CHECK-NEXT:   %[[QI:.*]] = tensor.extract %[[Q]][%[[IV]]] : tensor<?x!qcc.qubit_ref>
 // CHECK-NEXT:   qref.reset z %[[QI]] : !qcc.qubit_ref
+// CHECK-NEXT:   scf.reduce
 // CHECK-NEXT: }
 // CHECK-NEXT: return
 
