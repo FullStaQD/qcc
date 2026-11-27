@@ -29,7 +29,7 @@ The tool that is generated is called `qcc-opt`.
 
 The easiest way to get started is via the provided [devcontainer](https://containers.dev), which automatically installs all dependencies including LLVM/MLIR.
 This requires [docker](https://www.docker.com/) to be installed on the host.
-Various IDEs support support the standard, e.g.:
+Various IDEs support the standard, e.g.:
 
 - vscode: via [Dev Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) extension.
 - jetbrains IDEs: See e.g. [here](https://www.jetbrains.com/help/idea/connect-to-devcontainer.html).
@@ -106,7 +106,7 @@ and it should output a QIR program (LLVM IR).
 
 ### Support for Quantum ISAs
 
-By default `qcc` is build with support for QIR _only_. Support for a proper
+By default `qcc` is built with support for QIR _only_. Support for a proper
 Quantum ISA (QISA) as `--target` can be accomplished by setting the cmake option
 `QCC_ENABLE_HISEPQ=ON` (for HiSEP-Q in this case). This however needs a patched
 LLVM. So in order to work with that you should be willing to build LLVM from
@@ -156,6 +156,14 @@ cmake --build build/dev/ --target qcc-doc
 # For the html (open with browser at generated index.html). Needs hugo (e.g. apt install hugo on ubuntu).
 cmake --build build/dev/ --target qcc-doc-html
 ```
+
+---
+
+## Releases
+
+Prebuilt archives for Linux are on the [releases page](https://github.com/FullStaQD/qcc/releases). The README inside
+each archive ([`utils/release/archive-readme.md`](utils/release/archive-readme.md)) explains how to install them.
+Maintainers: see [how to release](docs/how-to-release.md).
 
 ---
 

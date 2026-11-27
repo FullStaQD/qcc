@@ -99,6 +99,7 @@ jobs:
     timeout-minutes: 330 # LLVM alone takes about 3 h, GitHub's limit is 6 h
     env:
       LLVM_INSTALL_DIR: /opt/llvm-install
+      # Name of the archive and of its top-level directory, kept stable as promised in utils/release/archive-readme.md.
       PACKAGE: qcc-${{ needs.version.outputs.version }}-linux-${{ matrix.arch }}
     steps:
       - name: Checkout
@@ -337,4 +338,4 @@ jobs:
             prerelease=(--prerelease)
           fi
           gh release create "$GITHUB_REF_NAME" --draft --verify-tag "${prerelease[@]}" \
-            --notes-file docs/release/release-notes.md dist/qcc-*.tar.gz dist/SHA256SUMS
+            --notes-file utils/release/release-notes.md dist/qcc-*.tar.gz dist/SHA256SUMS

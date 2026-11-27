@@ -6,10 +6,11 @@ project(
   DESCRIPTION "Quantum Compiler Collection, part of FullStaQD"
   LANGUAGES C CXX)
 
-# Pre-releases append a SemVer pre-release suffix to the version, e.g. 0.1.0-alpha.1.
+# A SemVer pre-release suffix appended to the version: -dev for development builds (the default), e.g. -alpha.1 for
+# pre-releases, and empty for releases.
 set(QCC_VERSION_SUFFIX
-    ""
-    CACHE STRING "Suffix appended to the version, e.g. -alpha.1 (empty for a release)")
+    "-dev"
+    CACHE STRING "Suffix appended to the version: -dev (development), e.g. -alpha.1 (pre-release), empty (release)")
 if(NOT QCC_VERSION_SUFFIX MATCHES "^(-[0-9A-Za-z-]+(\\.[0-9A-Za-z-]+)*)?$")
   message(FATAL_ERROR "QCC_VERSION_SUFFIX must be empty or a pre-release suffix like -alpha.1, "
                       "got '${QCC_VERSION_SUFFIX}'")
@@ -74,16 +75,20 @@ endif()
 enable_testing()
 add_subdirectory(mlir/test)
 
-# To enable `cmake --install <build> --component qcc --strip --prefix <dir>`.
+# Use `cmake --install <build> --component qcc --strip --prefix <dir>` to install qcc.
 install(
-  FILES LICENSE.txt NOTICE.txt docs/release/README.md
+  FILES LICENSE.txt NOTICE.txt
   DESTINATION .
+  COMPONENT qcc)
+install(
+  FILES utils/release/archive-readme.md
+  DESTINATION .
+  RENAME README.md
   COMPONENT qcc)
 install(
   FILES third-party/llvm/LICENSE.TXT
   DESTINATION third-party/llvm
   COMPONENT qcc)
-# All of it, so the source of the EPL-2.0 licensed dialect definition travels with the binaries.
 install(
   DIRECTORY third-party/qrisp
   DESTINATION third-party

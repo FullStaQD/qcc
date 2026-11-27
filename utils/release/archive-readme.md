@@ -4,7 +4,7 @@ qcc compiles quantum programs from [Qrisp](https://qrisp.eu) to [QIR](https://ww
 for [HiSEP-Q](https://github.com/caps-tum/HiSEP-Q-2.0). It is part of the FullStaQD project. Source code and issues:
 <https://github.com/FullStaQD/qcc>.
 
-**This is an alpha release.** The command line and archive layout is not stable and may change in any release. Pin the
+**This is an alpha release.** The command line and archive layout are not stable and may change in any release. Pin the
 exact version and the SHA-256 of the archive.
 
 ## Requirements
