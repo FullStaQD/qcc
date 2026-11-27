@@ -126,7 +126,7 @@ func.func @reset() {
 // -----
 
 // `qv.mres` holds only 32 outcomes, so the 33 qubits are measured in two chunks, each read back on its own. This
-// workaround is explained in `mlir/lib/Target/HiSEPQ/README.md`.
+// workaround is explained in the pass description.
 
 // CHECK-LABEL: func.func @measurement_over_32_qubits
 func.func @measurement_over_32_qubits() -> vector<33xi1> {

@@ -26,22 +26,6 @@ TODO: Once HiSEP-Q ships a crt0, qcc emits a plain `main`, drops the `_start`
 synthesis, and both files leave this tree. Our future compiler driver likely
 gains a `--sysroot`-style override so an external BSP can take over.
 
-## Reading measurement outcomes back
-
-The QISA has no instruction that returns the outcomes of a `qv.mz`. As a
-workaround, HiSEP-Q puts the outcomes of the latest measurement into the
-read-only CSR `qv.mres` (`qmres`), where bit `k` is the outcome of element `k`.
-qcc reads it right after each `qv.mz`, because the next measurement overwrites
-it.
-
-The CSR holds only 32 bits, and HiSEP-Q drops the outcomes beyond bit 31 without
-warning. `qvec-merge` can create larger measurements, so
-`convert-qvec-to-hisepq-intrinsics` splits them into chunks of at most 32
-qubits. This is the only thing that prevents wrong outcomes, and it costs extra
-instructions.
-
-TODO: Revisit once HiSEP-Q has a proper readback.
-
 ## Simulating
 
 You can download a prebuilt simulator `sim_hisepq` with our
