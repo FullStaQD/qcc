@@ -1,5 +1,76 @@
 // RUN: qcc-opt %s --convert-jasp-to-qref --split-input-file | FileCheck %s
 
+// CHECK-LABEL: func.func @gates(
+// CHECK-SAME:      %[[Q0:.*]]: !qcc.qubit_ref, %[[Q1:.*]]: !qcc.qubit_ref, %[[A:.*]]: f64, %[[B:.*]]: f64, %[[C:.*]]: f64)
+func.func @gates(%q0: !jasp.Qubit, %q1: !jasp.Qubit, %a: tensor<f64>, %b: tensor<f64>, %c: tensor<f64>,
+                 %s0: !jasp.QuantumState) -> !jasp.QuantumState {
+  %s1 = "jasp.quantum_gate"(%q0, %s0) {gate_type = "x"} : (!jasp.Qubit, !jasp.QuantumState) -> !jasp.QuantumState
+  %s2 = "jasp.quantum_gate"(%q0, %s1) {gate_type = "y"} : (!jasp.Qubit, !jasp.QuantumState) -> !jasp.QuantumState
+  %s3 = "jasp.quantum_gate"(%q0, %s2) {gate_type = "z"} : (!jasp.Qubit, !jasp.QuantumState) -> !jasp.QuantumState
+  %s4 = "jasp.quantum_gate"(%q0, %s3) {gate_type = "h"} : (!jasp.Qubit, !jasp.QuantumState) -> !jasp.QuantumState
+  %s5 = "jasp.quantum_gate"(%q0, %s4) {gate_type = "s"} : (!jasp.Qubit, !jasp.QuantumState) -> !jasp.QuantumState
+  %s6 = "jasp.quantum_gate"(%q0, %s5) {gate_type = "s_dg"} : (!jasp.Qubit, !jasp.QuantumState) -> !jasp.QuantumState
+  %s7 = "jasp.quantum_gate"(%q0, %s6) {gate_type = "t"} : (!jasp.Qubit, !jasp.QuantumState) -> !jasp.QuantumState
+  %s8 = "jasp.quantum_gate"(%q0, %s7) {gate_type = "t_dg"} : (!jasp.Qubit, !jasp.QuantumState) -> !jasp.QuantumState
+  %s9 = "jasp.quantum_gate"(%q0, %s8) {gate_type = "sx"} : (!jasp.Qubit, !jasp.QuantumState) -> !jasp.QuantumState
+  %s10 = "jasp.quantum_gate"(%q0, %s9) {gate_type = "id"} : (!jasp.Qubit, !jasp.QuantumState) -> !jasp.QuantumState
+  %s11 = "jasp.quantum_gate"(%a, %s10) {gate_type = "gphase"} : (tensor<f64>, !jasp.QuantumState) -> !jasp.QuantumState
+  %s12 = "jasp.quantum_gate"(%q0, %a, %s11) {gate_type = "rx"}
+      : (!jasp.Qubit, tensor<f64>, !jasp.QuantumState) -> !jasp.QuantumState
+  %s13 = "jasp.quantum_gate"(%q0, %a, %s12) {gate_type = "ry"}
+      : (!jasp.Qubit, tensor<f64>, !jasp.QuantumState) -> !jasp.QuantumState
+  %s14 = "jasp.quantum_gate"(%q0, %a, %s13) {gate_type = "rz"}
+      : (!jasp.Qubit, tensor<f64>, !jasp.QuantumState) -> !jasp.QuantumState
+  %s15 = "jasp.quantum_gate"(%q0, %a, %s14) {gate_type = "p"}
+      : (!jasp.Qubit, tensor<f64>, !jasp.QuantumState) -> !jasp.QuantumState
+  %s16 = "jasp.quantum_gate"(%q0, %a, %b, %c, %s15) {gate_type = "u3"}
+      : (!jasp.Qubit, tensor<f64>, tensor<f64>, tensor<f64>, !jasp.QuantumState) -> !jasp.QuantumState
+  %s17 = "jasp.quantum_gate"(%q0, %q1, %s16) {gate_type = "cx"}
+      : (!jasp.Qubit, !jasp.Qubit, !jasp.QuantumState) -> !jasp.QuantumState
+  %s18 = "jasp.quantum_gate"(%q0, %q1, %s17) {gate_type = "cy"}
+      : (!jasp.Qubit, !jasp.Qubit, !jasp.QuantumState) -> !jasp.QuantumState
+  %s19 = "jasp.quantum_gate"(%q0, %q1, %s18) {gate_type = "cz"}
+      : (!jasp.Qubit, !jasp.Qubit, !jasp.QuantumState) -> !jasp.QuantumState
+  %s20 = "jasp.quantum_gate"(%q0, %q1, %s19) {gate_type = "swap"}
+      : (!jasp.Qubit, !jasp.Qubit, !jasp.QuantumState) -> !jasp.QuantumState
+  %s21 = "jasp.quantum_gate"(%q0, %q1, %a, %s20) {gate_type = "cp"}
+      : (!jasp.Qubit, !jasp.Qubit, tensor<f64>, !jasp.QuantumState) -> !jasp.QuantumState
+  %s22 = "jasp.quantum_gate"(%q0, %q1, %a, %s21) {gate_type = "crz"}
+      : (!jasp.Qubit, !jasp.Qubit, tensor<f64>, !jasp.QuantumState) -> !jasp.QuantumState
+  %s23 = "jasp.quantum_gate"(%q0, %q1, %a, %s22) {gate_type = "rxx"}
+      : (!jasp.Qubit, !jasp.Qubit, tensor<f64>, !jasp.QuantumState) -> !jasp.QuantumState
+  %s24 = "jasp.quantum_gate"(%q0, %q1, %a, %s23) {gate_type = "rzz"}
+      : (!jasp.Qubit, !jasp.Qubit, tensor<f64>, !jasp.QuantumState) -> !jasp.QuantumState
+  return %s24 : !jasp.QuantumState
+}
+
+// CHECK-NEXT: qref.single x %[[Q0]] : !qcc.qubit_ref
+// CHECK-NEXT: qref.single y %[[Q0]] : !qcc.qubit_ref
+// CHECK-NEXT: qref.single z %[[Q0]] : !qcc.qubit_ref
+// CHECK-NEXT: qref.single h %[[Q0]] : !qcc.qubit_ref
+// CHECK-NEXT: qref.single s %[[Q0]] : !qcc.qubit_ref
+// CHECK-NEXT: qref.single sdg %[[Q0]] : !qcc.qubit_ref
+// CHECK-NEXT: qref.single t %[[Q0]] : !qcc.qubit_ref
+// CHECK-NEXT: qref.single tdg %[[Q0]] : !qcc.qubit_ref
+// CHECK-NEXT: qref.single sx %[[Q0]] : !qcc.qubit_ref
+// `id` and `gphase` are dropped.
+// CHECK-NEXT: qref.single rx(%[[A]]) %[[Q0]] : f64, !qcc.qubit_ref
+// CHECK-NEXT: qref.single ry(%[[A]]) %[[Q0]] : f64, !qcc.qubit_ref
+// CHECK-NEXT: qref.single rz(%[[A]]) %[[Q0]] : f64, !qcc.qubit_ref
+// CHECK-NEXT: qref.single rz(%[[A]]) %[[Q0]] : f64, !qcc.qubit_ref
+// CHECK-NEXT: qref.single u_zyz(%[[C]], %[[A]], %[[B]]) %[[Q0]] : f64, !qcc.qubit_ref
+// CHECK-NEXT: qref.pair cx %[[Q0]], %[[Q1]] : !qcc.qubit_ref
+// CHECK-NEXT: qref.pair cy %[[Q0]], %[[Q1]] : !qcc.qubit_ref
+// CHECK-NEXT: qref.pair cz %[[Q0]], %[[Q1]] : !qcc.qubit_ref
+// CHECK-NEXT: qref.pair swap %[[Q0]], %[[Q1]] : !qcc.qubit_ref
+// CHECK-NEXT: qref.pair cp(%[[A]]) %[[Q0]], %[[Q1]] : f64, !qcc.qubit_ref
+// CHECK-NEXT: qref.pair crz(%[[A]]) %[[Q0]], %[[Q1]] : f64, !qcc.qubit_ref
+// CHECK-NEXT: qref.pair rxx(%[[A]]) %[[Q0]], %[[Q1]] : f64, !qcc.qubit_ref
+// CHECK-NEXT: qref.pair rzz(%[[A]]) %[[Q0]], %[[Q1]] : f64, !qcc.qubit_ref
+// CHECK-NEXT: return
+
+// -----
+
 // CHECK-LABEL: func.func @lifecycle() -> i1
 func.func @lifecycle() -> tensor<i1> {
   %s0 = "jasp.create_quantum_kernel"() : () -> !jasp.QuantumState
@@ -125,75 +196,4 @@ func.func @loop(%q: !jasp.QubitArray, %s0: !jasp.QuantumState, %i0: tensor<i64>,
 // CHECK-NEXT:   qref.single x %[[QI]] : !qcc.qubit_ref
 // CHECK-NEXT:   scf.yield %[[I]], %[[A]] : i64, tensor<?x!qcc.qubit_ref>
 // CHECK-NEXT: }
-// CHECK-NEXT: return
-
-// -----
-
-// CHECK-LABEL: func.func @gates(
-// CHECK-SAME:      %[[Q0:.*]]: !qcc.qubit_ref, %[[Q1:.*]]: !qcc.qubit_ref, %[[A:.*]]: f64, %[[B:.*]]: f64, %[[C:.*]]: f64)
-func.func @gates(%q0: !jasp.Qubit, %q1: !jasp.Qubit, %a: tensor<f64>, %b: tensor<f64>, %c: tensor<f64>,
-                 %s0: !jasp.QuantumState) -> !jasp.QuantumState {
-  %s1 = "jasp.quantum_gate"(%q0, %s0) {gate_type = "x"} : (!jasp.Qubit, !jasp.QuantumState) -> !jasp.QuantumState
-  %s2 = "jasp.quantum_gate"(%q0, %s1) {gate_type = "y"} : (!jasp.Qubit, !jasp.QuantumState) -> !jasp.QuantumState
-  %s3 = "jasp.quantum_gate"(%q0, %s2) {gate_type = "z"} : (!jasp.Qubit, !jasp.QuantumState) -> !jasp.QuantumState
-  %s4 = "jasp.quantum_gate"(%q0, %s3) {gate_type = "h"} : (!jasp.Qubit, !jasp.QuantumState) -> !jasp.QuantumState
-  %s5 = "jasp.quantum_gate"(%q0, %s4) {gate_type = "s"} : (!jasp.Qubit, !jasp.QuantumState) -> !jasp.QuantumState
-  %s6 = "jasp.quantum_gate"(%q0, %s5) {gate_type = "s_dg"} : (!jasp.Qubit, !jasp.QuantumState) -> !jasp.QuantumState
-  %s7 = "jasp.quantum_gate"(%q0, %s6) {gate_type = "t"} : (!jasp.Qubit, !jasp.QuantumState) -> !jasp.QuantumState
-  %s8 = "jasp.quantum_gate"(%q0, %s7) {gate_type = "t_dg"} : (!jasp.Qubit, !jasp.QuantumState) -> !jasp.QuantumState
-  %s9 = "jasp.quantum_gate"(%q0, %s8) {gate_type = "sx"} : (!jasp.Qubit, !jasp.QuantumState) -> !jasp.QuantumState
-  %s10 = "jasp.quantum_gate"(%q0, %s9) {gate_type = "id"} : (!jasp.Qubit, !jasp.QuantumState) -> !jasp.QuantumState
-  %s11 = "jasp.quantum_gate"(%a, %s10) {gate_type = "gphase"} : (tensor<f64>, !jasp.QuantumState) -> !jasp.QuantumState
-  %s12 = "jasp.quantum_gate"(%q0, %a, %s11) {gate_type = "rx"}
-      : (!jasp.Qubit, tensor<f64>, !jasp.QuantumState) -> !jasp.QuantumState
-  %s13 = "jasp.quantum_gate"(%q0, %a, %s12) {gate_type = "ry"}
-      : (!jasp.Qubit, tensor<f64>, !jasp.QuantumState) -> !jasp.QuantumState
-  %s14 = "jasp.quantum_gate"(%q0, %a, %s13) {gate_type = "rz"}
-      : (!jasp.Qubit, tensor<f64>, !jasp.QuantumState) -> !jasp.QuantumState
-  %s15 = "jasp.quantum_gate"(%q0, %a, %s14) {gate_type = "p"}
-      : (!jasp.Qubit, tensor<f64>, !jasp.QuantumState) -> !jasp.QuantumState
-  %s16 = "jasp.quantum_gate"(%q0, %a, %b, %c, %s15) {gate_type = "u3"}
-      : (!jasp.Qubit, tensor<f64>, tensor<f64>, tensor<f64>, !jasp.QuantumState) -> !jasp.QuantumState
-  %s17 = "jasp.quantum_gate"(%q0, %q1, %s16) {gate_type = "cx"}
-      : (!jasp.Qubit, !jasp.Qubit, !jasp.QuantumState) -> !jasp.QuantumState
-  %s18 = "jasp.quantum_gate"(%q0, %q1, %s17) {gate_type = "cy"}
-      : (!jasp.Qubit, !jasp.Qubit, !jasp.QuantumState) -> !jasp.QuantumState
-  %s19 = "jasp.quantum_gate"(%q0, %q1, %s18) {gate_type = "cz"}
-      : (!jasp.Qubit, !jasp.Qubit, !jasp.QuantumState) -> !jasp.QuantumState
-  %s20 = "jasp.quantum_gate"(%q0, %q1, %s19) {gate_type = "swap"}
-      : (!jasp.Qubit, !jasp.Qubit, !jasp.QuantumState) -> !jasp.QuantumState
-  %s21 = "jasp.quantum_gate"(%q0, %q1, %a, %s20) {gate_type = "cp"}
-      : (!jasp.Qubit, !jasp.Qubit, tensor<f64>, !jasp.QuantumState) -> !jasp.QuantumState
-  %s22 = "jasp.quantum_gate"(%q0, %q1, %a, %s21) {gate_type = "crz"}
-      : (!jasp.Qubit, !jasp.Qubit, tensor<f64>, !jasp.QuantumState) -> !jasp.QuantumState
-  %s23 = "jasp.quantum_gate"(%q0, %q1, %a, %s22) {gate_type = "rxx"}
-      : (!jasp.Qubit, !jasp.Qubit, tensor<f64>, !jasp.QuantumState) -> !jasp.QuantumState
-  %s24 = "jasp.quantum_gate"(%q0, %q1, %a, %s23) {gate_type = "rzz"}
-      : (!jasp.Qubit, !jasp.Qubit, tensor<f64>, !jasp.QuantumState) -> !jasp.QuantumState
-  return %s24 : !jasp.QuantumState
-}
-
-// CHECK-NEXT: qref.single x %[[Q0]] : !qcc.qubit_ref
-// CHECK-NEXT: qref.single y %[[Q0]] : !qcc.qubit_ref
-// CHECK-NEXT: qref.single z %[[Q0]] : !qcc.qubit_ref
-// CHECK-NEXT: qref.single h %[[Q0]] : !qcc.qubit_ref
-// CHECK-NEXT: qref.single s %[[Q0]] : !qcc.qubit_ref
-// CHECK-NEXT: qref.single sdg %[[Q0]] : !qcc.qubit_ref
-// CHECK-NEXT: qref.single t %[[Q0]] : !qcc.qubit_ref
-// CHECK-NEXT: qref.single tdg %[[Q0]] : !qcc.qubit_ref
-// CHECK-NEXT: qref.single sx %[[Q0]] : !qcc.qubit_ref
-// `id` and `gphase` are dropped.
-// CHECK-NEXT: qref.single rx(%[[A]]) %[[Q0]] : f64, !qcc.qubit_ref
-// CHECK-NEXT: qref.single ry(%[[A]]) %[[Q0]] : f64, !qcc.qubit_ref
-// CHECK-NEXT: qref.single rz(%[[A]]) %[[Q0]] : f64, !qcc.qubit_ref
-// CHECK-NEXT: qref.single rz(%[[A]]) %[[Q0]] : f64, !qcc.qubit_ref
-// CHECK-NEXT: qref.single u_zyz(%[[C]], %[[A]], %[[B]]) %[[Q0]] : f64, !qcc.qubit_ref
-// CHECK-NEXT: qref.pair cx %[[Q0]], %[[Q1]] : !qcc.qubit_ref
-// CHECK-NEXT: qref.pair cy %[[Q0]], %[[Q1]] : !qcc.qubit_ref
-// CHECK-NEXT: qref.pair cz %[[Q0]], %[[Q1]] : !qcc.qubit_ref
-// CHECK-NEXT: qref.pair swap %[[Q0]], %[[Q1]] : !qcc.qubit_ref
-// CHECK-NEXT: qref.pair cp(%[[A]]) %[[Q0]], %[[Q1]] : f64, !qcc.qubit_ref
-// CHECK-NEXT: qref.pair crz(%[[A]]) %[[Q0]], %[[Q1]] : f64, !qcc.qubit_ref
-// CHECK-NEXT: qref.pair rxx(%[[A]]) %[[Q0]], %[[Q1]] : f64, !qcc.qubit_ref
-// CHECK-NEXT: qref.pair rzz(%[[A]]) %[[Q0]], %[[Q1]] : f64, !qcc.qubit_ref
 // CHECK-NEXT: return
