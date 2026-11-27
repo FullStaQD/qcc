@@ -387,7 +387,7 @@ LogicalResult AllocOp::verify() {
 namespace {
 
 /// Makes a constant size static: `qcc.alloc %c3 : tensor<?x!qcc.qubit_ref>` becomes `qcc.alloc : tensor<3x...>` and a
-/// `tensor.cast` back to `tensor<?x...>`. Then `tensor.dim` folds to the constant, as for `memref.alloc`.
+/// `tensor.cast` back to `tensor<?x...>`.
 struct StaticAllocSize final : OpRewritePattern<AllocOp> {
   using OpRewritePattern::OpRewritePattern;
 
