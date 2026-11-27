@@ -60,4 +60,5 @@ builtin.module @jasp_module {
 // CHECK-NEXT:  vsetivli zero, 16, e8, m1, ta, ma
 // CHECK-NEXT:  vid.v [[ALL:v[0-9]+]]
 // CHECK-NEXT:  qv.mz [[ALL]], zero, 0
+// CHECK-NEXT:  csrr {{[a-z0-9]+}}, qv.mres
 // CHECK-NEXT:  ret

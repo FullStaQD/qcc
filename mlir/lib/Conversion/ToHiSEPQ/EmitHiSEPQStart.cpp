@@ -12,6 +12,7 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Value.h"
 #include "mlir/IR/ValueRange.h"
 #include "mlir/Pass/Pass.h" // IWYU pragma: keep
@@ -79,6 +80,20 @@ private:
 
     if (!entryPoint) {
       return moduleOp->emitError("did not find any entry point");
+    }
+
+    // `_start` calls the entry point from inline assembly and ignores the calling convention. So it can't pass
+    // arguments or provide memory for results that don't fit into registers.
+    if (entryPoint.getNumArguments() != 0) {
+      return entryPoint.emitOpError("expected the entry point to take no arguments");
+    }
+    Type resultType = entryPoint.getFunctionType().getReturnType();
+    auto intType = dyn_cast<IntegerType>(resultType);
+    const bool returnsExitCode = intType && intType.getWidth() <= 64;
+    if (!isa<LLVM::LLVMVoidType>(resultType) && !returnsExitCode) {
+      return entryPoint.emitOpError("expected the entry point to return nothing or an integer exit code of at most 64 "
+                                    "bits, got ")
+             << resultType;
     }
 
     return entryPoint;

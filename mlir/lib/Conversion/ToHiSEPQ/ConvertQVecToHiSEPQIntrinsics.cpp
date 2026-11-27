@@ -30,6 +30,7 @@
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Transforms/WalkPatternRewriteDriver.h"
 
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
@@ -215,6 +216,37 @@ static void createQubitsIntrinsic(OpBuilder& builder, Location loc, StringRef in
   LLVM::CallIntrinsicOp::create(builder, loc, builder.getStringAttr(intrinsic), args);
 }
 
+/// Measures `qubits` in the Z basis and returns one `i1` outcome per qubit.
+///
+/// The outcomes are read from CSR `qv.mres` right after each `qv.mz`, because the next measurement overwrites them. Bit
+/// `k` is the outcome of element `k`. `qv.mres` holds only 32 outcomes, so larger measurements are split into chunks.
+static SmallVector<Value> createMeasurement(OpBuilder& builder, Location loc, const ResolvedQubits& qubits,
+                                            const HiSEPQMachine& machine) {
+  auto i32Type = builder.getI32Type();
+  SmallVector<Value> outcomes;
+  ArrayRef<int64_t> remaining = qubits.indices;
+  while (!remaining.empty()) {
+    ArrayRef<int64_t> chunk = remaining.take_front(HiSEPQMachine::maxMeasuredQubits());
+    remaining = remaining.drop_front(chunk.size());
+    auto numQubits = static_cast<unsigned>(chunk.size());
+    // A chunk is never larger than `qubits`, so it fits into a vector too.
+    const ResolvedQubits chunkQubits{.indices = llvm::to_vector(chunk),
+                                     .qvType = *machine.qubitVectorType(builder.getContext(), numQubits)};
+    createQubitsIntrinsic(builder, loc, "llvm.riscv.qv.mz", chunkQubits);
+
+    Value result =
+        LLVM::CallIntrinsicOp::create(builder, loc, i32Type, builder.getStringAttr("llvm.riscv.qv.mres"), ValueRange{})
+            .getResult(0);
+    for (unsigned element = 0; element < numQubits; ++element) {
+      Value shift =
+          LLVM::ConstantOp::create(builder, loc, i32Type, builder.getI32IntegerAttr(static_cast<int32_t>(element)));
+      Value shifted = LLVM::LShrOp::create(builder, loc, result, shift);
+      outcomes.push_back(LLVM::TruncOp::create(builder, loc, builder.getI1Type(), shifted));
+    }
+  }
+  return outcomes;
+}
+
 namespace {
 
 /// Rewrites `qvec.single` into `llvm.call_intrinsic "llvm.riscv.qv.{h,x,...}"`.
@@ -280,11 +312,7 @@ struct PairOpLowering : public OpRewritePattern<PairOp> {
   HiSEPQMachine machine;
 };
 
-/// Rewrites `qvec.measure z` into `llvm.call_intrinsic "llvm.riscv.qv.mz"` plus a poison result.
-///
-/// TODO: The QISA specifies no way to read a measurement back, so the classical bits are lost
-/// here. Replace the poison with a real read once `IntrinsicsRISCVXQV.td` gains an intrinsic for
-/// it. Until then a program that branches on a measurement silently gets garbage.
+/// Rewrites `qvec.measure z` into `llvm.riscv.qv.mz` and reads the outcomes back from `qv.mres`.
 struct MeasureOpLowering : public OpRewritePattern<MeasureOp> {
   MeasureOpLowering(MLIRContext* ctx, Diagnostics* diags, HiSEPQMachine machine)
       : OpRewritePattern(ctx), diags(diags), machine(machine) {}
@@ -299,9 +327,8 @@ struct MeasureOpLowering : public OpRewritePattern<MeasureOp> {
       return failure();
     }
 
-    createQubitsIntrinsic(rewriter, op.getLoc(), "llvm.riscv.qv.mz", *qubits);
-
-    Value bits = LLVM::PoisonOp::create(rewriter, op.getLoc(), op.getBits().getType()); // Workaround
+    SmallVector<Value> outcomes = createMeasurement(rewriter, op.getLoc(), *qubits, machine);
+    Value bits = vector::FromElementsOp::create(rewriter, op.getLoc(), op.getBits().getType(), outcomes);
     rewriter.replaceOp(op, ValueRange{op.getQubitsIn(), bits});
     return success();
   }
@@ -310,10 +337,8 @@ struct MeasureOpLowering : public OpRewritePattern<MeasureOp> {
   HiSEPQMachine machine;
 };
 
-/// Rewrites `qvec.reset z`, which has no instruction of its own, into `llvm.call_intrinsic "llvm.riscv.qv.mz"`
-/// followed by an `llvm.riscv.qv.x` on each qubit measured in |1⟩.
-///
-/// TODO: The flips branch on poison, as the measured bits are lost (see `MeasureOpLowering`).
+/// Rewrites `qvec.reset z` into a measurement followed by an `llvm.riscv.qv.x` on each qubit measured in |1⟩, since
+/// HiSEP-Q has no reset instruction.
 struct ResetOpLowering : public OpRewritePattern<ResetOp> {
   ResetOpLowering(MLIRContext* ctx, Diagnostics* diags, HiSEPQMachine machine)
       : OpRewritePattern(ctx), diags(diags), machine(machine) {}
@@ -329,15 +354,12 @@ struct ResetOpLowering : public OpRewritePattern<ResetOp> {
     }
 
     Location loc = op.getLoc();
-    createQubitsIntrinsic(rewriter, loc, "llvm.riscv.qv.mz", *qubits);
-    auto bitsType = VectorType::get({static_cast<int64_t>(qubits->indices.size())}, rewriter.getI1Type());
-    Value bits = LLVM::PoisonOp::create(rewriter, loc, bitsType); // Workaround, see `MeasureOpLowering`
+    SmallVector<Value> outcomes = createMeasurement(rewriter, loc, *qubits, machine);
 
-    // Each qubit has a bit of its own, hence a flip of its own.
+    // Flip each qubit that measured 1.
     const VectorType singleType = *machine.qubitVectorType(rewriter.getContext(), 1);
-    for (auto [position, index] : llvm::enumerate(qubits->indices)) {
-      Value bit = vector::ExtractOp::create(rewriter, loc, bits, static_cast<int64_t>(position));
-      scf::IfOp::create(rewriter, loc, bit, [&](OpBuilder& builder, Location thenLoc) {
+    for (auto [outcome, index] : llvm::zip_equal(outcomes, qubits->indices)) {
+      scf::IfOp::create(rewriter, loc, outcome, [&](OpBuilder& builder, Location thenLoc) {
         createQubitsIntrinsic(builder, thenLoc, "llvm.riscv.qv.x",
                               ResolvedQubits{.indices = {index}, .qvType = singleType});
         scf::YieldOp::create(builder, thenLoc);

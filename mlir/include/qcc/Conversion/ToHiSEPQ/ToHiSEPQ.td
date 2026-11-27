@@ -23,11 +23,11 @@ def ConvertQIRToHiSEPQIntrinsics : Pass<"convert-qir-to-hisepq-intrinsics", "mli
       carrying that index in element 0, matching the `anyvector` operand that the
       QVSingle / QVPair intrinsics expect.
 
-      The QIR runtime calls below have no HiSEP-Q QISA counterpart yet, so they
-      are dropped:
+      The QIR runtime calls below are dropped:
       - `__quantum__rt__initialize` calls are erased.
       - `__quantum__rt__read_result` calls are replaced with `poison : i1`,
-        i.e. the measurement result is lost.
+        i.e. the measurement result is lost. Use
+        `convert-qvec-to-hisepq-intrinsics` instead, which reads it back.
       - `__quantum__rt__bool_record_output` and `__quantum__rt__int_record_output`
         calls are erased, so program output is not recorded.
       TODO: Support these once HiSEP-Q specifies the corresponding QISA
@@ -65,7 +65,11 @@ def EmitHiSEPQStart : Pass<"emit-hisepq-start", "mlir::ModuleOp"> {
       (`hisepq.ld`), which declares `ENTRY(_start)`, pulls `.text._start` to
       the boot address and provides `__stack_top`.
 
-      Assumes that *exactly* one function is tagged entry point.
+      Assumes that *exactly* one function is tagged entry point. `_start`
+      calls it from inline assembly and ignores the calling convention, so the
+      entry point must take no arguments and return nothing or an integer of
+      at most 64 bits. `convert-return-to-output-recording` turns the results
+      of a Qrisp program into records.
 
       TODO: Drop this pass once HiSEP-Q ships a crt0. Then qcc can emit a plain
       `main` and leave the startup code to the runtime.
@@ -111,12 +115,14 @@ def ConvertQVecToHiSEPQIntrinsics : Pass<"convert-qvec-to-hisepq-intrinsics", "m
       example `qvec.reset z` becomes a measurement followed by an `llvm.riscv.qv.x` on each qubit measured in |1⟩. This
       is because HiSEP-Q has no reset operation.
 
-      - `llvm.riscv.qv.mz` returns void and the QISA specifies no way to read a measurement back, so the classical
-        result of `qvec.measure` is replaced with `poison`, i.e. the measurement result is lost. The flips of a reset
-        depend on such a result too.
-      - `aux.record_int` and `aux.record_memref` are erased, so the program produces no output.
+      Measurement outcomes are read from CSR `qv.mres` with `llvm.riscv.qv.mres` right after each `llvm.riscv.qv.mz`.
+      Bit `k` is the outcome of element `k`.
+      TODO: `qv.mres` is a workaround that HiSEP-Q added to make measurement feedback possible. It holds only 32
+      outcomes and drops the rest without warning. So larger measurements, which `qvec-merge` may create, are split
+      into chunks of at most 32 qubits. Revisit once HiSEP-Q has a proper readback.
 
-      TODO: Support both once HiSEP-Q specifies the corresponding QISA operations.
+      `aux.record_int` and `aux.record_memref` are erased, so the program produces no output.
+      TODO: Support them once HiSEP-Q specifies the corresponding QISA operations.
   }];
 
   let options = [
