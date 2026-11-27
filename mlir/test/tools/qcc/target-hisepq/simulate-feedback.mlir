@@ -19,6 +19,9 @@ func.func @main() attributes { qcc.entry_point } {
     scf.if %m {
         qc.x %0 : !qc.qubit
     }
+    // Without a record, the whole program would be erased as dead code.
+    %r = qc.measure %0 : !qc.qubit -> i1
+    aux.record_int %r : i1
     return
 }
 
