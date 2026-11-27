@@ -34,6 +34,7 @@ def QRefAssignQubits : Pass<"qref-assign-qubits", "mlir::func::FuncOp"> {
       ```mlir
       %c2 = arith.constant 2 : index
       %r = qcc.alloc %c2 : tensor<?x!qcc.qubit_ref>
+      // ... do something with %r.
       qcc.dealloc %r : tensor<?x!qcc.qubit_ref>
       %q = qcc.alloc : !qcc.qubit_ref
       qref.single h %q : !qcc.qubit_ref
@@ -46,6 +47,8 @@ def QRefAssignQubits : Pass<"qref-assign-qubits", "mlir::func::FuncOp"> {
       %q1 = qcc.static_ref [1] : !qcc.qubit_ref
       %a = tensor.from_elements %q0, %q1 : tensor<2x!qcc.qubit_ref>
       %r = tensor.cast %a : tensor<2x!qcc.qubit_ref> to tensor<?x!qcc.qubit_ref>
+      // ... do something with %r.
+      // Note that qubits 0 and 1 are free to reuse now (due to dealloc). We use a reset to reinitialize it.
       %q = qcc.static_ref [0] : !qcc.qubit_ref
       qref.reset z %q : !qcc.qubit_ref
       qref.single h %q : !qcc.qubit_ref
