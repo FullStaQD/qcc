@@ -171,6 +171,7 @@ public:
       return RankedTensorType::get({ShapedType::kDynamic}, QubitRefType::get(ctx));
     });
 
+    // 0-dim tensors become scalars.
     addConversion([](RankedTensorType type) -> std::optional<Type> {
       if (type.getRank() == 0) {
         return type.getElementType();
