@@ -19,10 +19,10 @@ def QRefAssignQubits : Pass<"qref-assign-qubits", "mlir::func::FuncOp"> {
       Replaces each `qcc.alloc` by a `qcc.static_ref` per qubit, and erases each `qcc.dealloc`. An array becomes a
       `tensor.from_elements` of its qubits, so that a canonicalizer can fold extracts with a constant index.
 
-      The qubits get the indices 0, 1, 2, ... in walk order. An index that a `qcc.static_ref` of the function names
-      already is never handed out. An allocation reuses the qubits of a dealloc that dominates it, and resets them with
-      `qref.reset z`; the most recent such dealloc comes first, and its qubits in array order. An allocation in a
-      sequential loop (e.g. `scf.for`, `scf.while`) resets all its qubits.
+      Each allocated qubit gets a static index that no other live qubit has, and never one that an existing
+      `qcc.static_ref` of the function already names. An allocation can reuse qubits that a dealloc dominating it freed,
+      and resets them to |0⟩. An allocation in a sequential loop (e.g. `scf.for`, `scf.while`) resets all its qubits.
+      Which indices the qubits get is a heuristic.
 
       Each function is taken to be a program on its own.
 
@@ -42,7 +42,7 @@ def QRefAssignQubits : Pass<"qref-assign-qubits", "mlir::func::FuncOp"> {
       qref.single h %q : !qcc.qubit_ref
       ```
 
-      becomes
+      becomes, for instance,
 
       ```mlir
       %q0 = qcc.static_ref [0] : !qcc.qubit_ref
