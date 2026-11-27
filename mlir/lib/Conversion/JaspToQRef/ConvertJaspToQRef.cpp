@@ -287,7 +287,7 @@ struct QuantumGateConversion final : OpConversionPattern<jasp::QuantumGateOp> {
     const SmallVector<Value> operands =
         llvm::map_to_vector(adaptor.getGateOperands(), [](ValueRange range) { return llvm::getSingleElement(range); });
     const ArrayRef<Value> qubits = ArrayRef(operands).take_front(gate->numQubits);
-    SmallVector<Value> params(ArrayRef(operands).drop_front(gate->numQubits));
+    SmallVector<Value> params = llvm::to_vector(ArrayRef(operands).drop_front(gate->numQubits));
 
     const Location loc = op.getLoc();
     if (const auto* single = std::get_if<SingleGateKind>(&gate->kind)) {
