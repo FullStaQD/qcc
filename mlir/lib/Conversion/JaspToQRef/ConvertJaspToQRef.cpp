@@ -34,6 +34,7 @@
 
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/SmallVectorExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSwitch.h"
 
@@ -152,15 +153,13 @@ namespace {
 // Type conversion
 //===----------------------------------------------------------------------===//
 
-/// Type converter for the ops.
+/// Type converter for the pass.
 ///
 /// - `!jasp.Qubit` becomes `!qcc.qubit_ref`, and `!jasp.QubitArray` becomes `tensor<?x!qcc.qubit_ref>`.
-/// - `!jasp.QuantumState` is left intact.
-///   TODO: This is a hack. If we delete the QuantumState type here, conversion fails before any pattern is applied.
-///   But if we leave it out, function signatures will not be updated. Therefore, we need two separate type converters.
+/// - `!jasp.QuantumState` is dropped. We need `OneToNOpAdaptor` in the conversion patterns due to this.
 ///
 /// In addition, the prevalent rank-0 tensors `tensor<i64>` and `tensor<f64>` become plain values wherever possible.
-class JaspToQRefTypeConverter : public TypeConverter {
+class JaspToQRefTypeConverter final : public TypeConverter {
 public:
   explicit JaspToQRefTypeConverter(MLIRContext* ctx) {
     // Identity conversion for all other types.
@@ -170,6 +169,7 @@ public:
     addConversion([ctx](jasp::QubitArrayType /*type*/) -> Type {
       return RankedTensorType::get({ShapedType::kDynamic}, QubitRefType::get(ctx));
     });
+    addConversion([](jasp::QuantumStateType /*type*/, SmallVectorImpl<Type>& /*results*/) { return success(); });
 
     // 0-dim tensors become scalars.
     addConversion([](RankedTensorType type) -> std::optional<Type> {
@@ -195,15 +195,6 @@ public:
   }
 };
 
-/// Type converter for function signatures, calls, returns and structured control flow: in addition to the base
-/// converter, `!jasp.QuantumState` is dropped.
-class QuantumStateEliminator final : public JaspToQRefTypeConverter {
-public:
-  explicit QuantumStateEliminator(MLIRContext* ctx) : JaspToQRefTypeConverter(ctx) {
-    addConversion([](jasp::QuantumStateType /*type*/, SmallVectorImpl<Type>& /*results*/) { return success(); });
-  }
-};
-
 //===----------------------------------------------------------------------===//
 // Patterns
 //===----------------------------------------------------------------------===//
@@ -225,7 +216,7 @@ struct CreateQuantumKernelConversion final : OpConversionPattern<jasp::CreateQua
 struct ConsumeQuantumKernelConversion final : OpConversionPattern<jasp::ConsumeQuantumKernelOp> {
   using OpConversionPattern::OpConversionPattern;
 
-  LogicalResult matchAndRewrite(jasp::ConsumeQuantumKernelOp op, OpAdaptor /*adaptor*/,
+  LogicalResult matchAndRewrite(jasp::ConsumeQuantumKernelOp op, OneToNOpAdaptor /*adaptor*/,
                                 ConversionPatternRewriter& rewriter) const override {
     rewriter.replaceOpWithNewOp<arith::ConstantIntOp>(op, rewriter.getI1Type(), 1);
     return success();
@@ -236,10 +227,11 @@ struct ConsumeQuantumKernelConversion final : OpConversionPattern<jasp::ConsumeQ
 struct CreateQubitsConversion final : OpConversionPattern<jasp::CreateQubitsOp> {
   using OpConversionPattern::OpConversionPattern;
 
-  LogicalResult matchAndRewrite(jasp::CreateQubitsOp op, OpAdaptor adaptor,
+  LogicalResult matchAndRewrite(jasp::CreateQubitsOp op, OneToNOpAdaptor adaptor,
                                 ConversionPatternRewriter& rewriter) const override {
     const Location loc = op.getLoc();
-    Value size = arith::IndexCastOp::create(rewriter, loc, rewriter.getIndexType(), adaptor.getAmount());
+    Value size =
+        arith::IndexCastOp::create(rewriter, loc, rewriter.getIndexType(), llvm::getSingleElement(adaptor.getAmount()));
     const Type arrayType = getTypeConverter()->convertType(op.getResult().getType());
     auto alloc = AllocOp::create(rewriter, loc, arrayType, size);
     rewriter.replaceOpWithMultiple(op, {alloc.getQubits(), ValueRange()});
@@ -276,9 +268,9 @@ struct GetSizeConversion final : OpConversionPattern<jasp::GetSizeOp> {
 struct DeleteQubitsConversion final : OpConversionPattern<jasp::DeleteQubitsOp> {
   using OpConversionPattern::OpConversionPattern;
 
-  LogicalResult matchAndRewrite(jasp::DeleteQubitsOp op, OpAdaptor adaptor,
+  LogicalResult matchAndRewrite(jasp::DeleteQubitsOp op, OneToNOpAdaptor adaptor,
                                 ConversionPatternRewriter& rewriter) const override {
-    DeallocOp::create(rewriter, op.getLoc(), adaptor.getQubits());
+    DeallocOp::create(rewriter, op.getLoc(), llvm::getSingleElement(adaptor.getQubits()));
     rewriter.eraseOp(op);
     return success();
   }
@@ -288,13 +280,14 @@ struct DeleteQubitsConversion final : OpConversionPattern<jasp::DeleteQubitsOp> 
 struct QuantumGateConversion final : OpConversionPattern<jasp::QuantumGateOp> {
   using OpConversionPattern::OpConversionPattern;
 
-  LogicalResult matchAndRewrite(jasp::QuantumGateOp op, OpAdaptor adaptor,
+  LogicalResult matchAndRewrite(jasp::QuantumGateOp op, OneToNOpAdaptor adaptor,
                                 ConversionPatternRewriter& rewriter) const override {
     const std::optional<GateInfo> gate = lookupGate(op.getGateType());
     assert(gate && "the preconditions rule out unknown gates");
-    const ValueRange operands = adaptor.getGateOperands();
-    const ValueRange qubits = operands.take_front(gate->numQubits);
-    SmallVector<Value> params(operands.drop_front(gate->numQubits));
+    const SmallVector<Value> operands =
+        llvm::map_to_vector(adaptor.getGateOperands(), [](ValueRange range) { return llvm::getSingleElement(range); });
+    const ArrayRef<Value> qubits = ArrayRef(operands).take_front(gate->numQubits);
+    SmallVector<Value> params(ArrayRef(operands).drop_front(gate->numQubits));
 
     const Location loc = op.getLoc();
     if (const auto* single = std::get_if<SingleGateKind>(&gate->kind)) {
@@ -319,10 +312,10 @@ struct QuantumGateConversion final : OpConversionPattern<jasp::QuantumGateOp> {
 struct MeasureConversion final : OpConversionPattern<jasp::MeasureOp> {
   using OpConversionPattern::OpConversionPattern;
 
-  LogicalResult matchAndRewrite(jasp::MeasureOp op, OpAdaptor adaptor,
+  LogicalResult matchAndRewrite(jasp::MeasureOp op, OneToNOpAdaptor adaptor,
                                 ConversionPatternRewriter& rewriter) const override {
     const Location loc = op.getLoc();
-    Value qubits = adaptor.getMeasQ();
+    Value qubits = llvm::getSingleElement(adaptor.getMeasQ());
     const Type resultType = getTypeConverter()->convertType(op.getMeasRes().getType());
     assert(resultType && resultType.isSignlessInteger() && "the result is an integer");
 
@@ -368,10 +361,10 @@ struct MeasureConversion final : OpConversionPattern<jasp::MeasureOp> {
 struct ResetConversion final : OpConversionPattern<jasp::ResetOp> {
   using OpConversionPattern::OpConversionPattern;
 
-  LogicalResult matchAndRewrite(jasp::ResetOp op, OpAdaptor adaptor,
+  LogicalResult matchAndRewrite(jasp::ResetOp op, OneToNOpAdaptor adaptor,
                                 ConversionPatternRewriter& rewriter) const override {
     const Location loc = op.getLoc();
-    Value qubits = adaptor.getQubits();
+    Value qubits = llvm::getSingleElement(adaptor.getQubits());
 
     if (!isQubitArray(qubits.getType())) {
       qref::ResetOp::create(rewriter, loc, Basis::Z, qubits);
@@ -410,7 +403,6 @@ protected:
 
     MLIRContext* ctx = &getContext();
     const JaspToQRefTypeConverter typeConverter(ctx);
-    const QuantumStateEliminator stateEliminator(ctx);
 
     ConversionTarget target(*ctx);
     target.addIllegalDialect<jasp::JaspDialect>();
@@ -423,19 +415,19 @@ protected:
              GetSizeConversion, DeleteQubitsConversion, QuantumGateConversion, MeasureConversion, ResetConversion>(
             typeConverter, ctx);
 
-    populateAnyFunctionOpInterfaceTypeConversionPattern(patterns, stateEliminator);
+    populateAnyFunctionOpInterfaceTypeConversionPattern(patterns, typeConverter);
     target.addDynamicallyLegalOp<func::FuncOp>(
-        [&](func::FuncOp op) { return stateEliminator.isSignatureLegal(op.getFunctionType()); });
+        [&](func::FuncOp op) { return typeConverter.isSignatureLegal(op.getFunctionType()); });
 
-    populateReturnOpTypeConversionPattern(patterns, stateEliminator);
-    target.addDynamicallyLegalOp<func::ReturnOp>([&](func::ReturnOp op) { return stateEliminator.isLegal(op); });
+    populateReturnOpTypeConversionPattern(patterns, typeConverter);
+    target.addDynamicallyLegalOp<func::ReturnOp>([&](func::ReturnOp op) { return typeConverter.isLegal(op); });
 
-    populateCallOpTypeConversionPattern(patterns, stateEliminator);
-    target.addDynamicallyLegalOp<func::CallOp>([&](func::CallOp op) { return stateEliminator.isLegal(op); });
+    populateCallOpTypeConversionPattern(patterns, typeConverter);
+    target.addDynamicallyLegalOp<func::CallOp>([&](func::CallOp op) { return typeConverter.isLegal(op); });
 
-    populateBranchOpInterfaceTypeConversionPattern(patterns, stateEliminator);
+    populateBranchOpInterfaceTypeConversionPattern(patterns, typeConverter);
 
-    scf::populateSCFStructuralTypeConversionsAndLegality(stateEliminator, patterns, target);
+    scf::populateSCFStructuralTypeConversionsAndLegality(typeConverter, patterns, target);
 
     if (failed(applyPartialConversion(module, target, std::move(patterns)))) {
       signalPassFailure();
