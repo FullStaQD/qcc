@@ -38,9 +38,14 @@
 #include "mlir/Tools/mlir-opt/MlirOptMain.h"
 #include "mlir/Transforms/Passes.h"
 
+namespace qcc::test {
+void registerTestDialect(mlir::DialectRegistry& registry);
+} // namespace qcc::test
+
 int main(int argc, char** argv) {
   mlir::DialectRegistry registry;
   qcc::registerAllDialects(registry);
+  qcc::test::registerTestDialect(registry);
 
   // Builtin passes:
   mlir::registerCanonicalizerPass();

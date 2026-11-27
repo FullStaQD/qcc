@@ -10,6 +10,8 @@ func.func @main() attributes { qcc.entry_point } {
         qc.x %1 : !qc.qubit
     }
 
+    %m2 = qc.measure %1 : !qc.qubit -> i1
+    aux.record_int %m2 : i1
     return
 }
 
@@ -22,7 +24,8 @@ func.func @main() attributes { qcc.entry_point } {
 // measurement-halt-resume protocol.
 // Related issue: https://github.com/caps-tum/HiSEP-Q-2.0/issues/8
 // CHECK:           qv.mz   [[V1]], {{.*}}, 0
-// CHECK:           bnez    {{.*}}, [[RET:\.L[a-zA-Z0-9_]+]]
+// CHECK:           bnez    {{.*}}, [[JOIN:\.L[a-zA-Z0-9_]+]]
 // CHECK:           qv.x    [[V1]], zero, 0
-// CHECK:       [[RET]]:
+// CHECK:       [[JOIN]]:
+// CHECK:           qv.mz   [[V1]], {{.*}}, 0
 // CHECK:           ret

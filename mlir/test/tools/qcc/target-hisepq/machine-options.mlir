@@ -41,6 +41,24 @@ func.func @main() attributes { qcc.entry_point } {
     qc.h %q6 : !qc.qubit
     qc.h %q7 : !qc.qubit
 
+    %m0 = qc.measure %q0 : !qc.qubit -> i1
+    %m1 = qc.measure %q1 : !qc.qubit -> i1
+    %m2 = qc.measure %q2 : !qc.qubit -> i1
+    %m3 = qc.measure %q3 : !qc.qubit -> i1
+    %m4 = qc.measure %q4 : !qc.qubit -> i1
+    %m5 = qc.measure %q5 : !qc.qubit -> i1
+    %m6 = qc.measure %q6 : !qc.qubit -> i1
+    %m7 = qc.measure %q7 : !qc.qubit -> i1
+
+    aux.record_int %m0 : i1
+    aux.record_int %m1 : i1
+    aux.record_int %m2 : i1
+    aux.record_int %m3 : i1
+    aux.record_int %m4 : i1
+    aux.record_int %m5 : i1
+    aux.record_int %m6 : i1
+    aux.record_int %m7 : i1
+
     return
 }
 

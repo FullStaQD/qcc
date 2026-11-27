@@ -11,6 +11,7 @@ func.func @example_1() {
     %h1 = qvec.single h %v1 : vector<1x!qcc.qubit>
     %h2 = qvec.single h %v2 : vector<1x!qcc.qubit>
 
+    test.sink %h0, %h1, %h2 : vector<1x!qcc.qubit>
     func.return
 }
 
@@ -37,6 +38,7 @@ func.func @example_2() {
     %t1 = vector.from_elements %q3 : vector<1x!qcc.qubit>
     %c1, %d1 = qvec.pair cx %h1, %t1 : vector<1x!qcc.qubit>
 
+    test.sink %c0, %d0, %c1, %d1 : vector<1x!qcc.qubit>
     func.return
 }
 
@@ -59,6 +61,7 @@ func.func @dependent_singles() {
     %v2 = qvec.single h %v1 : vector<1x!qcc.qubit>
     %v3 = qvec.single h %v2 : vector<1x!qcc.qubit>
 
+    test.sink %v3 : vector<1x!qcc.qubit>
     func.return
 }
 
@@ -78,6 +81,7 @@ func.func @dependent_pairs() {
     %a1, %b1 = qvec.pair cx %a0, %b0 : vector<1x!qcc.qubit>
     %a2, %b2 = qvec.pair cx %a1, %b1 : vector<1x!qcc.qubit>
 
+    test.sink %a2, %b2 : vector<1x!qcc.qubit>
     func.return
 }
 
@@ -106,6 +110,7 @@ func.func @measurements() {
     %do, %c2 = qvec.measure z %c1 : vector<1x!qcc.qubit> -> vector<1xi1>
     %eo, %d2 = qvec.measure z %d1 : vector<1x!qcc.qubit> -> vector<1xi1>
 
+    test.sink %ao, %bo, %do, %eo : vector<1x!qcc.qubit>
     func.return
 }
 
@@ -163,6 +168,7 @@ func.func @bases() {
     %e = qvec.reset x %v4 : vector<1x!qcc.qubit>
     %f = qvec.reset z %v5 : vector<1x!qcc.qubit>
 
+    test.sink %a, %b, %c, %d, %e, %f : vector<1x!qcc.qubit>
     func.return
 }
 
@@ -182,6 +188,7 @@ func.func @qubits_maybe_not_disjoint() {
     %rs = func.call @opaque_qubits() : () -> vector<2x!qcc.qubit>
     %a = qvec.single h %qs : vector<2x!qcc.qubit>
     %b = qvec.single h %rs : vector<2x!qcc.qubit>
+    test.sink %a, %b : vector<2x!qcc.qubit>
     func.return
 }
 
@@ -210,6 +217,7 @@ func.func @untraceable_producer() {
     %w2 = vector.from_elements %o0 : vector<1x!qcc.qubit>
     %h2 = qvec.single h %w2 : vector<1x!qcc.qubit>
 
+    test.sink %h0, %h1, %h2 : vector<1x!qcc.qubit>
     func.return
 }
 
@@ -234,6 +242,7 @@ func.func @wide_member_slice_is_one_op() {
     %a2 = qvec.single x %a1 : vector<2x!qcc.qubit> // layer 1
     %b2 = qvec.single y %b1 : vector<2x!qcc.qubit> // layer 1
 
+    test.sink %a2, %b2 : vector<2x!qcc.qubit>
     func.return
 }
 
@@ -259,6 +268,7 @@ func.func @no_merge_across_if(%cond: i1) {
     }
     %h0 = qvec.single h %x0 : vector<1x!qcc.qubit>
 
+    test.sink %h0, %h1 : vector<1x!qcc.qubit>
     func.return
 }
 
@@ -293,6 +303,7 @@ func.func @merge_behind_ifs() {
     %y0 = qvec.single y %a0 : vector<1x!qcc.qubit>
     %y1 = qvec.single y %a1 : vector<1x!qcc.qubit>
 
+    test.sink %y0, %y1 : vector<1x!qcc.qubit>
     func.return
 }
 
@@ -320,6 +331,7 @@ func.func @merge_inside_if(%cond: i1) {
       qcf.yield %ha, %hb : vector<1x!qcc.qubit>, vector<1x!qcc.qubit>
     }
 
+    test.sink %r0, %r1 : vector<1x!qcc.qubit>
     func.return
 }
 

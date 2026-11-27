@@ -13,6 +13,10 @@
 #include "mlir/InitAllDialects.h"
 #include "mlir/Tools/mlir-lsp-server/MlirLspServerMain.h"
 
+namespace qcc::test {
+void registerTestDialect(mlir::DialectRegistry& registry);
+} // namespace qcc::test
+
 int main(int argc, char** argv) {
   mlir::DialectRegistry registry;
 
@@ -21,6 +25,7 @@ int main(int argc, char** argv) {
 
   // Register our dialects.
   qcc::registerAllDialects(registry);
+  qcc::test::registerTestDialect(registry);
 
   return mlir::succeeded(mlir::MlirLspServerMain(argc, argv, registry)) ? 0 : 1;
 }

@@ -19,6 +19,7 @@ func.func @single_gates() {
     %h3 = qvec.single h %v3 : vector<1x!qcc.qubit>
     %h4 = qvec.single h %v4 : vector<1x!qcc.qubit>
 
+    test.sink %h0, %h1, %h2, %h3, %h4 : vector<1x!qcc.qubit>
     func.return
 }
 
@@ -47,6 +48,7 @@ func.func @member_wider_than_cap() {
     %h0 = qvec.single h %v0 : vector<1x!qcc.qubit>
     %h1 = qvec.single h %wide : vector<3x!qcc.qubit>
 
+    test.sink %h0, %h1 : vector<1x!qcc.qubit>, vector<3x!qcc.qubit>
     func.return
 }
 
@@ -76,6 +78,7 @@ func.func @pair_gates() {
     %c1, %d1 = qvec.pair cx %c0, %d0 : vector<1x!qcc.qubit>
     %e1, %f1 = qvec.pair cx %e0, %f0 : vector<1x!qcc.qubit>
 
+    test.sink %a1, %b1, %c1, %d1, %e1, %f1 : vector<1x!qcc.qubit>
     func.return
 }
 

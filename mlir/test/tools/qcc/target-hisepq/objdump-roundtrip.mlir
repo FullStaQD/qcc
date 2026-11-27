@@ -5,6 +5,8 @@ func.func @main() attributes { qcc.entry_point } {
     %0 = qc.static 0 : !qc.qubit
     qc.h %0 : !qc.qubit
     qc.x %0 : !qc.qubit
+    %m = qc.measure %0 : !qc.qubit -> i1
+    aux.record_int %m : i1
     return
 }
 

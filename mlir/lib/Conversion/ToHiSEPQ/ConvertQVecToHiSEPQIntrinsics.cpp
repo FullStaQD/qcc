@@ -28,6 +28,7 @@
 #include "mlir/Pass/Pass.h" // IWYU pragma: keep
 #include "mlir/Support/LogicalResult.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include "mlir/Transforms/WalkPatternRewriteDriver.h"
 
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
@@ -424,11 +425,19 @@ protected:
     const HiSEPQMachine machine(minVLen, numQubitControlLines);
 
     Diagnostics diags;
-    RewritePatternSet patterns(ctx);
-    patterns.add<SingleOpLowering, PairOpLowering, MeasureOpLowering, ResetOpLowering>(ctx, &diags, machine);
-    patterns.add<IfOpLowering, RecordOpErasure<aux::RecordIntOp>, RecordOpErasure<aux::RecordMemRefOp>>(ctx);
+    RewritePatternSet loweringPatterns(ctx);
+    loweringPatterns.add<SingleOpLowering, PairOpLowering, MeasureOpLowering, ResetOpLowering>(ctx, &diags, machine);
+    loweringPatterns.add<IfOpLowering>(ctx);
+    walkAndApplyPatterns(moduleOp, std::move(loweringPatterns));
+    if (diags.hadError) {
+      return signalPassFailure();
+    }
 
-    if (failed(applyPatternsGreedily(moduleOp, std::move(patterns))) || diags.hadError) {
+    // We make the record op erasure (workaround) separately in a *greedy* driver which also eliminates dead code now.
+    // This can be done now because intrinsics (in contrast to qvec ops) have memory effects.
+    RewritePatternSet cleanupPatterns(ctx);
+    cleanupPatterns.add<RecordOpErasure<aux::RecordIntOp>, RecordOpErasure<aux::RecordMemRefOp>>(ctx);
+    if (failed(applyPatternsGreedily(moduleOp, std::move(cleanupPatterns)))) {
       signalPassFailure();
     }
   }
