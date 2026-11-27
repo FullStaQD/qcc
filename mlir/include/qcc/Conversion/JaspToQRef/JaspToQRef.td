@@ -28,6 +28,8 @@ def ConvertJaspToQRef : Pass<"convert-jasp-to-qref", "mlir::ModuleOp"> {
 
       Unknown gates and `jasp` ops make the pass fail. Gates are not decomposed.
 
+      TODO(#232): Support `jasp.slice` and `jasp.fuse`.
+
       TODO: Yes more than 64 qubits being measured silently discards measurement results. This is a known issue of
       Qrisp's semantics. We have to find a way to deal with this: User warning, error, etc. There is a way to handle
       more than 64 qubits but it requires the user to use big integers (see
