@@ -10,6 +10,8 @@
 #include "qcc/Dialect/Qcc/IR/Qcc.h"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/Tensor/IR/Tensor.h"
+#include "mlir/Dialect/Utils/StaticValueUtils.h"
 #include "mlir/IR/Block.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinAttributes.h"
@@ -380,6 +382,32 @@ LogicalResult AllocOp::verify() {
     return emitOpError() << "has a size operand, but " << getQubits().getType() << " has no dynamic size";
   }
   return success();
+}
+
+namespace {
+
+/// Makes a constant size static: `qcc.alloc %c3 : tensor<?x!qcc.qubit_ref>` becomes `qcc.alloc : tensor<3x...>` and a
+/// `tensor.cast` back to `tensor<?x...>`.
+struct StaticAllocSize final : OpRewritePattern<AllocOp> {
+  using OpRewritePattern::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(AllocOp alloc, PatternRewriter& rewriter) const override {
+    Value dynamicSize = alloc.getDynamicSize();
+    const std::optional<int64_t> size = dynamicSize ? getConstantIntValue(dynamicSize) : std::nullopt;
+    if (!size || *size < 0) {
+      return failure();
+    }
+    auto arrayType = cast<RankedTensorType>(alloc.getType());
+    auto staticAlloc = AllocOp::create(rewriter, alloc.getLoc(), arrayType.clone({*size}), Value());
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(alloc, arrayType, staticAlloc);
+    return success();
+  }
+};
+
+} // namespace
+
+void AllocOp::getCanonicalizationPatterns(RewritePatternSet& results, MLIRContext* context) {
+  results.add<StaticAllocSize>(context);
 }
 
 LogicalResult DeallocOp::verify() {

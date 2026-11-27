@@ -66,6 +66,9 @@ bool isQubitVector(mlir::Type type);
 /// Whether `type` is `!qcc.qubit_ref` or a tensor of them (an array of qubits).
 bool isQubitRefOrArray(mlir::Type type);
 
+/// Whether `type` is a tensor of `!qcc.qubit_ref` (an array of qubits).
+bool isQubitArray(mlir::Type type);
+
 /// Whether `type` is the type of classical values: a type with the `ClassicalTypeInterface`, a builtin integer,
 /// floating-point, `index`, or `complex` type, or a tensor or vector of classical elements.
 bool isClassicalType(mlir::Type type);

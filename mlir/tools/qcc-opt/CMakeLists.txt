@@ -19,10 +19,12 @@ target_link_libraries(
           MLIRTensorTransforms
           MLIRBufferizationTransforms
           QCCJaspToQC
+          QCCJaspToQRef
           MLIRFuncToLLVM
           MLIRVectorToLLVMPass
           QCCMagicTransforms
           QCCQCircTransforms
+          QCCQRefTransforms
           QCCQVecTransforms
           QCCQccTransforms
           QCCOQ3ToQRef

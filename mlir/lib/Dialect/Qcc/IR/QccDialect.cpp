@@ -9,6 +9,7 @@
 
 #include "qcc/Dialect/Qcc/IR/Qcc.h"
 
+#include "mlir/Dialect/Tensor/IR/Tensor.h" // IWYU pragma: keep, a dependent dialect.
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Diagnostics.h"
@@ -120,6 +121,11 @@ bool qcc::isQubitVector(Type type) {
 bool qcc::isQubitRefOrArray(Type type) {
   auto tensorType = dyn_cast<TensorType>(type);
   return isa<QubitRefType>(tensorType ? tensorType.getElementType() : type);
+}
+
+bool qcc::isQubitArray(Type type) {
+  auto tensorType = dyn_cast<TensorType>(type);
+  return tensorType && isa<QubitRefType>(tensorType.getElementType());
 }
 
 bool qcc::isClassicalType(Type type) {

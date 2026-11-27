@@ -92,8 +92,7 @@ def Qcc_StaticRefOp : Op<Qcc_Dialect, "static_ref", [Pure]> {
 def Qcc_AllocOp : Op<Qcc_Dialect, "alloc"> {
   let summary = "allocates fresh qubits";
   let description = [{
-        Allocates a fresh qubit in |0⟩, or an array of distinct fresh qubits. An array has a static size or the size
-        `dynamic_size`, and the size may be 0.
+        Allocates a fresh qubit in |0⟩, or an array of distinct fresh qubits.
 
         A fresh qubit lives until a `qcc.dealloc` frees it, otherwise until the end of the program. While it lives, it
         is distinct from every other qubit that is acted on, static qubits included. Below, `%a` may be the static
@@ -122,6 +121,7 @@ def Qcc_AllocOp : Op<Qcc_Dialect, "alloc"> {
 
   let assemblyFormat = "($dynamic_size^)? attr-dict `:` type($qubits)";
   let hasVerifier = 1;
+  let hasCanonicalizer = 1;
 }
 
 def Qcc_DeallocOp : Op<Qcc_Dialect, "dealloc"> {

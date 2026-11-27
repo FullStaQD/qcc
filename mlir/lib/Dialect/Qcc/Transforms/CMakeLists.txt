@@ -1,10 +1,15 @@
 add_mlir_dialect_library(
   QCCQccTransforms
   AttachDevice.cpp
+  OneShotBufferize.cpp
   LINK_LIBS
   PRIVATE
   MLIRIR
   MLIRPass
   MLIRSupport
+  MLIRBufferizationDialect
+  MLIRBufferizationTransforms
+  MLIRMemRefDialect
+  MLIRTensorDialect
   QCCMagicDialect
   QCCQccDialect)

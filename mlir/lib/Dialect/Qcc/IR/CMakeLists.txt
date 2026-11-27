@@ -9,4 +9,5 @@ add_mlir_dialect_library(
   MLIRParser
   MLIRFuncDialect
   MLIRFunctionInterfaces
-  MLIRSideEffectInterfaces)
+  MLIRSideEffectInterfaces
+  MLIRTensorDialect)
