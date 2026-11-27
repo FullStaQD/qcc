@@ -48,6 +48,10 @@ def QccOneShotBufferize : Pass<"qcc-one-shot-bufferize", "mlir::ModuleOp"> {
       removes an array that a loop only passes through.
 
       The options are those of `one-shot-bufferize` with the same names.
+
+      TODO(#232): This pass is a workaround. It is a symptom of the fact that qubits should not be put in tensors.
+      Tensors are meant to be placed into memory by bufferization. For qubits this is the wrong default behavior and
+      this pass essentially opts out the qubits from this default behavior.
   }];
 
   let options = [
