@@ -3,6 +3,7 @@ add_mlir_dialect_library(
   AssignQubits.cpp
   LINK_LIBS
   PRIVATE
+  MLIRCallInterfaces
   MLIRControlFlowInterfaces
   MLIRIR
   MLIRLoopLikeInterface

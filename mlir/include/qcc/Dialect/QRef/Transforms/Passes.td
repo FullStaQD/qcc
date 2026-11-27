@@ -12,7 +12,7 @@
 
 include "mlir/Pass/PassBase.td"
 
-def QRefAssignQubits : Pass<"qref-assign-qubits", "mlir::func::FuncOp"> {
+def QRefAssignQubits : Pass<"qref-assign-qubits", "mlir::ModuleOp"> {
   let summary = "Assigns a static qubit to each allocated qubit.";
 
   let description = [{
@@ -24,12 +24,13 @@ def QRefAssignQubits : Pass<"qref-assign-qubits", "mlir::func::FuncOp"> {
       and resets them to |0⟩. An allocation in a sequential loop (e.g. `scf.for`, `scf.while`) resets all its qubits.
       Which indices the qubits get is a heuristic.
 
-      Each function is taken to be a program on its own.
+      Each function of the module is taken to be a program on its own.
 
       Preconditions:
       - Each allocation has a constant size.
       - Each `qcc.dealloc` frees the result of a `qcc.alloc`, possibly through `tensor.cast`.
       - An allocation in a sequential loop is freed by a `qcc.dealloc` in its block.
+      - Nothing calls or refers to a function that allocates or names qubits (with `qcc.alloc` or `qcc.static_ref`).
 
       Example:
 

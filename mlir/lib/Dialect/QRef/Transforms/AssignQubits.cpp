@@ -7,8 +7,9 @@
 //
 // ===----------------------------------------------------------------------===//
 //
-// `qref-assign-qubits` first walks each function and decides on the static qubits of every allocation, so that a
-// failure leaves the IR untouched. Then it rewrites the allocations and erases the deallocs.
+// `qref-assign-qubits` first checks that no function with qubits is called, since each function is a program on its
+// own. Then, for each function, it walks the function and decides on the static qubits of every allocation, so that a
+// failure leaves the function untouched, and then rewrites the allocations and erases the deallocs.
 //
 //===----------------------------------------------------------------------===//
 
@@ -22,12 +23,15 @@
 #include "mlir/Dialect/Utils/StaticValueUtils.h"
 #include "mlir/IR/Block.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dominance.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/Region.h"
+#include "mlir/IR/SymbolTable.h"
 #include "mlir/IR/Value.h"
 #include "mlir/IR/Visitors.h"
+#include "mlir/Interfaces/CallInterfaces.h"
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
 #include "mlir/Interfaces/LoopLikeInterface.h"
 #include "mlir/Support/LLVM.h"
@@ -268,12 +272,49 @@ private:
   SmallVector<FreedQubits> freed;
 };
 
+} // namespace
+
+/// Fails if anything calls or refers to a function that allocates or names qubits: the qubits of each function are
+/// assigned as if it were a program on its own.
+static LogicalResult checkQubitFunctionsAreNotCalled(ModuleOp module, StringRef passName) {
+  SymbolTableCollection symbolTables;
+  const SymbolUserMap users(symbolTables, module);
+  bool called = false;
+  for (auto func : module.getOps<func::FuncOp>()) {
+    const WalkResult hasQubits = func.walk(
+        [](Operation* op) { return isa<AllocOp, StaticRefOp>(op) ? WalkResult::interrupt() : WalkResult::advance(); });
+    if (!hasQubits.wasInterrupted()) {
+      continue;
+    }
+    for (Operation* user : users.getUsers(func)) {
+      user->emitOpError() << (isa<CallOpInterface>(user) ? "calls @" : "refers to @") << func.getSymName()
+                          << ", which allocates or names qubits, but " << passName
+                          << " expects such a function never to be called";
+      called = true;
+    }
+  }
+  return failure(called);
+}
+
+namespace {
+
 struct QRefAssignQubits final : impl::QRefAssignQubitsBase<QRefAssignQubits> {
   using QRefAssignQubitsBase::QRefAssignQubitsBase;
 
 protected:
   void runOnOperation() override {
-    if (failed(QubitAssigner(getOperation(), getArgument()).run())) {
+    ModuleOp module = getOperation();
+    if (failed(checkQubitFunctionsAreNotCalled(module, getArgument()))) {
+      return signalPassFailure();
+    }
+    // A failure in one function leaves the others to be assigned, so that all their errors are reported.
+    bool assigned = true;
+    for (auto func : module.getOps<func::FuncOp>()) {
+      if (failed(QubitAssigner(func, getArgument()).run())) {
+        assigned = false;
+      }
+    }
+    if (!assigned) {
       signalPassFailure();
     }
   }

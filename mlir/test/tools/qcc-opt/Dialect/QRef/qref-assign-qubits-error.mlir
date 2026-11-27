@@ -69,3 +69,16 @@ func.func @parallel(%n: index) {
   }
   return
 }
+
+// -----
+
+func.func private @kernel() {
+  %q = qcc.alloc : !qcc.qubit_ref
+  return
+}
+
+func.func @main() {
+  // expected-error @+1 {{'func.call' op calls @kernel, which allocates or names qubits, but qref-assign-qubits expects such a function never to be called}}
+  func.call @kernel() : () -> ()
+  return
+}

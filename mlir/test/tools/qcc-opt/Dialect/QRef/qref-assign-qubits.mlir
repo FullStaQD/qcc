@@ -161,3 +161,22 @@ func.func @branch_cycle(%cond: i1) {
 // CHECK-NEXT:   %[[Q:.*]] = qcc.static_ref [0] : !qcc.qubit_ref
 // CHECK-NEXT:   qref.reset z %[[Q]] : !qcc.qubit_ref
 // CHECK-NEXT:   qref.single x %[[Q]] : !qcc.qubit_ref
+
+// -----
+
+func.func private @classical() {
+  return
+}
+
+// A call to a function without qubits is fine.
+// CHECK-LABEL: func.func @classical_call
+func.func @classical_call() {
+  %q = qcc.alloc : !qcc.qubit_ref
+  func.call @classical() : () -> ()
+  qref.single h %q : !qcc.qubit_ref
+  return
+}
+
+// CHECK:      %[[Q:.*]] = qcc.static_ref [0] : !qcc.qubit_ref
+// CHECK-NEXT: call @classical() : () -> ()
+// CHECK-NEXT: qref.single h %[[Q]] : !qcc.qubit_ref
