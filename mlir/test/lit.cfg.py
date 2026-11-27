@@ -79,17 +79,19 @@ if not found:
 if config.enable_hisepq:
     llvm_config.add_tool_substitutions(["hisepq-elf2mem"], [str(candidate_dir)])
 
-    # Optional prebuilt HiSEP-Q testbench `sim_hisepq`: Provision it with
-    # `utils/provision-sim-hisepq`, or point CMake at your own build via
-    # `-DQCC_SIM_HISEPQ_EXECUTABLE=...`.
-    sim_hisepq = config.sim_hisepq_executable
-    if os.path.isfile(sim_hisepq) and os.access(sim_hisepq, os.X_OK):
-        config.available_features.add("sim-hisepq")
+    # Tests that link and run on the testbench opt in via `REQUIRES: hisepq-sim`.
+    if config.hisepq_sim_tests:
+        opt_out = "or configure with -DQCC_HISEPQ_SIM_TESTS=OFF to skip the tests that need it"
+        sim_hisepq = config.sim_hisepq_executable
+        if not (os.path.isfile(sim_hisepq) and os.access(sim_hisepq, os.X_OK)):
+            lit_config.fatal(
+                f"testing HiSEP-Q needs sim_hisepq (not found: '{sim_hisepq}'): "
+                f"run utils/provision-sim-hisepq and reconfigure, {opt_out}"
+            )
+        if shutil.which("ld.lld", path=config.environment["PATH"]) is None:
+            lit_config.fatal(f"testing HiSEP-Q needs ld.lld on PATH: install it, {opt_out}")
+        config.available_features.add("hisepq-sim")
         config.substitutions.append((r"\bsim_hisepq\b", sim_hisepq))
-
-# Tests opt in via `REQUIRES: lld`.
-if shutil.which("ld.lld", path=config.environment["PATH"]) is not None:
-    config.available_features.add("lld")
 
 # `magic-runner` is a simulator for MAGIC programs.
 magic_runner = Path(config.project_source_dir) / "mlir" / "utils" / "magic-runner"

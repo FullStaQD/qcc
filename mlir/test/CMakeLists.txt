@@ -12,6 +12,12 @@ set(MLIR_COMPILER_TEST_DEPENDS
 
 if(QCC_ENABLE_HISEPQ)
   set(QCC_ENABLE_HISEPQ_PY True) # for lit config
+  option(QCC_HISEPQ_SIM_TESTS "Run the HiSEP-Q tests that need ld.lld and sim_hisepq (lit fails without them)" ON)
+  if(QCC_HISEPQ_SIM_TESTS)
+    set(QCC_HISEPQ_SIM_TESTS_PY True) # for lit config
+  else()
+    set(QCC_HISEPQ_SIM_TESTS_PY False)
+  endif()
   find_program(
     QCC_SIM_HISEPQ_EXECUTABLE
     NAMES sim_hisepq
@@ -20,6 +26,7 @@ if(QCC_ENABLE_HISEPQ)
   list(APPEND MLIR_COMPILER_TEST_DEPENDS hisepq-elf2mem)
 else()
   set(QCC_ENABLE_HISEPQ_PY False)
+  set(QCC_HISEPQ_SIM_TESTS_PY False)
 endif()
 
 if(QCC_INCLUDE_UNITTESTS)

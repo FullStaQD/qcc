@@ -4,11 +4,11 @@ End-to-end tests that start from a [Qrisp](https://qrisp.eu/) program: the progr
 dialect once, checked in, and compiled by `qcc` in the test. Where a simulator is available the compiled program is
 also run.
 
-| Folder    | Compiled for                              | Simulator       |
-| --------- | ----------------------------------------- | --------------- |
-| `qir/`    | QIR                                       | `qir-runner`    |
-| `hisepq/` | HiSEP-Q QISA (`--target=hisepq`)          | none, see below |
-| `magic/`  | a MAGIC device (`--quantum-device=magic`) | `magic-runner`  |
+| Folder    | Compiled for                              | Simulator               |
+| --------- | ----------------------------------------- | ----------------------- |
+| `qir/`    | QIR                                       | `qir-runner`            |
+| `hisepq/` | HiSEP-Q QISA (`--target=hisepq`)          | `sim_hisepq`, see below |
+| `magic/`  | a MAGIC device (`--quantum-device=magic`) | `magic-runner`          |
 
 Each test consists of the Qrisp source `<name>.py` and the test `<name>.mlir` generated from it.
 
@@ -56,9 +56,9 @@ The tests simulate the compiled program with `mlir/utils/magic-runner` (see its 
 
 ### Notes for `hisepq/`
 
-These tests run only in builds with the HiSEP-Q target, and they check the generated instructions. The RTL testbench
-`sim_hisepq` (used by `target-hisepq/simulate.mlir`) shows the issued instructions and the pulses per qubit control
-line, but it has no quantum state and stops at the first measurement, so it cannot check a program's outcome.
+These tests run only in builds with the HiSEP-Q target and check the generated instructions. Tests in `target-hisepq/`
+can also run these programs on the testbench `sim_hisepq`, like `simulate-repetition-code.mlir` does. How that works is
+described in [the HiSEP-Q docs](../../../../lib/Target/HiSEPQ/README.md#simulating-with-sim_hisepq).
 
 ## Performance considerations for simulation
 

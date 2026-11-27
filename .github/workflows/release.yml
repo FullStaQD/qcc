@@ -184,6 +184,7 @@ jobs:
             -DMLIR_DIR="$LLVM_INSTALL_DIR/lib/cmake/mlir" \
             -DLLVM_EXTERNAL_LIT="$(command -v lit)" \
             -DQCC_ENABLE_HISEPQ=ON \
+            -DQCC_HISEPQ_SIM_TESTS=OFF \
             -DDEPLOY=ON \
             -DQCC_APPEND_VC_REV=ON \
             -DQCC_VERSION_SUFFIX="$VERSION_SUFFIX"
@@ -199,8 +200,8 @@ jobs:
       - name: Build qcc
         run: cmake --build build
 
-      # qir-runner has no wheels for glibc 2.28, hence no QIR execution tests (QISA CI runs them). Without lld and the
-      # HiSEP-Q simulator lit skips the tests that need them.
+      # qir-runner has no wheels for glibc 2.28, hence no QIR execution tests (QISA CI runs them). lld and the HiSEP-Q
+      # simulator are missing too, hence QCC_HISEPQ_SIM_TESTS=OFF above.
       - name: Test qcc
         env:
           LIT_FILTER_OUT: qrisp-integration/qir/

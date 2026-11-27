@@ -1,9 +1,7 @@
-# HiSEP-Q linking and memory image
+# HiSEP-Q target
 
-`qcc --target=hisepq` only compiles to object files. Getting from there to
-something the [HiSEP-Q-2.0](https://github.com/caps-tum/HiSEP-Q-2.0)
-co-simulation testbench (the RTL sim in that repo's `demo/`, runnable via Vivado
-`xsim` or Verilator) or real hardware can actually run takes two more steps.
+`qcc --target=hisepq` only compiles to object files. Getting from there to something the
+[HiSEP-Q-2.0](https://github.com/caps-tum/HiSEP-Q-2.0) testbench or real hardware can run takes two more steps.
 
 ```sh
 # Compile to object file.
@@ -26,16 +24,53 @@ TODO: Once HiSEP-Q ships a crt0, qcc emits a plain `main`, drops the `_start`
 synthesis, and both files leave this tree. Our future compiler driver likely
 gains a `--sysroot`-style override so an external BSP can take over.
 
-## Simulating
+## Simulating with `sim_hisepq`
 
-You can download a prebuilt simulator `sim_hisepq` with our
-`utils/provision-sim-hisepq` script. Then use it like so
+`sim_hisepq` is the HiSEP-Q RTL testbench, built with Verilator. Get it with `utils/provision-sim-hisepq`. Testing a
+HiSEP-Q build needs it and `ld.lld`; configure with `-DQCC_HISEPQ_SIM_TESTS=OFF` to skip those tests.
+
+The testbench runs the processor on a memory image and logs the quantum events and the pulses it sends to each qubit.
+It has no quantum state: the test supplies the measurement outcomes, so a run checks how a program reacts to them.
 
 ```shell
-# Run it on the RTL testbench:
-sim_hisepq +MEM_FILE=out.mem
+sim_hisepq +MEM_FILE=out.mem +MEASURE_FILE=out.outcomes +AWG_EXPECT=out.expect
 ```
 
-Note that `sim_hisepq` exits 0 unconditionally -- even when it loads no memory
-image at all it still prints `RESULT: PASS`, having executed nothing. Judge a
-run by its instruction trace and event counters, not by its exit status.
+Our tests use these plusargs:
+
+- `+MEM_FILE=<file>`: the memory image to run, from `hisepq-elf2mem`.
+- `+MEASURE_RESULT=<hex>`: the value of `qv.mres` after every measurement. Bit `k` is the outcome of element `k`.
+- `+MEASURE_FILE=<file>`: one value per measurement instead, in the format below.
+- `+AWG_EXPECT=<file>`: the pulses the run must send, in the format below.
+
+The run ends with `RESULT : PASS`, or with `RESULT : FAIL` and a nonzero exit code, for example when `+MEASURE_FILE`
+runs out of lines or the pulses don't match `+AWG_EXPECT`. A run that executes nothing fails after a timeout.
+
+Neither file format allows comments, and the testbench rejects or hangs on them. Our tests write comments after a `#`
+anyway and strip them with `sed 's/#.*//'` first.
+
+### Measurement file (`*.outcomes`)
+
+One line per measurement (`qv.mz`), in order:
+
+```text
+<qv.mres in hex> <delay in cycles>
+```
+
+For example, `00000001 20` returns outcome 1 for element 0 and 0 for all other elements after 20 cycles.
+
+### Pulse file (`*.expect`)
+
+One line per pulse the run must send, in any order and at most 64 lines:
+
+```text
+<qubit in decimal> <gate id in hex> <C|T> <payload valid: 0|1> <payload in hex>
+```
+
+Gate ids are defined by HiSEP-Q. For example, `0 64 C 0 00000000` is an H on qubit 0, and `3 66 T 1 00000000` is the
+target side of a CX on qubit 3 with control qubit 0. The payload is only compared if it is valid.
+
+More details are in the HiSEP-Q
+[verification notes](https://github.com/caps-tum/HiSEP-Q-2.0/blob/59f5696/docs/verification.md) and
+[`demo/run.sh`](https://github.com/caps-tum/HiSEP-Q-2.0/blob/59f5696/demo/run.sh), at the version
+`utils/provision-sim-hisepq` installs.
