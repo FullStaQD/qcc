@@ -20,9 +20,9 @@
 #include "mlir/IR/Visitors.h"
 #include "mlir/Pass/Pass.h" // IWYU pragma: keep
 #include "mlir/Support/LLVM.h"
+#include "mlir/Support/WalkResult.h"
 
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/SmallVector.h"
 
 using namespace mlir;
 
@@ -155,7 +155,8 @@ protected:
     }
 
     // The lookup checks that the program fits the device: the traps exist and no chain exceeds its capacity.
-    if (failed(MagicDevice::fromParentModuleChecked(function)) || failed(ProgramVerifier(function).verify())) {
+    if (failed(MagicDevice::fromParentModuleChecked(function, getArgument())) ||
+        failed(ProgramVerifier(function).verify())) {
       return signalPassFailure();
     }
   }

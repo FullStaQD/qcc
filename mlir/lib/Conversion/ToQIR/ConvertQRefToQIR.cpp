@@ -452,7 +452,7 @@ private:
     auto initFnDecl = moduleOp.lookupSymbol<LLVM::LLVMFuncOp>(qcc::qirRtInit);
 
     if (!initFnDecl) {
-      return emitMissingQIRDeclError(moduleOp, qcc::qirRtInit);
+      return emitMissingQIRDeclError(funcOp, qcc::qirRtInit);
     }
 
     auto loc = funcOp.getLoc();

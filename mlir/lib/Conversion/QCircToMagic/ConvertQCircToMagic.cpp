@@ -361,7 +361,7 @@ protected:
       return signalPassFailure();
     }
 
-    const FailureOr<MagicDevice> device = MagicDevice::fromParentModule(func);
+    const FailureOr<MagicDevice> device = MagicDevice::fromParentModule(func, getArgument());
     if (failed(device) || failed(FunctionConverter(*statics.begin(), *device, getArgument()).run())) {
       return signalPassFailure();
     }

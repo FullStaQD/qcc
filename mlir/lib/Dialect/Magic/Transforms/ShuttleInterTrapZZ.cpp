@@ -147,7 +147,7 @@ protected:
       return;
     }
 
-    const FailureOr<MagicDevice> device = MagicDevice::fromParentModuleChecked(getOperation());
+    const FailureOr<MagicDevice> device = MagicDevice::fromParentModuleChecked(getOperation(), getArgument());
     if (failed(device)) {
       return signalPassFailure();
     }

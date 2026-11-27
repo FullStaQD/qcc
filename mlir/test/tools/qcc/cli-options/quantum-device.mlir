@@ -47,4 +47,4 @@ func.func @main() attributes { qcc.entry_point } {
 // CHECK-ERR-CUSTOM: error: --compile-to=custom-magic requires --quantum-device=magic
 // CHECK-ERR-BINARY: error: --binary is not supported for --compile-to=custom-magic
 // CHECK-ERR-DESCRIPTION: error: --device-description requires a quantum device (see --quantum-device)
-// CHECK-ERR-NO-DEVICE: error: module carries no 'qcc.device' attribute
+// CHECK-ERR-NO-DEVICE: error: --quantum-device=magic requires --device-description or an input module that carries a 'qcc.device' attribute

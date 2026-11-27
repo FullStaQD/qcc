@@ -93,29 +93,35 @@ MagicDevice MagicDevice::fromAttr(DeviceAttr attr) {
   return MagicDevice(std::make_shared<const Storage>(std::move(storage)));
 }
 
-FailureOr<MagicDevice> MagicDevice::fromModule(ModuleOp module) {
+/// The device that `module` carries. `emitError` starts the diagnostic of a failure: it picks the op to report on and
+/// may add context, which then ends in ": ".
+static FailureOr<MagicDevice> lookUpDevice(ModuleOp module, function_ref<InFlightDiagnostic()> emitError) {
   const StringRef attrName = QccDialect::DeviceAttrHelper::getNameStr();
   Attribute attr = QccDialect::DeviceAttrHelper(module.getContext()).getAttr(module);
   if (!attr) {
-    return module.emitError() << "module carries no '" << attrName << "' attribute";
+    return emitError() << "module carries no '" << attrName << "' attribute";
   }
   auto magicAttr = dyn_cast<DeviceAttr>(attr);
   if (!magicAttr) {
-    return module.emitError() << "expected '" << attrName << "' to be a #magic.device, got " << attr;
+    return emitError() << "module carries " << attr << " as '" << attrName << "', not a #magic.device";
   }
-  return fromAttr(magicAttr);
+  return MagicDevice::fromAttr(magicAttr);
 }
 
-FailureOr<MagicDevice> MagicDevice::fromParentModule(Operation* op) {
+FailureOr<MagicDevice> MagicDevice::fromModule(ModuleOp module) {
+  return lookUpDevice(module, [&] { return module.emitError(); });
+}
+
+FailureOr<MagicDevice> MagicDevice::fromParentModule(Operation* op, StringRef passName) {
   auto module = op->getParentOfType<ModuleOp>();
   if (!module) {
-    return op->emitError() << "is not inside a module, which would carry the device";
+    return op->emitOpError() << "is not inside a module, which would carry the device";
   }
-  return fromModule(module);
+  return lookUpDevice(module, [&] { return op->emitOpError() << "needs a device for " << passName << ": "; });
 }
 
-FailureOr<MagicDevice> MagicDevice::fromParentModuleChecked(Operation* op) {
-  FailureOr<MagicDevice> device = fromParentModule(op);
+FailureOr<MagicDevice> MagicDevice::fromParentModuleChecked(Operation* op, StringRef passName) {
+  FailureOr<MagicDevice> device = fromParentModule(op, passName);
   if (failed(device)) {
     return failure();
   }

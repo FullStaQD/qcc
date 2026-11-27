@@ -66,14 +66,19 @@ public:
   static MagicDevice fromAttr(DeviceAttr attr);
 
   /// Looks up `qcc.device` on the module and checks that it is a `#magic.device`.
+  ///
+  /// Reports a failure on the module, so passes on a nested op *must* use `fromParentModule` instead: the diagnostic
+  /// prints the module (`--mlir-print-op-on-diagnostic`, on by default), which *inspects* the siblings of the op, and a
+  /// pass must not do that (https://mlir.llvm.org/docs/PassManagement/#operation-pass).
   static mlir::FailureOr<MagicDevice> fromModule(mlir::ModuleOp module);
 
-  /// Like `fromModule`, for the module that encloses `op`.
-  static mlir::FailureOr<MagicDevice> fromParentModule(mlir::Operation* op);
+  /// Like `fromModule`, for the module that encloses `op`, but reports a failure on `op`, naming `passName` as the pass
+  /// that needs the device.
+  static mlir::FailureOr<MagicDevice> fromParentModule(mlir::Operation* op, llvm::StringRef passName);
 
   /// Like `fromParentModule`, for a program `op` that already holds magic ops. Additionally checks that the program
   /// fits the device: every chain belongs to one of its traps and holds at most as many ions as the trap's capacity.
-  static mlir::FailureOr<MagicDevice> fromParentModuleChecked(mlir::Operation* op);
+  static mlir::FailureOr<MagicDevice> fromParentModuleChecked(mlir::Operation* op, llvm::StringRef passName);
 
   /// Parses a device file (see `qcc::parseDeviceFile`) that carries a `#magic.device`.
   static mlir::FailureOr<MagicDevice> fromFile(llvm::StringRef path, mlir::MLIRContext& ctx);
